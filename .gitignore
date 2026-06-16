@@ -1,0 +1,22 @@
+node_modules/
+.env
+dist/
+build/
+
+# Log files (hanya folder log, bukan struktur)
+backend/log/warn/
+backend/log/error/
+
+# Bun
+bun.lockb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Upload temp
+backend/uploads/

@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "name": "Executive Dashboard Project Rules",
+
+  "alwaysReadFiles": [
+    "docs/MASTER_CONTEXT.md",
+    "docs/AI_RULES.md",
+    "docs/CONTEXT_STATE.md"
+  ],
+
+  "conditionalReadFiles": {
+    "metrics": "docs/METRICS_SPEC.md",
+    "upload": "docs/DATA_MODEL.md",
+    "database": "docs/DATA_MODEL.md",
+    "schema": "docs/DATA_MODEL.md",
+    "api": "docs/API_SPEC.md",
+    "endpoint": "docs/API_SPEC.md",
+    "architecture": "docs/ARCHITECTURE.md",
+    "folder": "docs/ARCHITECTURE.md",
+    "structure": "docs/ARCHITECTURE.md"
+  },
+
+  "preExecuteInstructions": [
+    "BACA semua file di 'alwaysReadFiles' SEBELUM menjawab prompt apapun",
+    "Jika task berkaitan dengan metrik bisnis, WAJIB baca docs/METRICS_SPEC.md terlebih dahulu",
+    "Jika task berkaitan dengan database/schema, WAJIB baca docs/DATA_MODEL.md",
+    "Jika task berkaitan dengan endpoint API, WAJIB baca docs/API_SPEC.md",
+    "Update docs/CONTEXT_STATE.md di AWAL dan AKHIR setiap sesi kerja",
+    "Update section 'Sedang Dikerjakan' sebelum mulai task",
+    "Update section 'File Aktif Dikerjakan' saat bekerja pada file tertentu",
+    "Tambah catatan ke 'Catatan Sesi Terakhir' di akhir sesi"
+  ],
+
+  "requiredStateFiles": ["docs/CONTEXT_STATE.md"],
+
+  "autoUpdateState": true,
+
+  "rules": [
+    "Jangan pernah generate kode tanpa membaca semua file konteks yang relevan",
+    "Ikuti arsitektur Route → Handler → Service → Repository dari docs/ARCHITECTURE.md",
+    "Gunakan konvensi kode dari docs/AI_RULES.md — tidak ada pengecualian",
+    "Jangan sarankan teknologi di luar tech stack yang terdefinisi (tidak ada Prisma, Express, Next.js, Redux)",
+    "Jangan sarankan fitur di luar MVP scope — ingatkan user jika ada saran yang keluar scope",
+    "SETIAP query database WAJIB ada filter company_id — tidak ada pengecualian",
+    "Kalkulasi metrik HANYA di backend service layer — jangan kalkulasi di frontend",
+    "Semua upload data wajib ada deduplication check (invoice_number + company_id)",
+    "Semua mutasi data wajib pakai audit logging via utils/audit",
+    "Gunakan utils yang sudah tersedia — jangan tulis ulang fungsi yang sudah ada",
+    "Tidak ada console.log di production code — gunakan utils/logger",
+    "Tidak ada any type di TypeScript kecuali ada alasan jelas dan diberi komentar",
+    "Validasi input wajib menggunakan zod schema di handler layer",
+    "Response API wajib menggunakan utils/response — jangan c.json() manual",
+    "Sebelum mengerjakan metrik apapun, baca definisi bisnis di docs/METRICS_SPEC.md"
+  ],
+
+  "projectContext": {
+    "type": "Executive Dashboard",
+    "backend": "Bun + Hono + Drizzle ORM + PostgreSQL",
+    "frontend": "React 18 + Vite 5 + TypeScript + shadcn/ui",
+    "database": "PostgreSQL 15",
+    "docsFolder": "docs/",
+    "backendFolder": "backend/src/",
+    "frontendFolder": "frontend/src/",
+    "entities": 3,
+    "multiEntityStrategy": "single_db_company_id_filter"
+  },
+
+  "importantDefinitions": {
+    "activeCustomer": "last_transaction_date >= (period_start - active_window months)",
+    "existingCustomer": "first_transaction_date < period_start",
+    "newCustomer": "first_transaction_date falls within period_month",
+    "dormantCustomer": "last_transaction_date < (period_start - dormant_threshold_months)",
+    "activeWindowOptions": [3, 6, 12],
+    "dormantThresholdDefault": 3
+  }
+}

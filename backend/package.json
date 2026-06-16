@@ -1,0 +1,36 @@
+{
+  "name": "e-dashboard-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/app.ts",
+    "start": "bun run src/app.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "bun run src/db/seed.ts"
+  },
+  "dependencies": {
+    "hono": "^4.4.0",
+    "@hono/node-server": "^1.12.0",
+    "drizzle-orm": "^0.31.0",
+    "postgres": "^3.4.4",
+    "zod": "^3.23.8",
+    "winston": "^3.13.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.7.2",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/papaparse": "^5.3.14",
+    "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.22.0",
+    "typescript": "^5.4.5"
+  }
+}
