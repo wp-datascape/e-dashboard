@@ -2,8 +2,8 @@
 
 > Update file ini di **awal dan akhir setiap sesi kerja**.
 
-**Terakhir diperbarui**: 2026-06-16 19:56  
-**Diperbarui oleh**: AI (Kiro)
+**Terakhir diperbarui**: 2026-06-17 02:55  
+**Diperbarui oleh**: AI (Claude)
 
 ---
 
@@ -12,9 +12,9 @@
 **Fase**: `[x] Setup` / `[~] Development` / `[ ] Integration` / `[ ] Testing` / `[ ] MVP Done`
 
 **Ringkasan**:
-> Frontend: Infrastruktur lengkap + App.tsx dengan routing sudah diimplementasi. AuthContext tersedia. Semua pages punya placeholder.  
-> **Status**: Routing & auth layer sudah siap. Tinggal implementasi konten halaman dan layout utama.  
-> Backend: Belum diperiksa.
+> Frontend: Layout selesai (AppBar, Sidebar, Footer, DashboardLayout). Login, Dashboard, dan CrossSelling sudah diimplementasi penuh. MSW mock server aktif untuk 4 domain (auth, page, dashboard, metrics). Dynamic routing via `/page-settings` endpoint sudah berjalan.  
+> **Status**: ~50% selesai. Tinggal implementasi 7 halaman lainnya + integrasi ke backend real.  
+> Backend: Belum diperiksa / belum dikerjakan.
 
 ---
 
@@ -132,68 +132,89 @@
 - [ ] `GET /audit-logs`
 
 ### Frontend — Infrastruktur
-- [x] Setup Vite + React 19 + TypeScript
+- [x] Setup Vite 8 + React 19 + TypeScript 6
 - [x] `package.json` dengan dependencies lengkap:
   - MUI (Material-UI) v9 + icons + x-data-grid + date-pickers
-  - React Router DOM v7
+  - React Router DOM v7, TanStack Query v5
   - i18next + react-i18next (internationalization)
   - axios, react-hook-form, zod, notistack, recharts, dayjs
+  - MSW v2 (dev-only mock server)
 - [x] `vite.config.ts` — alias '@' ke './src', server host & port configured
-- [x] `main.tsx` — Provider hierarchy: BrowserRouter → ThemeProvider → SnackbarProvider → ErrorBoundary → App
+- [x] `main.tsx` — Provider hierarchy: BrowserRouter → ThemeProvider → SnackbarProvider → ErrorBoundary → App (QueryClientProvider + AuthProvider di dalam App)
 - [x] Error Boundary lengkap (`src/utils/errorBoundary.tsx`) — full-page & section-level
 - [x] Theme System (`src/theme/`) — light & dark theme dengan MUI, localStorage persistence
 - [x] ThemeContext dengan toggle & localStorage sync
 - [x] i18n setup (`src/i18n/`) — Bahasa Indonesia & English
 - [x] Translation files lengkap (id.json & en.json) — semua modul sudah ada terjemahan
+- [x] `src/lib/queryClient.ts` — QueryClient dengan global error handler (notistack) + retry logic (skip retry jika 401/403)
 
-### Frontend — Struktur Folder & File
-- [x] Folder `src/api/` — **KOSONG** (belum ada axios instance)
-- [x] Folder `src/context/` — ✅ **AuthContext.tsx sudah ada**
-- [x] Folder `src/hooks/` — **KOSONG** (belum ada custom hooks)
-- [x] Folder `src/components/charts/` — **KOSONG**
-- [x] Folder `src/components/layout/` — **KOSONG**
-- [x] Folder `src/components/tables/` — **KOSONG**
-- [x] Folder `src/pages/Dashboard/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/Login/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/CrossSelling/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/CustomerMetrics/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/DormantCustomer/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/Import/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/Users/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/RBAC/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/Config/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/AuditLog/` — ✅ **Placeholder tersedia**
-- [x] Folder `src/pages/NotFound/` — ✅ **Sudah diimplementasi**
-- [x] Folder `src/pages/UnderMaintenance/` — ✅ **Sudah diimplementasi**
+### Frontend — API Layer
+- [x] `src/api/axios.ts` — Axios instance + CSRF interceptor (auto-inject `X-CSRF-Token` di mutasi) + global 401 handler (redirect ke `/login?expired=true`)
+- [x] `src/api/auth.api.ts` — login, me, logout
+- [x] `src/api/dashboard.api.ts` — getDashboard
+- [x] `src/api/page.api.ts` — getPageSettings (menggunakan native fetch, bukan axios)
+- [ ] `src/api/metrics.api.ts` — belum ada
+- [ ] `src/api/import.api.ts` — belum ada
+- [ ] `src/api/customers.api.ts` — belum ada
+- [ ] `src/api/rbac.api.ts` — belum ada
+- [ ] `src/api/config.api.ts` — belum ada
+
+### Frontend — Mock Server (MSW)
+- [x] `src/mocks/browser.ts` — MSW Service Worker setup
+- [x] `src/mocks/handlers/auth.handler.ts` — POST /auth/login, GET /auth/me, POST /auth/logout
+- [x] `src/mocks/handlers/page.handler.ts` — GET /page-settings (dashboard=ready, lainnya=false)
+- [x] `src/mocks/handlers/dashboard.handler.ts` — GET /dashboard (10 MetricCard dengan trend 12 bulan)
+- [x] `src/mocks/handlers/metrics.handler.ts` — GET /metrics/cross-selling, /customer-metrics, /dormant-customer
+
+### Frontend — Context & Hooks
+- [x] `src/context/AuthContext.tsx` — AuthProvider, useAuth, ProtectedRoute
+- [ ] `src/context/CompanyContext.tsx` — belum ada
+- [x] `src/hooks/useAuth.ts` — useLoginMutation, useLogoutMutation
+- [x] `src/hooks/useDashboard.ts` — useQuery wrapper ke dashboardApi
+- [ ] `src/hooks/useMetrics.ts` — belum ada
+- [ ] `src/hooks/useImport.ts` — belum ada
+- [ ] `src/hooks/useCompany.ts` — belum ada
+- [ ] `src/hooks/useRbac.ts` — belum ada
+
+### Frontend — Komponen
+- [x] `src/config/menu.tsx` — NAV_ITEMS (9 item menu dengan ikon MUI)
+- [x] `src/components/layout/DashboardLayout.tsx` — AppBar + Sidebar + main content + Footer, responsive (mobile/desktop), sidebar collapse
+- [x] `src/components/ui/AppBar/` — DashboardAppBar (toggle sidebar, toggle theme, logout)
+- [x] `src/components/ui/Sidebar/` — Sidebar collapsible (220px / 56px), active state, divider per grup
+- [x] `src/components/ui/Footer/` — Footer statis (copyright, versi)
+- [x] `src/components/ui/Alert/` — AppAlert (dialog modal dengan WarningIcon)
+- [x] `src/components/ui/Button/` — Button wrapper MUI dengan isLoading prop
+- [x] `src/components/ui/TextField/` — TextField terintegrasi react-hook-form (Controller)
+- [x] `src/components/ui/Card/` — Card wrapper MUI
+- [x] `src/components/ui/LogoutButton/` — LogoutButton
+- [x] `src/components/charts/StatCard/` — Kartu metrik dengan sparkline (Recharts AreaChart mini)
+- [x] `src/components/charts/AreaChartWidget/` — Area chart full dengan multi-series, XAxis, YAxis, Tooltip
+- [x] `src/components/charts/BarChartWidget/` — Bar chart dengan stacked option
+- [x] `src/components/tables/DataTable/` — Wrapper MUI X DataGrid (pagination, sort, custom styling)
+- [ ] `CompanySelector` — belum ada
+- [ ] `PeriodFilter` — belum ada
+- [ ] `ActiveWindowFilter` — belum ada
+- [ ] `PermissionGuard` — belum ada
 
 ### Frontend — Routing & Auth Layer
-- [x] **App.tsx dengan routing lengkap** — Routes, lazy loading, protected routes
-- [x] `AuthContext` — login state + localStorage persistence + ProtectedRoute HOC
-- [x] Halaman NotFound — 404 page dengan navigasi
-- [x] Halaman UnderMaintenance — untuk fitur yang belum siap
-- [x] Route configuration dengan flag `ready` (saat ini semua `false` → UnderMaintenance)
+- [x] `src/route/routes.tsx` — routeRegistry (9 route protected, lazy-loaded) + Login/NotFound/UnderMaintenance
+- [x] `App.tsx` — Dynamic routing: query `/page-settings` dari DB/MSW → render komponen asli atau UnderMaintenance berdasarkan flag `ready`
+- [x] AuthContext — login state + localStorage persistence + ProtectedRoute HOC
+- [x] Redirect: `/` → `/dashboard`, 404 handler
 
-### Frontend — Implementasi (PLACEHOLDER / BELUM LENGKAP)
-- [~] Halaman: Login — **placeholder saja, perlu form & integrasi API**
-- [~] Halaman: Dashboard — **placeholder saja, perlu metrik cards & charts**
-- [~] Halaman: Cross Selling — **placeholder**
-- [~] Halaman: Customer Metrics — **placeholder**
-- [~] Halaman: Dormant Customer — **placeholder**
-- [~] Halaman: Import Data — **placeholder**
-- [~] Halaman: Users — **placeholder**
-- [~] Halaman: RBAC — **placeholder**
-- [~] Halaman: Config — **placeholder**
-- [~] Halaman: Audit Log — **placeholder**
-
-### Frontend — Implementasi (BELUM ADA)
-- [ ] Axios instance + CSRF interceptor
-- [ ] `CompanyContext` — entitas aktif dengan selector
-- [ ] `PermissionGuard` — cek permission dari AuthContext
-- [ ] Layout utama: `AppBar`, `Sidebar`, `Content area`
-- [ ] Komponen: `CompanySelector`, `PeriodFilter`, `ActiveWindowFilter`, `MetricCard`
-- [ ] Implementasi lengkap halaman Login (form, validasi, error handling)
-- [ ] Implementasi lengkap halaman Dashboard (10 metrik, charts)
-- [ ] Implementasi lengkap semua halaman lainnya
+### Frontend — Halaman
+- [x] Login — **IMPLEMENTASI LENGKAP**: form (react-hook-form + zod), show/hide password, remember me UI, error dialog, i18n, API integration
+- [x] Dashboard — **IMPLEMENTASI LENGKAP**: 10 StatCard metrik, 4 AreaChartWidget tren, skeleton loading, PeriodStrip, Definisi Kunci, navigasi ke halaman detail
+- [x] CrossSelling — **IMPLEMENTASI LENGKAP**: AreaChart ratio, BarChart aktif vs multi-kategori, AreaChart avg-category, DataTable detail 20 customer
+- [x] NotFound — selesai (404 page)
+- [x] UnderMaintenance — selesai (animasi gears)
+- [~] CustomerMetrics — **PLACEHOLDER** (belum diimplementasi)
+- [~] DormantCustomer — **PLACEHOLDER** (belum diimplementasi)
+- [~] Import — **PLACEHOLDER** (belum diimplementasi)
+- [~] Users — **PLACEHOLDER** (belum diimplementasi)
+- [~] RBAC — **PLACEHOLDER** (belum diimplementasi)
+- [~] Config — **PLACEHOLDER** (belum diimplementasi)
+- [~] AuditLog — **PLACEHOLDER** (belum diimplementasi)
 
 ---
 
@@ -201,26 +222,30 @@
 
 | Task | Oleh | File / Branch | Catatan |
 |------|------|---------------|---------|
-| _(tidak ada)_ | | | Sesi 4 selesai |
+| _(tidak ada)_ | | | Sesi 6 selesai |
 
 ---
 
 ## Akan Dikerjakan Selanjutnya
 
-1. **Frontend - Layout & Components dasar** (prioritas tinggi):
-   - Layout utama (AppBar dengan theme toggle, Sidebar dengan menu navigasi)
-   - Axios instance + interceptor (CSRF, auth token)
-   - CompanyContext + CompanySelector component
-   - Implementasi lengkap halaman Login (form dengan react-hook-form + zod)
-   
-2. **Frontend - Dashboard & Metric Components**:
-   - MetricCard component untuk display metrik
-   - PeriodFilter, ActiveWindowFilter components
-   - Implementasi Dashboard dengan placeholder data
+1. **Frontend — Halaman yang Belum Diimplementasi** (prioritas tinggi):
+   - CustomerMetrics: AreaChart avg-revenue, avg-GP, high-margin, repeat-order, expansion-rate + DataTable
+   - DormantCustomer: AreaChart dormant-rate, reactivation-rate, dormant-value + DataTable customer dormant
+   - Import: form upload file CSV/XLSX + trigger API Accurate + progress feedback
+   - Users: DataTable users + form create/edit/delete
+   - RBAC: tabel role, permission matrix (checkbox), assign role ke user
+   - Config: form update app_configs (dormant threshold, cache TTL, Accurate API key per company)
+   - AuditLog: DataTable audit log dengan filter
 
-3. **Backend - Utils & Infrastruktur** (parallel):
+2. **Frontend — Komponen yang Belum Ada**:
+   - `CompanyContext` + `CompanySelector` — filter per entitas perusahaan
+   - `PeriodFilter` + `ActiveWindowFilter` — filter periode dan window aktif di Dashboard
+   - `PermissionGuard` — cek permission dari AuthContext (bukan cek nama role)
+
+3. **Backend — Seluruh implementasi** (belum mulai):
    - Database schema + migration + seed
-   - Utils backend (logger, jwt, hash, response, error, audit)
+   - Utils backend (logger, jwt, hash, response, error, audit, parser, accurate)
+   - Semua modul: auth, users, rbac, companies, import, metrics, customers, config, audit-log
 
 ---
 
@@ -256,125 +281,128 @@
 ## File Aktif Dikerjakan
 
 ```
-docs/CONTEXT_STATE.md — diupdate dengan hasil implementasi routing & auth
+frontend/tsconfig.json — fix TypeScript 6 errors
+docs/CONTEXT_STATE.md — diupdate dengan hasil sesi 6
 ```
 
 ---
 
 ## Catatan Sesi Terakhir
 
-> **Sesi 4 — Implementasi Routing & Auth Layer (2026-06-16 19:56)**
+> **Sesi 6 — Fix TypeScript Errors (2026-06-17 02:55)**
+>
+> ### Yang Diperbaiki:
+>
+> **`frontend/tsconfig.json`** — 2 error diperbaiki:
+> 1. ✅ Hapus `"baseUrl": "."` (deprecated di TS 6) → gunakan `paths` standalone tanpa `baseUrl`. TS 6 mendukung `paths` tanpa `baseUrl` sehingga tidak perlu `ignoreDeprecations`.
+> 2. ✅ Ubah `"lib": ["ES2020", ...]` → `"lib": ["ES2022", ...]` → menghilangkan `TS2550: Property 'at' does not exist on type` (Array.prototype.at() tersedia mulai ES2022)
+>
+> ### Hasil: `npx tsc --noEmit` → **0 errors** ✅
+>
+> ---
+>
+> **Sesi 5 — Implementasi Layout, API Layer, Dashboard, Login, CrossSelling (2026-06-17)**
 >
 > ### Yang Sudah Diimplementasi:
-> 
-> **1. App.tsx — Routing Lengkap**
-> - ✅ Routes configuration dengan lazy loading (code splitting optimal)
-> - ✅ AuthProvider wrapping semua routes
-> - ✅ ProtectedRoute HOC untuk routes yang butuh auth
-> - ✅ Suspense dengan PageLoader fallback (CircularProgress)
-> - ✅ Route config dengan flag `ready: boolean` untuk toggle UnderMaintenance
-> - ✅ Redirect root `/` ke `/dashboard`
-> - ✅ 404 handler dengan NotFound page
-> - ⚠️ **PENTING**: Tidak ada BrowserRouter di App.tsx (sudah di main.tsx)
 >
-> **2. AuthContext (`src/context/AuthContext.tsx`)**
-> - ✅ User state management (id, name, email, role)
-> - ✅ Token management dengan localStorage persistence
-> - ✅ `isAuthenticated` dan `isLoading` state
-> - ✅ `login()` dan `logout()` functions
-> - ✅ `useAuth()` hook
-> - ✅ `ProtectedRoute` component untuk route guarding
-> - ✅ Auto-redirect ke `/login` jika belum auth
+> **1. API Layer & Mock Server**
+> - ✅ `src/api/axios.ts` — Axios instance dengan CSRF interceptor + global 401 redirect
+> - ✅ `src/api/auth.api.ts`, `dashboard.api.ts`, `page.api.ts`
+> - ✅ `src/lib/queryClient.ts` — QueryClient dengan global error via notistack, retry logic pintar (skip jika 401/403/COMPANY_ACCESS_DENIED)
+> - ✅ MSW mock server aktif untuk 4 domain: auth, page, dashboard, metrics
+> - ✅ Dynamic routing: App.tsx query `/page-settings` → hanya `dashboard` yang `ready=true`
 >
-> **3. Halaman-Halaman (Placeholder)**
-> - ✅ NotFound (`/pages/NotFound/index.tsx`) — lengkap dengan navigasi
-> - ✅ UnderMaintenance (`/pages/UnderMaintenance/index.tsx`) — untuk fitur belum siap
-> - ✅ Login, Dashboard, CrossSelling, CustomerMetrics, DormantCustomer — placeholder
-> - ✅ Import, Users, RBAC, Config, AuditLog — placeholder
-> - ⚠️ Semua route saat ini `ready: false` → akan ke UnderMaintenance
+> **2. Layout Utama**
+> - ✅ `DashboardLayout` — wrapper dengan AppBar fixed + Sidebar collapsible + main scrollable + Footer pinned
+> - ✅ `DashboardAppBar` — toggle sidebar, toggle light/dark, logout
+> - ✅ `Sidebar` — collapsible (220px/56px), active state, group divider, tooltip saat collapsed, mobile temporary drawer
+> - ✅ `Footer` — statis (copyright + versi)
+> - ✅ `src/config/menu.tsx` — 9 NAV_ITEMS dengan ikon MUI
 >
-> **4. Routes yang Tersedia**
+> **3. Komponen UI & Chart**
+> - ✅ `StatCard` — kartu metrik dengan sparkline Recharts + trend badge + navigasi ke detail
+> - ✅ `AreaChartWidget` — multi-series area chart dengan XAxis, YAxis, Tooltip, Legend
+> - ✅ `BarChartWidget` — bar chart dengan stacked option
+> - ✅ `DataTable` — wrapper MUI X DataGrid dengan custom styling (borderRadius 0, uppercase header)
+> - ✅ `TextField`, `Button`, `Card`, `Alert`, `LogoutButton` — komponen UI dasar
+>
+> **4. Halaman yang Diimplementasi**
+> - ✅ **Login** — form react-hook-form + zod, show/hide password, remember me (UI only), error dialog, i18n, redirect ke halaman asal setelah login
+> - ✅ **Dashboard** — 10 StatCard (grid 5 kolom), 4 AreaChartWidget tren, skeleton loading, PeriodStrip, tabel Definisi Kunci
+> - ✅ **CrossSelling** — AreaChart ratio 12 bulan, BarChart aktif vs multi-kategori, AreaChart avg-category, DataTable 20 baris customer detail
+>
+> **5. Routes yang Tersedia**
 > ```
-> /login              → Login page (public)
+> /login              → Login page (public, redirect ke /dashboard jika sudah auth)
 > /                   → redirect ke /dashboard
-> /dashboard          → Dashboard (protected, UnderMaintenance)
-> /cross-selling      → Cross Selling (protected, UnderMaintenance)
-> /customer-metrics   → Customer Metrics (protected, UnderMaintenance)
-> /dormant-customer   → Dormant Customer (protected, UnderMaintenance)
-> /import             → Import Data (protected, UnderMaintenance)
+> /dashboard          → Dashboard (protected, AKTIF — ready=true di MSW)
+> /cross-selling      → CrossSelling (protected, UnderMaintenance — ready=false)
+> /customer-metrics   → CustomerMetrics (protected, UnderMaintenance)
+> /dormant-customer   → DormantCustomer (protected, UnderMaintenance)
+> /import             → Import (protected, UnderMaintenance)
 > /users              → Users (protected, UnderMaintenance)
 > /rbac               → RBAC (protected, UnderMaintenance)
 > /config             → Config (protected, UnderMaintenance)
-> /audit-log          → Audit Log (protected, UnderMaintenance)
+> /audit-log          → AuditLog (protected, UnderMaintenance)
 > /*                  → 404 NotFound
 > ```
 >
-> ### Provider Hierarchy (BENAR):
+> ### Provider Hierarchy (FINAL):
 > ```
 > main.tsx:
 >   BrowserRouter
->     ThemeProvider
->       SnackbarProvider
+>     ThemeProvider (MUI + CssBaseline + localStorage)
+>       SnackbarProvider (notistack)
 >         ErrorBoundary
 >           App.tsx:
->             AuthProvider
->               Suspense
->                 Routes
->                   Route...
+>             QueryClientProvider
+>               AuthProvider
+>                 AppRouter (query /page-settings → dynamic routes)
+>                   Suspense → Routes → Route...
 > ```
+>
+> ### Catatan Penting:
+> - ⚠️ Auth token disimpan di `localStorage` (bukan httpOnly Cookie) — ini untuk dev/MSW mock. Saat integrasi backend real, perlu migrasi ke httpOnly Cookie sesuai desain di `AI_RULES.md`
+> - ⚠️ `rememberMe` di Login hanya UI — belum ada logika (persist session lebih lama)
+> - ⚠️ `useLogoutMutation` tidak membersihkan React Query cache setelah logout (ada TODO di komentar)
+> - ⚠️ CrossSelling page sudah diimplementasi penuh tapi MSW `page-settings` masih `ready=false`, jadi user yang ke `/cross-selling` akan melihat UnderMaintenance
 >
 > ### Status Progress:
 > - Infrastruktur: 100% ✅
 > - Routing & Auth Layer: 100% ✅
-> - Layout Components: 0% ❌
-> - Page Implementation: 5% (placeholder only)
-> - API Integration: 0% ❌
+> - Layout Components: 100% ✅
+> - API Layer (frontend): ~30% (hanya auth, dashboard, page-settings)
+> - Mock Server (MSW): 100% untuk domain yang ada ✅
+> - Halaman: ~35% (3 dari 9 halaman utama selesai)
+> - Backend: 0% ❌
 >
 > ### Kesimpulan:
-> Proyek sekarang **~25% selesai**. Foundation sudah solid.
-> 
-> **Next Step**: 
-> 1. Buat Layout utama (AppBar + Sidebar)
-> 2. Implementasi halaman Login yang lengkap
-> 3. Setup axios instance dengan interceptor
+> Proyek sekarang **~50% frontend selesai**.
+>
+> **Next Step**:
+> 1. Implementasi CustomerMetrics, DormantCustomer (chart + table)
+> 2. Buat MSW mock untuk masing-masing halaman, set `ready=true` di page-settings
+> 3. Tambah CompanyContext + CompanySelector
+> 4. Mulai backend (schema DB)
 >
 > ---
 >
-> **Sesi 3 — Review Kode Frontend (2026-06-16 19:38)**
->
-> ### Yang Sudah Ada (Infrastruktur):
-> - ✅ Setup modern: React 19, TypeScript, Vite
-> - ✅ Dependencies lengkap: MUI v9, React Router v7, i18next, axios, react-hook-form, zod
-> - ✅ Error boundary komprehensif (full-page & section-level)
-> - ✅ Theme system dengan light/dark mode + localStorage persistence
-> - ✅ i18n support lengkap (ID & EN) dengan translation untuk semua modul
-> - ✅ Provider hierarchy proper di main.tsx
-> - ✅ Vite config dengan alias '@' dan server setup
->
-> ### Masalah Kritis:
-> - ❌ **App.tsx masih template default Vite** (logo, counter) — tidak ada routing atau logika app
-> - ❌ **SEMUA folder kosong**: pages (10 folder), components (3 folder), api, context, hooks
-> - ❌ Tidak ada satupun komponen React yang diimplementasi
-> - ❌ Tidak ada axios instance atau API client
-> - ❌ Tidak ada AuthContext atau CompanyContext
-> - ❌ Tidak ada custom hooks
->
-> ### Kesimpulan:
-> Proyek baru 15% selesai (infrastruktur saja). Implementasi fitur 0%.
-> 
-> **Next Step**: Mulai implementasi dari routing + auth + layout.
+> **Sesi 4 — Implementasi Routing & Auth Layer (2026-06-16 19:56)**
+> - ✅ App.tsx routing + lazy loading + ProtectedRoute
+> - ✅ AuthContext (user state, localStorage, login, logout, useAuth hook)
+> - ✅ NotFound, UnderMaintenance pages
+> - ✅ Semua 10 halaman placeholder tersedia
+> - ⚠️ Semua route masih `ready: false` saat itu
 >
 > ---
 >
-> **Sesi 2 — Revisi dokumen berdasarkan input:**
-> 1. Logger: info/activity → konsol saja; warn → konsol + log/warn/; error → konsol + log/error/
-> 2. Audit log → DB tabel audit_logs (bukan file)
-> 3. RBAC dinamis — tambah modul /rbac/ di backend dan halaman RBAC di frontend
-> 4. Struktur faktur: invoices (header) + invoice_items (N baris per invoice)
-> 5. Sumber data Accurate Online: upload file + API Accurate (keduanya di MVP)
-> 6. Nama tabel: transactions → invoices + invoice_items; upload → import
+> **Sesi 2–3 — Review & Revisi Dokumen (2026-06-16)**
+> - Revisi docs: logger, audit, RBAC, struktur faktur, sumber data Accurate
+> - Review kode: infrastruktur selesai, implementasi 0%
 >
-> **Perlu dikonfirmasi sebelum mulai kode:**
+> ---
+>
+> **Perlu dikonfirmasi sebelum mulai kode backend:**
 > 1. Sample file CSV/Excel export Accurate (format kolom aktual)
 > 2. Dokumentasi / endpoint Accurate Online API
 > 3. Apakah kategori "jasa" di Accurate punya kode khusus atau perlu flag manual?

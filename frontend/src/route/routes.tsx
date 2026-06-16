@@ -1,5 +1,6 @@
 // src/route/routes.tsx
 import { lazy, ReactNode } from 'react'
+import { DashboardLayout } from '@/components/layout/DashboardLayout'
 
 // ─── Lazy Core / Public Pages ────────────────────────────────────────────────
 export const Login = lazy(() => import('../pages/Login/index'))
@@ -17,6 +18,11 @@ const RBAC = lazy(() => import('../pages/RBAC/index'))
 const Config = lazy(() => import('../pages/Config/index'))
 const AuditLog = lazy(() => import('../pages/AuditLog/index'))
 
+// Helper: wrap page in DashboardLayout
+const withLayout = (page: ReactNode) => (
+  <DashboardLayout>{page}</DashboardLayout>
+)
+
 // ─── Route Registry Contract Type ────────────────────────────────────────────
 export interface RouteRegistryItem {
   path: string
@@ -30,47 +36,47 @@ export interface RouteRegistryItem {
 export const routeRegistry: Record<string, RouteRegistryItem> = {
   'dashboard': { 
     path: '/dashboard', 
-    element: <Dashboard />, 
+    element: withLayout(<Dashboard />), 
     protected: true 
   },
   'cross-selling': { 
     path: '/cross-selling', 
-    element: <CrossSelling />, 
+    element: withLayout(<CrossSelling />), 
     protected: true 
   },
   'customer-metrics': { 
     path: '/customer-metrics', 
-    element: <CustomerMetrics />, 
+    element: withLayout(<CustomerMetrics />), 
     protected: true 
   },
   'dormant-customer': { 
     path: '/dormant-customer', 
-    element: <DormantCustomer />, 
+    element: withLayout(<DormantCustomer />), 
     protected: true 
   },
   'import': { 
     path: '/import', 
-    element: <Import />, 
+    element: withLayout(<Import />), 
     protected: true 
   },
   'users': { 
     path: '/users', 
-    element: <Users />, 
+    element: withLayout(<Users />), 
     protected: true 
   },
   'rbac': { 
     path: '/rbac', 
-    element: <RBAC />, 
+    element: withLayout(<RBAC />), 
     protected: true 
   },
   'config': { 
     path: '/config', 
-    element: <Config />, 
+    element: withLayout(<Config />), 
     protected: true 
   },
   'audit-log': { 
     path: '/audit-log', 
-    element: <AuditLog />, 
+    element: withLayout(<AuditLog />), 
     protected: true 
   },
 }

@@ -128,61 +128,109 @@ backend/
 └── tsconfig.json
 ```
 
-### Frontend (`/frontend`)
+### Frontend (`/frontend`) — Status Aktual
 
 ```
 frontend/
 ├── src/
 │   ├── api/
-│   │   ├── axios.ts
-│   │   ├── auth.api.ts
-│   │   ├── metrics.api.ts
-│   │   ├── import.api.ts
-│   │   ├── customers.api.ts
-│   │   ├── rbac.api.ts               ← CRUD role & permission
-│   │   └── config.api.ts
+│   │   ├── axios.ts                  ✅ axios instance + CSRF interceptor + 401 redirect
+│   │   ├── auth.api.ts               ✅ login, me, logout
+│   │   ├── dashboard.api.ts          ✅ getDashboard
+│   │   ├── page.api.ts               ✅ getPageSettings (native fetch)
+│   │   ├── metrics.api.ts            ☐ belum ada
+│   │   ├── import.api.ts             ☐ belum ada
+│   │   ├── customers.api.ts          ☐ belum ada
+│   │   ├── rbac.api.ts               ☐ belum ada
+│   │   └── config.api.ts             ☐ belum ada
+│   │
+│   ├── config/
+│   │   └── menu.tsx                  ✅ NAV_ITEMS (9 item dengan ikon MUI)
 │   │
 │   ├── context/
-│   │   ├── AuthContext.tsx
-│   │   └── CompanyContext.tsx
+│   │   ├── AuthContext.tsx           ✅ AuthProvider, useAuth, ProtectedRoute
+│   │   └── CompanyContext.tsx        ☐ belum ada
 │   │
 │   ├── hooks/
-│   │   ├── useAuth.ts
-│   │   ├── useMetrics.ts
-│   │   ├── useImport.ts
-│   │   ├── useCompany.ts
-│   │   └── useRbac.ts
+│   │   ├── useAuth.ts                ✅ useLoginMutation, useLogoutMutation
+│   │   ├── useDashboard.ts           ✅ useQuery → dashboardApi
+│   │   ├── useMetrics.ts             ☐ belum ada
+│   │   ├── useImport.ts              ☐ belum ada
+│   │   ├── useCompany.ts             ☐ belum ada
+│   │   └── useRbac.ts                ☐ belum ada
+│   │
+│   ├── lib/
+│   │   └── queryClient.ts            ✅ QueryClient + global error handler
+│   │
+│   ├── mocks/                        ✅ MSW mock server (aktif di dev saja)
+│   │   ├── browser.ts
+│   │   ├── handlers.ts
+│   │   └── handlers/
+│   │       ├── auth.handler.ts       ✅ login, me, logout
+│   │       ├── page.handler.ts       ✅ page-settings (dashboard=ready, lainnya=false)
+│   │       ├── dashboard.handler.ts  ✅ 10 MetricCard + trend 12 bulan
+│   │       └── metrics.handler.ts    ✅ cross-selling, customer-metrics, dormant-customer
 │   │
 │   ├── pages/
-│   │   ├── Login/
-│   │   ├── Dashboard/
-│   │   ├── CrossSelling/
-│   │   ├── CustomerMetrics/
-│   │   ├── DormantCustomer/
-│   │   ├── Import/                   ← upload file + trigger API Accurate
-│   │   ├── Users/
-│   │   ├── RBAC/                     ← halaman manage role & permission
-│   │   │   ├── RoleList.tsx
-│   │   │   ├── RoleForm.tsx
-│   │   │   ├── PermissionMatrix.tsx  ← assign permission ke role (checkbox)
-│   │   │   └── UserRoleAssign.tsx
-│   │   └── Config/
+│   │   ├── Login/                    ✅ form + validasi + error dialog + i18n
+│   │   ├── Dashboard/                ✅ 10 StatCard + 4 AreaChart + Definisi Kunci
+│   │   ├── CrossSelling/             ✅ AreaChart + BarChart + DataTable
+│   │   ├── CustomerMetrics/          ☐ placeholder
+│   │   ├── DormantCustomer/          ☐ placeholder
+│   │   ├── Import/                   ☐ placeholder
+│   │   ├── Users/                    ☐ placeholder
+│   │   ├── RBAC/                     ☐ placeholder
+│   │   ├── Config/                   ☐ placeholder
+│   │   ├── AuditLog/                 ☐ placeholder
+│   │   ├── NotFound/                 ✅
+│   │   └── UnderMaintenance/         ✅ animasi gears
 │   │
 │   ├── components/
 │   │   ├── ui/
+│   │   │   ├── Alert/                ✅ AppAlert (dialog modal)
+│   │   │   ├── AppBar/               ✅ DashboardAppBar
+│   │   │   ├── Button/               ✅ dengan isLoading prop
+│   │   │   ├── Card/                 ✅
+│   │   │   ├── Footer/               ✅
+│   │   │   ├── LogoutButton/         ✅
+│   │   │   ├── Sidebar/              ✅ collapsible 220px/56px
+│   │   │   └── TextField/            ✅ Controller react-hook-form
 │   │   ├── charts/
+│   │   │   ├── StatCard/             ✅ metrik card + sparkline
+│   │   │   ├── AreaChartWidget/      ✅ multi-series area chart
+│   │   │   └── BarChartWidget/       ✅ dengan stacked option
 │   │   ├── tables/
-│   │   ├── MetricCard.tsx
-│   │   ├── CompanySelector.tsx
-│   │   ├── PeriodFilter.tsx
-│   │   ├── ActiveWindowFilter.tsx
-│   │   ├── RoleGuard.tsx             ← cek permission, bukan role
-│   │   └── Layout/
+│   │   │   └── DataTable/            ✅ wrapper MUI X DataGrid
+│   │   └── layout/
+│   │       └── DashboardLayout.tsx   ✅ AppBar + Sidebar + main + Footer
+│   │   ── CompanySelector.tsx        ☐ belum ada
+│   │   ── PeriodFilter.tsx           ☐ belum ada
+│   │   ── ActiveWindowFilter.tsx     ☐ belum ada
+│   │   ── PermissionGuard.tsx        ☐ belum ada (cek permission, bukan role)
+│   │
+│   ├── route/
+│   │   └── routes.tsx                ✅ routeRegistry (9 route lazy-loaded)
+│   │
+│   ├── theme/
+│   │   ├── index.ts                  ✅ lightTheme + darkTheme
+│   │   └── ThemeContext.tsx          ✅ toggle + localStorage
 │   │
 │   ├── types/
+│   │   ├── api.ts                    ✅
+│   │   ├── auth.ts                   ✅
+│   │   ├── dashboard.ts              ✅ MetricCard, DashboardData, MonthlyTrendPoint
+│   │   └── page.ts                   ✅ PageSetting
+│   │
+│   ├── i18n/
+│   │   ├── index.ts                  ✅
+│   │   └── locales/
+│   │       ├── en.json               ✅
+│   │       └── id.json               ✅
+│   │
 │   └── utils/
+│       └── errorBoundary.tsx         ✅
 │
-├── .env.example
+├── public/                           (MSW service worker di sini)
 ├── vite.config.ts
 └── package.json
 ```

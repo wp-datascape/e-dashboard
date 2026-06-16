@@ -3,3 +3,6 @@ export * from './TextField';
 export * from './Card';
 export * from './Alert';
 export * from './LogoutButton';
+export * from './AppBar';
+export * from './Sidebar';
+export * from './Footer';

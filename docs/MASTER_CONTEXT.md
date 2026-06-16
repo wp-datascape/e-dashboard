@@ -10,13 +10,14 @@
 Project      : Executive Dashboard — Holding Company
 Konteks      : Dashboard statistik bisnis untuk 3 entitas perusahaan dalam satu holding
 Backend      : Bun + Hono (REST API) + Drizzle ORM
-Frontend     : React 18 + Vite 5 + TypeScript (SPA)
+Frontend     : React 19 + Vite 8 + TypeScript 6 (SPA)
 Database     : PostgreSQL 15
-Auth         : JWT di httpOnly Cookie + CSRF Token
+Auth         : JWT di httpOnly Cookie + CSRF Token (dev: localStorage + MSW mock)
 Logger       : Winston — activity/info ke konsol saja; warn & error ke konsol + file (log/warn/, log/error/)
 Audit Log    : Mutasi create/update/delete disimpan ke tabel audit_logs di DB (bukan file)
 RBAC         : Dinamis seperti Spatie — role & permission dikelola dari dashboard
 Data Source  : Faktur penjualan Accurate Online — via upload file CSV/Excel + API Accurate
+Mock Server  : MSW v2 (aktif di development saja — 4 domain: auth, page, dashboard, metrics)
 Status       : [isi dari CONTEXT_STATE.md]
 ```
 
@@ -134,10 +135,14 @@ Invoice INV-2024-001          ← tabel: invoices (1 baris)
 | Layer | Stack |
 |-------|-------|
 | Backend | Bun + Hono v4 + Drizzle ORM |
-| Frontend | React 18 + Vite 5 + TypeScript + shadcn/ui + Tailwind |
+| Frontend | React 19 + Vite 8 + TypeScript 6 + MUI v9 |
 | Database | PostgreSQL 15 |
 | Logger | Winston (konsol + file rotate harian) |
-| Charts | recharts |
+| Charts | Recharts v3 |
+| Tabel | MUI X DataGrid v9 |
+| Form | React Hook Form v7 + Zod v4 |
+| Data Fetching | TanStack Query v5 |
+| Mock API (dev) | MSW v2 |
 | Accurate | axios server-side via `utils/accurate.ts` |
 
 ---
@@ -145,10 +150,11 @@ Invoice INV-2024-001          ← tabel: invoices (1 baris)
 ## 7. Arsitektur Singkat
 
 ```
-[React SPA]
+[React SPA — Vite 8]
     │ HTTPS + Cookie + X-CSRF-Token
+    │ (dev: MSW Service Worker intercept — axios tetap jalan normal)
     ▼
-[Hono Router]
+[Hono Router — Bun Runtime]
     │
 [Middleware: CORS → CSRF → RateLimit → Auth → RequirePermission → CompanyAccess]
     │

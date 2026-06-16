@@ -58,19 +58,31 @@
   },
   "auth": {
     "login": "Sign In",
-    "loginTitle": "Welcome back",
+    "loginTitle": "Sign in",
     "loginSubtitle": "Sign in to Executive Dashboard",
     "email": "Email",
     "password": "Password",
-    "emailPlaceholder": "name@company.com",
+    "emailPlaceholder": "your@email.com",
     "passwordPlaceholder": "Enter your password",
     "loginButton": "Sign In",
     "loggingIn": "Signing in...",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot your password?",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up",
+    "orContinueWith": "or",
+    "signInWithGoogle": "Sign in with Google",
+    "signInWithFacebook": "Sign in with Facebook",
     "logout": "Sign Out",
     "logoutConfirm": "Are you sure you want to sign out?",
     "sessionExpired": "Your session has expired, please sign in again",
     "invalidCredentials": "Invalid email or password",
-    "unauthorized": "You do not have access"
+    "unauthorized": "You do not have access",
+    "validation": {
+      "email_required": "Email is required",
+      "email_invalid": "Invalid email address",
+      "password_min": "Password must be at least 6 characters"
+    }
   },
   "dashboard": {
     "title": "Executive Dashboard",

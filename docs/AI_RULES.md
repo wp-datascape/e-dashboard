@@ -24,18 +24,23 @@
 | Backend | Hono v4+ | HTTP framework, TypeScript-first |
 | ORM | Drizzle ORM | Bukan Prisma, bukan TypeORM |
 | Database | PostgreSQL 15+ | |
-| Frontend | React 18+ + Vite 5+ + TypeScript | SPA |
-| Auth | JWT (httpOnly Cookie) + CSRF | Bukan localStorage |
-| Validasi | zod | Wajib di semua DTO backend & frontend |
+| Frontend | React 19 + Vite 8 + TypeScript 6 | SPA |
+| Auth (produksi) | JWT (httpOnly Cookie) + CSRF | Bukan localStorage |
+| Auth (dev/MSW) | Token disimpan di localStorage | Hanya saat belum ada backend — migrasi ke httpOnly Cookie saat backend tersedia |
+| Data Fetching | TanStack Query v5 | Semua API call via useQuery / useMutation |
+| Form & Validasi | React Hook Form v7 + Zod v4 | Wajib di semua form frontend |
+| Validasi Backend | zod | Wajib di semua DTO handler backend |
 | Logger | winston + winston-daily-rotate-file | Bukan console.log di production |
+| Mock API (dev) | MSW v2 | Service Worker, aktif hanya di `import.meta.env.DEV` |
 | Upload CSV | papaparse | Parsing file CSV manual |
 | Upload Excel | xlsx (SheetJS) | Parsing file .xlsx manual |
 | Accurate API | axios (server-side) | Fetch faktur dari Accurate Online API |
-| Charts | recharts | Bukan chart.js, bukan d3 langsung |
-| UI | materialUI V6 | |
+| Charts | recharts v3 | Bukan chart.js, bukan d3 langsung |
+| Tabel | MUI X DataGrid v9 | |
+| UI | MUI (Material UI) v9 | Bukan Tailwind, bukan shadcn/ui |
 
 > ❌ Jangan sarankan teknologi di luar daftar ini kecuali diminta secara eksplisit.
-> ❌ Jangan gunakan Prisma, TypeORM, Express, atau Next.js.
+> ❌ Jangan gunakan Prisma, TypeORM, Express, Next.js, Tailwind, shadcn/ui, atau Redux.
 
 ---
 
@@ -144,13 +149,16 @@ await logAudit(ctx, {
 
 - Gunakan **functional component** dan React Hooks — tidak ada class component
 - State management: `useState` / `useReducer` / Context API — tidak ada Redux atau Zustand untuk MVP
+- Semua server-state via **TanStack Query** (`useQuery` / `useMutation`) — tidak ada fetch manual di komponen
 - Auth state di `AuthContext` — termasuk `permissions[]` untuk cek akses di UI
-- Gunakan `PermissionGuard` (cek permission), bukan `RoleGuard` (cek role name)
-- Setiap API call wajib melalui service layer di `src/api/`
-- Axios instance di `src/api/axios.ts` wajib menyertakan CSRF token
-- Penamaan komponen: `PascalCase` | File: `PascalCase.tsx`
+- Gunakan `PermissionGuard` (cek permission), bukan `RoleGuard` (cek role name) — belum ada, perlu dibuat
+- Setiap API call wajib melalui layer di `src/api/` — bukan fetch/axios langsung dari komponen
+- Axios instance di `src/api/axios.ts` wajib menyertakan CSRF token (sudah ada interceptor)
+- Penamaan komponen: `PascalCase` | File: `PascalCase.tsx` | Folder per komponen dengan `index.ts` re-export
 - Pisahkan logic dari UI dengan custom hooks di `src/hooks/`
 - Semua tipe data API wajib di `src/types/`
+- Mock data: tambahkan handler baru di `src/mocks/handlers/` lalu import di `handlers.ts`
+- Untuk halaman baru: daftarkan di `src/route/routes.tsx` (routeRegistry) + `src/config/menu.tsx` (NAV_ITEMS) + MSW handler jika butuh data + set `ready=true` di `page.handler.ts`
 
 ### Database — Drizzle ORM
 

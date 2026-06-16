@@ -23,7 +23,7 @@ export const AppAlert = ({ open, title, message, onClose, showButton = false }: 
     onClose={onClose} 
     fullWidth 
     maxWidth="xs"
-    slotProps={{ paper: { sx: { borderRadius: 3, p: 1 } } }}
+    slotProps={{ paper: { sx: { borderRadius: 0, p: 1 } } }}
   >
     {/* Tombol Close di kanan atas */}
     <IconButton 
@@ -49,7 +49,7 @@ export const AppAlert = ({ open, title, message, onClose, showButton = false }: 
     {/* Tombol bawah hanya muncul jika showButton = true */}
     {showButton && (
       <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-        <Button onClick={onClose} variant="contained" size="medium" sx={{ borderRadius: 2 }}>
+        <Button onClick={onClose} variant="contained" size="medium" sx={{ borderRadius: 0 }}>
           OK
         </Button>
       </DialogActions>

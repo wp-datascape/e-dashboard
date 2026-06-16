@@ -16,6 +16,7 @@ import { pageApi } from './api/page.api'
 
 // Registry Config & Lazy Base Elements
 import { routeRegistry, Login, NotFound, UnderMaintenance } from './route/routes'
+import { DashboardLayout } from './components/layout/DashboardLayout'
 
 // ─── Loading Fallback Component ──────────────────────────────────────────────
 function PageLoader() {
@@ -74,7 +75,9 @@ function AppRouter() {
           if (!registry) return null
 
           // Jika ready=true dari DB -> render komponen asli. Jika false -> kunci ke UnderMaintenance
-          const finalElement = ready ? registry.element : <UnderMaintenance />
+          const finalElement = ready
+            ? registry.element
+            : <DashboardLayout><UnderMaintenance /></DashboardLayout>
 
           return (
             <Route

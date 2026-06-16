@@ -58,19 +58,31 @@
   },
   "auth": {
     "login": "Masuk",
-    "loginTitle": "Selamat datang kembali",
+    "loginTitle": "Masuk",
     "loginSubtitle": "Masuk ke Executive Dashboard",
     "email": "Email",
     "password": "Kata Sandi",
-    "emailPlaceholder": "nama@perusahaan.com",
+    "emailPlaceholder": "email@anda.com",
     "passwordPlaceholder": "Masukkan kata sandi",
     "loginButton": "Masuk",
     "loggingIn": "Sedang masuk...",
+    "rememberMe": "Ingat saya",
+    "forgotPassword": "Lupa kata sandi?",
+    "noAccount": "Belum punya akun?",
+    "signUp": "Daftar",
+    "orContinueWith": "atau",
+    "signInWithGoogle": "Masuk dengan Google",
+    "signInWithFacebook": "Masuk dengan Facebook",
     "logout": "Keluar",
     "logoutConfirm": "Yakin ingin keluar?",
     "sessionExpired": "Sesi telah berakhir, silakan masuk kembali",
     "invalidCredentials": "Email atau kata sandi salah",
-    "unauthorized": "Anda tidak memiliki akses"
+    "unauthorized": "Anda tidak memiliki akses",
+    "validation": {
+      "email_required": "Email wajib diisi",
+      "email_invalid": "Format email tidak valid",
+      "password_min": "Kata sandi minimal 6 karakter"
+    }
   },
   "dashboard": {
     "title": "Dashboard Eksekutif",
@@ -245,9 +257,76 @@
     "validationError": "Data yang Anda masukkan tidak valid",
     "boundary": {
       "title": "Ups, ada yang salah",
-      "subtitle": "Komponen ini mengalami error. Tim kami sudah diberitahu.",
-      "reload": "Muat Ulang Halaman",
-      "goHome": "Ke Halaman Utama"
+      "subtitle": "Komponen ini mengalami error tak terduga. Tim kami sudah diberitahu.",
+      "reload": "Muat Ulang",
+      "reloadPage": "Muat Ulang Halaman",
+      "goHome": "Ke Halaman Utama",
+      "retryDev": "Coba Render Ulang (Dev Only)",
+      "sectionFail": "Gagal memuat komponen ini",
+      "sectionFailLabel": "Gagal memuat: {{label}}",
+      "tryAgain": "Coba Lagi"
     }
+  },
+  "notFound": {
+    "title": "404 - Halaman Tidak Ditemukan",
+    "subtitle": "Halaman yang Anda cari tidak ada atau telah dipindahkan.",
+    "back": "Kembali",
+    "toDashboard": "Ke Dashboard"
+  },
+  "maintenance": {
+    "title": "Halaman Sedang Dalam Pengembangan",
+    "subtitle": "Fitur ini belum tersedia. Kami sedang mengerjakannya dan akan segera hadir."
+  },
+  "footer": {
+    "copyright": "© {{year}} Executive Dashboard. All rights reserved.",
+    "version": "v1.0.0"
+  },
+  "statCard": {
+    "viewDetail": "Lihat detail {{title}}"
+  },
+  "crossSelling": {
+    "pageTitle": "Cross Selling",
+    "pageSubtitle": "Metrik 1 & 2 — Cross Selling Ratio dan Rata-rata Kategori Produk per Customer Aktif",
+    "chartRatioTitle": "Cross Selling Ratio (12 Bulan)",
+    "chartRatioSubtitle": "% customer aktif yang beli >1 kategori produk",
+    "chartActiveTitle": "Total Customer Aktif vs Multi-Kategori (12 Bulan)",
+    "chartActiveSubtitle": "Perbandingan customer aktif dan yang beli >1 kategori",
+    "chartAvgCatTitle": "Rata-rata Kategori Produk per Customer (12 Bulan)",
+    "chartAvgCatSubtitle": "Rata-rata kategori unik yang dibeli per customer aktif",
+    "tableTitle": "Detail per Customer — Periode {{period}}",
+    "colCustomerCode": "Kode Customer",
+    "colCustomerName": "Nama Customer",
+    "colHardware": "Hardware",
+    "colConsumable": "Consumable",
+    "colCategoryCount": "Jml Kategori",
+    "colTotalRevenue": "Total Revenue",
+    "seriesRatio": "Cross Selling Ratio (%)",
+    "seriesActiveCustomers": "Customer Aktif",
+    "seriesMultiCategory": "Multi-Kategori",
+    "seriesAvgCategory": "Avg Kategori"
+  },
+  "dashboardPage": {
+    "overviewTitle": "Overview Metrics",
+    "periodLabel": "Periode: {{period}}",
+    "activeWindowLabel": "Window Aktif: {{window}} bulan",
+    "definitionsTitle": "Definisi Kunci",
+    "definitions": {
+      "activeCustomer": "Customer Aktif",
+      "activeCustomerDef": "last_transaction_date ≥ awal periode − {{window}} bulan",
+      "existingCustomer": "Existing Customer",
+      "existingCustomerDef": "first_transaction_date < awal periode",
+      "newCustomer": "New Customer",
+      "newCustomerDef": "first_transaction_date dalam periode ini",
+      "dormantCustomer": "Dormant Customer",
+      "dormantCustomerDef": "last_transaction_date < awal periode − 3 bulan (default)",
+      "productCategory": "Kategori Produk",
+      "productCategoryDef": "Hardware + Consumable saja — jasa/service tidak dihitung",
+      "highMarginProduct": "High Margin Product",
+      "highMarginProductDef": "product_categories.is_high_margin = true"
+    }
+  },
+  "auth": {
+    "loginFailedTitle": "Login Gagal",
+    "loginFailedMessage": "Terjadi kesalahan saat login."
   }
 }
