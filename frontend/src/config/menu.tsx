@@ -3,8 +3,14 @@ import type { ReactNode } from 'react';
 // Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import BarChartIcon from '@mui/icons-material/BarChart';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
+import PeopleIcon from '@mui/icons-material/People';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import StarIcon from '@mui/icons-material/Star';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import EngineeringIcon from '@mui/icons-material/Engineering';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -16,52 +22,107 @@ export interface NavItem {
   path: string;
   labelKey: string;
   icon: ReactNode;
-  dividerBefore?: boolean; // opsional: tampilkan divider sebelum item ini
+  /** Tampilkan label grup di atas item ini (hanya saat sidebar expanded) */
+  groupLabel?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  // ── Analitik ──────────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 1: EXECUTIVE DASHBOARD — Makro (Core/Utama)
+  // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'dashboard',
     path: '/dashboard',
     labelKey: 'nav.dashboard',
     icon: <DashboardIcon fontSize="small" />,
+    groupLabel: 'Executive Dashboard',
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 2: CUSTOMER WORKBENCH — Mikro (Who)
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    key: 'customers',
+    path: '/customers',
+    labelKey: 'nav.customers',
+    icon: <PeopleIcon fontSize="small" />,
+    groupLabel: 'Customer Workbench',
   },
   {
-    key: 'cross-selling',
-    path: '/cross-selling',
-    labelKey: 'nav.crossSelling',
-    icon: <SwapHorizIcon fontSize="small" />,
-  },
-  {
-    key: 'customer-metrics',
+    key: 'customers-expansion',
     path: '/customer-metrics',
-    labelKey: 'nav.customerMetrics',
-    icon: <BarChartIcon fontSize="small" />,
+    labelKey: 'nav.expansionTargets',
+    icon: <TrendingUpIcon fontSize="small" />,
   },
   {
     key: 'dormant-customer',
     path: '/dormant-customer',
-    labelKey: 'nav.dormantCustomer',
+    labelKey: 'nav.churnRisk',
     icon: <PersonOffIcon fontSize="small" />,
   },
+  {
+    key: 'cross-selling',
+    path: '/cross-selling',
+    labelKey: 'nav.crossSellMatrix',
+    icon: <SwapHorizIcon fontSize="small" />,
+  },
 
-  // ── Operasional ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 3: PRODUCT & PORTFOLIO WORKBENCH — Mikro (What)
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    key: 'products',
+    path: '/products',
+    labelKey: 'nav.productLedger',
+    icon: <InventoryIcon fontSize="small" />,
+    groupLabel: 'Product & Portfolio',
+  },
+  {
+    key: 'products-high-margin',
+    path: '/products/high-margin',
+    labelKey: 'nav.highMarginPush',
+    icon: <StarIcon fontSize="small" />,
+  },
+  {
+    key: 'products-trend',
+    path: '/products/trend',
+    labelKey: 'nav.productTrend',
+    icon: <ShowChartIcon fontSize="small" />,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 4: TRANSACTION & REVENUE WORKBENCH — Mikro (Event)
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    key: 'transactions',
+    path: '/transactions',
+    labelKey: 'nav.orderLedger',
+    icon: <ReceiptLongIcon fontSize="small" />,
+    groupLabel: 'Transaction & Revenue',
+  },
+  {
+    key: 'projects',
+    path: '/projects',
+    labelKey: 'nav.projectMilestone',
+    icon: <EngineeringIcon fontSize="small" />,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 5: ADMIN
+  // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'import',
     path: '/import',
     labelKey: 'nav.import',
     icon: <UploadFileIcon fontSize="small" />,
-    dividerBefore: true,
+    groupLabel: 'Admin',
   },
-
-  // ── Administrasi ──────────────────────────────────────────────────────────
   {
     key: 'users',
     path: '/users',
     labelKey: 'nav.users',
     icon: <ManageAccountsIcon fontSize="small" />,
-    dividerBefore: true,
   },
   {
     key: 'rbac',

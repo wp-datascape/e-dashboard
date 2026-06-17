@@ -9,9 +9,15 @@ export const UnderMaintenance = lazy(() => import('../pages/UnderMaintenance/ind
 
 // ─── Lazy Protected Pages ────────────────────────────────────────────────────
 const Dashboard = lazy(() => import('../pages/Dashboard/index'))
+const Customers = lazy(() => import('../pages/Customers/index'))
 const CrossSelling = lazy(() => import('../pages/CrossSelling/index'))
 const CustomerMetrics = lazy(() => import('../pages/CustomerMetrics/index'))
 const DormantCustomer = lazy(() => import('../pages/DormantCustomer/index'))
+const Products = lazy(() => import('../pages/Products/index'))
+const ProductsHighMargin = lazy(() => import('../pages/ProductsHighMargin/index'))
+const ProductsTrend = lazy(() => import('../pages/ProductsTrend/index'))
+const Transactions = lazy(() => import('../pages/Transactions/index'))
+const Projects = lazy(() => import('../pages/Projects/index'))
 const Import = lazy(() => import('../pages/Import/index'))
 const Users = lazy(() => import('../pages/Users/index'))
 const RBAC = lazy(() => import('../pages/RBAC/index'))
@@ -39,6 +45,16 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
     element: withLayout(<Dashboard />), 
     protected: true 
   },
+  'customers': { 
+    path: '/customers', 
+    element: withLayout(<Customers />), 
+    protected: true 
+  },
+  'customers-expansion': { 
+    path: '/customer-metrics', 
+    element: withLayout(<CustomerMetrics />), 
+    protected: true 
+  },
   'cross-selling': { 
     path: '/cross-selling', 
     element: withLayout(<CrossSelling />), 
@@ -52,6 +68,31 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'dormant-customer': { 
     path: '/dormant-customer', 
     element: withLayout(<DormantCustomer />), 
+    protected: true 
+  },
+  'products': { 
+    path: '/products', 
+    element: withLayout(<Products />), 
+    protected: true 
+  },
+  'products-high-margin': { 
+    path: '/products/high-margin', 
+    element: withLayout(<ProductsHighMargin />), 
+    protected: true 
+  },
+  'products-trend': { 
+    path: '/products/trend', 
+    element: withLayout(<ProductsTrend />), 
+    protected: true 
+  },
+  'transactions': { 
+    path: '/transactions', 
+    element: withLayout(<Transactions />), 
+    protected: true 
+  },
+  'projects': { 
+    path: '/projects', 
+    element: withLayout(<Projects />), 
     protected: true 
   },
   'import': { 

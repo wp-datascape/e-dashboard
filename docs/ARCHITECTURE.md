@@ -138,7 +138,7 @@ frontend/
 │   │   ├── auth.api.ts               ✅ login, me, logout
 │   │   ├── dashboard.api.ts          ✅ getDashboard
 │   │   ├── page.api.ts               ✅ getPageSettings (native fetch)
-│   │   ├── metrics.api.ts            ☐ belum ada
+│   │   ├── metrics.api.ts            ☐ belum ada (inline di pages)
 │   │   ├── import.api.ts             ☐ belum ada
 │   │   ├── customers.api.ts          ☐ belum ada
 │   │   ├── rbac.api.ts               ☐ belum ada
@@ -154,7 +154,7 @@ frontend/
 │   ├── hooks/
 │   │   ├── useAuth.ts                ✅ useLoginMutation, useLogoutMutation
 │   │   ├── useDashboard.ts           ✅ useQuery → dashboardApi
-│   │   ├── useMetrics.ts             ☐ belum ada
+│   │   ├── useMetrics.ts             ☐ belum ada (inline di pages)
 │   │   ├── useImport.ts              ☐ belum ada
 │   │   ├── useCompany.ts             ☐ belum ada
 │   │   └── useRbac.ts                ☐ belum ada
@@ -169,14 +169,14 @@ frontend/
 │   │       ├── auth.handler.ts       ✅ login, me, logout
 │   │       ├── page.handler.ts       ✅ page-settings (dashboard=ready, lainnya=false)
 │   │       ├── dashboard.handler.ts  ✅ 10 MetricCard + trend 12 bulan
-│   │       └── metrics.handler.ts    ✅ cross-selling, customer-metrics, dormant-customer
+│   │       └── metrics.handler.ts    ✅ cross-selling (+ heatmap), customer-metrics, dormant-customer
 │   │
 │   ├── pages/
 │   │   ├── Login/                    ✅ form + validasi + error dialog + i18n
-│   │   ├── Dashboard/                ✅ 10 StatCard + 4 AreaChart + Definisi Kunci
-│   │   ├── CrossSelling/             ✅ AreaChart + BarChart + DataTable
-│   │   ├── CustomerMetrics/          ☐ placeholder
-│   │   ├── DormantCustomer/          ☐ placeholder
+│   │   ├── Dashboard/                ✅ 10 StatCard + 7 chart widgets (spec-matched) + Definisi Kunci
+│   │   ├── CrossSelling/             ✅ M1 GroupedBar + M1.1 Heatmap + M2 AreaChart + DataTable
+│   │   ├── CustomerMetrics/          ✅ M3 Combo + M4 Stacked + M5 Donut + M6 Radial + M7 HorizStacked
+│   │   ├── DormantCustomer/          ✅ M8 LineAlert + M9 HorizRanking + M10 BulletChart
 │   │   ├── Import/                   ☐ placeholder
 │   │   ├── Users/                    ☐ placeholder
 │   │   ├── RBAC/                     ☐ placeholder
@@ -196,9 +196,15 @@ frontend/
 │   │   │   ├── Sidebar/              ✅ collapsible 220px/56px
 │   │   │   └── TextField/            ✅ Controller react-hook-form
 │   │   ├── charts/
-│   │   │   ├── StatCard/             ✅ metrik card + sparkline
-│   │   │   ├── AreaChartWidget/      ✅ multi-series area chart
-│   │   │   └── BarChartWidget/       ✅ dengan stacked option
+│   │   │   ├── StatCard/             ✅ layout 2-kolom: teks kiri + SimpleLineChart kanan (no axes)
+│   │   │   ├── AreaChartWidget/      ✅ multi-series area chart dengan gradient
+│   │   │   ├── BarChartWidget/       ✅ grouped/stacked/horizontal + tooltipFormatter
+│   │   │   ├── HeatmapWidget/        ✅ matrix grid Customer × Produk (hijau/abu)
+│   │   │   ├── ComboChartWidget/     ✅ Bar+Line dual Y-axis (Recharts ComposedChart)
+│   │   │   ├── DonutChartWidget/     ✅ donut chart dengan center label overlay
+│   │   │   ├── RadialBarWidget/      ✅ ring progress warna dinamis (hijau/kuning/merah)
+│   │   │   ├── LineAlertWidget/      ✅ line + red alert shading di atas threshold
+│   │   │   └── BulletChartWidget/    ✅ custom bullet chart dengan target band
 │   │   ├── tables/
 │   │   │   └── DataTable/            ✅ wrapper MUI X DataGrid
 │   │   └── layout/

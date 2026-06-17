@@ -8,6 +8,8 @@ import ListItemText from '@mui/material/ListItemText';
 import Toolbar from '@mui/material/Toolbar';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
 
 import { NAV_ITEMS } from '@/config/menu';
 
@@ -66,12 +68,34 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
 
       <List dense disablePadding sx={{ pt: 0.5 }}>
         {NAV_ITEMS.map((item) => {
-          const active = location.pathname === item.path;
+          const active = location.pathname === item.path ||
+            (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
 
           return (
             <span key={item.key}>
-              {/* Group divider */}
-              {item.dividerBefore && <Divider sx={{ my: 0.5 }} />}
+              {/* Group label — shown only when sidebar is expanded */}
+              {item.groupLabel && (
+                <>
+                  <Divider sx={{ mt: 0.5, mb: 0 }} />
+                  {!collapsed && (
+                    <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'text.disabled',
+                          display: 'block',
+                        }}
+                      >
+                        {item.groupLabel}
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
 
               <Tooltip
                 title={collapsed ? t(item.labelKey) : ''}
@@ -82,7 +106,7 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
                   onClick={() => handleNav(item.path)}
                   selected={active}
                   sx={{
-                    minHeight: 42,
+                    minHeight: 40,
                     px: 2,
                     borderRadius: 0,
                     justifyContent: collapsed ? 'center' : 'flex-start',
@@ -90,7 +114,7 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
                       bgcolor: 'action.selected',
                       borderLeft: '3px solid',
                       borderColor: 'primary.main',
-                      pl: collapsed ? 2 : '13px', // compensate 3px border
+                      pl: collapsed ? 2 : '13px',
                       '& .MuiListItemIcon-root': { color: 'primary.main' },
                     },
                     '&:hover': { bgcolor: 'action.hover' },
@@ -117,6 +141,7 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
                           sx: {
                             fontWeight: active ? 600 : 400,
                             color: active ? 'primary.main' : 'text.primary',
+                            fontSize: '0.82rem',
                           },
                         },
                       }}

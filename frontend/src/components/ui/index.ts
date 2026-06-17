@@ -6,3 +6,4 @@ export * from './LogoutButton';
 export * from './AppBar';
 export * from './Sidebar';
 export * from './Footer';
+export * from './Dialog';

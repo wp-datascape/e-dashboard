@@ -29,6 +29,36 @@
 
 ---
 
+## Komponen Visual Frontend — Pemetaan Chart per Metrik
+
+| # | Metrik | Chart Type | Komponen | Halaman |
+|---|--------|-----------|----------|---------|
+| 1 | Cross Selling Ratio | Grouped Column Chart | `BarChartWidget` (grouped) | `/cross-selling` |
+| 1.1 | Cross Selling Dashboard | Heatmap Matrix Grid | `HeatmapWidget` | `/cross-selling` |
+| 2 | Avg Product Category per Customer | Spline Area Chart (hijau) | `AreaChartWidget` (color=#16a34a) | `/cross-selling` |
+| 3 | Avg Revenue per Existing Customer | Combo Chart (Bar+Line) | `ComboChartWidget` | `/customer-metrics` |
+| 4 | Avg Gross Profit per Existing Customer | Stacked Column Chart | `BarChartWidget` (stacked, 3 tier) | `/customer-metrics` |
+| 5 | High Margin Product Penetration | Donut Chart (snapshot bulan ini) | `DonutChartWidget` | `/customer-metrics` |
+| 6 | Repeat Order Rate | Radial Bar Chart (ring progress) | `RadialBarWidget` (hijau ≥80%, kuning/merah <80%) | `/customer-metrics` |
+| 7 | Customer Expansion Rate | 100% Stacked Horizontal Bar | `BarChartWidget` (stacked + layout=horizontal) | `/customer-metrics` |
+| 8 | Dormant Customer Rate | Line Chart + Red Alert Shading | `LineAlertWidget` (threshold 10%) | `/dormant-customer` |
+| 9 | Dormant Customer Value | Horizontal Bar Ranking | `BarChartWidget` (layout=horizontal, sorted desc) | `/dormant-customer` |
+| 10 | Customer Reactivation Rate | Bullet Chart + Target Band | `BulletChartWidget` (target 15–20%) | `/dormant-customer` |
+
+**Dashboard Overview** (`/dashboard`) — mini widget per metrik:
+- M1: `BarChartWidget` trend ratio
+- M2: `AreaChartWidget` green gradient
+- M5: `DonutChartWidget` current month
+- M6: `RadialBarWidget` current value
+- M7: `BarChartWidget` trend
+- M8: `LineAlertWidget` threshold 10%
+- M10: `BulletChartWidget` vs target 15–20%
+
+**StatCard** (semua 10 metrik di baris pertama Dashboard):
+- Layout 2 kolom: teks kiri (title + value + badge + subtitle) + `LineChart` kanan (simple, no axes)
+
+---
+
 ## Metrik 1: Cross Selling Ratio
 
 **Tujuan**: Mengukur seberapa banyak customer membeli lebih dari satu kategori produk.

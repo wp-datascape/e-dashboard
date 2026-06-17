@@ -1,0 +1,137 @@
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  ReferenceArea,
+  Legend,
+} from 'recharts';
+
+export interface LineAlertWidgetProps {
+  title: string;
+  subtitle?: string;
+  data: object[];
+  lineKey: string;
+  lineLabel: string;
+  xKey?: string;
+  threshold?: number;
+  thresholdLabel?: string;
+  height?: number;
+}
+
+export const LineAlertWidget = ({
+  title,
+  subtitle,
+  data,
+  lineKey,
+  lineLabel,
+  xKey = 'month',
+  threshold = 10,
+  thresholdLabel,
+  height = 220,
+}: LineAlertWidgetProps) => {
+  const theme = useTheme();
+
+  // Calculate y-max from data to bound the reference area
+  const yMax =
+    Math.max(
+      ...(data as Record<string, number>[]).map((d) => (d[lineKey] as number) || 0),
+      threshold,
+    ) * 1.15;
+
+  return (
+    <Paper
+      elevation={0}
+      square
+      sx={{
+        p: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        height: '100%',
+      }}
+    >
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+          {title}
+        </Typography>
+        {subtitle && (
+          <Typography variant="caption" color="text.secondary">
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart data={data} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={theme.palette.divider}
+            vertical={false}
+          />
+          <XAxis
+            dataKey={xKey}
+            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+            axisLine={false}
+            tickLine={false}
+            domain={[0, yMax]}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 0,
+              fontSize: 12,
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+
+          {/* Red alert shading above threshold */}
+          <ReferenceArea
+            y1={threshold}
+            y2={yMax}
+            fill="rgba(239,68,68,0.10)"
+            ifOverflow="hidden"
+          />
+
+          {/* Threshold reference line */}
+          <ReferenceLine
+            y={threshold}
+            stroke="#ef4444"
+            strokeDasharray="5 3"
+            label={{
+              value: thresholdLabel ?? `Ambang ${threshold}%`,
+              position: 'insideTopRight',
+              fontSize: 10,
+              fill: '#ef4444',
+              fontWeight: 600,
+            }}
+          />
+
+          <Line
+            dataKey={lineKey}
+            name={lineLabel}
+            stroke="#3B82F6"
+            strokeWidth={2}
+            dot={{ r: 3, fill: '#3B82F6' }}
+            activeDot={{ r: 5 }}
+            type="monotone"
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </Paper>
+  );
+};

@@ -30,6 +30,10 @@ export interface BarChartWidgetProps {
   xKey?: string;
   height?: number;
   stacked?: boolean;
+  /** 'vertical' = standard column chart (default), 'horizontal' = bar chart rotated */
+  layout?: 'vertical' | 'horizontal';
+  /** Custom tooltip formatter: (value, name) => [formattedValue, name] */
+  tooltipFormatter?: (value: number, name: string) => [string, string];
 }
 
 export const BarChartWidget = ({
@@ -42,9 +46,14 @@ export const BarChartWidget = ({
   xKey = 'name',
   height = 220,
   stacked = false,
+  layout = 'vertical',
+  tooltipFormatter,
 }: BarChartWidgetProps) => {
   const theme = useTheme();
   const isPositive = (change ?? 0) >= 0;
+
+  // For horizontal layout: BarChart layout='vertical', X=number, Y=category
+  const isHorizontal = layout === 'horizontal';
 
   return (
     <Paper
@@ -93,19 +102,49 @@ export const BarChartWidget = ({
 
       {/* Chart */}
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
-          <XAxis
-            dataKey={xKey}
-            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-            axisLine={false}
-            tickLine={false}
+        <BarChart
+          data={data}
+          layout={isHorizontal ? 'vertical' : 'horizontal'}
+          margin={{ top: 4, right: 4, left: isHorizontal ? 4 : -20, bottom: 0 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={theme.palette.divider}
+            vertical={!isHorizontal}
+            horizontal={isHorizontal}
           />
-          <YAxis
-            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-            axisLine={false}
-            tickLine={false}
-          />
+          {isHorizontal ? (
+            <>
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey={xKey}
+                tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
+                axisLine={false}
+                tickLine={false}
+                width={120}
+              />
+            </>
+          ) : (
+            <>
+              <XAxis
+                dataKey={xKey}
+                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                axisLine={false}
+                tickLine={false}
+              />
+            </>
+          )}
           <Tooltip
             contentStyle={{
               backgroundColor: theme.palette.background.paper,
@@ -114,10 +153,14 @@ export const BarChartWidget = ({
               fontSize: 12,
             }}
             cursor={{ fill: theme.palette.action.hover }}
+            formatter={
+              tooltipFormatter
+                ? (value: unknown, name: unknown) =>
+                    tooltipFormatter(value as number, name as string)
+                : undefined
+            }
           />
-          {series.length > 1 && (
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-          )}
+          {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
           {series.map((s) => (
             <Bar
               key={s.key}

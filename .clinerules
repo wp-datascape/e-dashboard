@@ -1,0 +1,152 @@
+# Cline Rules — Executive Dashboard Project
+
+## WAJIB DIBACA SEBELUM MENGERJAKAN APAPUN
+
+Baca file-file berikut **secara berurutan** sebelum generate kode atau menjawab pertanyaan:
+
+1. `docs/MASTER_CONTEXT.md` — gambaran project, tech stack, bisnis, arsitektur
+2. `docs/AI_RULES.md` — konvensi kode, aturan logger/audit/RBAC, batasan MVP
+3. `docs/CONTEXT_STATE.md` — status pengerjaan saat ini, checklist, blocker aktif
+4. `docs/AI_AGENT_GUIDE.md` — komponen reusable, pola kode, checklist implementasi, anti-pattern
+
+> Jika task berkaitan dengan:
+> - **Metrik bisnis** → wajib baca `docs/METRICS_SPEC.md` DULU
+> - **Database / schema** → wajib baca `docs/DATA_MODEL.md` DULU
+> - **Endpoint API** → wajib baca `docs/API_SPEC.md` DULU
+> - **Menu / routing** → wajib baca `docs/FINALIZED_MENU_STRUCTURE.md` DULU
+> - **Arsitektur folder** → wajib baca `docs/ARCHITECTURE.md` DULU
+
+---
+
+## Tech Stack (FINAL — Jangan Sarankan Alternatif)
+
+| Layer | Stack |
+|-------|-------|
+| Runtime | **Bun** (bukan Node.js) |
+| Backend | **Hono v4** + Drizzle ORM + PostgreSQL 15 |
+| Frontend | **React 19** + Vite 8 + **TypeScript 6** + **MUI v9** |
+| UI | **MUI (Material-UI) v9** — bukan Tailwind, bukan shadcn/ui |
+| Charts | **Recharts v3** — bukan Chart.js, bukan D3 |
+| Tabel | **MUI X DataGrid v9** |
+| Form | **React Hook Form v7** + Zod v4 |
+| Data Fetching | **TanStack Query v5** — WAJIB, tidak ada fetch manual |
+| State Global | Context API saja — tidak ada Redux, tidak ada Zustand |
+| Mock API (dev) | **MSW v2** |
+| ORM | **Drizzle ORM** — bukan Prisma, bukan TypeORM |
+
+---
+
+## Aturan Kode — TIDAK ADA PENGECUALIAN
+
+### Frontend
+- ✅ Gunakan komponen yang sudah ada (lihat `docs/AI_AGENT_GUIDE.md` bagian 2)
+- ✅ Semua API call wajib via TanStack Query `useQuery` / `useMutation`
+- ✅ Semua tipe data API wajib di `src/types/`
+- ✅ Setiap API call melalui layer `src/api/` — bukan fetch/axios langsung dari komponen
+- ✅ Komponen baru: folder sendiri `NamaKomponen/NamaKomponen.tsx` + `index.ts`
+- ✅ i18n wajib: semua teks tampilan via `useTranslation()` — update `en.json` DAN `id.json`
+- ❌ Tidak ada `console.log` — tidak ada di production code
+- ❌ Tidak ada `any` type kecuali unavoidable + diberi komentar alasan
+- ❌ Tidak ada fetch manual di komponen (`fetch()` atau `axios` langsung)
+- ❌ Tidak ada Redux, Zustand, atau state management library lain
+
+### Backend
+- ✅ Struktur wajib: `Route → Handler → Service → Repository`
+- ✅ Validasi input wajib dengan **zod** di setiap handler
+- ✅ Response API wajib via `utils/response` — bukan `c.json()` langsung
+- ✅ Error wajib via `AppError` dari `utils/error`
+- ✅ **SETIAP query database WAJIB ada filter `company_id`** — data isolation antar entitas
+- ✅ Semua mutasi (create/update/delete) wajib `logAudit()` dari `utils/audit`
+- ✅ Logger: `logger.info/warn/error` dari `utils/logger` — bukan `console.log`
+- ✅ Semua query via Drizzle ORM — raw SQL hanya jika ada alasan performa jelas
+- ✅ `async/await` — bukan callback style
+- ❌ Tidak ada `catch (e) {}` kosong
+- ❌ Tidak ada stack trace di response error ke client
+
+---
+
+## Halaman Baru — 5 Langkah Wajib
+
+Setiap kali membuat halaman baru, wajib lengkapi semua 5 langkah:
+
+1. `src/pages/NamaPage/index.tsx` — buat file halaman
+2. `src/route/routes.tsx` — daftarkan lazy import + tambah ke `routeRegistry`
+3. `src/config/menu.tsx` — tambah menu item ke group yang sesuai
+4. `src/i18n/locales/en.json` + `src/i18n/locales/id.json` — tambah i18n key di **keduanya**
+5. `src/mocks/handlers/page.handler.ts` — tambah `pageKey` dengan `ready: false`
+
+---
+
+## Komponen Chart — Wajib Direuse (Sudah Ada 9)
+
+| Komponen | Metrik | Import |
+|----------|--------|--------|
+| `StatCard` | Overview semua metrik | `@/components/charts/StatCard` |
+| `AreaChartWidget` | M2 Avg Category | `@/components/charts/AreaChartWidget` |
+| `BarChartWidget` | M1, M4, M7, M9 | `@/components/charts/BarChartWidget` |
+| `HeatmapWidget` | M1.1 Cross Sell Matrix | `@/components/charts/HeatmapWidget` |
+| `ComboChartWidget` | M3 Revenue | `@/components/charts/ComboChartWidget` |
+| `DonutChartWidget` | M5 High Margin | `@/components/charts/DonutChartWidget` |
+| `RadialBarWidget` | M6 Repeat Order | `@/components/charts/RadialBarWidget` |
+| `LineAlertWidget` | M8 Dormant Rate | `@/components/charts/LineAlertWidget` |
+| `BulletChartWidget` | M10 Reactivation | `@/components/charts/BulletChartWidget` |
+
+> ❌ Jangan buat chart component baru jika sudah ada yang sesuai.
+
+---
+
+## Definisi Bisnis Kunci
+
+| Term | Definisi |
+|------|---------|
+| Customer Aktif | `last_invoice_date >= (period_start - active_window bulan)` |
+| Existing Customer | `first_invoice_date < awal period_month` |
+| New Customer | `first_invoice_date` jatuh di dalam `period_month` |
+| Dormant Customer | `last_invoice_date < (period_start - dormant_threshold_months)` |
+| Kategori Produk | Hanya kategori `is_service = false` — jasa tidak dihitung di metrik produk |
+| High Margin Product | `product_categories.is_high_margin = true` |
+
+---
+
+## Aturan Update Dokumentasi
+
+- **Awal sesi**: Update `docs/CONTEXT_STATE.md` — bagian "Sedang Dikerjakan"
+- **Akhir sesi**: Update `docs/CONTEXT_STATE.md` — tambah catatan di "Catatan Sesi Terakhir", update timestamp
+- Perubahan arsitektur → update `docs/ARCHITECTURE.md` + tambah ADR
+- Perubahan data model → update `docs/DATA_MODEL.md`
+- Endpoint baru/berubah → update `docs/API_SPEC.md`
+- Perubahan definisi metrik → update `docs/METRICS_SPEC.md`
+
+---
+
+## Scope MVP — Ingat Batasannya
+
+### Ada ✅
+Auth + RBAC dinamis, import faktur (file + API Accurate), 10 metrik bisnis, filter entitas/periode/window, audit log DB, logger file, konfigurasi dinamis.
+
+### Tidak Ada ❌
+Export PDF/Excel, notifikasi realtime/email/WhatsApp, scheduled auto-sync Accurate, mobile app, prediksi AI, multi-database per entitas.
+
+> Jika user minta fitur di luar MVP scope, **ingatkan** bahwa fitur tersebut bukan bagian MVP dan konfirmasi apakah ingin lanjut.
+
+---
+
+## Commit Message Convention
+
+```
+feat:     fitur baru
+fix:      perbaikan bug
+refactor: refaktor tanpa perubahan perilaku
+docs:     perubahan dokumentasi saja
+chore:    perubahan tooling/config
+test:     tambah/ubah test
+```
+
+---
+
+## Blocker Aktif (Jangan Mulai Tanpa Konfirmasi Tim)
+
+1. Format kolom CSV/Excel export Accurate Online — belum dikonfirmasi
+2. Endpoint & auth Accurate Online API — belum dikonfirmasi
+3. Apakah kategori "jasa" di Accurate punya kode khusus atau flag manual?
+4. Apakah B2B Project Milestone masuk MVP scope?

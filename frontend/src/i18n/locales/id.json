@@ -46,20 +46,31 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "customers": "Customer 360",
+    "expansionTargets": "Ekspansi",
+    "churnRisk": "Churn Risk",
+    "crossSellMatrix": "Cross Selling",
+    "productLedger": "Produk",
+    "highMarginPush": "High Margin",
+    "productTrend": "Tren Produk",
+    "orderLedger": "Order",
+    "projectMilestone": "Proyek",
+    "import": "Import",
+    "users": "User",
+    "rbac": "Role",
+    "config": "Config",
+    "auditLog": "Audit Log",
+    "profile": "Profil",
     "crossSelling": "Cross Selling",
     "customerMetrics": "Metrik Customer",
-    "dormantCustomer": "Customer Dormant",
-    "import": "Import Data",
-    "users": "Pengguna",
-    "rbac": "Kelola Akses",
-    "config": "Konfigurasi",
-    "auditLog": "Audit Log",
-    "profile": "Profil"
+    "dormantCustomer": "Customer Dormant"
   },
   "auth": {
     "login": "Masuk",
     "loginTitle": "Masuk",
     "loginSubtitle": "Masuk ke Executive Dashboard",
+    "loginFailedTitle": "Login Gagal",
+    "loginFailedMessage": "Terjadi kesalahan saat login.",
     "email": "Email",
     "password": "Kata Sandi",
     "emailPlaceholder": "email@anda.com",
@@ -324,9 +335,5 @@
       "highMarginProduct": "High Margin Product",
       "highMarginProductDef": "product_categories.is_high_margin = true"
     }
-  },
-  "auth": {
-    "loginFailedTitle": "Login Gagal",
-    "loginFailedMessage": "Terjadi kesalahan saat login."
   }
 }

@@ -18,15 +18,20 @@ Audit Log    : Mutasi create/update/delete disimpan ke tabel audit_logs di DB (b
 RBAC         : Dinamis seperti Spatie — role & permission dikelola dari dashboard
 Data Source  : Faktur penjualan Accurate Online — via upload file CSV/Excel + API Accurate
 Mock Server  : MSW v2 (aktif di development saja — 4 domain: auth, page, dashboard, metrics)
-Status       : [isi dari CONTEXT_STATE.md]
+Charts       : Recharts v3 — 9 komponen chart (AreaChart, BarChart, HeatmapWidget, ComboChart,
+               DonutChart, RadialBar, LineAlert, BulletChart, StatCard simple-line)
+Status Frontend : ~75% — Dashboard, CrossSelling, CustomerMetrics, DormantCustomer selesai
+Status Backend  : 0% — belum dikerjakan
 ```
 
 **Urutan baca dokumen:**
 1. `MASTER_CONTEXT.md` — ini
 2. `AI_RULES.md` — aturan kode, konvensi, batasan MVP
 3. `CONTEXT_STATE.md` — status pengerjaan saat ini
-4. `METRICS_SPEC.md` — **WAJIB sebelum kerjakan fitur metrik**
-5. *(jika perlu)* `ARCHITECTURE.md` / `DATA_MODEL.md` / `API_SPEC.md`
+4. `AI_AGENT_GUIDE.md` — **panduan praktis: komponen reusable, pola kode, checklist implementasi**
+5. `FINALIZED_MENU_STRUCTURE.md` — **FINAL menu architecture (Makro-Mikro structure)**
+6. `METRICS_SPEC.md` — **WAJIB sebelum kerjakan fitur metrik**
+7. *(jika perlu)* `ARCHITECTURE.md` / `DATA_MODEL.md` / `API_SPEC.md`
 
 ---
 
@@ -138,12 +143,26 @@ Invoice INV-2024-001          ← tabel: invoices (1 baris)
 | Frontend | React 19 + Vite 8 + TypeScript 6 + MUI v9 |
 | Database | PostgreSQL 15 |
 | Logger | Winston (konsol + file rotate harian) |
-| Charts | Recharts v3 |
+| Charts | Recharts v3 — 9 komponen chart |
 | Tabel | MUI X DataGrid v9 |
 | Form | React Hook Form v7 + Zod v4 |
 | Data Fetching | TanStack Query v5 |
 | Mock API (dev) | MSW v2 |
 | Accurate | axios server-side via `utils/accurate.ts` |
+
+**Komponen Chart Frontend (Recharts):**
+
+| Komponen | Tipe | Digunakan untuk |
+|----------|------|-----------------|
+| `StatCard` | SimpleLineChart (no axes) | 10 metric card di Dashboard overview |
+| `AreaChartWidget` | AreaChart multi-series | M2 Avg Category, trend general |
+| `BarChartWidget` | BarChart grouped/stacked/horizontal | M1 ratio, M4 GP stacked, M7 expansion, M9 ranking |
+| `HeatmapWidget` | Custom CSS grid | M1.1 Customer × Produk matrix |
+| `ComboChartWidget` | ComposedChart Bar+Line dual-Y | M3 Revenue + Avg Revenue |
+| `DonutChartWidget` | PieChart dengan innerRadius | M5 High Margin Penetration |
+| `RadialBarWidget` | RadialBarChart ring progress | M6 Repeat Order Rate |
+| `LineAlertWidget` | ComposedChart + ReferenceArea | M8 Dormant Rate (threshold 10%) |
+| `BulletChartWidget` | Custom CSS bullet chart | M10 Reactivation Rate (target 15–20%) |
 
 ---
 
@@ -212,9 +231,11 @@ bun run dev
 | File | Isi |
 |------|-----|
 | `AI_RULES.md` | Konvensi kode, aturan logger, audit, RBAC, batasan MVP |
+| `AI_AGENT_GUIDE.md` | **Panduan praktis AI: komponen reusable, pola kode, checklist, anti-pattern** |
 | `ARCHITECTURE.md` | Struktur folder, layer, middleware, ADR |
 | `DATA_MODEL.md` | Skema tabel (invoices + invoice_items), RBAC dinamis, urutan migrasi |
 | `API_SPEC.md` | Semua endpoint, request/response, error codes |
 | `METRICS_SPEC.md` | Definisi bisnis lengkap 10 metrik |
+| `FINALIZED_MENU_STRUCTURE.md` | **Arsitektur menu final (Makro-Mikro), impact analysis, implementation roadmap** |
 | `CONTEXT_STATE.md` | Status pengerjaan, checklist, blocker |
 | `MASTER_CONTEXT.md` | File ini |

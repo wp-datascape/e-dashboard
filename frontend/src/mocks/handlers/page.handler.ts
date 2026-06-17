@@ -13,13 +13,19 @@ export const pageHandlers = [
   http.get(`${BASE_URL}/page-settings`, () => {
     const mockDbData: PageSetting[] = [
       { pageKey: 'dashboard', ready: true },
+      { pageKey: 'customers', ready: false },
+      { pageKey: 'customers-expansion', ready: true }, // customer-metrics
+      { pageKey: 'dormant-customer', ready: true },
       { pageKey: 'cross-selling', ready: true },
-      { pageKey: 'customer-metrics', ready: false },
-      { pageKey: 'dormant-customer', ready: false },
+      { pageKey: 'products', ready: false },
+      { pageKey: 'products-high-margin', ready: false },
+      { pageKey: 'products-trend', ready: false },
+      { pageKey: 'transactions', ready: false },
+      { pageKey: 'projects', ready: false },
       { pageKey: 'import', ready: false },
       { pageKey: 'users', ready: false },
-      { pageKey: 'rbac', ready: false },
-      { pageKey: 'config', ready: false },
+      { pageKey: 'rbac', ready: true },
+      { pageKey: 'config', ready: true },
       { pageKey: 'audit-log', ready: false },
     ];
 
