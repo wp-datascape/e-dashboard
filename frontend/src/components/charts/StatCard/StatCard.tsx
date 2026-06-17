@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import Tooltip from '@mui/material/Tooltip';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -13,6 +12,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import { StatusChip } from '@/components/ui/StatusChip';
 
 export interface StatCardProps {
   title: string;
@@ -110,18 +110,10 @@ export const StatCard = ({
             <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1 }}>
               {value}
             </Typography>
-            <Chip
-              size="small"
-              icon={<TrendIcon sx={{ fontSize: '11px !important' }} />}
+            <StatusChip
+              icon={<TrendIcon />}
               label={`${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}
               color={chipColor}
-              sx={{
-                height: 18,
-                borderRadius: 0,
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                '& .MuiChip-icon': { ml: '3px' },
-              }}
             />
           </Box>
 

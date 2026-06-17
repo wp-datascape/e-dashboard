@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -8,53 +7,7 @@ import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
-import { api } from '@/api/axios';
-import type { ApiResponse } from '@/types/api';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface CustomerMetricsTrendPoint {
-  month: string;
-  existing_customers: number;
-  total_revenue_existing: number;
-  avg_revenue: number;
-  avg_gross_profit: number;
-  gp_tier1: number;
-  gp_tier2: number;
-  gp_tier3: number;
-  high_margin_ratio: number;
-  repeat_order_rate: number;
-  expansion_rate: number;
-  up_rate: number;
-  flat_down_rate: number;
-}
-
-interface HighMarginCurrent {
-  bought_pct: number;
-  not_bought_pct: number;
-}
-
-interface RepeatOrderCurrent {
-  value: number;
-}
-
-interface CustomerMetricsData {
-  trend: CustomerMetricsTrendPoint[];
-  detail: unknown[];
-  high_margin_current: HighMarginCurrent;
-  repeat_order_current: RepeatOrderCurrent;
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-function useCustomerMetrics() {
-  return useQuery<CustomerMetricsData>({
-    queryKey: ['metrics', 'customer-metrics'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CustomerMetricsData>>('/metrics/customer-metrics');
-      return res.data.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-}
+import { useCustomerMetrics } from '@/hooks/useMetrics';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtRp(v: number): string {

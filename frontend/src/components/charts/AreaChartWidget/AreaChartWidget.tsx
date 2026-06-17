@@ -1,8 +1,8 @@
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import { useTheme } from '@mui/material/styles';
+import { StatusChip } from '@/components/ui/StatusChip';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -64,17 +64,9 @@ export const AreaChartWidget = ({
               {value}
             </Typography>
             {change !== undefined && (
-              <Chip
-                size="small"
+              <StatusChip
                 label={`${isPositive ? '+' : ''}${change}%`}
-                sx={{
-                  bgcolor: isPositive ? 'success.main' : 'error.main',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: '0.7rem',
-                  height: 20,
-                  borderRadius: 0,
-                }}
+                color={isPositive ? 'success' : 'error'}
               />
             )}
           </Box>

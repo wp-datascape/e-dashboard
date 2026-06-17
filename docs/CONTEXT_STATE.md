@@ -2,7 +2,7 @@
 
 > Update file ini di **awal dan akhir setiap sesi kerja**.
 
-**Terakhir diperbarui**: 2026-06-17 15:54  
+**Terakhir diperbarui**: 2026-06-18 01:12  
 **Diperbarui oleh**: AI (Claude)
 
 ---
@@ -202,7 +202,7 @@
 
 | Task | Oleh | File / Branch | Catatan |
 |------|------|---------------|---------|
-| _(tidak ada)_ | | | Sesi 9 selesai |
+| _(tidak ada)_ | | | Sesi 10 selesai |
 
 ---
 
@@ -263,6 +263,28 @@
 
 ## Catatan Sesi Terakhir
 
+> **Sesi 10 — Unifikasi Chip ke StatusChip (2026-06-18 01:12)**
+>
+> ### Yang Diimplementasi:
+>
+> **Mengganti semua hardcode `<Chip>` dari MUI langsung → komponen `StatusChip` di 3 file:**
+>
+> - ✅ `pages/CrossSelling/index.tsx` — Hapus `import Chip from '@mui/material/Chip'`, ganti 5 chip:
+>   - 2 renderCell di DataGrid (Hardware, Consumable) `Ya/Tidak` → `<StatusChip color="primary"|"default">`
+>   - 3 chip mobile DetailCard (Hardware/Consumable/Service) → `<StatusChip color="primary"|"default">`
+> - ✅ `components/charts/HeatmapWidget/HeatmapWidget.tsx` — Hapus `import Chip`, ganti 2 chip di mobile view:
+>   - Summary chip `X/Y produk` → `<StatusChip color="primary"|"default">`
+>   - Product chip per label (bought/not) → `<StatusChip color="success"|"default">` (mengganti custom bgcolor #15803d)
+> - ✅ `pages/Config/index.tsx` — Hapus `import Chip`, ganti 1 chip:
+>   - Badge "Active" di language selector → `<StatusChip label="Active" color="primary" sx={{ ml: 'auto' }}>`
+>
+> ### Hasil:
+> - ✅ `npx tsc --noEmit` → **0 errors**
+> - ✅ Semua chip kini seragam: oval (borderRadius 999px), outlined, font 600, ukuran konsisten
+> - ✅ Tidak ada lagi import langsung `Chip` dari MUI di pages / chart components
+>
+> ---
+>
 > **Sesi 9 — Review Project & Update Dokumentasi Agent (2026-06-17 15:54)**
 >
 > ### Yang Diimplementasi:

@@ -4,7 +4,7 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Skeleton from '@mui/material/Skeleton';
 import Paper from '@mui/material/Paper';
-import Chip from '@mui/material/Chip';
+import { StatusChip } from '@/components/ui/StatusChip';
 
 import { StatCard } from '@/components/charts/StatCard';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -67,18 +67,8 @@ function PeriodStrip({
     <Box
       sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}
     >
-      <Chip
-        label={`Periode: ${period}`}
-        size="small"
-        variant="outlined"
-        sx={{ borderRadius: 0, fontSize: '0.75rem' }}
-      />
-      <Chip
-        label={`Window Aktif: ${activeWindow} bulan`}
-        size="small"
-        variant="outlined"
-        sx={{ borderRadius: 0, fontSize: '0.75rem' }}
-      />
+      <StatusChip label={`Periode: ${period}`} color="default" />
+      <StatusChip label={`Window Aktif: ${activeWindow} bulan`} color="default" />
     </Box>
   );
 }

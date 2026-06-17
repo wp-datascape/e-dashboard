@@ -1,7 +1,6 @@
 // src/App.tsx
 import { Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 
 // MUI Components
 import CircularProgress from '@mui/material/CircularProgress'
@@ -11,8 +10,7 @@ import Box from '@mui/material/Box'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider, ProtectedRoute, useAuth } from './context/AuthContext'
-// API Client
-import { pageApi } from './api/page.api'
+import { usePageSettings } from './hooks/usePageSettings'
 
 // Registry Config & Lazy Base Elements
 import { routeRegistry, Login, NotFound, UnderMaintenance } from './route/routes'
@@ -37,14 +35,7 @@ function PageLoader() {
 // ─── Core Router Orchestrator ────────────────────────────────────────────────
 function AppRouter() {
   // Fetch status ready (true/false) halaman secara real-time dari DB/MSW Mock
-  const { data: pageSettings, isLoading } = useQuery({
-    queryKey: ['page-settings'],
-    queryFn: async () => {
-      const response = await pageApi.getPageSettings()
-      return response.data
-    },
-    staleTime: 1000 * 60 * 5, // Cache aman selama 5 menit
-  })
+  const { data: pageSettings, isLoading } = usePageSettings()
 
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 

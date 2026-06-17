@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -7,49 +6,7 @@ import Skeleton from '@mui/material/Skeleton';
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
-import { api } from '@/api/axios';
-import type { ApiResponse } from '@/types/api';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface DormantTrendPoint {
-  month: string;
-  total_existing: number;
-  dormant_count: number;
-  dormant_rate: number;
-  reactivated: number;
-  reactivation_rate: number;
-}
-
-interface DormantValueRankingRow {
-  customer_name: string;
-  estimated_lost_value: number;
-  months_dormant: number;
-}
-
-interface ReactivationCurrent {
-  value: number;
-  target_low: number;
-  target_high: number;
-}
-
-interface DormantData {
-  trend: DormantTrendPoint[];
-  detail: unknown[];
-  value_ranking: DormantValueRankingRow[];
-  reactivation_current: ReactivationCurrent;
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-function useDormantCustomer() {
-  return useQuery<DormantData>({
-    queryKey: ['metrics', 'dormant-customer'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer');
-      return res.data.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-}
+import { useDormantCustomer } from '@/hooks/useMetrics';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtRp(v: number): string {

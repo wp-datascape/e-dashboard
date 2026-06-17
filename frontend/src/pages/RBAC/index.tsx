@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import TextField from '@mui/material/TextField';
@@ -16,6 +14,9 @@ import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import CardActions from '@mui/material/CardActions';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
@@ -26,9 +27,15 @@ import SecurityIcon from '@mui/icons-material/Security';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
-import { Button, Dialog } from '@/components/ui';
+import { Button, Dialog, StatusChip } from '@/components/ui';
 import { DataTable } from '@/components/tables/DataTable';
-import { rbacApi } from '@/api/rbac.api';
+import {
+  useRbacRoles,
+  useRbacPermissions,
+  useCreateRoleMutation,
+  useDeleteRoleMutation,
+  useUpdateRolePermissionsMutation,
+} from '@/hooks/useRbac';
 import type { Role, Permission } from '@/types/rbac';
 
 // ─── Action columns ───────────────────────────────────────────────────────────
@@ -41,15 +48,83 @@ const ACTION_COLUMNS = [
   { key: 'delete', label: 'Delete' },
 ];
 
+// ─── Mobile Role Card ─────────────────────────────────────────────────────────
+
+interface RoleCardProps {
+  role: Role;
+  onPermissions: (role: Role) => void;
+  onDelete: (role: Role) => void;
+  t: (key: string) => string;
+}
+
+function RoleCard({ role, onPermissions, onDelete, t }: RoleCardProps) {
+  return (
+    <Card
+      elevation={0}
+      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1.5 }}
+    >
+      <CardContent sx={{ pb: 1 }}>
+        {/* Name + system badge */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, flexGrow: 1 }}>
+            {role.name}
+          </Typography>
+          {role.is_system && (
+            <StatusChip
+              label={t('rbac.systemRole')}
+              color="warning"
+              icon={<LockIcon />}
+            />
+          )}
+        </Box>
+
+        {/* Description */}
+        {role.description && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            {role.description}
+          </Typography>
+        )}
+
+        {/* Permission count */}
+        <StatusChip
+          label={`${role.permissions.length} permission`}
+          color="primary"
+        />
+      </CardContent>
+
+      <CardActions sx={{ pt: 0, px: 2, pb: 1.5, gap: 1 }}>
+        <Button
+          size="small"
+          startIcon={<SecurityIcon sx={{ fontSize: 15 }} />}
+          onClick={() => onPermissions(role)}
+          sx={{ flex: 1 }}
+        >
+          {t('rbac.assignPermissions')}
+        </Button>
+        <Tooltip title={role.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
+          <span>
+            <IconButton
+              size="small"
+              color="error"
+              disabled={role.is_system}
+              onClick={() => onDelete(role)}
+            >
+              <DeleteIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </CardActions>
+    </Card>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RBAC() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [permDialogOpen, setPermDialogOpen] = useState(false);
@@ -58,8 +133,6 @@ export default function RBAC() {
   const [formData, setFormData] = useState({ name: '', description: '' });
   const [permSearch, setPermSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  // ─── Optimistic permission state ─────────────────────────────────────────────
   const [activePermIds, setActivePermIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -70,50 +143,30 @@ export default function RBAC() {
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
 
-  const { data: roles, isLoading: rolesLoading, error: rolesError } = useQuery({
-    queryKey: ['rbac-roles'],
-    queryFn: rbacApi.getRoles,
-  });
+  const { data: roles, isLoading: rolesLoading, error: rolesError } = useRbacRoles();
 
-  const { data: permissionsGrouped } = useQuery({
-    queryKey: ['rbac-permissions'],
-    queryFn: rbacApi.getPermissions,
-    enabled: permDialogOpen,
-  });
+  const { data: permissionsGrouped } = useRbacPermissions(permDialogOpen);
 
   // ─── Mutations ───────────────────────────────────────────────────────────────
 
-  const createMutation = useMutation({
-    mutationFn: rbacApi.createRole,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
-      setAddDialogOpen(false);
-      setFormData({ name: '', description: '' });
-    },
+  const createMutation = useCreateRoleMutation(() => {
+    setAddDialogOpen(false);
+    setFormData({ name: '', description: '' });
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: rbacApi.deleteRole,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
-      setDeleteDialogOpen(false);
-      setSelectedRole(null);
-    },
+  const deleteMutation = useDeleteRoleMutation(() => {
+    setDeleteDialogOpen(false);
+    setSelectedRole(null);
   });
 
-  const updatePermissionsMutation = useMutation({
-    mutationFn: ({ id, permission_ids }: { id: number; permission_ids: number[] }) =>
-      rbacApi.updateRolePermissions(id, { permission_ids }),
-    onSuccess: (updatedRole: Role) => {
-      queryClient.invalidateQueries({ queryKey: ['rbac-roles'] });
-      setSelectedRole(updatedRole);
-    },
-    onError: () => {
+  const updatePermissionsMutation = useUpdateRolePermissionsMutation(
+    (updatedRole) => setSelectedRole(updatedRole),
+    () => {
       if (selectedRole) {
         setActivePermIds(new Set(selectedRole.permissions.map((p) => p.id)));
       }
-    },
-  });
+    }
+  );
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -150,19 +203,11 @@ export default function RBAC() {
     if (!selectedRole) return;
     const perm = findPerm(group, action);
     if (!perm) return;
-
     const newIds = new Set(activePermIds);
-    if (newIds.has(perm.id)) {
-      newIds.delete(perm.id);
-    } else {
-      newIds.add(perm.id);
-    }
+    if (newIds.has(perm.id)) newIds.delete(perm.id);
+    else newIds.add(perm.id);
     setActivePermIds(newIds);
-
-    updatePermissionsMutation.mutate({
-      id: selectedRole.id,
-      permission_ids: Array.from(newIds),
-    });
+    updatePermissionsMutation.mutate({ id: selectedRole.id, permission_ids: Array.from(newIds) });
   };
 
   const toggleGroupExpand = (group: string) => {
@@ -181,7 +226,12 @@ export default function RBAC() {
     setPermDialogOpen(true);
   };
 
-  // ─── DataTable columns ────────────────────────────────────────────────────────
+  const openDeleteDialog = (role: Role) => {
+    setSelectedRole(role);
+    setDeleteDialogOpen(true);
+  };
+
+  // ─── DataTable columns (desktop only) ────────────────────────────────────────
 
   const columns: GridColDef[] = [
     {
@@ -195,11 +245,10 @@ export default function RBAC() {
             {params.value}
           </Typography>
           {params.row.is_system && (
-            <Chip
+            <StatusChip
               label={t('rbac.systemRole')}
-              size="small"
-              icon={<LockIcon sx={{ fontSize: '10px !important' }} />}
-              sx={{ height: 18, fontSize: '0.6rem', borderRadius: 0 }}
+              color="warning"
+              icon={<LockIcon />}
             />
           )}
         </Box>
@@ -223,12 +272,9 @@ export default function RBAC() {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
-        <Chip
+        <StatusChip
           label={`${(params.value as Permission[]).length} permission`}
-          size="small"
           color="primary"
-          variant="outlined"
-          sx={{ height: 20, fontSize: '0.65rem', borderRadius: 0 }}
         />
       ),
     },
@@ -252,10 +298,7 @@ export default function RBAC() {
                 size="small"
                 color="error"
                 disabled={params.row.is_system}
-                onClick={() => {
-                  setSelectedRole(params.row as Role);
-                  setDeleteDialogOpen(true);
-                }}
+                onClick={() => openDeleteDialog(params.row as Role)}
               >
                 <DeleteIcon sx={{ fontSize: 16 }} />
               </IconButton>
@@ -272,7 +315,15 @@ export default function RBAC() {
     return (
       <Box sx={{ p: 3 }}>
         <Skeleton variant="text" width={300} height={40} />
-        <Skeleton variant="rectangular" height={400} sx={{ mt: 2 }} />
+        {isMobile ? (
+          <Box sx={{ mt: 2 }}>
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} variant="rectangular" height={110} sx={{ mb: 1.5, borderRadius: 2 }} />
+            ))}
+          </Box>
+        ) : (
+          <Skeleton variant="rectangular" height={400} sx={{ mt: 2 }} />
+        )}
       </Box>
     );
   }
@@ -291,28 +342,39 @@ export default function RBAC() {
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
-      {/* ─── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('rbac.title')}
         </Typography>
         <Button
           startIcon={<AddIcon />}
-          onClick={() => {
-            setFormData({ name: '', description: '' });
-            setAddDialogOpen(true);
-          }}
+          onClick={() => { setFormData({ name: '', description: '' }); setAddDialogOpen(true); }}
         >
-          {t('rbac.addRole')}
+          {isMobile ? t('common.add') : t('rbac.addRole')}
         </Button>
       </Box>
 
-      {/* ─── Role DataTable ──────────────────────────────────────────────────── */}
-      <DataTable title={t('rbac.roles')} rows={roles ?? []} columns={columns} height={450} pageSize={10} />
+      {/* Role List: Mobile = Cards, Desktop = DataTable */}
+      {isMobile ? (
+        <Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+            {roles?.length ?? 0} role ditemukan
+          </Typography>
+          {(roles ?? []).map((role) => (
+            <RoleCard key={role.id} role={role} onPermissions={openPermDialog} onDelete={openDeleteDialog} t={t} />
+          ))}
+          {(roles ?? []).length === 0 && (
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.disabled">{t('common.noData')}</Typography>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <DataTable title={t('rbac.roles')} rows={roles ?? []} columns={columns} height={450} pageSize={10} />
+      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          DIALOG: Add Role
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DIALOG: Add Role */}
       <Dialog
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
@@ -321,36 +383,14 @@ export default function RBAC() {
         error={createMutation.error}
         actions={[
           { label: t('common.cancel'), onClick: () => setAddDialogOpen(false), variant: 'text' },
-          {
-            label: t('common.add'),
-            onClick: () => createMutation.mutate(formData),
-            isLoading: createMutation.isPending,
-            disabled: !formData.name.trim(),
-          },
+          { label: t('common.add'), onClick: () => createMutation.mutate(formData), isLoading: createMutation.isPending, disabled: !formData.name.trim() },
         ]}
       >
-        <TextField
-          autoFocus
-          margin="dense"
-          label={t('rbac.roleName')}
-          fullWidth
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        />
-        <TextField
-          margin="dense"
-          label={t('rbac.roleDesc')}
-          fullWidth
-          multiline
-          rows={3}
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-        />
+        <TextField autoFocus margin="dense" label={t('rbac.roleName')} fullWidth value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+        <TextField margin="dense" label={t('rbac.roleDesc')} fullWidth multiline rows={3} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
       </Dialog>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          DIALOG: Delete Role
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DIALOG: Delete Role */}
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
@@ -359,44 +399,26 @@ export default function RBAC() {
         error={deleteMutation.error}
         actions={[
           { label: t('common.cancel'), onClick: () => setDeleteDialogOpen(false), variant: 'text' },
-          {
-            label: t('common.delete'),
-            onClick: () => selectedRole && deleteMutation.mutate(selectedRole.id),
-            color: 'error',
-            isLoading: deleteMutation.isPending,
-          },
+          { label: t('common.delete'), onClick: () => selectedRole && deleteMutation.mutate(selectedRole.id), color: 'error', isLoading: deleteMutation.isPending },
         ]}
       >
         <Typography>{t('rbac.deleteRoleConfirm')}</Typography>
         {selectedRole && (
           <Paper sx={{ p: 1.5, mt: 1.5, border: '1px solid', borderColor: 'error.light' }} elevation={0}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {selectedRole.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {selectedRole.description}
-            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{selectedRole.name}</Typography>
+            <Typography variant="caption" color="text.secondary">{selectedRole.description}</Typography>
           </Paper>
         )}
       </Dialog>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          DIALOG: Set Permission
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DIALOG: Set Permission */}
       <Dialog
         open={permDialogOpen}
         onClose={() => setPermDialogOpen(false)}
         fullScreen={isMobile}
         title={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.5 }}>
-            <Box
-              sx={{
-                width: 40, height: 40, borderRadius: 2,
-                bgcolor: 'primary.main',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
+            <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <SecurityIcon sx={{ color: '#fff', fontSize: 22 }} />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -406,28 +428,18 @@ export default function RBAC() {
               {selectedRole && (
                 <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1 }}>
                   Role:&nbsp;
-                  <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {selectedRole.name}
-                  </Box>
+                  <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{selectedRole.name}</Box>
                 </Typography>
               )}
             </Box>
-            <Chip
-              label={`${activePermIds.size} aktif`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontSize: '0.7rem', height: 22, borderRadius: 1, flexShrink: 0 }}
-            />
+            <StatusChip label={`${activePermIds.size} aktif`} color="primary" />
           </Box>
         }
         maxWidth="sm"
         contentSx={{ p: 0 }}
-        actions={[
-          { label: 'Selesai', onClick: () => setPermDialogOpen(false) },
-        ]}
+        actions={[{ label: 'Selesai', onClick: () => setPermDialogOpen(false) }]}
       >
-        {/* ── Search bar ── */}
+        {/* Search bar */}
         <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
           <TextField
             size="small"
@@ -447,7 +459,7 @@ export default function RBAC() {
           />
         </Box>
 
-        {/* ── Accordion List ── */}
+        {/* Accordion List */}
         <Box sx={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100vh - 220px)' : '60vh' }}>
           <List disablePadding>
             {filteredGroups.map((group, idx) => {
@@ -460,57 +472,31 @@ export default function RBAC() {
                 <Box key={group}>
                   {idx > 0 && <Divider />}
 
-                  {/* ── Group header row ── */}
                   <ListItemButton
                     onClick={() => toggleGroupExpand(group)}
                     sx={{
-                      px: 2.5,
-                      py: 1.25,
-                      gap: 1.5,
+                      px: 2.5, py: 1.25, gap: 1.5,
                       bgcolor: isOpen ? 'primary.main' : 'transparent',
-                      '&:hover': {
-                        bgcolor: isOpen ? 'primary.dark' : 'action.hover',
-                      },
+                      '&:hover': { bgcolor: isOpen ? 'primary.dark' : 'action.hover' },
                       transition: 'background-color 0.15s',
                     }}
                   >
                     <ListItemText
                       primary={
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontWeight: 600,
-                            color: isOpen ? '#fff' : 'text.primary',
-                          }}
-                        >
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: isOpen ? '#fff' : 'text.primary' }}>
                           {group}
                         </Typography>
                       }
                     />
-
-                    {/* permission summary chips */}
                     <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
                       {activeCount > 0 && (
-                        <Chip
+                        <StatusChip
                           label={`${activeCount}/${totalCount}`}
-                          size="small"
                           color={isFullyActive ? 'success' : 'warning'}
-                          variant={isOpen ? 'filled' : 'outlined'}
-                          sx={{
-                            height: 20,
-                            fontSize: '0.65rem',
-                            borderRadius: 1,
-                            fontWeight: 700,
-                            ...(isOpen && {
-                              bgcolor: 'rgba(255,255,255,0.25)',
-                              color: '#fff',
-                              borderColor: 'transparent',
-                            }),
-                          }}
+                          sx={isOpen ? { bgcolor: 'rgba(255,255,255,0.25)', color: '#fff', borderColor: 'transparent' } : undefined}
                         />
                       )}
                     </Box>
-
                     <ExpandMoreIcon
                       sx={{
                         fontSize: 20,
@@ -522,58 +508,25 @@ export default function RBAC() {
                     />
                   </ListItemButton>
 
-                  {/* ── Expanded: action toggles ── */}
                   <Collapse in={isOpen} unmountOnExit>
-                    <Box
-                      sx={{
-                        bgcolor: 'action.hover',
-                        px: 2.5,
-                        py: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 0.25,
-                        borderLeft: '3px solid',
-                        borderColor: 'primary.main',
-                      }}
-                    >
+                    <Box sx={{ bgcolor: 'action.hover', px: 2.5, py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, borderLeft: '3px solid', borderColor: 'primary.main' }}>
                       {ACTION_COLUMNS.map((col) => {
                         const exists = groupHasAction(group, col.key);
                         const checked = hasPermission(group, col.key);
-
                         return (
                           <Box
                             key={col.key}
                             sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              py: 0.75,
-                              px: 1,
-                              borderRadius: 1,
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              py: 0.75, px: 1, borderRadius: 1,
                               opacity: exists ? 1 : 0.38,
                               bgcolor: checked && exists ? 'primary.main' + '14' : 'transparent',
                               transition: 'background-color 0.15s',
                             }}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {/* colored dot indicator */}
-                              <Box
-                                sx={{
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: '50%',
-                                  bgcolor: checked && exists ? 'primary.main' : 'divider',
-                                  transition: 'background-color 0.15s',
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: checked && exists ? 600 : 400,
-                                  color: checked && exists ? 'primary.main' : 'text.primary',
-                                }}
-                              >
+                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: checked && exists ? 'primary.main' : 'divider', transition: 'background-color 0.15s', flexShrink: 0 }} />
+                              <Typography variant="body2" sx={{ fontWeight: checked && exists ? 600 : 400, color: checked && exists ? 'primary.main' : 'text.primary' }}>
                                 {col.label}
                               </Typography>
                               {!exists && (
@@ -582,14 +535,7 @@ export default function RBAC() {
                                 </Typography>
                               )}
                             </Box>
-
-                            <Switch
-                              checked={checked}
-                              onChange={() => exists && handlePermissionToggle(group, col.key)}
-                              disabled={!exists}
-                              size="small"
-                              color="primary"
-                            />
+                            <Switch checked={checked} onChange={() => exists && handlePermissionToggle(group, col.key)} disabled={!exists} size="small" color="primary" />
                           </Box>
                         );
                       })}
@@ -603,9 +549,7 @@ export default function RBAC() {
 
           {filteredGroups.length === 0 && (
             <Box sx={{ py: 6, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.disabled">
-                Tidak ada kategori yang cocok
-              </Typography>
+              <Typography variant="body2" color="text.disabled">Tidak ada kategori yang cocok</Typography>
             </Box>
           )}
         </Box>

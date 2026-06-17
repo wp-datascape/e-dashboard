@@ -1,59 +1,23 @@
-import { useQuery } from '@tanstack/react-query';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import Chip from '@mui/material/Chip';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Divider from '@mui/material/Divider';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
 import { HeatmapWidget } from '@/components/charts/HeatmapWidget';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { DataTable } from '@/components/tables/DataTable';
-import { api } from '@/api/axios';
-import type { ApiResponse } from '@/types/api';
-import type { HeatmapRow } from '@/components/charts/HeatmapWidget';
+import { useCrossSelling } from '@/hooks/useMetrics';
+import type { CrossSellingDetailRow } from '@/types/metrics';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface CrossSellingTrendPoint {
-  month: string;
-  total_active: number;
-  multi_product: number;
-  ratio: number;
-  avg_category: number;
-}
-
-interface CrossSellingDetailRow {
-  id: number;
-  customer_code: string;
-  customer_name: string;
-  hardware: boolean;
-  consumable: boolean;
-  service: boolean;
-  category_count: number;
-  total_revenue: number;
-}
-
-interface CrossSellingData {
-  trend: CrossSellingTrendPoint[];
-  detail: CrossSellingDetailRow[];
-  heatmap: HeatmapRow[];
-  categories: string[];
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-function useCrossSelling() {
-  return useQuery<CrossSellingData>({
-    queryKey: ['metrics', 'cross-selling'],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<CrossSellingData>>('/metrics/cross-selling');
-      return res.data.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-}
-
-// ─── Columns ──────────────────────────────────────────────────────────────────
+// ─── Desktop Columns ──────────────────────────────────────────────────────────
 const detailColumns: GridColDef[] = [
   { field: 'customer_code', headerName: 'Kode Customer', width: 140 },
   { field: 'customer_name', headerName: 'Nama Customer', flex: 1, minWidth: 180 },
@@ -62,11 +26,9 @@ const detailColumns: GridColDef[] = [
     headerName: 'Hardware',
     width: 100,
     renderCell: (p) => (
-      <Chip
+      <StatusChip
         label={p.value ? 'Ya' : 'Tidak'}
-        size="small"
         color={p.value ? 'primary' : 'default'}
-        sx={{ borderRadius: 0, fontSize: '0.7rem', height: 20 }}
       />
     ),
   },
@@ -75,11 +37,9 @@ const detailColumns: GridColDef[] = [
     headerName: 'Consumable',
     width: 110,
     renderCell: (p) => (
-      <Chip
+      <StatusChip
         label={p.value ? 'Ya' : 'Tidak'}
-        size="small"
         color={p.value ? 'primary' : 'default'}
-        sx={{ borderRadius: 0, fontSize: '0.7rem', height: 20 }}
       />
     ),
   },
@@ -93,9 +53,88 @@ const detailColumns: GridColDef[] = [
   },
 ];
 
+// ─── Mobile Detail Card ───────────────────────────────────────────────────────
+function DetailCard({ row }: { row: CrossSellingDetailRow }) {
+  return (
+    <Card
+      elevation={0}
+      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1.5 }}
+    >
+      <CardContent sx={{ pb: '12px !important' }}>
+        {/* Customer name + code */}
+        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>
+          {row.customer_name}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
+          {row.customer_code}
+        </Typography>
+
+        <Divider sx={{ mb: 1.25 }} />
+
+        {/* Category chips */}
+        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.25 }}>
+          <StatusChip
+            label="Hardware"
+            color={row.hardware ? 'primary' : 'default'}
+          />
+          <StatusChip
+            label="Consumable"
+            color={row.consumable ? 'primary' : 'default'}
+          />
+          <StatusChip
+            label="Service"
+            color={row.service ? 'primary' : 'default'}
+          />
+        </Box>
+
+        {/* Stats row */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Jumlah Kategori
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {row.category_count}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="caption" color="text.secondary">
+              Total Revenue
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              Rp {row.total_revenue.toLocaleString('id-ID')}
+            </Typography>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Section Label ─────────────────────────────────────────────────────────────
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <Typography
+      variant="body2"
+      sx={{
+        fontWeight: 700,
+        mb: 0.5,
+        color: 'text.secondary',
+        fontSize: '0.72rem',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}
+    >
+      {label}
+    </Typography>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CrossSelling() {
   const { data, isLoading } = useCrossSelling();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const latestTrend = data?.trend.at(-1);
 
@@ -107,15 +146,13 @@ export default function CrossSelling() {
           Cross Selling
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Metrik 1, 1.1 & 2 — Cross Selling Ratio, Heatmap Produk, dan Rata-rata Kategori per Customer
+          Metrik 1, 1.1 &amp; 2 — Cross Selling Ratio, Heatmap Produk, dan Rata-rata Kategori per Customer
         </Typography>
       </Box>
 
       {/* ── M1: Grouped Column Chart — Total Active vs Multi-Product ── */}
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          M1 · Cross Selling Ratio
-        </Typography>
+        <SectionLabel label="M1 · Cross Selling Ratio" />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 8 }}>
             {isLoading ? (
@@ -132,7 +169,6 @@ export default function CrossSelling() {
                 xKey="month"
                 height={240}
                 tooltipFormatter={(value, name) => {
-                  // Enrich tooltip with ratio % for the active-customer bar
                   return [value.toLocaleString('id-ID') + ' jiwa', name];
                 }}
               />
@@ -159,9 +195,12 @@ export default function CrossSelling() {
 
       {/* ── M1.1: Heatmap — Customer × Product Category ── */}
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          M1.1 · Customer Cross Selling Dashboard — Heatmap
-        </Typography>
+        <SectionLabel label="M1.1 · Customer Cross Selling Dashboard — Heatmap" />
+        {isMobile && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontStyle: 'italic' }}>
+            ← Geser kiri/kanan untuk melihat semua kolom
+          </Typography>
+        )}
         {isLoading ? (
           <Skeleton variant="rectangular" height={420} />
         ) : (
@@ -176,9 +215,7 @@ export default function CrossSelling() {
 
       {/* ── M2: Spline Area Chart — Avg Category per Customer ── */}
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          M2 · Rata-rata Kategori Produk per Customer
-        </Typography>
+        <SectionLabel label="M2 · Rata-rata Kategori Produk per Customer" />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             {isLoading ? (
@@ -198,14 +235,34 @@ export default function CrossSelling() {
         </Grid>
       </Box>
 
-      {/* ── Detail Table ── */}
+      {/* ── Detail Table / Cards ── */}
       <Box>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
           Detail per Customer — Periode 2025-03
         </Typography>
+
         {isLoading ? (
-          <Skeleton variant="rectangular" height={420} />
+          isMobile ? (
+            <Box>
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} variant="rectangular" height={140} sx={{ mb: 1.5, borderRadius: 2 }} />
+              ))}
+            </Box>
+          ) : (
+            <Skeleton variant="rectangular" height={420} />
+          )
+        ) : isMobile ? (
+          /* ── Mobile: Card list ── */
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+              {data?.detail.length ?? 0} customer ditemukan
+            </Typography>
+            {(data?.detail ?? []).map((row) => (
+              <DetailCard key={row.id} row={row} />
+            ))}
+          </Box>
         ) : (
+          /* ── Desktop: DataGrid ── */
           <DataTable
             rows={data?.detail ?? []}
             columns={detailColumns}

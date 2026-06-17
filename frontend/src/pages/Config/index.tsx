@@ -22,6 +22,8 @@ import FormLabel from '@mui/material/FormLabel'
 import { useTranslation } from 'react-i18next'
 import { useTheme as useMuiTheme } from '@mui/material/styles'
 import { useThemeMode } from '@/theme/ThemeContext'
+import { SUPPORTED_LANGUAGES } from '@/i18n/index'
+import { StatusChip } from '@/components/ui/StatusChip'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -47,48 +49,29 @@ function TabPanel(props: TabPanelProps) {
 export default function Config() {
   const { t, i18n } = useTranslation()
   const muiTheme = useMuiTheme()
-  const { mode, toggleTheme } = useThemeMode()
+  const { mode, toggleTheme, isDark } = useThemeMode()
   const [activeTab, setActiveTab] = useState(0)
-  
+
   // Integration form state
   const [authMethod, setAuthMethod] = useState<'api-token' | 'oauth'>('oauth')
-  // API Token method
   const [appKey, setAppKey] = useState('')
   const [signatureSecret, setSignatureSecret] = useState('')
-  // OAuth method
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [callbackUrl, setCallbackUrl] = useState('https://your-domain.com/api/v1/accurate/callback')
-  // Common
   const [companyDb, setCompanyDb] = useState('')
-  
-  // App config state
-  const [selectedLanguage, setSelectedLanguage] = useState(i18n.language)
-  const [isDarkMode, setIsDarkMode] = useState(mode === 'dark')
+
+  // Save feedback state
+  const [integrationSaved, setIntegrationSaved] = useState(false)
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue)
   }
 
   const handleSaveIntegration = () => {
-    // TODO: Implement API call to save Accurate credentials
-    if (authMethod === 'api-token') {
-      console.log('Saving API Token credentials:', {
-        method: 'api-token',
-        appKey,
-        signatureSecret,
-        companyDb,
-      })
-    } else {
-      console.log('Saving OAuth credentials:', {
-        method: 'oauth',
-        clientId,
-        clientSecret,
-        callbackUrl,
-        companyDb,
-      })
-    }
-    alert(`Kredensial Accurate (${authMethod === 'oauth' ? 'OAuth' : 'API Token'}) berhasil disimpan (Mock)`)
+    // TODO: Ganti dengan API call ke backend ketika backend sudah siap
+    setIntegrationSaved(true)
+    setTimeout(() => setIntegrationSaved(false), 3000)
   }
 
   const handleResetIntegration = () => {
@@ -100,23 +83,17 @@ export default function Config() {
     setCompanyDb('')
   }
 
-  const handleSaveAppConfig = () => {
-    // Save language
-    i18n.changeLanguage(selectedLanguage)
-    
-    // Save theme
-    if ((isDarkMode && mode === 'light') || (!isDarkMode && mode === 'dark')) {
-      toggleTheme()
-    }
-    
-    alert('Konfigurasi aplikasi berhasil disimpan')
+  // ── Language: langsung apply saat ganti, tersimpan otomatis via i18n localStorage ──
+  const handleLanguageChange = (code: string) => {
+    void i18n.changeLanguage(code)
   }
 
-  const handleThemeToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setIsDarkMode(event.target.checked)
+  // ── Dark Mode: langsung toggle via ThemeContext, tersimpan otomatis via localStorage ──
+  const handleThemeToggle = (_event: React.ChangeEvent<HTMLInputElement>) => {
+    toggleTheme()
   }
 
-  const isIntegrationValid = authMethod === 'oauth' 
+  const isIntegrationValid = authMethod === 'oauth'
     ? (clientId && clientSecret && callbackUrl && companyDb)
     : (appKey && signatureSecret && companyDb)
 
@@ -137,7 +114,7 @@ export default function Config() {
           </Tabs>
         </Box>
 
-        {/* Tab 1: Integration - Accurate Credentials */}
+        {/* ── Tab 0: Integration — Accurate Credentials ── */}
         <TabPanel value={activeTab} index={0}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -147,9 +124,15 @@ export default function Config() {
               Pilih metode autentikasi dan masukkan kredensial API Accurate Online
             </Typography>
 
+            {integrationSaved && (
+              <Alert severity="success" sx={{ mb: 3 }} onClose={() => setIntegrationSaved(false)}>
+                Kredensial berhasil disimpan.
+              </Alert>
+            )}
+
             <Alert severity="info" sx={{ mb: 3 }}>
               <strong>OAuth (Recommended):</strong> Lebih aman, user authorization flow standar.<br />
-              <strong>API Token:</strong> Lebih simple, langsung gunakan App Key & Signature Secret.
+              <strong>API Token:</strong> Lebih simple, langsung gunakan App Key &amp; Signature Secret.
             </Alert>
 
             <Stack spacing={3}>
@@ -174,7 +157,7 @@ export default function Config() {
                   <Typography variant="subtitle2" color="primary">
                     OAuth 2.0 Credentials
                   </Typography>
-                  
+
                   <TextField
                     fullWidth
                     label="Client ID"
@@ -211,7 +194,7 @@ export default function Config() {
                   <Typography variant="subtitle2" color="primary">
                     API Token Credentials
                   </Typography>
-                  
+
                   <TextField
                     fullWidth
                     label="App Key"
@@ -256,8 +239,8 @@ export default function Config() {
               <Divider />
 
               <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button 
-                  variant="contained" 
+                <Button
+                  variant="contained"
                   onClick={handleSaveIntegration}
                   disabled={!isIntegrationValid}
                 >
@@ -271,152 +254,141 @@ export default function Config() {
           </CardContent>
         </TabPanel>
 
-        {/* Tab 2: App Settings - Theme, Language, etc */}
+        {/* ── Tab 1: App Settings — Theme & Language ── */}
         <TabPanel value={activeTab} index={1}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Application Settings
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Atur preferensi tampilan dan bahasa aplikasi
+              Perubahan diterapkan <strong>langsung</strong> dan tersimpan otomatis.
             </Typography>
 
-            <Stack spacing={3}>
-              {/* Language Selection */}
-              <FormControl fullWidth>
-                <InputLabel id="language-label">Bahasa / Language</InputLabel>
-                <Select
-                  labelId="language-label"
-                  value={selectedLanguage}
-                  label="Bahasa / Language"
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                >
-                  <MenuItem value="id">🇮🇩 Bahasa Indonesia</MenuItem>
-                  <MenuItem value="en">🇬🇧 English</MenuItem>
-                </Select>
-              </FormControl>
+            <Stack spacing={4}>
 
-              {/* Dark Mode Toggle */}
+              {/* ── Language Selection ── */}
               <Box>
-                <FormControlLabel
-                  control={
-                    <Switch 
-                      checked={isDarkMode} 
-                      onChange={handleThemeToggle}
-                      color="primary"
-                    />
-                  }
-                  label={
+                <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>
+                  🌐 Bahasa / Language
+                </Typography>
+                <FormControl fullWidth>
+                  <InputLabel id="language-label">Pilih Bahasa</InputLabel>
+                  <Select
+                    labelId="language-label"
+                    value={i18n.language}
+                    label="Pilih Bahasa"
+                    onChange={(e) => handleLanguageChange(e.target.value)}
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <MenuItem key={lang.code} value={lang.code}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <span style={{ fontSize: '1.2rem' }}>{lang.flag}</span>
+                          <Typography variant="body2" sx={{ fontWeight: i18n.language === lang.code ? 600 : 400 }}>
+                            {lang.label}
+                          </Typography>
+                          {i18n.language === lang.code && (
+                            <StatusChip label="Active" color="primary" sx={{ ml: 'auto' }} />
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  Pilihan bahasa tersimpan otomatis dan berlaku untuk seluruh aplikasi.
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              {/* ── Dark Mode Toggle ── */}
+              <Box>
+                <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>
+                  🎨 Tema Tampilan
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 2,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.default',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography variant="body1" sx={{ fontSize: '1.4rem', lineHeight: 1 }}>
+                      {isDark ? '🌙' : '☀️'}
+                    </Typography>
                     <Box>
-                      <Typography variant="body1">
-                        {isDarkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {isDark ? 'Dark Mode' : 'Light Mode'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {isDarkMode 
-                          ? 'Gunakan tema gelap untuk mengurangi ketegangan mata'
-                          : 'Gunakan tema terang untuk visibilitas lebih baik'
+                        {isDark
+                          ? 'Tema gelap — mengurangi ketegangan mata di lingkungan redup'
+                          : 'Tema terang — visibilitas lebih baik di lingkungan terang'
                         }
                       </Typography>
                     </Box>
-                  }
-                />
+                  </Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={isDark}
+                        onChange={handleThemeToggle}
+                        color="primary"
+                      />
+                    }
+                    label=""
+                    sx={{ m: 0 }}
+                  />
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  Pilihan tema tersimpan otomatis dan berlaku untuk seluruh aplikasi.
+                </Typography>
               </Box>
 
               <Divider />
 
-              {/* Theme Color Preview */}
+              {/* ── Theme Color Preview ── */}
               <Box>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Theme Preview
+                <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>
+                  🎨 Palet Warna (Mode: {mode})
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 1,
-                      bgcolor: muiTheme.palette.primary.main,
-                      border: '2px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: 'primary.contrastText' }}>
-                      Primary
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 1,
-                      bgcolor: muiTheme.palette.secondary.main,
-                      border: '2px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: 'secondary.contrastText' }}>
-                      Secondary
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 1,
-                      bgcolor: muiTheme.palette.success.main,
-                      border: '2px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: 'success.contrastText' }}>
-                      Success
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 1,
-                      bgcolor: muiTheme.palette.error.main,
-                      border: '2px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ color: 'error.contrastText' }}>
-                      Error
-                    </Typography>
-                  </Box>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Primary', bg: muiTheme.palette.primary.main, text: muiTheme.palette.primary.contrastText },
+                    { label: 'Secondary', bg: muiTheme.palette.secondary.main, text: muiTheme.palette.secondary.contrastText },
+                    { label: 'Success', bg: muiTheme.palette.success.main, text: '#fff' },
+                    { label: 'Warning', bg: muiTheme.palette.warning.main, text: '#fff' },
+                    { label: 'Error', bg: muiTheme.palette.error.main, text: '#fff' },
+                    { label: 'Info', bg: muiTheme.palette.info.main, text: '#fff' },
+                  ].map((color) => (
+                    <Box
+                      key={color.label}
+                      sx={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 2,
+                        bgcolor: color.bg,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: color.text, fontWeight: 600, fontSize: '0.65rem', textAlign: 'center' }}>
+                        {color.label}
+                      </Typography>
+                    </Box>
+                  ))}
                 </Box>
               </Box>
 
-              <Divider />
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button 
-                  variant="contained" 
-                  onClick={handleSaveAppConfig}
-                >
-                  Terapkan Pengaturan
-                </Button>
-                <Button variant="outlined" onClick={() => {
-                  setSelectedLanguage(i18n.language)
-                  setIsDarkMode(mode === 'dark')
-                }}>
-                  Reset
-                </Button>
-              </Box>
             </Stack>
           </CardContent>
         </TabPanel>
