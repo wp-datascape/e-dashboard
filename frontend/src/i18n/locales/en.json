@@ -284,7 +284,8 @@
     }
   },
   "customers": {
-    "title": "Customer Data",
+    "title": "Customer",
+    "subtitle": "Master customer database with segmentation and performance metrics",
     "code": "Customer Code",
     "name": "Customer Name",
     "status": "Status",
@@ -293,10 +294,21 @@
     "totalRevenue": "Total Revenue",
     "totalInvoices": "Total Invoices",
     "categories": "Categories",
+    "searchPlaceholder": "Search by name or code...",
     "statusLabels": {
       "active": "Active",
       "dormant": "Dormant",
       "new": "New"
+    },
+    "detail": {
+      "title": "Customer View",
+      "company": "Company",
+      "businessUnit": "Business Unit",
+      "lifetimeValue": "Lifetime Value",
+      "avgMonthly": "Avg Monthly Revenue",
+      "categoriesBought": "Categories Bought",
+      "revenueTrend": "Revenue & GP Trend (12 Months)",
+      "recentInvoices": "Recent Invoices"
     }
   },
   "error": {
