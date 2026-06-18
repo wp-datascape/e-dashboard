@@ -9,11 +9,13 @@ import Box from '@mui/material/Box'
 // Providers & Config
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './lib/queryClient'
-import { AuthProvider, ProtectedRoute, useAuth } from './context/AuthContext'
+import { AuthProvider, ProtectedRoute } from './context/AuthContext'
+import { useAuth } from './context/auth.context'
 import { usePageSettings } from './hooks/usePageSettings'
 
 // Registry Config & Lazy Base Elements
-import { routeRegistry, Login, NotFound, UnderMaintenance } from './route/routes'
+import { routeRegistry } from './route/routeConstants'
+import { Login, NotFound, UnderMaintenance } from './route/routes'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 
 // ─── Loading Fallback Component ──────────────────────────────────────────────

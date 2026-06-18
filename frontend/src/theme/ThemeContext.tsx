@@ -1,6 +1,4 @@
 import {
-  createContext,
-  useContext,
   useState,
   useMemo,
   useEffect,
@@ -9,18 +7,7 @@ import {
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { lightTheme, darkTheme } from './index'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-type ThemeMode = 'light' | 'dark'
-
-interface ThemeContextValue {
-  mode: ThemeMode
-  toggleTheme: () => void
-  isDark: boolean
-}
-
-// ─── Context ──────────────────────────────────────────────────────────────────
-const ThemeContext = createContext<ThemeContextValue | null>(null)
+import { ThemeContext, type ThemeMode, type ThemeContextValue } from './theme.context'
 
 const STORAGE_KEY = 'exec-dashboard-theme'
 
@@ -64,11 +51,4 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       </MuiThemeProvider>
     </ThemeContext.Provider>
   )
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-export function useThemeMode(): ThemeContextValue {
-  const ctx = useContext(ThemeContext)
-  if (!ctx) throw new Error('useThemeMode harus dipakai di dalam <ThemeProvider>')
-  return ctx
 }

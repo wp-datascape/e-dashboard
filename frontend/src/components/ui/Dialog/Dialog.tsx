@@ -24,7 +24,7 @@ export interface DialogProps {
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   fullWidth?: boolean;
   fullScreen?: boolean;
-  error?: Error | null;
+  error?: { message: string } | null;
   footer?: React.ReactNode;
   contentSx?: object;
   paperSx?: object;

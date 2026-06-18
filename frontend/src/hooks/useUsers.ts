@@ -1,7 +1,8 @@
 // src/hooks/useUsers.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users.api';
-import type { CreateUserPayload, UpdateUserPayload } from '@/types/users';
+import type { ApiError } from '@/types/api';
+import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export function useCompanies() {
 
 export function useCreateUser() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<User, ApiError, CreateUserPayload>({
     mutationFn: (payload: CreateUserPayload) => usersApi.createUser(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: usersKeys.all });
@@ -40,7 +41,7 @@ export function useCreateUser() {
 
 export function useUpdateUser() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<User, ApiError, { id: number; payload: UpdateUserPayload }>({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateUserPayload }) =>
       usersApi.updateUser(id, payload),
     onSuccess: () => {
@@ -51,7 +52,7 @@ export function useUpdateUser() {
 
 export function useDeleteUser() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<void, ApiError, number>({
     mutationFn: (id: number) => usersApi.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: usersKeys.all });

@@ -1,4 +1,4 @@
-import Button, { ButtonProps } from '@mui/material/Button';import { useAuth } from '@/context/AuthContext';
+import Button, { ButtonProps } from '@mui/material/Button';import { useAuth } from '@/context/auth.context';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 interface LogoutButtonProps extends Omit<ButtonProps, 'onClick'> {

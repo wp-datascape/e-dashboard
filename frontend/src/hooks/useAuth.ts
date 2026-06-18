@@ -2,7 +2,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi, LoginInput } from '@/api/auth.api';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/auth.context';
 import { LoginResponse } from '@/types/auth';
 import { ApiError } from '@/types/api';
 import { enqueueSnackbar } from 'notistack';

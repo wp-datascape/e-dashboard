@@ -15,9 +15,10 @@ export const authApi = {
       
       setCsrfToken(csrf_token);
       return response.data.data;
-    } catch (err: any) {
-       if (err.response && err.response.data) {
-        throw err.response.data as ApiError;
+    } catch (err) {
+      const error = err as { response?: { data?: ApiError } };
+      if (error.response?.data) {
+        throw error.response.data;
       }
       throw err;
     }

@@ -175,12 +175,15 @@ frontend/
 │   │   ├── Login/                    ✅ form + validasi + error dialog + i18n
 │   │   ├── Dashboard/                ✅ 10 StatCard + 7 chart widgets (spec-matched) + Definisi Kunci
 │   │   ├── CrossSelling/             ✅ M1 GroupedBar + M1.1 Heatmap + M2 AreaChart + DataTable
+│   │   │   └── components/           ✅ DetailCard.tsx
 │   │   ├── CustomerMetrics/          ✅ M3 Combo + M4 Stacked + M5 Donut + M6 Radial + M7 HorizStacked
 │   │   ├── DormantCustomer/          ✅ M8 LineAlert + M9 HorizRanking + M10 BulletChart
 │   │   ├── Import/                   ☐ placeholder
-│   │   ├── Users/                    ☐ placeholder
-│   │   ├── RBAC/                     ☐ placeholder
-│   │   ├── Config/                   ☐ placeholder
+│   │   ├── Users/                    ✅ CRUD users (View, Create, Edit, Delete dialogs)
+│   │   ├── RBAC/                     ✅ CRUD role, permission, assign
+│   │   │   └── components/           ✅ AddRoleDialog.tsx, DeleteRoleDialog.tsx, RoleCard.tsx, SetPermissionDialog.tsx
+│   │   ├── Config/                   ✅ Integration & App Settings tabs
+│   │   │   └── components/           ✅ IntegrationTab.tsx, AppSettingsTab.tsx
 │   │   ├── AuditLog/                 ☐ placeholder
 │   │   ├── NotFound/                 ✅
 │   │   └── UnderMaintenance/         ✅ animasi gears

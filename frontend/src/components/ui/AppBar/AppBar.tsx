@@ -10,8 +10,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useTranslation } from 'react-i18next';
-import { useThemeMode } from '@/theme/ThemeContext';
-import { useAuth } from '@/context/AuthContext';
+import { useThemeMode } from '@/theme/theme.context';
+import { useAuth } from '@/context/auth.context';
 
 interface AppBarProps {
   onToggleSidebar: () => void;

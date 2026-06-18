@@ -205,6 +205,49 @@
   },
   "config": {
     "title": "System Configuration",
+    "subtitle": "Manage integrations and application settings",
+    "tabs": {
+      "integration": "Integration",
+      "appSettings": "App Settings"
+    },
+    "integration": {
+      "title": "Accurate Online Integration",
+      "subtitle": "Choose authentication method and enter Accurate Online API credentials",
+      "success": "Credentials saved successfully.",
+      "infoTitle": "OAuth (Recommended):",
+      "infoText": "More secure, standard user authorization flow.",
+      "infoApiTitle": "API Token:",
+      "infoApiText": "Simpler, use App Key & Signature Secret directly.",
+      "authMethod": "Authentication Method",
+      "oauthLabel": "OAuth 2.0 (Recommended)",
+      "apiTokenLabel": "API Token",
+      "oauthTitle": "OAuth 2.0 Credentials",
+      "apiTokenTitle": "API Token Credentials",
+      "clientId": "Client ID",
+      "clientIdHelper": "Client ID from Accurate Online Developer Area",
+      "clientSecret": "Client Secret",
+      "clientSecretHelper": "Client Secret from Accurate Online Developer Area",
+      "callbackUrl": "Callback URL",
+      "callbackUrlHelper": "Callback URL that will receive authorization code",
+      "appKey": "App Key",
+      "appKeyHelper": "App Key from Accurate Online Developer Area (API Token menu)",
+      "signatureSecret": "Signature Secret",
+      "signatureSecretHelper": "Signature Secret for creating API request signature",
+      "dbInfo": "Database Information",
+      "companyDb": "Company Database ID",
+      "companyDbHelper": "Company database ID in Accurate Online",
+      "saveWarning": "Credentials will be stored encrypted in the backend database. Each company can have different credentials.",
+      "saveButton": "Save Credentials"
+    },
+    "appSettings": {
+      "title": "Application Settings",
+      "subtitle": "Changes are applied instantly and saved automatically.",
+      "languageTitle": "Language",
+      "languageHelper": "Language choice is saved automatically and applies to the entire application.",
+      "themeTitle": "Display Theme",
+      "themeHelper": "Theme choice is saved automatically and applies to the entire application.",
+      "paletteTitle": "Color Palette (Mode: {{mode}})"
+    },
     "globalConfig": "Global Configuration",
     "companyConfig": "Per-Company Configuration",
     "key": "Key",
@@ -269,6 +312,37 @@
       "subtitle": "This component encountered an error. Our team has been notified.",
       "reload": "Reload Page",
       "goHome": "Go to Home"
-    }
-  }
-}
+      }
+      },
+      "crossSelling": {
+      "pageTitle": "Cross Selling",
+      "pageSubtitle": "Metrics 1, 1.1 & 2 — Cross Selling Ratio, Product Heatmap, and Average Category per Customer",
+      "chartRatioTitle": "Cross Selling Ratio — Trend (12 Months)",
+      "chartRatioSubtitle": "% active customers buying >1 product category",
+      "chartActiveTitle": "Total Active vs Multi-Product Customers (12 Months)",
+      "chartActiveSubtitle": "Hover to see Cross Selling Ratio (%) · Two bars per month",
+      "chartAvgCatTitle": "Avg Product Category per Customer (12 Months)",
+      "chartAvgCatSubtitle": "Positive trend = green gradient · Smooth spline curve",
+      "heatmapTitle": "Customer Cross Selling Dashboard — Heatmap",
+      "heatmapSubtitle": "Green = transaction (value > 0) · Grey = no transaction",
+      "heatmapMatrixTitle": "Product Matrix per Customer",
+      "heatmapMobileHelper": "← Swipe left/right to see all columns",
+      "tableTitle": "Detail per Customer — Period {{period}}",
+      "foundCount": "{{count}} customers found",
+      "colCustomerCode": "Customer Code",
+      "colCustomerName": "Customer Name",
+      "colHardware": "Hardware",
+      "colConsumable": "Consumable",
+      "colCategoryCount": "Category Count",
+      "colTotalRevenue": "Total Revenue",
+      "seriesRatio": "Ratio (%)",
+      "seriesActiveCustomers": "Active Customers",
+      "seriesMultiCategory": "Multi-Product",
+      "seriesAvgCategory": "Avg Category",
+      "labelM1": "M1 · Cross Selling Ratio",
+      "labelM11": "M1.1 · Customer Cross Selling Dashboard — Heatmap",
+      "labelM2": "M2 · Average Product Category per Customer",
+      "yes": "Yes",
+      "no": "No"
+      }
+      }

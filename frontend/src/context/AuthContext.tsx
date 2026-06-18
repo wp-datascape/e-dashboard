@@ -1,65 +1,36 @@
 import {
-  createContext,
-  useContext,
   useState,
-  useEffect,
   type ReactNode,
 } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface User {
-  id: string
-  name: string
-  email: string
-  role: string
-}
-
-interface AuthContextType {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
-  login: (token: string, user: User) => void
-  logout: () => void
-}
-
-// ─── Context ──────────────────────────────────────────────────────────────────
-const AuthContext = createContext<AuthContextType | null>(null)
+import { AuthContext, useAuth, type User } from './auth.context'
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const savedToken = localStorage.getItem('auth_token')
-    const savedUser = localStorage.getItem('auth_user')
-
-    if (savedToken && savedUser) {
-      try {
-        setToken(savedToken)
-        setUser(JSON.parse(savedUser))
-      } catch {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('auth_user')
-      }
+  const [user] = useState<User | null>(() => {
+    const saved = localStorage.getItem('auth_user')
+    try {
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
     }
+  })
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'))
+  const [userState, setUserState] = useState<User | null>(user)
 
-    setIsLoading(false)
-  }, [])
+  // Use state instead of raw user for reactivity if needed, but since it's init-only:
+  const [isLoading] = useState(false)
 
   const login = (newToken: string, newUser: User) => {
     setToken(newToken)
-    setUser(newUser)
+    setUserState(newUser)
     localStorage.setItem('auth_token', newToken)
     localStorage.setItem('auth_user', JSON.stringify(newUser))
   }
 
   const logout = () => {
     setToken(null)
-    setUser(null)
+    setUserState(null)
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
   }
@@ -67,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: userState,
         token,
         isAuthenticated: !!token,
         isLoading,
@@ -78,13 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
 }
 
 // ─── Protected Route ──────────────────────────────────────────────────────────

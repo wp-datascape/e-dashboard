@@ -21,6 +21,9 @@ import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
 import { AppAlert } from '@/components/ui/Alert';
 
+// Types
+import { ApiError } from '@/types/api';
+
 // Logic Hooks
 import { useLoginMutation } from '@/hooks/useAuth';
 
@@ -52,7 +55,7 @@ export default function Login() {
 
   const onSubmit = (data: LoginFormInput) => {
     login(data, {
-      onError: (err: any) => {
+      onError: (err: ApiError) => {
         setErrorInfo({
           open: true,
           title: 'Login Gagal',

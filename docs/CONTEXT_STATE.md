@@ -2,7 +2,7 @@
 
 > Update file ini di **awal dan akhir setiap sesi kerja**.
 
-**Terakhir diperbarui**: 2026-06-18 01:12  
+**Terakhir diperbarui**: 2026-06-18 16:48  
 **Diperbarui oleh**: AI (Claude)
 
 ---
@@ -12,7 +12,7 @@
 **Fase**: `[x] Setup` / `[~] Development` / `[ ] Integration` / `[ ] Testing` / `[ ] MVP Done`
 
 **Ringkasan**:
-> Frontend: ~75% selesai. Semua halaman metrik utama (Dashboard, CrossSelling, CustomerMetrics, DormantCustomer) sudah diimplementasi penuh dengan chart types sesuai spesifikasi bisnis. 6 komponen chart baru ditambahkan. StatCard didesain ulang dengan layout 2 kolom (teks kiri + line chart kanan). MSW mock server lengkap untuk semua metrik.  
+> Frontend: ~85% selesai. Halaman Users dan RBAC sudah diimplementasi penuh dengan DataTable, CRUD dialogs, dan hooks. Refactoring besar-besaran selesai: Users, RBAC, Config, CrossSelling dipecah ke komponen terpisah. 9 komponen chart tersedia. Mock API lengkap untuk users dan RBAC.  
 > **Backend**: Belum dikerjakan (0%).
 
 ---
@@ -146,7 +146,8 @@
 - [ ] `src/api/metrics.api.ts` — belum ada (saat ini inline di masing-masing page)
 - [ ] `src/api/import.api.ts` — belum ada
 - [ ] `src/api/customers.api.ts` — belum ada
-- [ ] `src/api/rbac.api.ts` — belum ada
+- [x] `src/api/rbac.api.ts` — sudah ada
+- [x] `src/api/users.api.ts` — sudah ada
 - [ ] `src/api/config.api.ts` — belum ada
 
 ### Frontend — Mock Server (MSW)
@@ -155,6 +156,8 @@
 - [x] `src/mocks/handlers/page.handler.ts` — GET /page-settings
 - [x] `src/mocks/handlers/dashboard.handler.ts` — GET /dashboard (10 MetricCard + trend 12 bulan)
 - [x] `src/mocks/handlers/metrics.handler.ts` — GET /metrics/cross-selling (incl. heatmap), /customer-metrics (incl. donut + radial data), /dormant-customer (incl. value ranking + bullet data)
+- [x] `src/mocks/handlers/users.handler.ts` — GET/POST/PUT/DELETE /users
+- [x] `src/mocks/handlers/rbac.handler.ts` — GET/POST/PUT/DELETE /rbac/roles, GET /rbac/permissions, PUT /rbac/roles/:id/permissions
 
 ### Frontend — Context & Hooks
 - [x] `src/context/AuthContext.tsx` — AuthProvider, useAuth, ProtectedRoute
@@ -164,7 +167,8 @@
 - [ ] `src/hooks/useMetrics.ts` — belum ada (inline di pages)
 - [ ] `src/hooks/useImport.ts` — belum ada
 - [ ] `src/hooks/useCompany.ts` — belum ada
-- [ ] `src/hooks/useRbac.ts` — belum ada
+- [x] `src/hooks/useRbac.ts` — sudah ada
+- [x] `src/hooks/useUsers.ts` — sudah ada
 
 ### Frontend — Komponen Chart
 - [x] `src/components/charts/StatCard/` — **Redesigned**: layout 2 kolom (teks kiri + SimpleLineChart kanan, tanpa axes)
@@ -191,9 +195,9 @@
 - [x] NotFound — selesai
 - [x] UnderMaintenance — selesai (animasi gears)
 - [~] Import — placeholder
-- [~] Users — placeholder
-- [~] RBAC — placeholder
-- [~] Config — placeholder
+- [x] Users — **SELESAI**: DataTable + CreateUserDialog + EditUserDialog + ViewUserDialog + DeleteUserDialog + useUsers hook + MSW mock. Komponen di-extract ke `components/` subfolder.
+- [x] RBAC — **SELESAI**: DataTable roles + AddRoleDialog + DeleteRoleDialog + SetPermissionDialog + RoleCard (mobile) + useRbac hook + MSW mock. Komponen di-extract ke `components/` subfolder.
+- [x] Config — **SELESAI**: IntegrationTab (Accurate) + AppSettingsTab. Komponen di-extract ke `components/` subfolder.
 - [~] AuditLog — placeholder
 
 ---
@@ -202,7 +206,7 @@
 
 | Task | Oleh | File / Branch | Catatan |
 |------|------|---------------|---------|
-| _(tidak ada)_ | | | Sesi 10 selesai |
+| _(tidak ada)_ | | | Sesi 11 selesai |
 
 ---
 
@@ -210,9 +214,6 @@
 
 1. **Frontend — Halaman yang Belum Diimplementasi**:
    - Import: form upload file CSV/XLSX + trigger API Accurate + progress feedback
-   - Users: DataTable users + form create/edit/delete
-   - RBAC: tabel role, permission matrix (checkbox), assign role ke user
-   - Config: form update app_configs (dormant threshold, cache TTL, Accurate API key per company)
    - AuditLog: DataTable audit log dengan filter
 
 2. **Frontend — Komponen yang Belum Ada**:
@@ -263,6 +264,33 @@
 
 ## Catatan Sesi Terakhir
 
+> **Sesi 11 — Refactor RBAC, Config, CrossSelling ke Komponen Terpisah (2026-06-18 16:48)**
+>
+> ### Yang Diimplementasi:
+>
+> **1. Refactor RBAC Page (High Priority)**
+> - ✅ `pages/RBAC/components/AddRoleDialog.tsx` — dialog tambah role baru
+> - ✅ `pages/RBAC/components/DeleteRoleDialog.tsx` — dialog konfirmasi hapus role
+> - ✅ `pages/RBAC/components/SetPermissionDialog.tsx` — dialog matrix permission (checkbox per permission)
+> - ✅ `pages/RBAC/components/RoleCard.tsx` — card mobile view per role
+> - ✅ `pages/RBAC/index.tsx` — direfactor: import semua komponen, dari ~600 baris → ~231 baris
+>
+> **2. Refactor Config Page (Medium Priority)**
+> - ✅ `pages/Config/components/IntegrationTab.tsx` — form integrasi Accurate Online
+> - ✅ `pages/Config/components/AppSettingsTab.tsx` — form pengaturan aplikasi (threshold, cache TTL, dll)
+> - ✅ `pages/Config/index.tsx` — direfactor: import dua tab komponen
+>
+> **3. Refactor CrossSelling Page (Low Priority)**
+> - ✅ `pages/CrossSelling/components/DetailCard.tsx` — card mobile view detail cross-sell
+> - ✅ `pages/CrossSelling/index.tsx` — direfactor: import DetailCard dari components/
+>
+> ### Hasil:
+> - ✅ Semua halaman admin (Users, RBAC, Config) sekarang modular
+> - ✅ Pola konsisten: folder `components/` per halaman untuk sub-komponen lokal
+> - ✅ Index files lebih ringkas dan mudah dibaca
+>
+> ---
+>
 > **Sesi 10 — Unifikasi Chip ke StatusChip (2026-06-18 01:12)**
 >
 > ### Yang Diimplementasi:

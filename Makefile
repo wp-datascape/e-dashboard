@@ -30,12 +30,15 @@ help:
 
 feature:
 	@git checkout main && git pull origin main
-	@read -p "Masukkan nama branch baru (feature/): " name; \
+	@echo "--- Pembuatan Branch Baru ---"
+	@read -p "Masukkan tipe branch (feature/fix) [default: feature]: " type; \
+	type=$${type:-feature}; \
+	read -p "Masukkan nama branch baru: " name; \
 	if [ -z "$$name" ]; then \
 		echo "Error: Nama branch tidak boleh kosong!"; \
 		exit 1; \
 	fi; \
-	git checkout -b feature/$$name
+	git checkout -b $$type/$$name
 
 sync:
 	git checkout main && git pull origin main
@@ -65,13 +68,13 @@ status:
 	@git status -s
 
 graph:
-	@echo "--- Visual Git Graph & Branch Topology ---"
+	@echo "--- Git Graphs ---"
 	@git --no-pager log --graph --abbrev-commit --decorate --format=format:'%C(dim white)%ar%Creset - %C(bold yellow)%h%Creset %C(white)%s%Creset%C(auto)%d%Creset' -n 15
 	@echo ""
 
 history:
 	@echo "--- 15 Last Commits ---"
-	@git log -n 15 --pretty=format:"%h - %an, %ar : %s"
+	@git --no-pager log -n 15 --pretty=format:"%h - %an, %ar : %s"
 	@echo ""
 
 # ==============================================================================
@@ -84,7 +87,6 @@ dev-frontend:
 
 dev-backend:
 	@echo "Starting Backend development server..."
-	@# TODO: Sesuaikan dengan runtime backend Anda (contoh: bun run --cwd backend dev)
 	@echo "Error: Command dev-backend belum dikonfigurasi."
 
 # ==============================================================================
@@ -95,7 +97,7 @@ check:
 	@echo "Running TypeScript check..."
 	@bun --cwd frontend tsc --noEmit
 	@echo "Running Linting..."
-	@bun --cwd frontend run lint
+	@bun run --cwd frontend lint
 
 build: check
-	bun --cwd frontend run build
+	bun run --cwd frontend build
