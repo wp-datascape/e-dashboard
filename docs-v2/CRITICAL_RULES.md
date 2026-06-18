@@ -1,0 +1,138 @@
+# CRITICAL_RULES.md — Hard Constraints & Conventions
+
+## Tech Stack (LOCKED — do not suggest alternatives)
+
+| Layer      | Technology                              |
+|------------|-----------------------------------------|
+| Runtime    | Bun (NOT Node.js)                       |
+| Backend    | Hono v4+                                |
+| ORM        | Drizzle ORM                             |
+| Database   | PostgreSQL 15+                          |
+| Frontend   | React 19 + Vite 8 + TypeScript 6        |
+| UI         | MUI v9                                  |
+| Charts     | Recharts v3                             |
+| Table      | MUI X DataGrid v9                       |
+| Forms      | React Hook Form v7 + Zod v4             |
+| Data fetch | TanStack Query v5                       |
+| Mock API   | MSW v2 (DEV only)                       |
+| Logger     | Winston + winston-daily-rotate-file     |
+| CSV        | papaparse                               |
+| Excel      | xlsx (SheetJS)                          |
+| Accurate   | axios (server-side only)                |
+
+❌ Never use: Prisma, TypeORM, Express, Next.js, Tailwind, shadcn/ui, Redux, Zustand
+
+## Backend Conventions
+
+### Structure
+Route → Handler → Service → Repository
+- Validate input with **zod** in every handler before calling service
+- All responses via `utils/response` helpers — never raw `c.json()`
+- All errors as `AppError` from `utils/error`
+- No `catch(e) {}` without handling
+- TypeScript strict mode — no `any`
+- Use `async/await` only
+
+### Available Utils (never rewrite)
+| Package          | Exports                                              |
+|------------------|------------------------------------------------------|
+| `utils/response` | `success()`, `error()`, `paginated()`                |
+| `utils/error`    | `AppError`, standard error constants                 |
+| `utils/jwt`      | `generateToken()`, `verifyToken()`                   |
+| `utils/hash`     | `hashPassword()`, `comparePassword()`                |
+| `utils/csrf`     | `generateCsrfToken()`, `validateCsrfToken()`         |
+| `utils/audit`    | `logAudit(ctx, opts)` → writes to `audit_logs` table |
+| `utils/parser`   | `parseCsv()`, `parseExcel()`                         |
+| `utils/accurate` | `fetchInvoices(companyId, params)`                   |
+| `utils/validator`| `validateDto(schema, data)`                          |
+
+### Logger Rules (Winston)
+| Level   | Console | File                    |
+|---------|---------|-------------------------|
+| `info`  | ✅      | ❌ (console only)       |
+| `warn`  | ✅      | ✅ `log/warn/YYYY-MM-DD.log` |
+| `error` | ✅      | ✅ `log/error/YYYY-MM-DD.log`|
+
+Import logger only via `utils/logger` wrapper — never import winston directly.
+
+### Audit Log (DB — not file)
+Write to `audit_logs` table for: create, update, delete.
+Call `logAudit()` in Service layer after successful mutation.
+
+**Required audit actions:**
+`invoice.import` | `user.create/update/delete` | `role.create/update/delete`
+`permission.assign/revoke` | `user_role.assign/revoke` | `config.update` | `category.update`
+
+### ORM Rule
+```typescript
+// ✅ Drizzle ORM
+const items = await db.select().from(invoiceItems)
+  .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
+  .where(eq(invoices.companyId, companyId))
+
+// ❌ Raw SQL (only if clear perf reason)
+```
+
+### Multi-entity: company_id Filter (MANDATORY)
+```typescript
+.where(and(
+  eq(invoices.companyId, companyId),
+  // other filters
+))
+```
+`superadmin` + `admin` bypass `user_companies` check. Others: `requireCompanyAccess` middleware.
+
+## Frontend Conventions
+
+- Functional components + hooks only (no class components)
+- Server state: TanStack Query (`useQuery` / `useMutation`) — no manual fetch in components
+- All API calls via `src/api/` layer only
+- Auth state + `permissions[]` in `AuthContext`
+- Use `PermissionGuard` (not role name checks)
+- Component naming: `PascalCase` | Files: `PascalCase.tsx`
+- Custom hooks in `src/hooks/` | Types in `src/types/`
+- New page checklist:
+  1. Register in `src/route/routes.tsx`
+  2. Add to `src/config/menu.tsx` NAV_ITEMS
+  3. Add MSW handler in `src/mocks/handlers/`
+  4. Set `ready=true` in `page.handler.ts`
+
+## Database Conventions
+- Schema in `src/db/schema/` | Table names: `snake_case` plural
+- Every table: `id` (serial), `created_at`, `updated_at`
+- Soft delete via `deleted_at` — **never hard-delete invoice data**
+- Migrations: `drizzle-kit generate` → `drizzle-kit migrate`
+
+## Security Rules
+| Aspect        | Rule                                              |
+|---------------|---------------------------------------------------|
+| Auth          | JWT httpOnly; Secure; SameSite=Strict             |
+| CSRF          | `X-CSRF-Token` header on ALL mutations            |
+| Input         | zod schema in every handler                       |
+| Password      | bcryptjs cost ≥ 12                                |
+| Upload        | Validate MIME + extension whitelist               |
+| Accurate key  | Stored in `app_configs` is_secret=true — never return to frontend |
+| Error         | Never expose stack trace to client                |
+| company_id    | Filter on every query — no exceptions             |
+
+## RBAC Rules
+- Fully dynamic — managed from dashboard, not hardcoded
+- Permission format: `resource:action` (e.g. `metrics:read`, `users:manage`)
+- Prefer `requirePermission('metrics:read')` over `requireRole('admin')`
+- System roles (`is_system=true`): cannot delete or rename
+
+## Import Rules
+- Accepted: `.csv`, `.xlsx` only — max 10MB
+- Idempotent: dedup key = `invoice_number + company_id`
+- Partial success allowed: valid rows inserted, errors logged to `import_log_errors`
+- Always call `logAudit('invoice.import')` after successful import
+
+## Metrics Rules
+- Calculate in **backend service layer only** — never in frontend
+- Cache in `metric_cache` table with `expires_at`
+- Required params: `company_id`, `period_month` (YYYY-MM), `active_window` (3|6|12)
+- Thresholds from `app_configs` — never hardcode
+
+## MVP Scope
+✅ In scope: Auth + RBAC, invoice import (file + API), 10 metrics, filters, monthly trends, customer detail, audit log, dynamic config
+❌ Out of scope: PDF/Excel export, realtime notifications, scheduled Accurate sync, mobile app, AI forecasting, multi-DB

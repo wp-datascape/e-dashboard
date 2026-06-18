@@ -4,17 +4,25 @@
 
 Baca file-file berikut **secara berurutan** sebelum generate kode atau menjawab pertanyaan:
 
-1. `docs/MASTER_CONTEXT.md` — gambaran project, tech stack, bisnis, arsitektur
-2. `docs/AI_RULES.md` — konvensi kode, aturan logger/audit/RBAC, batasan MVP
-3. `docs/CONTEXT_STATE.md` — status pengerjaan saat ini, checklist, blocker aktif
-4. `docs/AI_AGENT_GUIDE.md` — komponen reusable, pola kode, checklist implementasi, anti-pattern
+1. `docs-v2/CLAUDE.md` — entry point: project snapshot, read order, core business flow
+2. `docs-v2/CRITICAL_RULES.md` — tech stack locked, konvensi kode backend + frontend, security rules
+3. `docs-v2/CURRENT_STATE.md` — status pengerjaan saat ini, blockers, next actions
 
-> Jika task berkaitan dengan:
-> - **Metrik bisnis** → wajib baca `docs/METRICS_SPEC.md` DULU
-> - **Database / schema** → wajib baca `docs/DATA_MODEL.md` DULU
-> - **Endpoint API** → wajib baca `docs/API_SPEC.md` DULU
-> - **Menu / routing** → wajib baca `docs/FINALIZED_MENU_STRUCTURE.md` DULU
-> - **Arsitektur folder** → wajib baca `docs/ARCHITECTURE.md` DULU
+Kemudian baca file domain sesuai task:
+
+| Task | Baca |
+|------|------|
+| Metrik bisnis (M1-M10) | `docs-v2/executive-dashboard/metrics.md` WAJIB |
+| Dashboard / Group 1 | `docs-v2/executive-dashboard/overview.md` + `api.md` |
+| Customer Workbench / Group 2 | `docs-v2/customer-workbench/overview.md` + `api.md` |
+| Product Workbench / Group 3 | `docs-v2/product-workbench/overview.md` + `api.md` |
+| Transaction Workbench / Group 4 | `docs-v2/transaction-workbench/overview.md` + `api.md` |
+| Admin (Import/Users/RBAC/Config/Audit) | `docs-v2/admin/overview.md` + `api.md` |
+| Database / schema | `docs-v2/shared/data-model.md` |
+| Endpoint API (konvensi) | `docs-v2/shared/api-conventions.md` |
+| UI component / frontend pattern | `docs-v2/shared/ui-patterns.md` |
+| Arsitektur folder | `docs-v2/shared/architecture.md` |
+| Keputusan desain suatu domain | `docs-v2/<domain>/decisions.md` |
 
 ---
 
@@ -39,29 +47,60 @@ Baca file-file berikut **secara berurutan** sebelum generate kode atau menjawab 
 ## Aturan Kode — TIDAK ADA PENGECUALIAN
 
 ### Frontend
-- ✅ Gunakan komponen yang sudah ada (lihat `docs/AI_AGENT_GUIDE.md` bagian 2)
-- ✅ Semua API call wajib via TanStack Query `useQuery` / `useMutation`
-- ✅ Semua tipe data API wajib di `src/types/`
-- ✅ Setiap API call melalui layer `src/api/` — bukan fetch/axios langsung dari komponen
-- ✅ Komponen baru: folder sendiri `NamaKomponen/NamaKomponen.tsx` + `index.ts`
-- ✅ i18n wajib: semua teks tampilan via `useTranslation()` — update `en.json` DAN `id.json`
-- ❌ Tidak ada `console.log` — tidak ada di production code
-- ❌ Tidak ada `any` type kecuali unavoidable + diberi komentar alasan
-- ❌ Tidak ada fetch manual di komponen (`fetch()` atau `axios` langsung)
-- ❌ Tidak ada Redux, Zustand, atau state management library lain
+- Gunakan komponen yang sudah ada (lihat `docs-v2/shared/ui-patterns.md`)
+- Semua API call wajib via TanStack Query `useQuery` / `useMutation`
+- Semua tipe data API wajib di `src/types/`
+- Setiap API call melalui layer `src/api/` — bukan fetch/axios langsung dari komponen
+- Komponen baru: folder sendiri `NamaKomponen/NamaKomponen.tsx` + `index.ts`
+- i18n wajib: semua teks tampilan via `useTranslation()` — update `en.json` DAN `id.json`
+- Tidak ada `console.log` di production code
+- Tidak ada `any` type kecuali unavoidable + diberi komentar alasan
+- Tidak ada Redux, Zustand, atau state management library lain
 
 ### Backend
-- ✅ Struktur wajib: `Route → Handler → Service → Repository`
-- ✅ Validasi input wajib dengan **zod** di setiap handler
-- ✅ Response API wajib via `utils/response` — bukan `c.json()` langsung
-- ✅ Error wajib via `AppError` dari `utils/error`
-- ✅ **SETIAP query database WAJIB ada filter `company_id`** — data isolation antar entitas
-- ✅ Semua mutasi (create/update/delete) wajib `logAudit()` dari `utils/audit`
-- ✅ Logger: `logger.info/warn/error` dari `utils/logger` — bukan `console.log`
-- ✅ Semua query via Drizzle ORM — raw SQL hanya jika ada alasan performa jelas
-- ✅ `async/await` — bukan callback style
-- ❌ Tidak ada `catch (e) {}` kosong
-- ❌ Tidak ada stack trace di response error ke client
+- Struktur wajib: `Route → Handler → Service → Repository`
+- Validasi input wajib dengan **zod** di setiap handler
+- Response API wajib via `utils/response` — bukan `c.json()` langsung
+- Error wajib via `AppError` dari `utils/error`
+- **SETIAP query database WAJIB ada filter `company_id`** — data isolation antar entitas
+- Semua mutasi (create/update/delete) wajib `logAudit()` dari `utils/audit`
+- Logger: `logger.info/warn/error` dari `utils/logger` — bukan `console.log`
+- Semua query via Drizzle ORM — raw SQL hanya jika ada alasan performa jelas
+- `async/await` — bukan callback style
+- Tidak ada `catch (e) {}` kosong
+- Tidak ada stack trace di response error ke client
+
+---
+
+## Cara Meminta Fitur Baru (Alur Wajib untuk AI)
+
+Ketika user meminta fitur/halaman baru, AI wajib mengikuti alur ini secara berurutan — jangan skip langkah:
+
+```
+STEP 1 — CEK DOKUMENTASI
+  Baca docs-v2/CURRENT_STATE.md tabel "Not Built"
+  Apakah fitur ini sudah ada di docs-v2?
+    YA  → lanjut ke STEP 3
+    TIDAK → wajib STEP 2 dulu, JANGAN langsung kode
+
+STEP 2 — BUAT DOKUMENTASI DULU (jika belum ada)
+  Ikuti rules "Dokumentasi Fitur Baru" di bawah
+  Selesaikan semua file docs-v2 yang dibutuhkan
+  Konfirmasi ke user: "Dokumentasi sudah dibuat, lanjut implementasi?"
+
+STEP 3 — IMPLEMENTASI
+  Baca docs-v2/<domain>/overview.md + api.md
+  Ikuti "Halaman Baru — 5 Langkah Wajib" di bawah
+  Implementasi kode sesuai spesifikasi di docs-v2
+
+STEP 4 — UPDATE STATUS
+  Update docs-v2/CURRENT_STATE.md — pindah halaman dari "Not Built" ke "Done"
+  Tambah catatan di "Catatan Sesi Terakhir"
+```
+
+Contoh cara meminta fitur yang benar:
+- "Bangun halaman Import UI (5.1)" → AI cek docs-v2/admin/overview.md + api.md, lalu implementasi
+- "Buat fitur X yang belum ada di docs" → AI buat dokumentasi dulu, baru kode
 
 ---
 
@@ -91,7 +130,7 @@ Setiap kali membuat halaman baru, wajib lengkapi semua 5 langkah:
 | `LineAlertWidget` | M8 Dormant Rate | `@/components/charts/LineAlertWidget` |
 | `BulletChartWidget` | M10 Reactivation | `@/components/charts/BulletChartWidget` |
 
-> ❌ Jangan buat chart component baru jika sudah ada yang sesuai.
+Jangan buat chart component baru jika sudah ada yang sesuai.
 
 ---
 
@@ -110,24 +149,59 @@ Setiap kali membuat halaman baru, wajib lengkapi semua 5 langkah:
 
 ## Aturan Update Dokumentasi
 
-- **Awal sesi**: Update `docs/CONTEXT_STATE.md` — bagian "Sedang Dikerjakan"
-- **Akhir sesi**: Update `docs/CONTEXT_STATE.md` — tambah catatan di "Catatan Sesi Terakhir", update timestamp
-- Perubahan arsitektur → update `docs/ARCHITECTURE.md` + tambah ADR
-- Perubahan data model → update `docs/DATA_MODEL.md`
-- Endpoint baru/berubah → update `docs/API_SPEC.md`
-- Perubahan definisi metrik → update `docs/METRICS_SPEC.md`
+### Setiap Sesi Kerja
+- **Awal sesi**: Update `docs-v2/CURRENT_STATE.md` — bagian "Sedang Dikerjakan" (jika ada)
+- **Akhir sesi**: Update `docs-v2/CURRENT_STATE.md` — tambah catatan di "Catatan Sesi Terakhir", update timestamp
+
+### Jika Ada Perubahan
+| Perubahan | Update file |
+|-----------|-------------|
+| Perubahan arsitektur folder/flow | `docs-v2/shared/architecture.md` |
+| Perubahan data model / schema | `docs-v2/shared/data-model.md` |
+| Endpoint baru atau berubah | file `api.md` di domain yang sesuai |
+| Perubahan definisi metrik (M1-M10) | `docs-v2/executive-dashboard/metrics.md` |
+| Keputusan desain baru di suatu domain | `docs-v2/<domain>/decisions.md` |
+| Konvensi kode/UI berubah | `docs-v2/CRITICAL_RULES.md` atau `docs-v2/shared/ui-patterns.md` |
+
+### Dokumentasi Fitur Baru (Belum Ada di docs-v2)
+
+> **WAJIB — JANGAN MULAI KODE SEBELUM DOKUMENTASI SELESAI.**
+> Jika fitur yang diminta belum ada dokumentasinya di docs-v2, STOP dan buat dokumentasi dulu.
+> Dokumentasi adalah kontrak — kode mengikuti dokumentasi, bukan sebaliknya.
+
+**Fitur masuk domain yang sudah ada (Group 1-5):**
+1. Cek apakah `docs-v2/<domain>/overview.md` sudah menyebut halaman/fitur ini — jika belum, tambahkan entry di overview.md
+2. Desain endpoint di `docs-v2/<domain>/api.md` sebelum implementasi backend
+3. Catat keputusan desain di `docs-v2/<domain>/decisions.md` — terutama jika ada trade-off atau open question
+4. Update `docs-v2/CURRENT_STATE.md` — tambah halaman ke tabel "Not Built" atau update status yang ada
+
+**Fitur butuh tabel/schema baru:**
+1. Tambah definisi tabel di `docs-v2/shared/data-model.md` (migration order + kolom lengkap)
+2. Catat sebagai keputusan di `docs-v2/<domain>/decisions.md` — jelaskan mengapa tabel baru diperlukan
+3. Update "Known Blockers" di `docs-v2/CURRENT_STATE.md` jika ada dependency yang belum resolved
+
+**Fitur butuh metrik bisnis baru (di luar M1-M10):**
+1. Tambah definisi metrik di `docs-v2/executive-dashboard/metrics.md` dengan format yang sama (rumus, chart, SQL reference)
+2. Tambah endpoint di `docs-v2/executive-dashboard/api.md`
+3. Jika fitur butuh chart component baru, dokumentasikan props-nya di `docs-v2/shared/ui-patterns.md`
+
+**Fitur di luar 5 group yang ada (Group baru):**
+1. Buat folder baru `docs-v2/<nama-group>/`
+2. Buat 3 file: `overview.md`, `api.md`, `decisions.md` — ikuti format file yang sudah ada
+3. Update `docs-v2/CLAUDE.md` — tambah entry di tabel "Read Order"
+4. Update `docs-v2/CURRENT_STATE.md`
 
 ---
 
 ## Scope MVP — Ingat Batasannya
 
-### Ada ✅
+### Ada
 Auth + RBAC dinamis, import faktur (file + API Accurate), 10 metrik bisnis, filter entitas/periode/window, audit log DB, logger file, konfigurasi dinamis.
 
-### Tidak Ada ❌
+### Tidak Ada
 Export PDF/Excel, notifikasi realtime/email/WhatsApp, scheduled auto-sync Accurate, mobile app, prediksi AI, multi-database per entitas.
 
-> Jika user minta fitur di luar MVP scope, **ingatkan** bahwa fitur tersebut bukan bagian MVP dan konfirmasi apakah ingin lanjut.
+Jika user minta fitur di luar MVP scope, ingatkan bahwa fitur tersebut bukan bagian MVP dan konfirmasi apakah ingin lanjut.
 
 ---
 
@@ -149,4 +223,6 @@ test:     tambah/ubah test
 1. Format kolom CSV/Excel export Accurate Online — belum dikonfirmasi
 2. Endpoint & auth Accurate Online API — belum dikonfirmasi
 3. Apakah kategori "jasa" di Accurate punya kode khusus atau flag manual?
-4. Apakah B2B Project Milestone masuk MVP scope?
+4. Apakah B2B Project Milestone masuk MVP scope? (lihat `docs-v2/transaction-workbench/decisions.md`)
+5. `customers.business_unit` — cara pengisian: manual UI, import, atau infer? (lihat `docs-v2/customer-workbench/decisions.md`)
+6. `products` table — apakah Accurate punya data SKU/quantity? (lihat `docs-v2/product-workbench/decisions.md`)
