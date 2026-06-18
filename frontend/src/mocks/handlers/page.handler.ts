@@ -23,7 +23,7 @@ export const pageHandlers = [
       { pageKey: 'transactions', ready: false },
       { pageKey: 'projects', ready: false },
       { pageKey: 'import', ready: false },
-      { pageKey: 'users', ready: false },
+      { pageKey: 'users', ready: true },
       { pageKey: 'rbac', ready: true },
       { pageKey: 'config', ready: true },
       { pageKey: 'audit-log', ready: false },
