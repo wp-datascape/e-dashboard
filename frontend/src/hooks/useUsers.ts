@@ -20,6 +20,13 @@ export function useUsers() {
   });
 }
 
+export function useRoles() {
+  return useQuery({
+    queryKey: ['roles'],
+    queryFn: () => usersApi.getRoles(),
+  });
+}
+
 export function useCompanies() {
   return useQuery({
     queryKey: usersKeys.companies,

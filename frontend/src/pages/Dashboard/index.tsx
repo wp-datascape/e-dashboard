@@ -3,7 +3,7 @@ import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Skeleton from '@mui/material/Skeleton';
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import { StatusChip } from '@/components/ui/StatusChip';
 
 import { StatCard } from '@/components/charts/StatCard';
@@ -321,16 +321,7 @@ export default function Dashboard() {
       </Grid>
 
       {/* ── Row 3: Definitions Reference ── */}
-      <Paper
-        elevation={0}
-        square
-        sx={{
-          p: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-        }}
-      >
+      <Card sx={{ p: 2 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
           Definisi Kunci
         </Typography>
@@ -382,7 +373,7 @@ export default function Dashboard() {
             </Grid>
           ))}
         </Grid>
-      </Paper>
+      </Card>
     </Box>
   );
 }

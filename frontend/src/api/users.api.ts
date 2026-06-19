@@ -2,6 +2,7 @@
 import { api } from './axios';
 import type { ApiResponse, ApiError } from '@/types/api';
 import type { User, Company, CreateUserPayload, UpdateUserPayload } from '@/types/users';
+import type { Role } from '@/types/rbac';
 
 export const usersApi = {
   // ─── Queries (GET) — tanpa try/catch, interceptor handle 401 ────────────────
@@ -13,6 +14,11 @@ export const usersApi = {
 
   getCompanies: async (): Promise<Company[]> => {
     const response = await api.get<ApiResponse<Company[]>>('/companies');
+    return response.data.data;
+  },
+
+  getRoles: async (): Promise<Role[]> => {
+    const response = await api.get<ApiResponse<Role[]>>('/roles');
     return response.data.data;
   },
 

@@ -10,10 +10,9 @@ import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
-import Alert from '@mui/material/Alert';
 import CloseIcon from '@mui/icons-material/Close';
-import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers360, useCustomer360Detail } from '@/hooks/useCustomers';
 import type { CustomerStatus, BusinessUnit, Customer360Row } from '@/types/customers';
@@ -96,7 +95,7 @@ function CustomerDetailDrawer({
               <Skeleton key={i} variant="rectangular" height={40} sx={{ borderRadius: 1 }} />
             ))}
           </Stack>
-        )}
+        )} 
 
         {detail && (
           <Stack spacing={2}>
@@ -192,28 +191,26 @@ function CustomerDetailDrawer({
               </Box>
             )}
 
-            {/* Revenue trend chart */}
-            {detail.monthly_revenue_trend.length > 0 && (
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                  {t('customers.detail.revenueTrend')}
-                </Typography>
-                <ComboChartWidget
-                  title=""
-                  data={detail.monthly_revenue_trend}
-                  barKey="revenue"
-                  barLabel="Revenue"
-                  barColor="#3B82F6"
-                  lineKey="gp"
-                  lineLabel="GP"
-                  lineColor="#10B981"
-                  xKey="month"
-                  height={180}
-                  formatBar={(v) => formatIDR(v)}
-                  formatLine={(v) => formatIDR(v)}
-                />
-              </Box>
-            )}
+            {/* Revenue trend chart — always shown */}
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                {t('customers.detail.revenueTrend')}
+              </Typography>
+              <ComboChartWidget
+                title=""
+                data={detail.monthly_revenue_trend}
+                barKey="revenue"
+                barLabel="Revenue"
+                barColor="#3B82F6"
+                lineKey="gp"
+                lineLabel="GP"
+                lineColor="#10B981"
+                xKey="month"
+                height={180}
+                formatBar={(v) => formatIDR(v)}
+                formatLine={(v) => formatIDR(v)}
+              />
+            </Box>
 
             {/* Recent invoices */}
             {detail.recent_invoices.length > 0 && (
@@ -420,35 +417,23 @@ export default function Customers() {
         </TextField>
       </Box>
 
-      {/* Error state */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {t('error.generic')}
-        </Alert>
-      )}
-
-      {/* DataGrid */}
-      <Box sx={{ height: 600, width: '100%' }}>
-        <DataGrid
-          rows={data?.data ?? []}
-          columns={columns}
-          rowCount={data?.meta.total ?? 0}
-          loading={isLoading}
-          paginationMode="server"
-          sortingMode="server"
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          sortModel={sortModel}
-          onSortModelChange={setSortModel}
-          pageSizeOptions={[25, 50, 100]}
-          onRowClick={({ row }) => handleRowClick(row)}
-          sx={{
-            cursor: 'pointer',
-            '& .MuiDataGrid-row:hover': { bgcolor: 'action.hover' },
-          }}
-          disableRowSelectionOnClick
-        />
-      </Box>
+      {/* DataGrid (Responsive) */}
+      <ResponsiveListView
+        rows={data?.data ?? []}
+        columns={columns}
+        rowCount={data?.meta.total ?? 0}
+        loading={isLoading}
+        error={error as Error | null}
+        paginationMode="server"
+        sortingMode="server"
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        sortModel={sortModel}
+        onSortModelChange={setSortModel}
+        pageSizeOptions={[25, 50, 100]}
+        onRowClick={(row) => handleRowClick(row as any)}
+        height={600}
+      />
 
       {/* Detail Drawer */}
       <CustomerDetailDrawer

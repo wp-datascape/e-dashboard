@@ -1,7 +1,6 @@
 import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
 import { useTranslation } from 'react-i18next';
-import { Dialog } from '@/components/ui';
+import { Dialog, Card } from '@/components/ui';
 import type { Role } from '@/types/rbac';
 import type { ApiError } from '@/types/api';
 
@@ -43,10 +42,10 @@ export function DeleteRoleDialog({
     >
       <Typography>{t('rbac.deleteRoleConfirm')}</Typography>
       {role && (
-        <Paper sx={{ p: 1.5, mt: 1.5, border: '1px solid', borderColor: 'error.light' }} elevation={0}>
+        <Card sx={{ p: 1.5, mt: 1.5, borderColor: 'error.light' }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>{role.name}</Typography>
           <Typography variant="caption" color="text.secondary">{role.description}</Typography>
-        </Paper>
+        </Card>
       )}
     </Dialog>
   );

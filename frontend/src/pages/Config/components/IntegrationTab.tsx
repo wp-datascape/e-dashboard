@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import CardContent from '@mui/material/CardContent'
+import { Card } from '@/components/ui'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import FormControl from '@mui/material/FormControl'
@@ -49,7 +49,7 @@ export function IntegrationTab() {
     : (appKey && signatureSecret && companyDb)
 
   return (
-    <CardContent>
+    <Card sx={{ p: 3 }}>
       <Typography variant="h6" gutterBottom>
         {t('config.integration.title')}
       </Typography>
@@ -184,6 +184,6 @@ export function IntegrationTab() {
           </Button>
         </Box>
       </Stack>
-    </CardContent>
+    </Card>
   )
 }

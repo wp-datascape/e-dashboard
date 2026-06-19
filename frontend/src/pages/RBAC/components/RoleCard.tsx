@@ -2,8 +2,8 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import { Card } from '@/components/ui';
 import CardActions from '@mui/material/CardActions';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockIcon from '@mui/icons-material/Lock';
@@ -22,10 +22,7 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
   const { t } = useTranslation();
 
   return (
-    <Card
-      elevation={0}
-      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1.5 }}
-    >
+    <Card sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: 1 }}>
         {/* Name + system badge */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>

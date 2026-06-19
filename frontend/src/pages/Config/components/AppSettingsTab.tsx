@@ -1,6 +1,6 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import CardContent from '@mui/material/CardContent'
+import { Card } from '@/components/ui'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
@@ -31,7 +31,7 @@ export function AppSettingsTab() {
   }
 
   return (
-    <CardContent>
+    <Card sx={{ p: 3 }}>
       <Typography variant="h6" gutterBottom>
         {t('config.appSettings.title')}
       </Typography>
@@ -86,7 +86,6 @@ export function AppSettingsTab() {
               alignItems: 'center',
               justifyContent: 'space-between',
               p: 2,
-              borderRadius: 2,
               border: '1px solid',
               borderColor: 'divider',
               bgcolor: 'background.default',
@@ -146,7 +145,6 @@ export function AppSettingsTab() {
                 sx={{
                   width: 72,
                   height: 72,
-                  borderRadius: 2,
                   bgcolor: color.bg,
                   border: '1px solid',
                   borderColor: 'divider',
@@ -163,6 +161,6 @@ export function AppSettingsTab() {
           </Box>
         </Box>
       </Stack>
-    </CardContent>
+    </Card>
   )
 }

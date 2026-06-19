@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import { Card } from '@/components/ui';
 import Divider from '@mui/material/Divider';
 import { useTranslation } from 'react-i18next';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -15,10 +15,7 @@ export function DetailCard({ row }: DetailCardProps) {
   const { t } = useTranslation();
 
   return (
-    <Card
-      elevation={0}
-      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1.5 }}
-    >
+    <Card sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: '12px !important' }}>
         {/* Customer name + code */}
         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>

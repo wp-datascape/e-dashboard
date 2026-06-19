@@ -7,7 +7,10 @@ export type ErrorCodeType =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'INTERNAL_SERVER_ERROR'
-  | 'ACCURATE_API_ERROR';
+  | 'ACCURATE_API_ERROR'
+  | 'IMPORT_PROCESSING_ERROR'
+  | 'DUPLICATE_IMPORT'
+  | 'FILE_TOO_LARGE';
 
 export interface ApiResponse<T = Record<string, never>> {
   message: string;

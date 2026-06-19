@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
@@ -48,15 +48,10 @@ export const StatCard = ({
 
   return (
     <Tooltip title={link ? `Lihat detail ${title}` : ''} placement="top" arrow>
-      <Paper
-        elevation={0}
-        square
+      <Card
         onClick={() => link && navigate(link)}
         sx={{
           p: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
           height: '100%',
           display: 'flex',
           flexDirection: 'row',
@@ -156,7 +151,7 @@ export const StatCard = ({
             </ResponsiveContainer>
           </Box>
         )}
-      </Paper>
+      </Card>
     </Tooltip>
   );
 };

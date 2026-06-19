@@ -1,26 +1,16 @@
-// src/components/atoms/Card/Card.tsx
-import MuiCard, { CardProps as MuiCardProps } from '@mui/material/Card';
-import CardContent, { CardContentProps } from '@mui/material/CardContent';
+import MuiPaper, { type PaperProps } from '@mui/material/Paper'
 
-interface CardProps extends MuiCardProps {
-  contentProps?: CardContentProps;
-  children: React.ReactNode;
-}
+export type CardProps = PaperProps
 
-export const Card = ({ children, contentProps, sx, ...props }: CardProps) => {
+export function Card({ children, sx, elevation = 0, square = true, ...props }: CardProps) {
   return (
-    <MuiCard 
-      elevation={2} // Standar elevasi untuk kedalaman visual yang halus
-      sx={{ 
-        borderRadius: 2, 
-        overflow: 'hidden', 
-        ...sx 
-      }} 
+    <MuiPaper
+      elevation={elevation}
+      square={square}
+      sx={{ border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', ...sx }}
       {...props}
     >
-      <CardContent {...contentProps}>
-        {children}
-      </CardContent>
-    </MuiCard>
-  );
-};
+      {children}
+    </MuiPaper>
+  )
+}

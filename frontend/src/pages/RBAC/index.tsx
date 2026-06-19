@@ -3,10 +3,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import Skeleton from '@mui/material/Skeleton';
-import Alert from '@mui/material/Alert';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockIcon from '@mui/icons-material/Lock';
@@ -14,7 +10,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import { Button, StatusChip } from '@/components/ui';
-import { DataTable } from '@/components/tables/DataTable';
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
   useRbacRoles,
   useRbacPermissions,
@@ -34,9 +30,6 @@ import { SetPermissionDialog } from './components/SetPermissionDialog';
 
 export default function RBAC() {
   const { t } = useTranslation();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [permDialogOpen, setPermDialogOpen] = useState(false);
@@ -88,7 +81,7 @@ export default function RBAC() {
     setDeleteDialogOpen(true);
   };
 
-  // ─── DataTable columns (desktop only) ────────────────────────────────────────
+  // ─── Columns (desktop DataGrid) ──────────────────────────────────────────────
 
   const columns: GridColDef[] = [
     {
@@ -166,33 +159,6 @@ export default function RBAC() {
     },
   ];
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
-  if (rolesLoading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Skeleton variant="text" width={300} height={40} />
-        {isMobile ? (
-          <Box sx={{ mt: 2 }}>
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} variant="rectangular" height={110} sx={{ mb: 1.5, borderRadius: 2 }} />
-            ))}
-          </Box>
-        ) : (
-          <Skeleton variant="rectangular" height={400} sx={{ mt: 2 }} />
-        )}
-      </Box>
-    );
-  }
-
-  if (rolesError) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{t('error.generic')}</Alert>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Header */}
@@ -204,28 +170,29 @@ export default function RBAC() {
           startIcon={<AddIcon />}
           onClick={() => setAddDialogOpen(true)}
         >
-          {isMobile ? t('common.add') : t('rbac.addRole')}
+          {t('rbac.addRole')}
         </Button>
       </Box>
 
-      {/* Role List: Mobile = Cards, Desktop = DataTable */}
-      {isMobile ? (
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-            {roles?.length ?? 0} role ditemukan
-          </Typography>
-          {(roles ?? []).map((role) => (
-            <RoleCard key={role.id} role={role} onPermissions={openPermDialog} onDelete={openDeleteDialog} />
-          ))}
-          {(roles ?? []).length === 0 && (
-            <Box sx={{ py: 6, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.disabled">{t('common.noData')}</Typography>
-            </Box>
-          )}
-        </Box>
-      ) : (
-        <DataTable title={t('rbac.roles')} rows={roles ?? []} columns={columns} height={450} pageSize={10} />
-      )}
+      {/* Role List: Responsive — Desktop DataGrid / Mobile Cards */}
+      <ResponsiveListView
+        rows={roles ?? []}
+        columns={columns}
+        loading={rolesLoading}
+        error={rolesError as Error | null}
+        title={t('rbac.roles')}
+        pageSize={10}
+        height={450}
+        renderCard={(row, _idx) => (
+          <RoleCard
+            key={_idx}
+            role={row as unknown as Role}
+            onPermissions={openPermDialog}
+            onDelete={openDeleteDialog}
+          />
+        )}
+        mobileFields={['name', 'description', 'permissions']}
+      />
 
       {/* DIALOGS */}
       <AddRoleDialog
@@ -253,7 +220,7 @@ export default function RBAC() {
         role={selectedRole}
         permissionsGrouped={permissionsGrouped ?? null}
         onTogglePermission={handleTogglePermission}
-        isMobile={isMobile}
+        isMobile={false}
       />
     </Box>
   );

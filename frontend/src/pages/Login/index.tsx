@@ -11,7 +11,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import IconButton from '@mui/material/IconButton';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -58,8 +58,8 @@ export default function Login() {
       onError: (err: ApiError) => {
         setErrorInfo({
           open: true,
-          title: 'Login Gagal',
-          message: err.message || 'Terjadi kesalahan saat login.',
+          title: t('auth.loginFailedTitle'),
+          message: err.message || t('auth.loginFailedMessage'),
         });
       },
     });
@@ -78,15 +78,10 @@ export default function Login() {
         p: 2,
       }}
     >
-      <Paper
-        elevation={0}
-        square
+      <Card
         sx={{
           width: '100%',
           maxWidth: 400,
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
           p: { xs: 3, sm: 4 },
         }}
       >
@@ -235,7 +230,7 @@ export default function Login() {
             {t('auth.loginButton')}
           </Button>
         </Box>
-      </Paper>
+      </Card>
 
       {/* Error Alert Dialog */}
       <AppAlert

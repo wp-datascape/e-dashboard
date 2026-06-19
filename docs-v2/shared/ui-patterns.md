@@ -1,5 +1,101 @@
 # shared/ui-patterns.md
 
+## Atomic Card Component
+
+**Wajib** — semua container card/panel di aplikasi harus menggunakan `Card` dari `@/components/ui`, bukan `Paper` atau `MuiCard` langsung.
+
+```typescript
+import { Card } from '@/components/ui'
+
+// Penggunaan dasar
+<Card sx={{ p: 2, height: '100%' }}>
+  ...
+</Card>
+
+// Override border color (misal: error state)
+<Card sx={{ p: 1.5, borderColor: 'error.light' }}>
+  ...
+</Card>
+```
+
+**Default yang sudah di-set oleh `Card`:** `elevation=0`, `square=true`, `border: 1px solid divider`, `bgcolor: background.paper`.
+
+**Lokasi:** `src/components/ui/Card/Card.tsx`
+
+Styling global card (shadow, border, borderRadius) dikontrol dari dua tempat:
+1. **`src/theme/index.ts`** — override `MuiCard` dan `MuiPaper` berlaku untuk semua komponen
+2. **`src/components/ui/Card/Card.tsx`** — default props dan sx untuk atomic wrapper
+
+Anti-pattern — jangan lakukan ini:
+```typescript
+// ❌ Import langsung dari MUI
+import Paper from '@mui/material/Paper'
+import Card from '@mui/material/Card'
+
+<Paper elevation={0} square sx={{ border: '1px solid', borderColor: 'divider', ... }}>
+
+// ❌ Jangan gunakan CardContent untuk isi card — pakai Card + sx padding
+import CardContent from '@mui/material/CardContent'
+
+<Card>
+  <CardContent>...</CardContent>  {/* Double border effect! */}
+</Card>
+
+// ✅ Gunakan atomic component
+import { Card } from '@/components/ui'
+<Card sx={{ p: 3 }}>
+```
+
+**Catatan:** `Card` dari `@/components/ui` sudah include `border: 1px solid divider` sebagai default. Jika dibungkus `CardContent`, akan muncul double border. Gunakan `sx={{ p: 3 }}` langsung di `Card`.
+
+---
+
+### StatusChip — Color Props Terbatas
+
+`StatusChip` hanya menerima 6 nilai color, **tidak ada `'secondary'`**:
+
+| Color | Penggunaan |
+|-------|-----------|
+| `'default'` | Label informasi netral (abu-abu) |
+| `'primary'` | Count / highlight (biru) |
+| `'success'` | Status positif / trend up (hijau) |
+| `'error'` | Status negatif / trend down (merah) |
+| `'warning'` | Status perlu perhatian (amber) |
+| `'info'` | Informasi tambahan (cyan) — pengganti `'secondary'` |
+
+```typescript
+// ✅ Benar
+<StatusChip label="Accurate" color="info" />
+
+// ❌ Salah — 'secondary' tidak ada di StatusChipColor
+<StatusChip label="Accurate" color="secondary" />
+```
+
+---
+
+## Theme & Visual Convention
+
+Desain aplikasi menggunakan **flat style** — tidak ada rounded corner pada card dan panel.
+
+- `src/theme/index.ts` — satu file untuk semua token visual (warna, tipografi, shape, component overrides)
+- `BORDER_RADIUS = 10` di theme hanya berlaku untuk Button/Chip — Card dan Paper di-override ke `borderRadius: 0`
+- Dark mode di-toggle via `useThemeMode()` dari `@/theme/theme.context` — jangan pakai `useTheme` (nama itu adalah MUI hook yang berbeda)
+
+```typescript
+// ✅ Benar
+import { useThemeMode } from '@/theme/theme.context'
+const { mode, toggleTheme, isDark } = useThemeMode()
+
+// ✅ Untuk membaca token MUI theme (warna, spacing)
+import { useTheme } from '@mui/material/styles'
+const theme = useTheme()
+
+// ❌ Salah — tidak ada export ini
+import { useTheme } from '@/theme/theme.context'
+```
+
+---
+
 ## Component Conventions
 Functional component + hooks only, tidak ada class component.
 
@@ -61,9 +157,77 @@ Mapping per metrik (M1-M10) -> executive-dashboard/metrics.md, bukan di sini.
 Props convention: setiap widget terima data, loading, colorScheme override -- jangan hardcode warna di dalam component chart.
 
 ## Table Pattern
-Gunakan MUI X DataGrid v9 untuk semua data tabular dengan pagination/sort/filter
-Server-side pagination wajib untuk dataset besar -- jangan paginate di client
-Column definition diletakkan dekat halaman pemakainya, baru dipindah ke shared jika dipakai >= 2 halaman
+
+### Single Component: ResponsiveListView (replaces DataTable)
+
+**`ResponsiveListView`** adalah satu-satunya komponen tabel yang digunakan. Komponen `DataTable` (lama) sudah dihapus.
+
+- **Desktop** (`>= sm`): render `MUI X DataGrid` — pagination, sorting, filter
+- **Mobile** (`< sm`): render card list auto-generated dari column definitions
+- **Semua state built-in**: loading skeleton (responsive), error alert, empty state
+Server-side pagination wajib untuk dataset besar -- jangan paginate di client.
+Column definition diletakkan dekat halaman pemakainya, baru dipindah ke shared jika dipakai >= 2 halaman.
+
+### Mobile: Auto-generated Card List via ResponsiveListView
+
+Gunakan `ResponsiveListView` dari `@/components/tables/ResponsiveListView` — satu komponen yang secara otomatis:
+
+- **Desktop** → render `DataGrid` (sama seperti `DataTable`)
+- **Mobile** (`< sm` breakpoint) → render daftar `Card`, auto-generate dari column definitions
+
+```typescript
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+
+<ResponsiveListView
+  rows={data ?? []}
+  columns={columns}
+  onRowClick={(row) => handleClick(row)}
+  loading={isLoading}
+  error={error as Error | null}
+  title={t('page.tableTitle')}
+  pageSize={25}
+  height={500}
+/>
+```
+
+| Prop | Type | Default | Deskripsi |
+|------|------|---------|-----------|
+| `rows` | `GridRowsProp` | — | Data array |
+| `columns` | `GridColDef[]` | — | Column definitions (sama format DataGrid) |
+| `renderCard` | `(row, index) => ReactNode` | — | Custom card renderer untuk mobile (skip auto-generated) |
+| `onRowClick` | `(row) => void` | — | Handler klik row (desktop + mobile) |
+| `loading` | `boolean` | `false` | Loading state — skeleton otomatis |
+| `error` | `Error \| null` | `null` | Error state — alert otomatis |
+| `emptyMessage` | `string` | `'Tidak ada data'` | Pesan saat data kosong |
+| `title` | `string` | — | Header card (desktop) / count indicator (mobile) |
+| `pageSize` | `number` | `10` | Initial page size |
+| `height` | `number` | `400` | Container height (desktop) |
+| `mobileFields` | `string[]` | semua kolom | Field yang ditampilkan di mobile card |
+
+**Mobile card behavior:**
+- Tanpa `renderCard`: auto-generate card dari `columns` — setiap field jadi baris label + value
+- Dengan `renderCard`: kendali penuh render card sesuai kebutuhan halaman
+- `mobileFields`: filter kolom mana saja yang muncul di card (default semua kolom)
+- `valueFormatter` dan `renderCell` di column definitions tetap diproses
+
+**Lokasi:** `src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
+
+Anti-pattern:
+```typescript
+// ❌ Jangan import DataGrid langsung dari MUI
+import { DataGrid } from '@mui/x-data-grid'
+
+// ❌ Jangan buat manual if/else isMobile + DataTable + card list
+
+// ✅ Cukup satu komponen:
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+
+<ResponsiveListView rows={users} columns={userColumns} />
+
+// ❌ Jangan duplicate loading/error/empty state — semuanya built-in
+```
+
+**Lokasi:** `src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
 
 ## Form Pattern
 React Hook Form v7 + Zod v4 di setiap form

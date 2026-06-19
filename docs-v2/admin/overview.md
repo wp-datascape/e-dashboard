@@ -12,7 +12,7 @@ Operasional sistem — import data faktur, manajemen user dan akses, konfigurasi
 
 ## 5.1 Import
 
-Status: Placeholder (halaman sudah ada, UI belum diimplementasi)
+Status: UI selesai (mock API aktif, backend belum)
 
 Upload file CSV/Excel atau trigger fetch dari Accurate Online API. Dua mode:
 - **File upload**: drag-and-drop `.csv` atau `.xlsx`, max 10MB
@@ -30,7 +30,7 @@ Components: MUI Stepper (upload → review → confirm), DataGrid untuk log hist
 
 ## 5.2 Users
 
-Status: Placeholder (halaman sudah ada, UI belum diimplementasi)
+Status: UI selesai (mock API aktif, backend belum)
 
 CRUD user + assign role + assign company access. Operasi:
 - Daftar user (DataGrid, search by name/email, filter by role)
@@ -46,7 +46,7 @@ Components: DataGrid, Dialog (form create/edit), StatusChip (active/inactive).
 
 ## 5.3 RBAC
 
-Status: Placeholder (halaman sudah ada, UI belum diimplementasi)
+Status: UI selesai (mock API aktif, backend belum)
 
 Manajemen role dan permission. Dua sub-section:
 - **Roles**: daftar role, buat/edit/hapus role (is_system=true tidak bisa dihapus/rename)
@@ -60,7 +60,7 @@ Components: DataGrid untuk daftar role, custom matrix grid (bukan chart), Dialog
 
 ## 5.4 Config
 
-Status: Placeholder (halaman sudah ada, UI belum diimplementasi)
+Status: UI selesai (mock API aktif, backend belum)
 
 Edit app_configs — threshold bisnis dan API key Accurate. Dua kategori config:
 - **Global**: `dormant_threshold_months`, `high_margin_category_ids` — berlaku untuk semua company

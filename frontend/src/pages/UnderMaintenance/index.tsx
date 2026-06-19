@@ -2,6 +2,7 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { keyframes } from '@mui/system'
 import SettingsIcon from '@mui/icons-material/Settings'
+import { useTranslation } from 'react-i18next'
 
 // ─── Animations ───────────────────────────────────────────────────────────────
 const rotateCW = keyframes`
@@ -21,6 +22,7 @@ const pulse = keyframes`
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function UnderMaintenance() {
+  const { t } = useTranslation()
   return (
     <Box
       sx={{
@@ -109,11 +111,11 @@ export default function UnderMaintenance() {
           animation: `${pulse} 2.5s ease-in-out infinite`,
         }}
       >
-        Halaman Sedang Dalam Pengembangan
+        {t('maintenance.title')}
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400 }}>
-        Fitur ini belum tersedia. Kami sedang mengerjakannya dan akan segera hadir.
+        {t('maintenance.subtitle')}
       </Typography>
     </Box>
   )

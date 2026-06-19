@@ -6,6 +6,7 @@ import { metricsHandlers } from './handlers/metrics.handler';
 import { rbacHandlers } from './handlers/rbac.handler';
 import { usersHandlers } from './handlers/users.handler';
 import { customersHandlers } from './handlers/customers.handler';
+import { importHandlers } from './handlers/import.handler';
 
 // Menggabungkan seluruh domain handler secara bersih menggunakan spread operator
 export const handlers = [
@@ -16,4 +17,5 @@ export const handlers = [
   ...rbacHandlers,
   ...usersHandlers,
   ...customersHandlers,
+  ...importHandlers,
 ];

@@ -1,4 +1,4 @@
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
@@ -223,11 +223,7 @@ export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetP
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
-    <Paper
-      elevation={0}
-      square
-      sx={{ p: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}
-    >
+    <Card sx={{ p: 2 }}>
       {/* Header */}
       <Box sx={{ mb: 2 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
@@ -248,6 +244,6 @@ export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetP
       ) : (
         <DesktopHeatmapView xLabels={xLabels} data={data} />
       )}
-    </Paper>
+    </Card>
   );
 };

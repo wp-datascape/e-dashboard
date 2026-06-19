@@ -1,4 +1,4 @@
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import {
@@ -36,17 +36,7 @@ export const RadialBarWidget = ({
   const chartData = [{ value, fill: color }];
 
   return (
-    <Paper
-      elevation={0}
-      square
-      sx={{
-        p: 2,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'background.paper',
-        height: '100%',
-      }}
-    >
+    <Card sx={{ p: 2, height: '100%' }}>
       <Box sx={{ mb: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
           {title}
@@ -116,6 +106,6 @@ export const RadialBarWidget = ({
           </Typography>
         </Box>
       </Box>
-    </Paper>
+    </Card>
   );
 };

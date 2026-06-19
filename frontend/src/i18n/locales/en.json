@@ -69,6 +69,8 @@
     "login": "Sign In",
     "loginTitle": "Sign in",
     "loginSubtitle": "Sign in to Executive Dashboard",
+    "loginFailedTitle": "Login Failed",
+    "loginFailedMessage": "An error occurred during login.",
     "email": "Email",
     "password": "Password",
     "emailPlaceholder": "your@email.com",
@@ -138,33 +140,69 @@
   },
   "import": {
     "title": "Invoice Data Import",
-    "subtitle": "Upload CSV/Excel file or fetch from Accurate Online API",
-    "uploadFile": "Upload File",
-    "uploadFileDesc": "Format: CSV or Excel (.xlsx), max 10MB",
-    "accurateApi": "Accurate Online API",
-    "accurateApiDesc": "Fetch invoices directly from Accurate Online",
-    "selectCompany": "Select Company",
-    "selectPeriod": "Select Period (YYYY-MM)",
-    "dragDrop": "Drag & drop file here or click to browse",
-    "browse": "Browse File",
-    "processing": "Processing...",
-    "success": "Import successful",
-    "partial": "Import partially successful",
-    "failed": "Import failed",
-    "totalInvoices": "Total Invoices",
-    "successInvoices": "Successful",
-    "errorRows": "Error Rows",
-    "viewErrors": "View Error Details",
-    "history": "Import History",
-    "source": {
-      "file": "File Upload",
-      "accurate_api": "Accurate API"
+    "subtitle": "Bulk-save invoice data to the database via file upload or Accurate API sync",
+    "file": {
+      "title": "Upload File",
+      "subtitle": "Import invoices from a CSV or Excel file",
+      "submit": "Import File"
+    },
+    "accurate": {
+      "title": "Sync from Accurate API",
+      "subtitle": "Pull invoices directly from Accurate Online and save to database",
+      "submit": "Sync Now",
+      "info": "Requires a valid Accurate API key configured in Settings → Config. The system will fetch all invoices for the selected company and period."
+    },
+    "form": {
+      "title": "New Import",
+      "subtitle": "Choose a data source, select the company and period, then start the import",
+      "source": "Data Source",
+      "sourceFile": "File Upload",
+      "sourceAccurate": "Accurate Online API",
+      "company": "Company",
+      "period": "Period (YYYY-MM)",
+      "dropzone": "Drop file here or click to browse",
+      "dropzoneHint": ".csv or .xlsx — max 10 MB",
+      "submit": "Start Import",
+      "loading": "Processing...",
+      "errorFormat": "File format must be .csv or .xlsx",
+      "errorSize": "File size must not exceed 10 MB",
+      "errorCompany": "Please select a company",
+      "errorPeriod": "Please enter the period",
+      "errorFile": "Please select a file to upload",
+      "errorGeneric": "Import failed. Please try again."
+    },
+    "result": {
+      "success": "Import completed successfully",
+      "partial": "Import completed with some errors",
+      "failed": "Import failed",
+      "summary": "{{total}} total · {{success}} succeeded · {{errors}} errors"
     },
     "status": {
       "success": "Success",
       "partial": "Partial",
-      "failed": "Failed",
-      "processing": "Processing"
+      "failed": "Failed"
+    },
+    "logs": {
+      "title": "Import History",
+      "subtitle": "List of all previous imports. Click a row with errors to view details.",
+      "empty": "No import history yet",
+      "colDate": "Date",
+      "colCompany": "Company",
+      "colSource": "Source",
+      "colFile": "File",
+      "colPeriod": "Period",
+      "colStatus": "Status",
+      "colTotal": "Total",
+      "colSuccess": "Success",
+      "colErrors": "Errors",
+      "colBy": "Imported By"
+    },
+    "errorDetail": {
+      "title": "Error Detail",
+      "noErrors": "No error details available",
+      "colRow": "Row",
+      "colData": "Raw Data",
+      "colError": "Error"
     }
   },
   "users": {
@@ -259,7 +297,23 @@
     "cacheExpiry": "Metric Cache (minutes)",
     "maxFileSize": "Max File Size (MB)",
     "accurateApiKey": "Accurate API Key",
-    "hidden": "Hidden"
+    "hidden": "Hidden",
+    "buThreshold": {
+      "title": "Dormant Threshold per Business Unit",
+      "subtitle": "Number of months without a transaction before a customer is considered dormant. Each Business Unit can have a different policy.",
+      "tooltip": "Customer whose last_invoice_date is older than this threshold (from the selected period) is marked as Dormant.",
+      "colBu": "Business Unit",
+      "colThreshold": "Dormant Threshold",
+      "colNote": "Notes",
+      "empty": "No dormant threshold config found."
+    },
+    "generalSection": {
+      "title": "General Settings"
+    },
+    "periodInfo": {
+      "title": "About Period Month (period_month)",
+      "body": "The period_month defaults to the current month automatically. Users can override it via the date filter on each workbench page (Customer 360, Dormant Customer, etc.). Status calculations (active / new / dormant) are always relative to the selected period."
+    }
   },
   "auditLog": {
     "title": "Audit Log",
@@ -310,6 +364,16 @@
       "revenueTrend": "Revenue & GP Trend (12 Months)",
       "recentInvoices": "Recent Invoices"
     }
+  },
+  "notFound": {
+    "title": "404 - Page Not Found",
+    "subtitle": "The page you're looking for doesn't exist or has been moved.",
+    "back": "Go Back",
+    "toDashboard": "Go to Dashboard"
+  },
+  "maintenance": {
+    "title": "Page Under Development",
+    "subtitle": "This feature is not yet available. We're working on it and it will be ready soon."
   },
   "error": {
     "generic": "An unexpected error occurred",

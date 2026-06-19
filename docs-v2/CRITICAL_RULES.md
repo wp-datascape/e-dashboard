@@ -97,6 +97,30 @@ const items = await db.select().from(invoiceItems)
   3. Add MSW handler in `src/mocks/handlers/`
   4. Set `ready=true` in `page.handler.ts`
 
+### i18n Rules (WAJIB)
+
+| Aturan | Penjelasan |
+|--------|-----------|
+| Semua user-facing text wajib `t('key')` | Tidak ada hardcoded string untuk teks yang terlihat pengguna |
+| Setiap teks baru harus ada di `en.json` DAN `id.json` | Kedua file harus diupdate bersamaan |
+| Akses hook via `useTranslation()` | `const { t } = useTranslation()` — jangan import i18n langsung |
+| Komponen global/reusable juga wajib i18n | Contoh: `ResponsiveListView` pakai `t('common.errorOccurred')`, `t('common.noData')` |
+| Error message fallback | Error dari API pakai `err.message || t('...')` — jangan hardcoded string manual |
+| Pages like NotFound/UnderMaintenance | Wajib pakai `useTranslation()` — jangan lupa hanya karena page sederhana |
+
+Violations detected via: search for hardcoded strings wrapped in `<Typography>`, `title=`, `message=`, `label=`, `placeholder=` that are NOT `t()` calls.
+
+Anti-pattern:
+```typescript
+// ❌ Hardcoded
+<Typography>404 - Halaman Tidak Ditemukan</Typography>
+setErrorInfo({ title: 'Login Gagal', message: 'Terjadi kesalahan' })
+
+// ✅ i18n
+<Typography>{t('notFound.title')}</Typography>
+setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('auth.loginFailedMessage') })
+```
+
 ## Database Conventions
 - Schema in `src/db/schema/` | Table names: `snake_case` plural
 - Every table: `id` (serial), `created_at`, `updated_at`

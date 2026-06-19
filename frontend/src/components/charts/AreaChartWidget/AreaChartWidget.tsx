@@ -1,4 +1,4 @@
-import Paper from '@mui/material/Paper';
+import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
@@ -45,17 +45,7 @@ export const AreaChartWidget = ({
   const isPositive = (change ?? 0) >= 0;
 
   return (
-    <Paper
-      elevation={0}
-      square
-      sx={{
-        p: 2,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'background.paper',
-        height: '100%',
-      }}
-    >
+    <Card sx={{ p: 2, height: '100%' }}>
       {/* Header */}
       <Box sx={{ mb: 2 }}>
         {value !== undefined && (
@@ -129,6 +119,6 @@ export const AreaChartWidget = ({
           ))}
         </AreaChart>
       </ResponsiveContainer>
-    </Paper>
+    </Card>
   );
 };

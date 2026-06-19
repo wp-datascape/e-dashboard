@@ -11,11 +11,8 @@ import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
 import { HeatmapWidget } from '@/components/charts/HeatmapWidget';
 import { StatusChip } from '@/components/ui/StatusChip';
-import { DataTable } from '@/components/tables/DataTable';
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useCrossSelling } from '@/hooks/useMetrics';
-
-// Components
-import { DetailCard } from './components/DetailCard';
 
 // ─── Section Label ─────────────────────────────────────────────────────────────
 function SectionLabel({ label }: { label: string }) {
@@ -178,41 +175,20 @@ export default function CrossSelling() {
         </Grid>
       </Box>
 
-      {/* ── Detail Table / Cards ── */}
+      {/* ── Detail Table / Cards (Responsive) ── */}
       <Box>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
           {t('crossSelling.tableTitle', { period: '2025-03' })}
         </Typography>
 
-        {isLoading ? (
-          isMobile ? (
-            <Box>
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} variant="rectangular" height={140} sx={{ mb: 1.5, borderRadius: 2 }} />
-              ))}
-            </Box>
-          ) : (
-            <Skeleton variant="rectangular" height={420} />
-          )
-        ) : isMobile ? (
-          /* ── Mobile: Card list ── */
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-              {t('crossSelling.foundCount', { count: data?.detail.length ?? 0 })}
-            </Typography>
-            {(data?.detail ?? []).map((row) => (
-              <DetailCard key={row.id} row={row} />
-            ))}
-          </Box>
-        ) : (
-          /* ── Desktop: DataGrid ── */
-          <DataTable
-            rows={data?.detail ?? []}
-            columns={detailColumns}
-            pageSize={10}
-            height={420}
-          />
-        )}
+        <ResponsiveListView
+          rows={data?.detail ?? []}
+          columns={detailColumns}
+          loading={isLoading}
+          pageSize={10}
+          height={420}
+          mobileFields={['customer_code', 'customer_name', 'hardware', 'consumable', 'category_count', 'total_revenue']}
+        />
       </Box>
     </Box>
   );

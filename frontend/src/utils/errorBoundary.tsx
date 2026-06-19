@@ -3,6 +3,7 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
+
 import { styled } from '@mui/material/styles'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
@@ -18,12 +19,11 @@ const Wrapper = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.default,
 }))
 
-const Card = styled(Paper)(({ theme }) => ({
+const ErrorCard = styled(Paper)(({ theme }) => ({
   maxWidth: 480,
   width: '100%',
   padding: theme.spacing(5),
   textAlign: 'center',
-  borderRadius: (theme.shape.borderRadius as number) * 2,
 }))
 
 const IconWrap = styled(Box)(({ theme }) => ({
@@ -120,7 +120,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <Wrapper>
-        <Card elevation={0}>
+        <ErrorCard elevation={0}>
           <IconWrap>
             <ReportProblemOutlinedIcon />
           </IconWrap>
@@ -172,7 +172,7 @@ export class ErrorBoundary extends Component<Props, State> {
               Coba Render Ulang (Dev Only)
             </Button>
           )}
-        </Card>
+        </ErrorCard>
       </Wrapper>
     )
   }

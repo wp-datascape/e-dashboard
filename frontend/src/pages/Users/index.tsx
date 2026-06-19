@@ -8,28 +8,26 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Divider from '@mui/material/Divider';
-import Skeleton from '@mui/material/Skeleton';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
 import type { GridColDef } from '@mui/x-data-grid';
 
-import { DataTable } from '@/components/tables/DataTable';
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { Button } from '@/components/ui/Button';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import {
   useUsers,
   useCompanies,
+  useRoles,
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
 } from '@/hooks/useUsers';
-import { rbacApi } from '@/api/rbac.api';
 import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
 // Components
@@ -77,10 +75,7 @@ export default function Users() {
   // ── Data ──
   const { data: users = [], isLoading } = useUsers();
   const { data: companies = [] } = useCompanies();
-  const { data: roles = [] } = useQuery({
-    queryKey: ['rbac-roles'],
-    queryFn: () => rbacApi.getRoles(),
-  });
+  const { data: roles = [] } = useRoles();
 
   // ── Mutations ──
   const { mutate: createUser, isPending: isCreating, error: createError, reset: resetCreate } = useCreateUser();
@@ -222,11 +217,12 @@ export default function Users() {
       </Box>
 
       {/* ── Table ── */}
-      {isLoading ? (
-        <Skeleton variant="rectangular" height={500} sx={{ borderRadius: 1 }} />
-      ) : (
-        <DataTable rows={users} columns={columns} height={560} />
-      )}
+      <ResponsiveListView
+        rows={users}
+        columns={columns}
+        loading={isLoading}
+        height={560}
+      />
 
       {/* ── Action Menu ── */}
       <Menu

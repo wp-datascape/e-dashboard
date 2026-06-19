@@ -10,3 +10,12 @@ export interface ApiResponse<T> {
   data: T;
   message?: string;
 }
+
+export interface ConfigItem {
+  key: string;
+  value: string;
+  description?: string;
+}
+
+export type ConfigListResponse = ApiResponse<ConfigItem[]>;
+export type ConfigUpdateResponse = ApiResponse<ConfigItem>;

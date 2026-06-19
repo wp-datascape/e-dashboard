@@ -1,4 +1,4 @@
-.PHONY: help doctor current feature commit push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release
+.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release
 SHELL := /bin/bash
 
 help:
@@ -12,6 +12,7 @@ help:
 	@echo "[Git Shortcuts]"
 	@echo " make current"
 	@echo " make commit"
+	@echo " make fetch"
 	@echo " make push"
 	@echo " make pull"
 	@echo " make update-main"
@@ -62,6 +63,11 @@ commit:
 		exit 1; \
 	fi; \
 	git add . && git commit -m "$$msg"
+
+fetch:
+	@echo "Fetching metadata from origin..."
+	@git fetch origin
+	@git status -sb
 
 push:
 	@CURRENT=$$(git branch --show-current); \
@@ -157,8 +163,10 @@ finish: check
 	echo ""; \
 	read -p "Merge $$CURRENT_BRANCH into main? (y/N): " confirm; \
 	[ "$$confirm" = "y" ] || exit 1; \
-	echo "Step 0: Fetch latest remote state"; \
+	@echo "Step 0: Fetch latest remote state"; \
 	git fetch origin || exit 1; \
+	echo "Step 0.5: Pull (Merge) any remote changes"; \
+	git pull --ff-only origin $$CURRENT_BRANCH || (echo "ERROR: Diverged branch, pull manually" && exit 1); \
 	echo "Step 1: Push branch"; \
 	git push origin $$CURRENT_BRANCH || exit 1; \
 	echo "Step 2: Update main"; \

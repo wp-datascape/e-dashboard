@@ -140,33 +140,69 @@
   },
   "import": {
     "title": "Import Data Faktur",
-    "subtitle": "Upload file CSV/Excel atau fetch dari Accurate Online API",
-    "uploadFile": "Upload File",
-    "uploadFileDesc": "Format: CSV atau Excel (.xlsx), maksimal 10MB",
-    "accurateApi": "API Accurate Online",
-    "accurateApiDesc": "Fetch faktur langsung dari Accurate Online",
-    "selectCompany": "Pilih Perusahaan",
-    "selectPeriod": "Pilih Periode (YYYY-MM)",
-    "dragDrop": "Seret file ke sini atau klik untuk memilih",
-    "browse": "Pilih File",
-    "processing": "Sedang memproses...",
-    "success": "Import berhasil",
-    "partial": "Import sebagian berhasil",
-    "failed": "Import gagal",
-    "totalInvoices": "Total Faktur",
-    "successInvoices": "Berhasil",
-    "errorRows": "Baris Error",
-    "viewErrors": "Lihat Detail Error",
-    "history": "Riwayat Import",
-    "source": {
-      "file": "File Upload",
-      "accurate_api": "Accurate API"
+    "subtitle": "Simpan data faktur ke database secara massal via upload file atau sinkron Accurate API",
+    "file": {
+      "title": "Upload File",
+      "subtitle": "Import faktur dari file CSV atau Excel",
+      "submit": "Import File"
+    },
+    "accurate": {
+      "title": "Sinkron dari Accurate API",
+      "subtitle": "Ambil faktur langsung dari Accurate Online dan simpan ke database",
+      "submit": "Sinkron Sekarang",
+      "info": "Memerlukan API key Accurate yang sudah dikonfigurasi di Pengaturan → Config. Sistem akan mengambil semua faktur untuk perusahaan dan periode yang dipilih."
+    },
+    "form": {
+      "title": "Import Baru",
+      "subtitle": "Pilih sumber data, tentukan perusahaan dan periode, lalu mulai import",
+      "source": "Sumber Data",
+      "sourceFile": "Upload File",
+      "sourceAccurate": "Accurate Online API",
+      "company": "Perusahaan",
+      "period": "Periode (YYYY-MM)",
+      "dropzone": "Seret file ke sini atau klik untuk memilih",
+      "dropzoneHint": ".csv atau .xlsx — maks 10 MB",
+      "submit": "Mulai Import",
+      "loading": "Sedang memproses...",
+      "errorFormat": "Format file harus .csv atau .xlsx",
+      "errorSize": "Ukuran file tidak boleh melebihi 10 MB",
+      "errorCompany": "Pilih perusahaan terlebih dahulu",
+      "errorPeriod": "Masukkan periode terlebih dahulu",
+      "errorFile": "Pilih file yang akan diupload",
+      "errorGeneric": "Import gagal. Silakan coba lagi."
+    },
+    "result": {
+      "success": "Import selesai dengan sukses",
+      "partial": "Import selesai dengan beberapa error",
+      "failed": "Import gagal",
+      "summary": "{{total}} total · {{success}} berhasil · {{errors}} error"
     },
     "status": {
       "success": "Berhasil",
       "partial": "Sebagian",
-      "failed": "Gagal",
-      "processing": "Diproses"
+      "failed": "Gagal"
+    },
+    "logs": {
+      "title": "Riwayat Import",
+      "subtitle": "Daftar semua import sebelumnya. Klik baris dengan error untuk melihat detail.",
+      "empty": "Belum ada riwayat import",
+      "colDate": "Tanggal",
+      "colCompany": "Perusahaan",
+      "colSource": "Sumber",
+      "colFile": "File",
+      "colPeriod": "Periode",
+      "colStatus": "Status",
+      "colTotal": "Total",
+      "colSuccess": "Berhasil",
+      "colErrors": "Error",
+      "colBy": "Diimport Oleh"
+    },
+    "errorDetail": {
+      "title": "Detail Error",
+      "noErrors": "Tidak ada detail error tersedia",
+      "colRow": "Baris",
+      "colData": "Data Mentah",
+      "colError": "Pesan Error"
     }
   },
   "users": {
@@ -261,7 +297,23 @@
     "cacheExpiry": "Cache Metrik (menit)",
     "maxFileSize": "Maks Ukuran File (MB)",
     "accurateApiKey": "Accurate API Key",
-    "hidden": "Tersembunyi"
+    "hidden": "Tersembunyi",
+    "buThreshold": {
+      "title": "Threshold Dorman per Unit Bisnis",
+      "subtitle": "Jumlah bulan tanpa transaksi sebelum customer dianggap dorman. Setiap Unit Bisnis dapat memiliki kebijakan yang berbeda.",
+      "tooltip": "Customer yang last_invoice_date-nya lebih lama dari threshold ini (dari periode yang dipilih) akan ditandai sebagai Dorman.",
+      "colBu": "Unit Bisnis",
+      "colThreshold": "Threshold Dorman",
+      "colNote": "Keterangan",
+      "empty": "Tidak ada konfigurasi threshold dorman."
+    },
+    "generalSection": {
+      "title": "Pengaturan Umum"
+    },
+    "periodInfo": {
+      "title": "Tentang Periode (period_month)",
+      "body": "Parameter period_month secara otomatis menggunakan bulan berjalan sebagai default. User dapat menggantinya melalui filter tanggal di setiap halaman workbench (Customer 360, Pelanggan Dorman, dll.). Perhitungan status (aktif / baru / dorman) selalu relatif terhadap periode yang dipilih."
+    }
   },
   "auditLog": {
     "title": "Audit Log",
