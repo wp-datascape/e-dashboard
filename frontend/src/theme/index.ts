@@ -1,7 +1,7 @@
 import { createTheme, type Theme } from '@mui/material/styles'
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
-const FONT_PRIMARY = '"Inter", "Roboto", "Helvetica Neue", Arial, sans-serif'
+const FONT_PRIMARY = '"Plus Jakarta Sans", "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif'
 const FONT_MONO    = '"JetBrains Mono", "Fira Code", monospace'
 
 const BORDER_RADIUS = 10

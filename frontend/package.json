@@ -12,6 +12,7 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@hookform/resolvers": "^5.4.0",
     "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.1.1",
@@ -44,7 +45,8 @@
     "msw": "^2.14.6",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vite-plugin-compression": "^0.5.1"
   },
   "msw": {
     "workerDirectory": [
