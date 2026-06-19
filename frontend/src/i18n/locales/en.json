@@ -420,5 +420,40 @@
       "labelM2": "M2 · Average Product Category per Customer",
       "yes": "Yes",
       "no": "No"
+      },
+      "products": {
+        "title": "Category Performance Ledger",
+        "subtitle": "Revenue, GP, and margin by product category",
+        "categoryName": "Category",
+        "totalRevenue": "Revenue",
+        "totalGP": "Gross Profit",
+        "gpMargin": "GP Margin",
+        "customerCount": "Customers",
+        "invoiceCount": "Invoices",
+        "lastSoldMonth": "Last Sold",
+        "highMarginBadge": "High Margin"
+      },
+      "productsHighMargin": {
+        "title": "High Margin Push List",
+        "subtitle": "Penetration rate per high-margin category and upsell targets",
+        "tabCategories": "Category Penetration",
+        "tabUpsellTargets": "Upsell Targets",
+        "penetrationRate": "Penetration Rate",
+        "customersBuying": "Customers Buying",
+        "categoriesBought": "Categories Bought",
+        "missingHighMargin": "Missing High Margin",
+        "summaryCategories": "{{count}} High Margin Categories",
+        "summaryAvgPenetration": "Avg Penetration {{pct}}%"
+      },
+      "productsTrend": {
+        "title": "Product Trend & Category Diversity",
+        "subtitle": "M2 — Average product categories purchased per active customer (12-month trend)",
+        "currentAvg": "Current Period Avg",
+        "prevAvg": "Previous Period Avg",
+        "change": "Change",
+        "categoriesPerCustomer": "categories / customer",
+        "chartTitle": "Avg Category per Customer — 12 Month Trend",
+        "m2Label": "M2",
+        "seriesLabel": "Avg Category"
       }
       }

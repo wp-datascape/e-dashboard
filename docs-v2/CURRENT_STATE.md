@@ -5,7 +5,7 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~75%   | Core pages done, Admin pending |
+| Frontend | ~82%   | Product Workbench done, Admin pending |
 | Backend  | 0%     | Not started                    |
 | Database | 0%     | Schema designed, not migrated  |
 | Docs     | 100%   | docs-v2 refactor selesai semua 23 file |
@@ -23,6 +23,10 @@
 | Users            | `/users`            | List + create + edit user, mock API |
 | RBAC             | `/rbac`             | Role list, permission matrix, delete dialog |
 | Import           | `/import`           | Form upload/Accurate + riwayat log + error detail dialog, mock API |
+| Customer 360     | `/customers`        | DataGrid + detail drawer + ComboChart trend, mock API |
+| Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
+| High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
+| Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -34,9 +38,9 @@
 |-----------------------------|-------|----------|
 | Customer 360 & Segmentation | 2.1   | High     |
 | Expansion & Upsell Targets  | 2.2   | High (split dari CustomerMetrics) |
-| Product Performance Ledger  | 3.1   | Blocked (lihat product-workbench/decisions.md) |
-| High Margin Push List       | 3.2   | Medium (split dari CustomerMetrics) |
-| Product Trend & Velocity    | 3.3   | Medium (reuse M2 chart) |
+| Product Performance Ledger  | 3.1   | Done — category-level (blocked for SKU detail, see decisions.md) |
+| High Margin Push List       | 3.2   | Done |
+| Product Trend & Velocity    | 3.3   | Done |
 | Dormant Product / Dead Stock| 3.4   | Blocked (scope belum final) |
 | B2B DC & B2C Order Ledger   | 4.1   | Medium   |
 | B2B Project Milestone       | 4.2   | Low* (open decision: MVP or v2) |

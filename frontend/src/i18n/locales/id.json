@@ -433,6 +433,41 @@
     "yes": "Ya",
     "no": "Tidak"
   },
+  "products": {
+    "title": "Ledger Performa Kategori",
+    "subtitle": "Revenue, GP, dan margin per kategori produk",
+    "categoryName": "Kategori",
+    "totalRevenue": "Revenue",
+    "totalGP": "Gross Profit",
+    "gpMargin": "Margin GP",
+    "customerCount": "Customer",
+    "invoiceCount": "Invoice",
+    "lastSoldMonth": "Terakhir Terjual",
+    "highMarginBadge": "High Margin"
+  },
+  "productsHighMargin": {
+    "title": "High Margin Push List",
+    "subtitle": "Penetration rate per kategori high margin dan target upsell",
+    "tabCategories": "Penetrasi Kategori",
+    "tabUpsellTargets": "Target Upsell",
+    "penetrationRate": "Penetration Rate",
+    "customersBuying": "Customer Membeli",
+    "categoriesBought": "Kategori Dibeli",
+    "missingHighMargin": "High Margin Belum Dibeli",
+    "summaryCategories": "{{count}} Kategori High Margin",
+    "summaryAvgPenetration": "Avg Penetrasi {{pct}}%"
+  },
+  "productsTrend": {
+    "title": "Tren Produk & Keragaman Kategori",
+    "subtitle": "M2 — Rata-rata kategori produk yang dibeli per customer aktif (tren 12 bulan)",
+    "currentAvg": "Rata-rata Periode Ini",
+    "prevAvg": "Rata-rata Periode Lalu",
+    "change": "Perubahan",
+    "categoriesPerCustomer": "kategori / customer",
+    "chartTitle": "Avg Kategori per Customer — Tren 12 Bulan",
+    "m2Label": "M2",
+    "seriesLabel": "Avg Kategori"
+  },
   "dashboardPage": {
     "overviewTitle": "Overview Metrics",
     "periodLabel": "Periode: {{period}}",

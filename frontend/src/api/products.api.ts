@@ -1,0 +1,54 @@
+// frontend/src/api/products.api.ts
+import { api } from './axios'
+import type { ApiResponse, PaginatedResponse } from '@/types/api'
+import type {
+  CategoryPerformanceRow,
+  CategoryPerformanceParams,
+  HighMarginCategoryRow,
+  HighMarginDetailParams,
+  UpsellTargetRow,
+  UpsellTargetParams,
+  ProductTrendData,
+  ProductTrendParams,
+} from '@/types/products'
+
+export const productsApi = {
+  // 3.1 — Category Performance Ledger
+  getCategoryPerformance: async (
+    params: CategoryPerformanceParams
+  ): Promise<PaginatedResponse<CategoryPerformanceRow>> => {
+    const res = await api.get<PaginatedResponse<CategoryPerformanceRow>>(
+      '/metrics/category-performance',
+      { params }
+    )
+    return res.data
+  },
+
+  // 3.2 — High Margin detail per kategori
+  getHighMarginDetail: async (
+    params: HighMarginDetailParams
+  ): Promise<PaginatedResponse<HighMarginCategoryRow>> => {
+    const res = await api.get<PaginatedResponse<HighMarginCategoryRow>>(
+      '/metrics/high-margin-penetration/detail',
+      { params }
+    )
+    return res.data
+  },
+
+  // 3.2 — Upsell targets (customer yang belum beli high margin)
+  getUpsellTargets: async (
+    params: UpsellTargetParams
+  ): Promise<PaginatedResponse<UpsellTargetRow>> => {
+    const res = await api.get<PaginatedResponse<UpsellTargetRow>>(
+      '/metrics/high-margin-penetration/customers',
+      { params }
+    )
+    return res.data
+  },
+
+  // 3.3 — Product Trend (reuse M2 avg-category endpoint)
+  getProductTrend: async (params: ProductTrendParams): Promise<ProductTrendData> => {
+    const res = await api.get<ApiResponse<ProductTrendData>>('/metrics/avg-category', { params })
+    return res.data.data
+  },
+}
