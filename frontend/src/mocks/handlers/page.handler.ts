@@ -46,7 +46,7 @@ export const pageHandlers = [
       { pageKey: 'products', ready: true },
       { pageKey: 'products-high-margin', ready: true },
       { pageKey: 'products-trend', ready: true },
-      { pageKey: 'transactions', ready: false },
+      { pageKey: 'transactions', ready: true },
       { pageKey: 'projects', ready: false },
       { pageKey: 'import', ready: true },
       { pageKey: 'users', ready: true },

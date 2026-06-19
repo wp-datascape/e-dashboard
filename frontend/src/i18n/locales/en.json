@@ -455,5 +455,20 @@
         "chartTitle": "Avg Category per Customer — 12 Month Trend",
         "m2Label": "M2",
         "seriesLabel": "Avg Category"
+      },
+      "transactions": {
+        "title": "Order Ledger",
+        "subtitle": "Invoice transaction list with filters and detail drawer",
+        "invoiceNumber": "Invoice #",
+        "invoiceDate": "Date",
+        "company": "Company",
+        "totalRevenue": "Revenue",
+        "totalGP": "Gross Profit",
+        "categoryCount": "Categories",
+        "importSource": "Source",
+        "searchPlaceholder": "Search customer...",
+        "detailTitle": "Invoice Detail",
+        "lineItems": "Line Items",
+        "gpMargin": "GP Margin"
       }
       }

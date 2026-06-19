@@ -5,7 +5,7 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~82%   | Product Workbench done, Admin pending |
+| Frontend | ~86%   | Group 3 + 4.1 done, Admin pending |
 | Backend  | 0%     | Not started                    |
 | Database | 0%     | Schema designed, not migrated  |
 | Docs     | 100%   | docs-v2 refactor selesai semua 23 file |
@@ -27,6 +27,7 @@
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
+| Order Ledger     | `/orders`           | DataGrid invoice + BU filter + detail drawer, mock API |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -42,7 +43,7 @@
 | High Margin Push List       | 3.2   | Done |
 | Product Trend & Velocity    | 3.3   | Done |
 | Dormant Product / Dead Stock| 3.4   | Blocked (scope belum final) |
-| B2B DC & B2C Order Ledger   | 4.1   | Medium   |
+| B2B DC & B2C Order Ledger   | 4.1   | Done     |
 | B2B Project Milestone       | 4.2   | Low* (open decision: MVP or v2) |
 | Repeat Order & Loyalty      | 4.3   | Medium (reuse M6 chart)   |
 | Import UI                   | 5.1   | High     |
@@ -110,6 +111,8 @@ Nothing built. Start with:
 - `page` — page ready flags
 - `dashboard` — metrics summary
 - `metrics` — per-metric endpoints
+- `products` — category performance, high margin detail, upsell targets, avg-category trend
+- `transactions` — invoice list, invoice detail
 
 ## Known Blockers / Decisions Pending
 | Blocker                              | Owner    | Status  | Detail |
@@ -149,6 +152,26 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-19 (sesi 6+7): Product Workbench + Order Ledger
+
+**Product Workbench (Group 3):**
+- 3.1 Category Performance Ledger: DataGrid kategori (revenue, GP, margin, customer count, sortable server-side)
+- 3.2 High Margin Push List: 2 tab (Category Penetration + Upsell Targets) dengan progress bar penetration rate
+- 3.3 Product Trend & Diversity: KPI cards + AreaChartWidget M2 (avg category per customer, 12 month trend)
+
+**Order Ledger (4.1):**
+- DataGrid invoice dengan 10 kolom (invoice number, date, customer, BU, company, revenue, GP, margin, categories, source)
+- Filter BU + customer search
+- Drawer detail invoice (header, KPI revenue/GP, line items dengan category chips)
+- Server-side pagination + sorting
+
+**Perubahan file:**
+- 5 file baru: `types/transactions.ts`, `api/transactions.api.ts`, `hooks/useTransactions.ts`, `mocks/handlers/transactions.handler.ts`
+- 1 file diupdate: `pages/Transactions/index.tsx` (placeholder → full page)
+- page.handler.ts: `transactions → ready: true`
+- i18n en.json + id.json: keys `transactions.*`
+- CURRENT_STATE.md: progress ~86%
 
 ### 2026-06-19 (sesi 5): i18n Full Compliance + Architecture Audit
 

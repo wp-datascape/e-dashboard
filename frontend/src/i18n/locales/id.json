@@ -468,6 +468,21 @@
     "m2Label": "M2",
     "seriesLabel": "Avg Kategori"
   },
+  "transactions": {
+    "title": "Order Ledger",
+    "subtitle": "Daftar transaksi invoice dengan filter dan detail drawer",
+    "invoiceNumber": "Invoice #",
+    "invoiceDate": "Tanggal",
+    "company": "Perusahaan",
+    "totalRevenue": "Revenue",
+    "totalGP": "Gross Profit",
+    "categoryCount": "Kategori",
+    "importSource": "Sumber",
+    "searchPlaceholder": "Cari customer...",
+    "detailTitle": "Detail Invoice",
+    "lineItems": "Item Baris",
+    "gpMargin": "Margin GP"
+  },
   "dashboardPage": {
     "overviewTitle": "Overview Metrics",
     "periodLabel": "Periode: {{period}}",
