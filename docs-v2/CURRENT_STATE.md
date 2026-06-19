@@ -5,7 +5,7 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~86%   | Group 3 + 4.1 done, Admin pending |
+| Frontend | ~88%   | Group 3 + 4.1 + 5.5 done, Admin sebagian |
 | Backend  | 0%     | Not started                    |
 | Database | 0%     | Schema designed, not migrated  |
 | Docs     | 100%   | docs-v2 refactor selesai semua 23 file |
@@ -28,6 +28,7 @@
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
 | Order Ledger     | `/orders`           | DataGrid invoice + BU filter + detail drawer, mock API |
+| Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -50,7 +51,7 @@
 | Users Management            | 5.2   | High     |
 | RBAC Management             | 5.3   | High     |
 | Config UI                   | 5.4   | Medium   |
-| Audit Log Viewer            | 5.5   | Medium   |
+| Audit Log Viewer            | 5.5   | ~~Done~~ |
 
 *4.2 B2B Project: high complexity — konfirmasi dulu apakah masuk MVP sebelum mulai
 
@@ -113,6 +114,7 @@ Nothing built. Start with:
 - `metrics` — per-metric endpoints
 - `products` — category performance, high margin detail, upsell targets, avg-category trend
 - `transactions` — invoice list, invoice detail
+- `audit` — audit log list (5 entries, pagination)
 
 ## Known Blockers / Decisions Pending
 | Blocker                              | Owner    | Status  | Detail |
@@ -152,6 +154,25 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-20 (sesi 8): Audit Log Viewer (5.5 Admin)
+
+**Audit Log (5.5):**
+- Halaman read-only untuk audit trail sistem
+- DataGrid dengan 6 kolom: Waktu, Aksi (StatusChip color-coded), Pelaku, Entity, Entity ID, IP Address
+- Filter: Action dropdown (8 action types) + Date From + Date To
+- Server-side pagination + custom mobile card renderer (responsive 2-kolom layout)
+- Filter section menggunakan pola `Box flexDirection: { xs: 'column', sm: 'row' }` — konsisten dengan halaman lain
+
+**Perubahan file:**
+- 4 file baru: `types/audit.ts`, `api/audit.api.ts`, `hooks/useAuditLogs.ts`, `mocks/handlers/audit.handler.ts`
+- 1 file diupdate: `pages/AuditLog/index.tsx` (placeholder → full page)
+- handlers.ts: ditambahkan `auditHandlers`
+- page.handler.ts: `audit-log → ready: true`
+- i18n en.json + id.json: keys `auditLog.*` (description, table, filterAction, allActions, filterDateFrom, filterDateTo, dll)
+- CURRENT_STATE.md: Audit Log dipindah dari "Not Built" → "Done"
+
+---
 
 ### 2026-06-19 (sesi 6+7): Product Workbench + Order Ledger
 

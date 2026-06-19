@@ -47,12 +47,12 @@ export const pageHandlers = [
       { pageKey: 'products-high-margin', ready: true },
       { pageKey: 'products-trend', ready: true },
       { pageKey: 'transactions', ready: true },
-      { pageKey: 'projects', ready: false },
-      { pageKey: 'import', ready: true },
-      { pageKey: 'users', ready: true },
-      { pageKey: 'rbac', ready: true },
-      { pageKey: 'config', ready: true },
-      { pageKey: 'audit-log', ready: false },
+       { pageKey: 'projects', ready: false },
+       { pageKey: 'import', ready: true },
+       { pageKey: 'users', ready: true },
+       { pageKey: 'rbac', ready: true },
+       { pageKey: 'config', ready: true },
+       { pageKey: 'audit-log', ready: true },
     ];
 
     return HttpResponse.json<ApiResponse<PageSetting[]>>({

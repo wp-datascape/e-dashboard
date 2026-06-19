@@ -315,28 +315,36 @@
       "body": "The period_month defaults to the current month automatically. Users can override it via the date filter on each workbench page (Customer 360, Dormant Customer, etc.). Status calculations (active / new / dormant) are always relative to the selected period."
     }
   },
-  "auditLog": {
-    "title": "Audit Log",
-    "actor": "Actor",
-    "action": "Action",
-    "entity": "Entity",
-    "ipAddress": "IP Address",
-    "timestamp": "Timestamp",
-    "meta": "Details",
-    "actions": {
-      "invoice.import": "Invoice Import",
-      "user.create": "Create User",
-      "user.update": "Update User",
-      "user.delete": "Delete User",
-      "role.create": "Create Role",
-      "role.update": "Update Role",
-      "role.delete": "Delete Role",
-      "permission.assign": "Assign Permission",
-      "permission.revoke": "Revoke Permission",
-      "config.update": "Update Config",
-      "category.update": "Update Category"
-    }
-  },
+   "auditLog": {
+     "title": "Audit Log",
+     "description": "View system activity and user actions",
+     "actor": "Actor",
+     "action": "Action",
+     "entity": "Entity",
+     "ipAddress": "IP Address",
+     "timestamp": "Timestamp",
+     "meta": "Details",
+     "table": "Activity Log",
+     "filterAction": "Filter by Action",
+     "allActions": "All Actions",
+     "filterDateFrom": "From Date",
+     "filterDateTo": "To Date",
+     "actions": {
+       "invoice.import": "Invoice Import",
+       "user.create": "Create User",
+       "user.update": "Update User",
+       "user.delete": "Delete User",
+       "role.create": "Create Role",
+       "role.update": "Update Role",
+       "role.delete": "Delete Role",
+       "permission.assign": "Assign Permission",
+       "permission.revoke": "Revoke Permission",
+       "user_role.assign": "Assign Role",
+       "user_role.revoke": "Revoke Role",
+       "config.update": "Update Config",
+       "category.update": "Update Category"
+     }
+   },
   "customers": {
     "title": "Customer",
     "subtitle": "Master customer database with segmentation and performance metrics",

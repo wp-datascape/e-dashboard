@@ -315,28 +315,36 @@
       "body": "Parameter period_month secara otomatis menggunakan bulan berjalan sebagai default. User dapat menggantinya melalui filter tanggal di setiap halaman workbench (Customer 360, Pelanggan Dorman, dll.). Perhitungan status (aktif / baru / dorman) selalu relatif terhadap periode yang dipilih."
     }
   },
-  "auditLog": {
-    "title": "Audit Log",
-    "actor": "Pelaku",
-    "action": "Aksi",
-    "entity": "Entitas",
-    "ipAddress": "IP Address",
-    "timestamp": "Waktu",
-    "meta": "Detail",
-    "actions": {
-      "invoice.import": "Import Faktur",
-      "user.create": "Buat User",
-      "user.update": "Update User",
-      "user.delete": "Hapus User",
-      "role.create": "Buat Role",
-      "role.update": "Update Role",
-      "role.delete": "Hapus Role",
-      "permission.assign": "Assign Permission",
-      "permission.revoke": "Cabut Permission",
-      "config.update": "Update Konfigurasi",
-      "category.update": "Update Kategori"
-    }
-  },
+   "auditLog": {
+     "title": "Audit Log",
+     "description": "Lihat aktivitas sistem dan aksi pengguna",
+     "actor": "Pelaku",
+     "action": "Aksi",
+     "entity": "Entitas",
+     "ipAddress": "IP Address",
+     "timestamp": "Waktu",
+     "meta": "Detail",
+     "table": "Riwayat Aktivitas",
+     "filterAction": "Filter berdasarkan Aksi",
+     "allActions": "Semua Aksi",
+     "filterDateFrom": "Dari Tanggal",
+     "filterDateTo": "Sampai Tanggal",
+     "actions": {
+       "invoice.import": "Import Faktur",
+       "user.create": "Buat User",
+       "user.update": "Update User",
+       "user.delete": "Hapus User",
+       "role.create": "Buat Role",
+       "role.update": "Update Role",
+       "role.delete": "Hapus Role",
+       "permission.assign": "Assign Permission",
+       "permission.revoke": "Cabut Permission",
+       "user_role.assign": "Assign Role",
+       "user_role.revoke": "Cabut Role",
+       "config.update": "Update Konfigurasi",
+       "category.update": "Update Kategori"
+     }
+   },
   "customers": {
     "title": "Customer",
     "subtitle": "Database master customer dengan segmentasi dan metrik performa",
