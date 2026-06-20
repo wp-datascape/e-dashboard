@@ -7,13 +7,15 @@ React SPA (Vite)
 
 | dev: MSW Service Worker intercepts axios
 
-Hono Router (Bun)
+Hono Router (Bun) → `index.ts` (bootstrap) → `router.ts` (orchestrator)
 
-| Middleware chain:
+| Global Middleware: CORS → CSRF → RateLimit
 
-| CORS -> CSRF -> RateLimit -> Auth -> RequirePermission -> CompanyAccess
+| Public: /api/v1/auth/* (no auth)
 
-Handler -> Service -> Repository -> PostgreSQL
+| Protected: authMiddleware → requireCompanyAccess → feature routes
+
+Handler → Service → Repository → PostgreSQL
 
 -> utils/accurate.ts -> Accurate Online API
 
@@ -22,81 +24,145 @@ Handler -> Service -> Repository -> PostgreSQL
 ## Folder Structure
 
 ### Backend
-backend/
-
-src/
-
-routes/         # Hono route definitions
-
-handlers/       # Request validation + response shaping
-
-services/       # Business logic + audit calls
-
-repositories/   # Drizzle ORM queries
-
-db/
-
-schema/       # Drizzle table definitions (snake_case plural)
-
-migrations/   # drizzle-kit generated
-
-middleware/     # cors, csrf, auth, permission, company-access
-
-utils/          # response, error, jwt, hash, csrf, audit, parser, accurate, validator, logger
-
-types/          # Shared TypeScript types
+```
+backend/src/
+├── index.ts              # Server bootstrap (port, env, global error handler)
+├── router.ts             # ORCHESTRATOR — global MW + public/protected split + route mount
+├── features/
+│   ├── auth/
+│   │   ├── auth.route.ts       # PUBLIC — no middleware
+│   │   ├── auth.handler.ts
+│   │   ├── auth.service.ts
+│   │   └── auth.repository.ts
+│   ├── metrics/
+│   │   ├── metrics.route.ts    # PROTECTED — requirePermission per endpoint
+│   │   ├── metrics.handler.ts
+│   │   ├── metrics.service.ts  # 10 KPI logic
+│   │   └── metrics.repository.ts
+│   ├── import/
+│   ├── users/
+│   ├── rbac/
+│   ├── customers/
+│   ├── products/
+│   ├── transactions/
+│   ├── config/
+│   └── audit/
+├── db/
+│   ├── schema/           # Drizzle table definitions (snake_case plural)
+│   └── migrations/       # drizzle-kit generated
+├── middleware/
+│   ├── auth.ts           # verifyJwt → set c.var.user
+│   ├── permission.ts     # requirePermission('resource:action')
+│   ├── company-access.ts # requireCompanyAccess()
+│   ├── csrf.ts           # validate X-CSRF-Token on mutations
+│   └── rate-limit.ts     # per IP
+├── utils/                # response, error, jwt, hash, csrf, audit, parser, accurate, validator, logger
+└── types/                # Shared TypeScript types
+```
 
 ### Frontend
-frontend/
+```
+frontend/src/
+├── api/              # All axios calls — never fetch directly in components
+│   └── axios.ts     # Axios instance with CSRF interceptor
+├── components/       # Reusable UI — PascalCase.tsx + index.ts re-export
+│   └── charts/      # 9 chart widgets (Recharts)
+├── hooks/            # Custom hooks — logic separated from UI
+├── pages/            # Route-level page components
+├── route/
+│   └── routes.tsx   # routeRegistry — register all pages here
+├── config/
+│   └── menu.tsx     # NAV_ITEMS — sidebar menu definition
+├── mocks/
+│   ├── handlers/    # MSW handlers per domain
+│   └── handlers.ts  # Imports all handlers
+├── context/
+│   └── AuthContext  # JWT state + permissions[]
+└── types/           # API response types
+```
 
-src/
+## Router Orchestrator Pattern
 
-api/            # All axios calls — never fetch directly in components
+### `index.ts` — Bootstrap Only
+```typescript
+import { Hono } from 'hono'
+import { createRouter } from './router'
 
-axios.ts      # Axios instance with CSRF interceptor
+const app = new Hono()
+createRouter(app)
 
-components/     # Reusable UI — PascalCase.tsx + index.ts re-export
+export default { port: process.env.PORT ?? 3000, fetch: app.fetch }
+```
 
-charts/       # 9 chart widgets (Recharts)
+### `router.ts` — Orchestrator
+```typescript
+export function createRouter(app: Hono) {
 
-hooks/          # Custom hooks — logic separated from UI
+  // LAYER 1: Global (semua request)
+  app.use('*', cors())
+  app.use('*', csrfMiddleware())
+  app.use('*', rateLimitMiddleware())
 
-pages/          # Route-level page components
+  // LAYER 2: Public routes (no auth)
+  app.route('/api/v1/auth', authRoutes)
 
-route/
+  // LAYER 3: Protected routes (wajib login + company access)
+  const protected = new Hono()
+  protected.use('*', authMiddleware())
+  protected.use('*', requireCompanyAccess())
 
-routes.tsx    # routeRegistry — register all pages here
+  protected.route('/metrics',    metricsRoutes)
+  protected.route('/import',     importRoutes)
+  protected.route('/users',      usersRoutes)
+  protected.route('/rbac',       rbacRoutes)
+  protected.route('/config',     configRoutes)
+  protected.route('/customers',  customersRoutes)
+  protected.route('/audit-logs', auditRoutes)
 
-config/
+  app.route('/api/v1', protected)
+}
+```
 
-menu.tsx      # NAV_ITEMS — sidebar menu definition
+## Permission Strategy (Hybrid)
 
-mocks/
+| Layer | Responsibility |
+|-------|---------------|
+| `router.ts` | Auth (JWT verify) + CompanyAccess — global untuk semua protected routes |
+| `*.route.ts` | `requirePermission('resource:action')` — per endpoint, karena granularity berbeda |
 
-handlers/     # MSW handlers per domain
+Contoh: `/import/logs` butuh `import:read`, `/import/file` butuh `import:write` — tidak bisa di-group di router.ts.
 
-handlers.ts   # Imports all handlers
-
-context/
-
-AuthContext   # JWT state + permissions[]
-
-types/          # API response types
+### Feature Route — Zero Global Middleware
+```typescript
+// features/metrics/metrics.route.ts
+// ⚠️ TIDAK ADA authMiddleware di sini — sudah dihandle router.ts
+export const metricsRoutes = new Hono()
+  .get('/cross-selling', requirePermission('metrics:read'), metricsHandler.getCrossSelling)
+  .get('/revenue',       requirePermission('metrics:read'), metricsHandler.getRevenue)
+  .get('/dormant',       requirePermission('metrics:read'), metricsHandler.getDormant)
+```
 
 ## Middleware Chain Detail
-CORS              — whitelist from env
-
-CSRF              — validate X-CSRF-Token on mutations
-
+```
+CORS              — whitelist dari env
+CSRF              — validate X-CSRF-Token pada mutations (POST/PUT/PATCH/DELETE)
 RateLimit         — per IP
+Auth              — verify JWT dari httpOnly cookie → set c.var.user
+CompanyAccess     — verify user punya akses ke company_id yang diminta
+                   (superadmin + admin bypass ini)
+RequirePermission — check permission string, e.g. "metrics:read" — per endpoint
+```
 
-Auth              — verify JWT from httpOnly cookie
-
-RequirePermission — check permission string e.g. "metrics:read"
-
-CompanyAccess     — verify user has access to requested company_id
-
-(superadmin + admin bypass this)
+## Route Categories
+```
+PUBLIC                    PROTECTED (auth + company)   PROTECTED + PERMISSION
+─────────────────────     ────────────────────────     ──────────────────────────────
+POST /auth/login          (semua route di bawah)       GET /metrics/*  [metrics:read]
+POST /auth/logout                                      GET /customers/* [customers:read]
+POST /auth/refresh                                     POST /import/*  [import:write]
+                                                       GET /users/*    [users:manage]
+                                                       GET /audit-logs [roles:manage]
+```
 
 ## Dev Setup
 ```bash
@@ -117,15 +183,18 @@ bun run dev
 ```
 
 ## MSW Mock Domains (dev only — active when import.meta.env.DEV)
-auth     — login, logout, refresh, /me
+auth      — login, logout, refresh, /me
 
-page     — page ready flags
+page      — page ready flags
 
 dashboard — metrics summary
 
-metrics  — per-metric endpoints
+metrics   — per-metric endpoints
 
 ## Key Architecture Decisions
+- Feature-based folder structure — setiap domain punya folder sendiri dengan semua layer-nya
+- Router Orchestrator (`router.ts`) — satu file yang mengatur middleware chain + route mounting
+- Permission di feature route — granularity per endpoint, bukan per group
 - Monolith modular — single repo, single deploy, split by domain folders
 - No separate microservices for MVP
 - Single PostgreSQL DB, company isolation via company_id column

@@ -9,6 +9,22 @@ Auth   : JWT httpOnly cookie
 
 CSRF   : X-CSRF-Token header required on ALL mutations (POST/PUT/PATCH/DELETE)
 
+## API Documentation
+OpenAPI/Swagger docs are **auto-generated from Zod schemas** — always keep Zod schemas as the source of truth. Never write OpenAPI YAML manually.
+
+## Pagination Query Standard
+All list endpoints use consistent query params:
+```
+?page=1&per_page=20&sort=created_at:desc
+```
+| Param      | Default | Notes                            |
+|------------|---------|----------------------------------|
+| `page`     | 1       | 1-based                          |
+| `per_page` | 20      | Max 100                          |
+| `sort`     | varies  | Format: `field:asc` or `field:desc` |
+
+Always parse + validate these via a shared utility (`utils/validator` or dedicated query parser helper) — never parse raw query strings directly in handlers.
+
 ## Response Shapes
 ```json
 // Success single

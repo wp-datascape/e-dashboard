@@ -21,6 +21,7 @@ Status   : Frontend ~75% | Backend 0%
 | Working on...         | Read                                    |
 |-----------------------|-----------------------------------------|
 | Any feature           | `shared/architecture.md`               |
+| Backend code          | `shared/backend.md` ⚠️ REQUIRED        |
 | DB schema / migration | `shared/data-model.md`                 |
 | API endpoint          | `shared/api-conventions.md`            |
 | UI component          | `shared/ui-patterns.md`                |

@@ -24,14 +24,41 @@
 
 ## Backend Conventions
 
-### Structure
+### Architecture Pattern
+**Feature-based + Router Orchestrator** (detail: `shared/architecture.md`)
+
+```
+backend/src/
+├── index.ts        # Bootstrap only
+├── router.ts       # ORCHESTRATOR — global MW + public/protected + route mount
+├── features/       # Setiap domain: route + handler + service + repository
+├── middleware/     # auth, permission, company-access, csrf, rate-limit
+├── utils/          # response, error, jwt, audit, logger, parser, accurate, validator
+└── db/             # schema + migrations
+```
+
+### Flow
 Route → Handler → Service → Repository
+
+Aturan per layer:
+- **Handler**: validasi input (Zod) + panggil Service + shape response — TIDAK BOLEH query DB langsung
+- **Service**: business logic + panggil Repository + panggil `logAudit()` setelah mutasi
+- **Repository**: semua query Drizzle ORM — wajib filter `company_id`
+
+### Code Rules
 - Validate input with **zod** in every handler before calling service
 - All responses via `utils/response` helpers — never raw `c.json()`
 - All errors as `AppError` from `utils/error`
 - No `catch(e) {}` without handling
 - TypeScript strict mode — no `any`
 - Use `async/await` only
+
+### Router Orchestrator Rules
+- `index.ts` = bootstrap saja, tidak ada route/middleware logic
+- `router.ts` = satu-satunya file yang mount semua feature routes
+- Auth + CompanyAccess = di `router.ts` (global untuk semua protected routes)
+- Permission (`requirePermission`) = di `*.route.ts` per endpoint — bukan di `router.ts`
+- Feature `*.route.ts` = TIDAK BOLEH tambah `authMiddleware` — sudah dihandle `router.ts`
 
 ### Available Utils (never rewrite)
 | Package          | Exports                                              |
@@ -54,6 +81,19 @@ Route → Handler → Service → Repository
 | `error` | ✅      | ✅ `log/error/YYYY-MM-DD.log`|
 
 Import logger only via `utils/logger` wrapper — never import winston directly.
+- **ALWAYS include `request_id`** in error logs for distributed tracing.
+- **NEVER log sensitive PII data** — use Winston redaction/masking config.
+
+### Backend i18n
+- Use **i18next** for translating backend error messages, email templates, and dynamic content.
+- Never hardcode user-facing strings in backend responses intended to be localized.
+- i18n is for backend text only — frontend uses its own i18n (see Frontend Conventions).
+
+### Developer Experience (DX)
+- **Linting**: ESLint + Prettier enforced (no commits if linting fails).
+- **Pre-commit**: Husky + lint-staged.
+- **Testing**: `bun test` (preferred) or Vitest. Tests must pass before merge.
+- **API Docs**: Auto-generate OpenAPI/Swagger documentation from Zod schemas — keep docs in sync with code.
 
 ### Audit Log (DB — not file)
 Write to `audit_logs` table for: create, update, delete.
@@ -128,16 +168,17 @@ setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('aut
 - Migrations: `drizzle-kit generate` → `drizzle-kit migrate`
 
 ## Security Rules
-| Aspect        | Rule                                              |
-|---------------|---------------------------------------------------|
-| Auth          | JWT httpOnly; Secure; SameSite=Strict             |
-| CSRF          | `X-CSRF-Token` header on ALL mutations            |
-| Input         | zod schema in every handler                       |
-| Password      | bcryptjs cost ≥ 12                                |
-| Upload        | Validate MIME + extension whitelist               |
-| Accurate key  | Stored in `app_configs` is_secret=true — never return to frontend |
-| Error         | Never expose stack trace to client                |
-| company_id    | Filter on every query — no exceptions             |
+| Aspect           | Rule                                              |
+|------------------|---------------------------------------------------|
+| Auth             | JWT httpOnly; Secure; SameSite=Strict             |
+| CSRF             | `X-CSRF-Token` header on ALL mutations            |
+| Input            | zod schema in every handler                       |
+| Password         | bcryptjs cost ≥ 12                                |
+| Upload           | Validate MIME + extension whitelist               |
+| Accurate key     | Stored in `app_configs` is_secret=true — never return to frontend |
+| Error            | Never expose stack trace to client                |
+| company_id       | Filter on every query — no exceptions             |
+| Accurate API     | ALWAYS wrap with timeout + error handling (circuit breaker pattern) |
 
 ## RBAC Rules
 - Fully dynamic — managed from dashboard, not hardcoded
@@ -156,6 +197,11 @@ setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('aut
 - Cache in `metric_cache` table with `expires_at`
 - Required params: `company_id`, `period_month` (YYYY-MM), `active_window` (3|6|12)
 - Thresholds from `app_configs` — never hardcode
+
+## Background Jobs
+- Use **PostgreSQL table-based job queue** for background tasks (e.g., large file imports).
+- Metrics are computed on-demand and cached via `metric_cache` table with `expires_at`.
+- No external queue system (Redis, RabbitMQ, etc.) — out of MVP scope.
 
 ## MVP Scope
 ✅ In scope: Auth + RBAC, invoice import (file + API), 10 metrics, filters, monthly trends, customer detail, audit log, dynamic config
