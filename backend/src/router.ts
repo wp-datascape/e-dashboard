@@ -4,9 +4,9 @@
  * Satu-satunya file yang tahu semua route dan mengatur middleware chain.
  *
  * Middleware chain:
- *   CORS → CSRF → RateLimit → Auth → CompanyAccess → RequirePermission → Handler
+ *   RequestID → CORS → CSRF → RateLimit → Auth → CompanyAccess → RequirePermission → Handler
  *
- * Layer 1 (Global)   : CORS, CSRF, RateLimit — semua request
+ * Layer 1 (Global)   : RequestID, CORS, CSRF, RateLimit — semua request
  * Layer 2 (Public)   : /api/v1/auth/* — tanpa auth
  * Layer 3 (Protected): semua route lain — wajib auth + company access
  *
@@ -17,6 +17,9 @@
 import type { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { env } from '@/config/env'
+import { registerErrorHandlers } from '@/errors'
+import { requestIdMiddleware } from '@/middleware/requestId'
+import { requestLogger } from '@/middleware/requestLogger'
 
 // TODO: Import middleware saat sudah dibuat
 // import { csrfMiddleware } from '@/middleware/csrf'
@@ -36,8 +39,29 @@ import { env } from '@/config/env'
 // import { configRoutes } from '@/features/config/config.route'
 // import { auditRoutes } from '@/features/audit/audit.route'
 
+// ─── Health Check ──────────────────────────────────────────────────────────────
+
+/**
+ * GET /health
+ * Untuk load balancer / monitoring — cek apakah aplikasi hidup + koneksi DB.
+ *
+ * Response:
+ *   { status: 'ok', timestamp: '...', uptime: 1234, db: 'connected' }
+ */
+import { db } from '@/config/db'
+import { sql } from 'drizzle-orm'
+
+// ─── Router Factory ─────────────────────────────────────────────────────────────
+
 export function createRouter(app: Hono): void {
+  // ─── ERROR HANDLERS — pasang PERTAMA sebelum semua middleware dan route ──────
+  // Menangkap: AppError, ZodError, unknown error → response JSON yang konsisten
+  // DILARANG: expose stack trace ke client
+  registerErrorHandlers(app)
+
   // ─── LAYER 1: Global — semua request ────────────────────────────────────────
+  app.use('*', requestIdMiddleware)
+  app.use('*', requestLogger)
   app.use(
     '*',
     cors({
@@ -57,8 +81,7 @@ export function createRouter(app: Hono): void {
   // ─── LAYER 3: Protected routes — wajib auth + company access ────────────────
   // TODO: Uncomment setelah middleware + features dibuat
   //
-  // const { Hono: HonoApp } = await import('hono')
-  // const protectedApi = new HonoApp()
+  // const protectedApi = new Hono()
   // protectedApi.use('*', authMiddleware())
   // protectedApi.use('*', requireCompanyAccess())
   //
@@ -74,6 +97,21 @@ export function createRouter(app: Hono): void {
   //
   // app.route('/api/v1', protectedApi)
 
-  // Health check endpoint — selalu aktif
-  app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
+  // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
+  // Cek: aplikasi hidup + koneksi DB responsif
+  app.get('/health', async (c) => {
+    let dbStatus = 'connected'
+    try {
+      await db.execute(sql`SELECT 1`)
+    } catch {
+      dbStatus = 'disconnected'
+    }
+
+    return c.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      db: dbStatus,
+    })
+  })
 }

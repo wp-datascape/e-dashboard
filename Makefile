@@ -208,7 +208,12 @@ dev-frontend:
 
 dev-backend:
 	@echo "Starting backend..."
-	@echo "Configure backend command first."
+	@PORT=$$(grep -E '^PORT=' backend/.env 2>/dev/null | cut -d= -f2 || echo 3000); \
+	if lsof -ti :$$PORT > /dev/null 2>&1; then \
+		echo "[error] Port $$PORT is already in use. Stop the existing process and try again."; \
+		exit 1; \
+	fi
+	@bun run --cwd backend dev
 
 check:
 	@echo "Running TypeScript..."
