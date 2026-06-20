@@ -186,6 +186,14 @@ setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('aut
 - Prefer `requirePermission('metrics:read')` over `requireRole('admin')`
 - System roles (`is_system=true`): cannot delete or rename
 
+### Permission Loading Strategy
+**Permissions di-load dari DB per request — TIDAK disimpan di JWT payload.**
+- JWT payload hanya: `{ userId, email, companyIds, isSuperAdmin }`
+- `authMiddleware` verify JWT → query permissions dari DB → set `c.var.user.permissions`
+- `requirePermission` cek `c.var.user.permissions` — tanpa DB hit tambahan
+- Login/refresh response include `permissions[]` untuk frontend (display purposes only, bukan enforcement)
+- Detail: `shared/architecture.md` → Permission Strategy Decision
+
 ## Import Rules
 - Accepted: `.csv`, `.xlsx` only — max 10MB
 - Idempotent: dedup key = `invoice_number + company_id`

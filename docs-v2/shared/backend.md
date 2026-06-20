@@ -60,6 +60,9 @@ backend/src/
 │   ├── company-access.ts # requireCompanyAccess()
 │   ├── csrf.ts
 │   └── rate-limit.ts
+├── config/
+│   ├── env.ts            # Validasi & parse environment variables via Zod — dijalankan saat startup
+│   └── db.ts             # Drizzle instance + postgres client — sumber koneksi DB tunggal
 ├── utils/                # response, error, jwt, hash, csrf, audit, parser, accurate, validator, logger
 └── types/                # Shared TypeScript types
 ```

@@ -56,6 +56,9 @@ backend/src/
 │   ├── company-access.ts # requireCompanyAccess()
 │   ├── csrf.ts           # validate X-CSRF-Token on mutations
 │   └── rate-limit.ts     # per IP
+├── config/
+│   ├── env.ts            # Validasi environment variables via Zod (wajib dijalankan saat startup)
+│   └── db.ts             # Koneksi PostgreSQL — drizzle instance + postgres client
 ├── utils/                # response, error, jwt, hash, csrf, audit, parser, accurate, validator, logger
 └── types/                # Shared TypeScript types
 ```
@@ -202,3 +205,38 @@ metrics   — per-metric endpoints
 - Accurate API fetched server-side only — API key never sent to frontend
 - Auth cookie: httpOnly; Secure; SameSite=Strict
 - Dev auth: localStorage + MSW — migrate to httpOnly cookie when backend ready
+
+## Permission Strategy Decision
+
+**Pilihan: Load permissions dari DB per request (bukan dari JWT payload)**
+
+### Alasan
+- RBAC dinamis — admin bisa assign/revoke permission kapan saja dari dashboard. JWT payload = revoke tidak langsung efektif.
+- JWT TTL = 15 menit → masih ada window 15 menit jika permission di JWT.
+- Query ringan: 1 query join `user_roles → role_permissions → permissions` per request.
+- Tidak ada Redis → tidak bisa cache di luar request lifecycle.
+
+### Implementasi
+```
+JWT Payload: { userId, email, companyIds, isSuperAdmin }
+  — TIDAK mengandung permissions (JWT tetap kecil)
+
+authMiddleware:
+  1. Verify JWT → extract { userId, companyIds, isSuperAdmin }
+  2. Query: SELECT p.name FROM permissions p
+             JOIN role_permissions rp ON rp.permission_id = p.id
+             JOIN user_roles ur ON ur.role_id = rp.role_id
+             WHERE ur.user_id = ?
+  3. Set c.var.user = { userId, email, companyIds, isSuperAdmin, permissions: string[] }
+
+requirePermission('metrics:read'):
+  4. Check c.var.user.permissions.includes('metrics:read') — tanpa DB hit tambahan
+
+Login/refresh response:
+  - Tetap include permissions[] untuk frontend (UI hide/show menu)
+  - Frontend menggunakan ini untuk display purposes only, bukan enforcement
+```
+
+### Trade-off yang Diterima
+- 1 DB query per request → diterima karena query ringan dan tidak ada Redis di MVP scope
+- Permission revoke langsung efektif → lebih aman untuk RBAC dinamis

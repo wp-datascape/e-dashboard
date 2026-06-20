@@ -12,7 +12,7 @@ Kemudian baca file domain sesuai task:
 
 | Task | Baca |
 |------|------|
-| **Backend code (apapun)** | `docs-v2/shared/backend.md` WAJIB |
+| **Backend code (apapun)** | `docs-v2/shared/backend.md` + `docs-v2/CURRENT_STATE_BACKEND.md` WAJIB |
 | Metrik bisnis (M1-M10) | `docs-v2/executive-dashboard/metrics.md` WAJIB |
 | Dashboard / Group 1 | `docs-v2/executive-dashboard/overview.md` + `api.md` |
 | Customer Workbench / Group 2 | `docs-v2/customer-workbench/overview.md` + `api.md` |

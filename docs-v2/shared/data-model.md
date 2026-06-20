@@ -251,13 +251,21 @@ actor_id    FK users nullable
 
 action      varchar                   -- e.g. invoice.import, user.create
 
-entity      varchar                   -- table name
+entity      varchar                   -- table name, e.g. users, roles, invoices
 
-entity_id   integer nullable
+entity_id   varchar nullable          -- string untuk fleksibilitas (int atau uuid)
 
-meta        jsonb nullable
+company_id  FK companies nullable     -- konteks perusahaan saat mutasi terjadi
+
+old_value   jsonb nullable            -- state sebelum mutasi (null untuk create/import)
+
+new_value   jsonb nullable            -- state setelah mutasi (null untuk delete)
+
+meta        jsonb nullable            -- konteks tambahan (e.g. file name saat import)
 
 ip_address  varchar nullable
+
+request_id  varchar nullable          -- untuk distributed tracing
 
 created_at  timestamp
 
