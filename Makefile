@@ -1,4 +1,4 @@
-.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release
+.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset
 SHELL := /bin/bash
 
 help:
@@ -32,6 +32,16 @@ help:
 	@echo "[Development]"
 	@echo " make dev-frontend"
 	@echo " make dev-backend"
+	@echo ""
+	@echo "[Database]"
+	@echo " make db-up           Start postgres container"
+	@echo " make db-down         Stop postgres container"
+	@echo " make db-status       Show tables & migration state"
+	@echo " make db-generate     Generate migration from schema changes"
+	@echo " make db-migrate      Run pending migrations"
+	@echo " make db-seed         Run seed script"
+	@echo " make db-studio       Open Drizzle Studio"
+	@echo " make db-reset        Drop & re-run all migrations (DESTRUCTIVE)"
 	@echo ""
 	@echo "[Quality]"
 	@echo " make check"
@@ -214,6 +224,59 @@ dev-backend:
 		exit 1; \
 	fi
 	@bun run --cwd backend dev
+
+db-up:
+	@echo "Starting postgres container..."
+	@docker compose up -d postgres
+	@echo "Waiting for postgres to be healthy..."
+	@until docker exec e-dashboard-db pg_isready -U dashboard > /dev/null 2>&1; do sleep 1; done
+	@echo "Postgres is ready"
+
+db-down:
+	@echo "Stopping postgres container..."
+	@docker compose stop postgres
+
+db-status:
+	@echo "=== Container Status ==="
+	@docker ps --filter name=e-dashboard-db --format "  {{.Names}} — {{.Status}}"
+	@echo ""
+	@echo "=== Tables in e_dashboard ==="
+	@docker exec e-dashboard-db psql -U dashboard -d e_dashboard -c "\dt" 2>/dev/null || echo "  (cannot connect)"
+	@echo ""
+	@echo "=== Migration Files ==="
+	@ls backend/src/db/migrations/*.sql 2>/dev/null | xargs -I{} basename {} || echo "  (no migration files)"
+
+db-generate:
+	@echo "Generating migration from schema..."
+	@cd backend && bun run db:generate
+
+db-migrate:
+	@echo "Running migrations..."
+	@cd backend && bun run db:migrate
+	@echo "Migration complete"
+
+db-seed:
+	@if [ ! -f backend/src/db/seed.ts ]; then \
+		echo "ERROR: backend/src/db/seed.ts not found"; \
+		exit 1; \
+	fi
+	@echo "Seeding database..."
+	@cd backend && bun run db:seed
+
+db-studio:
+	@echo "Opening Drizzle Studio..."
+	@cd backend && bun run db:studio
+
+db-reset:
+	@echo "WARNING: This will DROP all tables and re-run all migrations."
+	@read -p "Are you sure? (y/N): " confirm; \
+	[ "$$confirm" = "y" ] || exit 1; \
+	echo "Dropping all tables..."; \
+	docker exec e-dashboard-db psql -U dashboard -d e_dashboard -c \
+		"DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO dashboard;"; \
+	echo "Re-running migrations..."; \
+	cd backend && bun run db:migrate; \
+	echo "Reset complete"
 
 check:
 	@echo "Running TypeScript..."

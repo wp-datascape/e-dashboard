@@ -2,7 +2,6 @@ import MuiDialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import { Button } from '@/components/ui/Button';
 
@@ -53,14 +52,8 @@ export function Dialog({
       fullScreen={fullScreen}
       slotProps={{ paper: { sx: paperSx } }}
     >
-      <DialogTitle>
-        {typeof title === 'string' ? (
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {title}
-          </Typography>
-        ) : (
-          title
-        )}
+      <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+        {title}
       </DialogTitle>
 
       <DialogContent sx={contentSx}>

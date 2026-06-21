@@ -31,12 +31,15 @@ import { requestLogger } from '@/middleware/requestLogger'
 // import { authRoutes } from '@/features/auth/auth.route'
 // import { metricsRoutes } from '@/features/metrics/metrics.route'
 // import { importRoutes } from '@/features/import/import.route'
-// import { usersRoutes } from '@/features/users/users.route'
-// import { rbacRoutes } from '@/features/rbac/rbac.route'
+import { usersRoutes } from '@/features/users/user.route'
+import { pageRoutes } from '@/features/page/page.route'
+import { companiesRoutes } from '@/features/companies/companies.route'
+import { rolesRoutes } from '@/features/roles/roles.route'
+import { permissionsRoutes } from '@/features/permissions/permissions.route'
 // import { customersRoutes } from '@/features/customers/customers.route'
 // import { productsRoutes } from '@/features/products/products.route'
 // import { transactionsRoutes } from '@/features/transactions/transactions.route'
-// import { configRoutes } from '@/features/config/config.route'
+import { configRoutes } from '@/features/config/config.route'
 // import { auditRoutes } from '@/features/audit/audit.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
@@ -79,24 +82,21 @@ export function createRouter(app: Hono): void {
   // app.route('/api/v1/auth', authRoutes)
 
   // ─── LAYER 3: Protected routes — wajib auth + company access ────────────────
-  // TODO: Uncomment setelah middleware + features dibuat
+  // TODO: Uncomment auth middleware setelah dibuat
   //
   // const protectedApi = new Hono()
   // protectedApi.use('*', authMiddleware())
   // protectedApi.use('*', requireCompanyAccess())
-  //
-  // protectedApi.route('/metrics',      metricsRoutes)
-  // protectedApi.route('/import',       importRoutes)
-  // protectedApi.route('/users',        usersRoutes)
-  // protectedApi.route('/rbac',         rbacRoutes)
-  // protectedApi.route('/customers',    customersRoutes)
-  // protectedApi.route('/products',     productsRoutes)
-  // protectedApi.route('/transactions', transactionsRoutes)
-  // protectedApi.route('/config',       configRoutes)
-  // protectedApi.route('/audit-logs',   auditRoutes)
-  //
+  // ...
   // app.route('/api/v1', protectedApi)
 
+  // Sementara tanpa auth — hapus saat authMiddleware sudah siap
+  app.route('/api/v1/users', usersRoutes)
+  app.route('/api/v1/page-settings', pageRoutes)
+  app.route('/api/v1/companies', companiesRoutes)
+  app.route('/api/v1/roles', rolesRoutes)
+  app.route('/api/v1/permissions', permissionsRoutes)
+  app.route('/api/v1/config', configRoutes)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
   // Cek: aplikasi hidup + koneksi DB responsif
   app.get('/health', async (c) => {

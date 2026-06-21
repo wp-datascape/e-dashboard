@@ -94,7 +94,7 @@ export default function RBAC() {
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {params.value}
           </Typography>
-          {params.row.is_system && (
+          {params.row.isSystem && (
             <StatusChip
               label={t('rbac.systemRole')}
               color="warning"
@@ -123,7 +123,7 @@ export default function RBAC() {
       headerAlign: 'center',
       renderCell: (params) => (
         <StatusChip
-          label={`${(params.value as Permission[]).length} permission`}
+          label={`${((params.value as Permission[]) ?? []).length} permission`}
           color="primary"
         />
       ),
@@ -142,12 +142,12 @@ export default function RBAC() {
               <SecurityIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
-          <Tooltip title={params.row.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
+          <Tooltip title={params.row.isSystem ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
             <span>
               <IconButton
                 size="small"
                 color="error"
-                disabled={params.row.is_system}
+                disabled={params.row.isSystem}
                 onClick={() => openDeleteDialog(params.row as Role)}
               >
                 <DeleteIcon sx={{ fontSize: 16 }} />

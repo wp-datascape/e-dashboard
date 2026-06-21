@@ -4,12 +4,32 @@ import type { ApiResponse, ApiError } from '@/types/api';
 import type { User, Company, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 import type { Role } from '@/types/rbac';
 
+// Adapter — transform backend snake_case/camelCase fields to frontend User type
+function adaptUser(raw: Record<string, unknown>): User {
+  return {
+    id: raw.id as number,
+    name: raw.name as string,
+    email: raw.email as string,
+    // Backend uses isActive (camelCase), frontend expects is_active (snake_case)
+    is_active: (raw.isActive ?? raw.is_active) as boolean,
+    // These fields only available after RBAC is implemented — default to empty array
+    roles: (raw.roles as User['roles']) ?? [],
+    companies: (raw.companies as User['companies']) ?? [],
+    permissions: (raw.permissions as string[]) ?? [],
+    // Backend uses lastLoginAt (camelCase), frontend expects last_login_at (snake_case)
+    last_login_at: (raw.lastLoginAt ?? raw.last_login_at ?? null) as string | null,
+    created_at: (raw.createdAt ?? raw.created_at) as string,
+  };
+}
+
 export const usersApi = {
   // ─── Queries (GET) — tanpa try/catch, interceptor handle 401 ────────────────
 
   getUsers: async (): Promise<User[]> => {
-    const response = await api.get<ApiResponse<User[]>>('/users');
-    return response.data.data;
+    // Backend returns paginated: { message, data: [...], meta: { page, per_page, total } }
+    const response = await api.get<{ message: string; data: Record<string, unknown>[]; meta?: unknown }>('/users');
+    const rawData = response.data.data ?? [];
+    return rawData.map(adaptUser);
   },
 
   getCompanies: async (): Promise<Company[]> => {

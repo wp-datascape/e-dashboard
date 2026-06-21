@@ -13,6 +13,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import LockIcon from '@mui/icons-material/Lock';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
@@ -22,12 +23,12 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import {
   useUsers,
-  useCompanies,
-  useRoles,
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
 } from '@/hooks/useUsers';
+import { useCompanies } from '@/hooks/useCompanies';
+import { useRoles } from '@/hooks/useRoles';
 import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
 // Components
@@ -52,6 +53,9 @@ const getRoleColor = (roleName: string): StatusChipColor => {
   };
   return map[roleName] ?? 'default';
 };
+
+const isSystemUser = (user: User): boolean =>
+  user.roles?.some(r => r.isSystem) ?? false
 
 const fmtDate = (iso: string | null, fallback: string): string => {
   if (!iso) return fallback;
@@ -134,8 +138,8 @@ export default function Users() {
       sortable: false,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', height: '100%' }}>
-          {(params.row as User).roles.map(r => (
-            <StatusChip key={r.id} label={r.name} color={getRoleColor(r.name)} />
+          {((params.row as User).roles ?? []).map(r => (
+            <StatusChip key={r.id} label={r.name} color={getRoleColor(r.name)} icon={r.isSystem ? <LockIcon /> : undefined} />
           ))}
         </Box>
       ),
@@ -148,7 +152,7 @@ export default function Users() {
       sortable: false,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center', height: '100%' }}>
-          {(params.row as User).companies.map(c => (
+          {((params.row as User).companies ?? []).map(c => (
             <StatusChip key={c.id} label={c.code} color="default" />
           ))}
         </Box>
@@ -186,21 +190,24 @@ export default function Users() {
       sortable: false,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuAnchor(e.currentTarget);
-              setSelectedUser(params.row as User);
-            }}
-            aria-label={t('common.actions')}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      ),
+      renderCell: (params) => {
+        const user = params.row as User;
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuAnchor(e.currentTarget);
+                setSelectedUser(user);
+              }}
+              aria-label={t('common.actions')}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        );
+      },
     },
   ];
 
@@ -241,15 +248,19 @@ export default function Users() {
           <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('users.editUser')} />
         </MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={() => { resetDelete(); openMenuAction('delete'); }}
-          dense
-          sx={{ color: 'error.main' }}
-        >
-          <ListItemIcon sx={{ color: 'error.main' }}><DeleteIcon fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('users.deleteUser')} />
-        </MenuItem>
+        {selectedUser && !isSystemUser(selectedUser) && (
+          <>
+            <Divider />
+            <MenuItem
+              onClick={() => { resetDelete(); openMenuAction('delete'); }}
+              dense
+              sx={{ color: 'error.main' }}
+            >
+              <ListItemIcon sx={{ color: 'error.main' }}><DeleteIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary={t('users.deleteUser')} />
+            </MenuItem>
+          </>
+        )}
       </Menu>
 
       {/* ── Dialogs ── */}

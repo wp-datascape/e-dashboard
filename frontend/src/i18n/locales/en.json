@@ -246,7 +246,8 @@
     "subtitle": "Manage integrations and application settings",
     "tabs": {
       "integration": "Integration",
-      "appSettings": "App Settings"
+      "appSettings": "App Settings",
+      "pageSettings": "Page Settings"
     },
     "integration": {
       "title": "Accurate Online Integration",
@@ -285,6 +286,14 @@
       "themeTitle": "Display Theme",
       "themeHelper": "Theme choice is saved automatically and applies to the entire application.",
       "paletteTitle": "Color Palette (Mode: {{mode}})"
+    },
+    "pageSettings": {
+      "title": "Page Visibility",
+      "subtitle": "Toggle menu visibility. Hidden pages show 'Under Maintenance'.",
+      "colPage": "Page Name",
+      "colKey": "Key",
+      "colStatus": "Status",
+      "colToggle": "Visible"
     },
     "globalConfig": "Global Configuration",
     "companyConfig": "Per-Company Configuration",

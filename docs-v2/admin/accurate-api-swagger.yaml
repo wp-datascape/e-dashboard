@@ -1,0 +1,3143 @@
+openapi: "3.1.0"
+info:
+  title: Accurate Online API
+  description: |
+    Dokumentasi OpenAPI untuk Accurate Online API — mencakup API Dasar (Nucleus) dan API Accurate (modul-modul bisnis).
+
+    ## Base URL
+
+    | API | Base URL |
+    |-----|----------|
+    | API Dasar (Nucleus) | `https://account.accurate.id` |
+    | API Accurate | `https://{subdomain}.accurate.id/accurate` |
+
+    Ganti `{subdomain}` dengan subdomain perusahaan Anda (contoh: `xyz.accurate.id`).
+
+    ## Otorisasi
+
+    API ini menggunakan OAuth 2.0. Setiap endpoint memiliki scope tertentu (contoh: `customer_view`, `customer_save`).
+    Session ID didapat dari response saat memanggil API `/api/open-db.do`.
+
+    ## Konvensi Parameter
+
+    - Parameter dikirim sebagai query string (GET) atau request body (POST)
+    - Parameter tipe object (complex) dikirim sebagai nested parameter dengan prefix `data[n].field`
+    - Untuk bulk-save, gunakan index array: `data[0].field`, `data[1].field`, dst.
+    - Pagination menggunakan parameter `sp` (SortPaging)
+
+    ## Referensi
+
+    - Dokumentasi resmi: https://account.accurate.id/developer/api-docs.do
+    - Format CSV/Excel: `docs-v2/admin/accurate-format.md`
+    - Strategi integrasi: `docs-v2/admin/integration-strategy.md`
+  version: "1.0.0"
+  contact:
+    name: Accurate Online
+    url: https://account.accurate.id
+servers:
+  - url: https://account.accurate.id
+    description: API Dasar (Nucleus)
+  - url: https://{subdomain}.accurate.id/accurate
+    description: API Accurate
+    variables:
+      subdomain:
+        default: xyz
+        description: Subdomain perusahaan di Accurate Online
+paths:
+  # ============================================================
+  # API DASAR (NUCLEUS)
+  # ============================================================
+  /api:
+    get:
+      summary: API Dasar (Nucleus)
+      description: Endpoint utama untuk manajemen database, session, webhook, dan user info.
+      parameters:
+        - name: action
+          in: query
+          required: true
+          description: Action yang akan dijalankan
+          schema:
+            type: string
+            enum:
+              - approved-scope
+              - auth-info
+              - db-check-session
+              - db-detail
+              - db-list
+              - db-refresh-session
+              - db-status
+              - open-db
+              - userinfo
+              - webhook-history
+              - webhook-renew
+      responses:
+        "200":
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2: []
+
+  # ============================================================
+  # MASTER DATA — CUSTOMER
+  # ============================================================
+  /api/customer/list.do:
+    get:
+      summary: Daftar Pelanggan
+      description: Melihat daftar data Pelanggan dengan filter yang sesuai
+      tags:
+        - Master Data - Customer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/filter"
+        - $ref: "#/components/parameters/keywords"
+        - $ref: "#/components/parameters/lastUpdateFilter"
+        - name: npwpNo
+          in: query
+          schema:
+            type: string
+          description: Filter nomor NPWP
+        - $ref: "#/components/parameters/sp"
+        - name: suspendedFilter
+          in: query
+          schema:
+            type: boolean
+          description: Filter status non aktif
+        - name: wpNumber
+          in: query
+          schema:
+            type: string
+          description: Filter nomor wajib pajak
+      responses:
+        "200":
+          description: Daftar pelanggan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    $ref: "#/components/schemas/ApiListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - customer_view
+
+  /api/customer/detail.do:
+    get:
+      summary: Detail Pelanggan
+      description: Melihat detil data Pelanggan berdasarkan id atau customerNo
+      tags:
+        - Master Data - Customer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID pelanggan
+        - name: customerNo
+          in: query
+          schema:
+            type: string
+          description: Nomor identitas pelanggan
+      responses:
+        "200":
+          description: Detail pelanggan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - customer_view
+
+  /api/customer/save.do:
+    post:
+      summary: Simpan Pelanggan
+      description: Membuat data Pelanggan baru atau mengedit yang sudah ada. Untuk edit, sertakan parameter `id`.
+      tags:
+        - Master Data - Customer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CustomerSaveParams"
+      responses:
+        "200":
+          description: Pelanggan berhasil disimpan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: ID pelanggan yang baru dibuat/diupdate
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - customer_save
+
+  /api/customer/bulk-save.do:
+    post:
+      summary: Simpan Pelanggan Massal
+      description: Membuat/mengedit beberapa data Pelanggan sekaligus (max 100)
+      tags:
+        - Master Data - Customer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CustomerSaveParams"
+                  maxItems: 100
+      responses:
+        "200":
+          description: Data massal berhasil disimpan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - customer_save
+
+  /api/customer/delete.do:
+    delete:
+      summary: Hapus Pelanggan
+      description: Menghapus data Pelanggan berdasarkan id atau customerNo
+      tags:
+        - Master Data - Customer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID pelanggan
+        - name: customerNo
+          in: query
+          schema:
+            type: string
+          description: Nomor identitas pelanggan
+      responses:
+        "200":
+          description: Pelanggan berhasil dihapus
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - customer_delete
+
+  # ============================================================
+  # MASTER DATA — ITEM (BARANG & JASA)
+  # ============================================================
+  /api/item/list.do:
+    get:
+      summary: Daftar Barang & Jasa
+      description: Melihat daftar data Barang & Jasa
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/filter"
+        - $ref: "#/components/parameters/keywords"
+        - $ref: "#/components/parameters/lastUpdateFilter"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar barang berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    $ref: "#/components/schemas/ApiListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/detail.do:
+    get:
+      summary: Detail Barang & Jasa
+      description: Melihat detil data Barang & Jasa berdasarkan id atau no
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID barang
+        - name: no
+          in: query
+          schema:
+            type: string
+          description: Nomor barang
+      responses:
+        "200":
+          description: Detail barang berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    $ref: "#/components/schemas/Item"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/save.do:
+    post:
+      summary: Simpan Barang & Jasa
+      description: Membuat/mengedit data Barang & Jasa
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/ItemSaveParams"
+      responses:
+        "200":
+          description: Barang berhasil disimpan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_save
+
+  /api/item/delete.do:
+    delete:
+      summary: Hapus Barang & Jasa
+      description: Menghapus data Barang & Jasa berdasarkan id atau no
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID barang
+        - name: no
+          in: query
+          schema:
+            type: string
+          description: Nomor barang
+      responses:
+        "200":
+          description: Barang berhasil dihapus
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - item_delete
+
+  /api/item/get-stock.do:
+    get:
+      summary: Stok Barang
+      description: Mengambil jumlah barang yang tersedia
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID barang
+        - name: no
+          in: query
+          schema:
+            type: string
+          description: Nomor barang
+        - name: warehouseId
+          in: query
+          schema:
+            type: integer
+          description: ID gudang (opsional)
+      responses:
+        "200":
+          description: Stok berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    type: object
+                    properties:
+                      quantity:
+                        type: number
+                        description: Jumlah stok tersedia
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/list-stock.do:
+    get:
+      summary: Daftar Stok Barang
+      description: Melihat daftar jumlah barang yang tersedia
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+        - $ref: "#/components/parameters/filter"
+        - name: warehouseId
+          in: query
+          schema:
+            type: integer
+          description: ID gudang (opsional)
+      responses:
+        "200":
+          description: Daftar stok berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/get-nearest-cost.do:
+    get:
+      summary: HPP Barang
+      description: Melihat HPP barang pada tanggal tertentu
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID barang
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2024-01-31"
+          description: Tanggal HPP
+      responses:
+        "200":
+          description: HPP berhasil didapatkan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/stock-mutation-history.do:
+    get:
+      summary: Histori Mutasi Stok
+      description: Melihat histori mutasi stok (7 hari terakhir)
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID barang
+      responses:
+        "200":
+          description: Histori mutasi berhasil didapatkan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  /api/item/search-by-no-upc.do:
+    get:
+      summary: Cari Barang berdasarkan Kode/Barcode
+      description: Mencari barang berdasarkan kode atau barcode
+      tags:
+        - Master Data - Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: keywords
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Kode barang atau barcode (UPC)
+      responses:
+        "200":
+          description: Hasil pencarian berhasil didapatkan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - item_view
+
+  # ============================================================
+  # MASTER DATA — VENDOR
+  # ============================================================
+  /api/vendor/list.do:
+    get:
+      summary: Daftar Pemasok
+      tags:
+        - Master Data - Vendor
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/filter"
+        - $ref: "#/components/parameters/keywords"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pemasok berhasil didapatkan
+      security:
+        - OAuth2:
+            - vendor_view
+
+  /api/vendor/detail.do:
+    get:
+      summary: Detail Pemasok
+      tags:
+        - Master Data - Vendor
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID pemasok
+        - name: vendorNo
+          in: query
+          schema:
+            type: string
+          description: Nomor identitas pemasok
+      responses:
+        "200":
+          description: Detail pemasok berhasil didapatkan
+      security:
+        - OAuth2:
+            - vendor_view
+
+  /api/vendor/save.do:
+    post:
+      summary: Simpan Pemasok
+      tags:
+        - Master Data - Vendor
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ID pemasok (untuk edit)
+                name:
+                  type: string
+                  description: Nama pemasok
+                transDate:
+                  type: string
+                  format: date
+                  description: Tanggal transaksi
+      responses:
+        "200":
+          description: Pemasok berhasil disimpan
+      security:
+        - OAuth2:
+            - vendor_save
+
+  /api/vendor/delete.do:
+    delete:
+      summary: Hapus Pemasok
+      tags:
+        - Master Data - Vendor
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+        - name: vendorNo
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pemasok berhasil dihapus
+      security:
+        - OAuth2:
+            - vendor_delete
+
+  # ============================================================
+  # MASTER DATA — GL ACCOUNT
+  # ============================================================
+  /api/glaccount/list.do:
+    get:
+      summary: Daftar Akun Perkiraan
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/filter"
+        - $ref: "#/components/parameters/keywords"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar akun berhasil didapatkan
+      security:
+        - OAuth2:
+            - glaccount_view
+
+  /api/glaccount/detail.do:
+    get:
+      summary: Detail Akun Perkiraan
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detail akun berhasil didapatkan
+      security:
+        - OAuth2:
+            - glaccount_view
+
+  /api/glaccount/save.do:
+    post:
+      summary: Simpan Akun Perkiraan
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Akun berhasil disimpan
+      security:
+        - OAuth2:
+            - glaccount_save
+
+  /api/glaccount/delete.do:
+    delete:
+      summary: Hapus Akun Perkiraan
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Akun berhasil dihapus
+      security:
+        - OAuth2:
+            - glaccount_delete
+
+  /api/glaccount/get-balance.do:
+    get:
+      summary: Saldo Akun
+      description: Melihat saldo akun per tanggal
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID akun
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Tanggal saldo
+      responses:
+        "200":
+          description: Saldo berhasil didapatkan
+      security:
+        - OAuth2:
+            - glaccount_view
+
+  /api/glaccount/get-bs-account-amount.do:
+    get:
+      summary: Saldo Akun Neraca
+      description: Melihat saldo akun Neraca per tanggal
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Tanggal saldo
+      responses:
+        "200":
+          description: Saldo neraca berhasil didapatkan
+      security:
+        - OAuth2:
+            - glaccount_view
+
+  /api/glaccount/get-pl-account-amount.do:
+    get:
+      summary: Saldo Akun Laba Rugi
+      description: Melihat saldo akun Laba Rugi dalam periode
+      tags:
+        - Master Data - GL Account
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Tanggal awal periode
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Tanggal akhir periode
+      responses:
+        "200":
+          description: Saldo laba rugi berhasil didapatkan
+      security:
+        - OAuth2:
+            - glaccount_view
+
+  # ============================================================
+  # MASTER DATA — BRANCH
+  # ============================================================
+  /api/branch/list.do:
+    get:
+      summary: Daftar Cabang
+      tags:
+        - Master Data - Branch
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar cabang berhasil didapatkan
+      security:
+        - OAuth2:
+            - branch_view
+
+  /api/branch/detail.do:
+    get:
+      summary: Detail Cabang
+      tags:
+        - Master Data - Branch
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+        - name: branchName
+          in: query
+          schema:
+            type: string
+          description: Nama cabang
+      responses:
+        "200":
+          description: Detail cabang berhasil didapatkan
+      security:
+        - OAuth2:
+            - branch_view
+
+  /api/branch/save.do:
+    post:
+      summary: Simpan Cabang
+      tags:
+        - Master Data - Branch
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Cabang berhasil disimpan
+      security:
+        - OAuth2:
+            - branch_save
+
+  /api/branch/delete.do:
+    delete:
+      summary: Hapus Cabang
+      tags:
+        - Master Data - Branch
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+        - name: branchName
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cabang berhasil dihapus
+      security:
+        - OAuth2:
+            - branch_delete
+
+  # ============================================================
+  # MASTER DATA — DEPARTMENT
+  # ============================================================
+  /api/department/list.do:
+    get:
+      summary: Daftar Departemen
+      tags:
+        - Master Data - Department
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar departemen berhasil didapatkan
+      security:
+        - OAuth2:
+            - department_view
+
+  /api/department/save.do:
+    post:
+      summary: Simpan Departemen
+      tags:
+        - Master Data - Department
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Departemen berhasil disimpan
+      security:
+        - OAuth2:
+            - department_save
+
+  /api/department/delete.do:
+    delete:
+      summary: Hapus Departemen
+      tags:
+        - Master Data - Department
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Departemen berhasil dihapus
+      security:
+        - OAuth2:
+            - department_delete
+
+  # ============================================================
+  # MASTER DATA — CURRENCY
+  # ============================================================
+  /api/currency/list.do:
+    get:
+      summary: Daftar Mata Uang
+      tags:
+        - Master Data - Currency
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar mata uang berhasil didapatkan
+      security:
+        - OAuth2:
+            - currency_view
+
+  /api/currency/exchange-rate.do:
+    get:
+      summary: Histori Kurs Mata Uang
+      tags:
+        - Master Data - Currency
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: currencyId
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID mata uang
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Histori kurs berhasil didapatkan
+      security:
+        - OAuth2:
+            - currency_view
+
+  # ============================================================
+  # MASTER DATA — TAX
+  # ============================================================
+  /api/tax/list.do:
+    get:
+      summary: Daftar Pajak
+      tags:
+        - Master Data - Tax
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pajak berhasil didapatkan
+      security:
+        - OAuth2:
+            - tax_view
+
+  /api/tax/save.do:
+    post:
+      summary: Simpan Pajak
+      tags:
+        - Master Data - Tax
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pajak berhasil disimpan
+      security:
+        - OAuth2:
+            - tax_save
+
+  # ============================================================
+  # MASTER DATA — UNIT
+  # ============================================================
+  /api/unit/list.do:
+    get:
+      summary: Daftar Satuan Barang
+      tags:
+        - Master Data - Unit
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar satuan berhasil didapatkan
+      security:
+        - OAuth2:
+            - unit_view
+
+  # ============================================================
+  # MASTER DATA — WAREHOUSE
+  # ============================================================
+  /api/warehouse/list.do:
+    get:
+      summary: Daftar Gudang
+      tags:
+        - Master Data - Warehouse
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar gudang berhasil didapatkan
+      security:
+        - OAuth2:
+            - warehouse_view
+
+  /api/warehouse/save.do:
+    post:
+      summary: Simpan Gudang
+      tags:
+        - Master Data - Warehouse
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Gudang berhasil disimpan
+      security:
+        - OAuth2:
+            - warehouse_save
+
+  # ============================================================
+  # MASTER DATA — PROJECT
+  # ============================================================
+  /api/project/list.do:
+    get:
+      summary: Daftar Proyek
+      tags:
+        - Master Data - Project
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar proyek berhasil didapatkan
+      security:
+        - OAuth2:
+            - project_view
+
+  # ============================================================
+  # MASTER DATA — PAYMENT TERM
+  # ============================================================
+  /api/payment-term/list.do:
+    get:
+      summary: Daftar Syarat Pembayaran
+      tags:
+        - Master Data - Payment Term
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar syarat pembayaran berhasil didapatkan
+      security:
+        - OAuth2:
+            - payment_term_view
+
+  # ============================================================
+  # MASTER DATA — EMPLOYEE
+  # ============================================================
+  /api/employee/list.do:
+    get:
+      summary: Daftar Karyawan
+      tags:
+        - Master Data - Employee
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar karyawan berhasil didapatkan
+      security:
+        - OAuth2:
+            - employee_view
+
+  # ============================================================
+  # MASTER DATA — DATA CLASSIFICATION
+  # ============================================================
+  /api/data-classification/list.do:
+    get:
+      summary: Daftar Kategori Keuangan
+      tags:
+        - Master Data - Data Classification
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar kategori keuangan berhasil didapatkan
+      security:
+        - OAuth2:
+            - data_classification_view
+
+  # ============================================================
+  # MASTER DATA — CUSTOMER CATEGORY
+  # ============================================================
+  /api/customer-category/list.do:
+    get:
+      summary: Daftar Kategori Pelanggan
+      tags:
+        - Master Data - Customer Category
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar kategori pelanggan berhasil didapatkan
+      security:
+        - OAuth2:
+            - customer_view
+
+  # ============================================================
+  # MASTER DATA — ITEM CATEGORY
+  # ============================================================
+  /api/item-category/list.do:
+    get:
+      summary: Daftar Kategori Barang
+      tags:
+        - Master Data - Item Category
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar kategori barang berhasil didapatkan
+      security:
+        - OAuth2:
+            - item_view
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — SALES INVOICE
+  # ============================================================
+  /api/sales-invoice/list.do:
+    get:
+      summary: Daftar Faktur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/sp"
+        - name: approvalStatus
+          in: query
+          schema:
+            $ref: "#/components/schemas/ApprovalStatusFilter"
+          description: Status persetujuan
+        - name: branchId
+          in: query
+          schema:
+            $ref: "#/components/schemas/LongFilter"
+          description: Cabang
+        - name: branchName
+          in: query
+          schema:
+            type: string
+          description: Nama cabang
+        - name: customerId
+          in: query
+          schema:
+            $ref: "#/components/schemas/LongFilter"
+          description: Pelanggan
+        - name: customerNo
+          in: query
+          schema:
+            type: string
+          description: Nomor identitas pelanggan
+        - name: transDate
+          in: query
+          schema:
+            $ref: "#/components/schemas/DateFilter"
+          description: Tanggal transaksi
+        - name: dueDate
+          in: query
+          schema:
+            $ref: "#/components/schemas/DateFilter"
+          description: Tanggal jatuh tempo
+        - name: outstanding
+          in: query
+          schema:
+            type: boolean
+          description: Status lunas
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+          description: Status jatuh tempo
+        - name: keywords
+          in: query
+          schema:
+            type: string
+          description: Kata kunci
+        - name: lastUpdate
+          in: query
+          schema:
+            $ref: "#/components/schemas/TimestampFilter"
+          description: Waktu perubahan
+      responses:
+        "200":
+          description: Daftar faktur penjualan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  d:
+                    $ref: "#/components/schemas/ApiListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - sales_invoice_view
+
+  /api/sales-invoice/detail.do:
+    get:
+      summary: Detail Faktur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID faktur penjualan
+      responses:
+        "200":
+          description: Detail faktur penjualan berhasil didapatkan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - sales_invoice_view
+
+  /api/sales-invoice/save.do:
+    post:
+      summary: Simpan Faktur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ID faktur (untuk edit)
+                customerNo:
+                  type: string
+                  description: Nomor identitas pelanggan (required)
+                transDate:
+                  type: string
+                  format: date
+                  description: Tanggal transaksi
+                number:
+                  type: string
+                  description: Nomor faktur
+                description:
+                  type: string
+                  description: Deskripsi
+                branchId:
+                  type: integer
+                  description: ID cabang
+                branchName:
+                  type: string
+                  description: Nama cabang
+                currencyCode:
+                  type: string
+                  description: Kode mata uang
+                paymentTermName:
+                  type: string
+                  description: Syarat pembayaran
+                detailItem:
+                  type: array
+                  description: Detail item barang
+                  items:
+                    $ref: "#/components/schemas/SalesInvoiceDetailParam"
+                detailExpense:
+                  type: array
+                  description: Detail biaya
+                  items:
+                    type: object
+                detailDownPayment:
+                  type: array
+                  description: Detail uang muka
+                  items:
+                    type: object
+      responses:
+        "200":
+          description: Faktur penjualan berhasil disimpan
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      security:
+        - OAuth2:
+            - sales_invoice_save
+
+  /api/sales-invoice/delete.do:
+    delete:
+      summary: Hapus Faktur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID faktur penjualan
+      responses:
+        "200":
+          description: Faktur penjualan berhasil dihapus
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      security:
+        - OAuth2:
+            - sales_invoice_save
+
+  /api/sales-invoice/create-down-payment.do:
+    post:
+      summary: Buat Uang Muka Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Uang muka berhasil dibuat
+      security:
+        - OAuth2:
+            - sales_invoice_save
+
+  /api/sales-invoice/detail-invoice.do:
+    get:
+      summary: Detail Faktur dengan Filter
+      description: Menampilkan faktur penjualan berdasarkan filter tertentu
+      tags:
+        - Transaksi Penjualan - Sales Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID faktur
+        - name: number
+          in: query
+          schema:
+            type: string
+          description: Nomor faktur
+      responses:
+        "200":
+          description: Detail faktur berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_invoice_view
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — SALES ORDER
+  # ============================================================
+  /api/sales-order/list.do:
+    get:
+      summary: Daftar Pesanan Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+        - $ref: "#/components/parameters/filter"
+      responses:
+        "200":
+          description: Daftar pesanan penjualan berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_order_view
+
+  /api/sales-order/save.do:
+    post:
+      summary: Simpan Pesanan Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pesanan penjualan berhasil disimpan
+      security:
+        - OAuth2:
+            - sales_order_save
+
+  /api/sales-order/manual-close-order.do:
+    post:
+      summary: Tutup Pesanan Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pesanan penjualan berhasil ditutup
+      security:
+        - OAuth2:
+            - sales_order_save
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — DELIVERY ORDER
+  # ============================================================
+  /api/delivery-order/list.do:
+    get:
+      summary: Daftar Pengiriman Pesanan
+      tags:
+        - Transaksi Penjualan - Delivery Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pengiriman berhasil didapatkan
+      security:
+        - OAuth2:
+            - delivery_order_view
+
+  /api/delivery-order/save.do:
+    post:
+      summary: Simpan Pengiriman Pesanan
+      tags:
+        - Transaksi Penjualan - Delivery Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pengiriman berhasil disimpan
+      security:
+        - OAuth2:
+            - delivery_order_save
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — SALES QUOTATION
+  # ============================================================
+  /api/sales-quotation/list.do:
+    get:
+      summary: Daftar Penawaran Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Quotation
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penawaran berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_quotation_view
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — SALES RECEIPT
+  # ============================================================
+  /api/sales-receipt/list.do:
+    get:
+      summary: Daftar Penerimaan Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Receipt
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penerimaan berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_receipt_view
+
+  /api/sales-receipt/save.do:
+    post:
+      summary: Simpan Penerimaan Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Receipt
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Penerimaan berhasil disimpan
+      security:
+        - OAuth2:
+            - sales_receipt_save
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — SALES RETURN
+  # ============================================================
+  /api/sales-return/list.do:
+    get:
+      summary: Daftar Retur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Return
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar retur berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_return_view
+
+  /api/sales-return/save.do:
+    post:
+      summary: Simpan Retur Penjualan
+      tags:
+        - Transaksi Penjualan - Sales Return
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Retur berhasil disimpan
+      security:
+        - OAuth2:
+            - sales_return_save
+
+  # ============================================================
+  # TRANSAKSI PENJUALAN — EXCHANGE INVOICE
+  # ============================================================
+  /api/exchange-invoice/list.do:
+    get:
+      summary: Daftar Tukar Faktur
+      tags:
+        - Transaksi Penjualan - Exchange Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar tukar faktur berhasil didapatkan
+      security:
+        - OAuth2:
+            - exchange_invoice_view
+
+  # ============================================================
+  # TRANSAKSI PEMBELIAN — PURCHASE INVOICE
+  # ============================================================
+  /api/purchase-invoice/list.do:
+    get:
+      summary: Daftar Faktur Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/sp"
+        - name: approvalStatus
+          in: query
+          schema:
+            $ref: "#/components/schemas/ApprovalStatusFilter"
+        - name: branchId
+          in: query
+          schema:
+            $ref: "#/components/schemas/LongFilter"
+          description: Cabang
+        - name: vendorId
+          in: query
+          schema:
+            $ref: "#/components/schemas/LongFilter"
+          description: Pemasok
+        - name: transDate
+          in: query
+          schema:
+            $ref: "#/components/schemas/DateFilter"
+          description: Tanggal transaksi
+        - name: dueDate
+          in: query
+          schema:
+            $ref: "#/components/schemas/DateFilter"
+          description: Tanggal jatuh tempo
+        - name: outstanding
+          in: query
+          schema:
+            type: boolean
+          description: Status lunas
+        - name: keywords
+          in: query
+          schema:
+            type: string
+          description: Kata kunci
+      responses:
+        "200":
+          description: Daftar faktur pembelian berhasil didapatkan
+      security:
+        - OAuth2:
+            - purchase_invoice_view
+
+  /api/purchase-invoice/save.do:
+    post:
+      summary: Simpan Faktur Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Faktur pembelian berhasil disimpan
+      security:
+        - OAuth2:
+            - purchase_invoice_save
+
+  /api/purchase-invoice/create-down-payment.do:
+    post:
+      summary: Buat Uang Muka Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Invoice
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Uang muka pembelian berhasil dibuat
+      security:
+        - OAuth2:
+            - purchase_invoice_save
+
+  # ============================================================
+  # TRANSAKSI PEMBELIAN — PURCHASE ORDER
+  # ============================================================
+  /api/purchase-order/list.do:
+    get:
+      summary: Daftar Pesanan Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pesanan pembelian berhasil didapatkan
+      security:
+        - OAuth2:
+            - purchase_order_view
+
+  /api/purchase-order/save.do:
+    post:
+      summary: Simpan Pesanan Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pesanan pembelian berhasil disimpan
+      security:
+        - OAuth2:
+            - purchase_order_save
+
+  # ============================================================
+  # TRANSAKSI PEMBELIAN — RECEIVE ITEM
+  # ============================================================
+  /api/receive-item/list.do:
+    get:
+      summary: Daftar Penerimaan Barang
+      tags:
+        - Transaksi Pembelian - Receive Item
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penerimaan barang berhasil didapatkan
+      security:
+        - OAuth2:
+            - receive_item_view
+
+  # ============================================================
+  # TRANSAKSI PEMBELIAN — PURCHASE PAYMENT
+  # ============================================================
+  /api/purchase-payment/list.do:
+    get:
+      summary: Daftar Pembayaran Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Payment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pembayaran berhasil didapatkan
+      security:
+        - OAuth2:
+            - purchase_payment_view
+
+  # ============================================================
+  # TRANSAKSI PEMBELIAN — PURCHASE RETURN
+  # ============================================================
+  /api/purchase-return/list.do:
+    get:
+      summary: Daftar Retur Pembelian
+      tags:
+        - Transaksi Pembelian - Purchase Return
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar retur pembelian berhasil didapatkan
+      security:
+        - OAuth2:
+            - purchase_return_view
+
+  # ============================================================
+  # KAS & BANK — OTHER DEPOSIT
+  # ============================================================
+  /api/other-deposit/list.do:
+    get:
+      summary: Daftar Penerimaan (Kas & Bank)
+      tags:
+        - Kas & Bank - Other Deposit
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penerimaan berhasil didapatkan
+      security:
+        - OAuth2:
+            - other_deposit_view
+
+  /api/other-deposit/save.do:
+    post:
+      summary: Simpan Penerimaan
+      tags:
+        - Kas & Bank - Other Deposit
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Penerimaan berhasil disimpan
+      security:
+        - OAuth2:
+            - other_deposit_save
+
+  # ============================================================
+  # KAS & BANK — OTHER PAYMENT
+  # ============================================================
+  /api/other-payment/list.do:
+    get:
+      summary: Daftar Pembayaran (Kas & Bank)
+      tags:
+        - Kas & Bank - Other Payment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pembayaran berhasil didapatkan
+      security:
+        - OAuth2:
+            - other_payment_view
+
+  /api/other-payment/save.do:
+    post:
+      summary: Simpan Pembayaran
+      tags:
+        - Kas & Bank - Other Payment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pembayaran berhasil disimpan
+      security:
+        - OAuth2:
+            - other_payment_save
+
+  # ============================================================
+  # KAS & BANK — BANK TRANSFER
+  # ============================================================
+  /api/bank-transfer/list.do:
+    get:
+      summary: Daftar Transfer Bank
+      tags:
+        - Kas & Bank - Bank Transfer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar transfer bank berhasil didapatkan
+      security:
+        - OAuth2:
+            - bank_transfer_view
+
+  # ============================================================
+  # PERSEDIAAN — ITEM ADJUSTMENT
+  # ============================================================
+  /api/item-adjustment/list.do:
+    get:
+      summary: Daftar Penyesuaian Persediaan
+      tags:
+        - Persediaan - Item Adjustment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penyesuaian berhasil didapatkan
+      security:
+        - OAuth2:
+            - item_adjustment_view
+
+  /api/item-adjustment/save.do:
+    post:
+      summary: Simpan Penyesuaian Persediaan
+      tags:
+        - Persediaan - Item Adjustment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                adjustmentType:
+                  $ref: "#/components/schemas/ItemAdjustmentType"
+                  description: Tipe penyesuaian
+                transDate:
+                  type: string
+                  format: date
+                  description: Tanggal transaksi
+                warehouseName:
+                  type: string
+                  description: Nama gudang
+                detailItem:
+                  type: array
+                  description: Detail barang yang disesuaikan
+                  items:
+                    type: object
+                    properties:
+                      itemNo:
+                        type: string
+                        description: Nomor barang
+                      quantity:
+                        type: number
+                        description: Kuantitas penyesuaian
+      responses:
+        "200":
+          description: Penyesuaian berhasil disimpan
+      security:
+        - OAuth2:
+            - item_adjustment_save
+
+  # ============================================================
+  # PERSEDIAAN — ITEM TRANSFER
+  # ============================================================
+  /api/item-transfer/list.do:
+    get:
+      summary: Daftar Pemindahan Barang
+      tags:
+        - Persediaan - Item Transfer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar pemindahan barang berhasil didapatkan
+      security:
+        - OAuth2:
+            - item_transfer_view
+
+  /api/item-transfer/save.do:
+    post:
+      summary: Simpan Pemindahan Barang
+      tags:
+        - Persediaan - Item Transfer
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pemindahan barang berhasil disimpan
+      security:
+        - OAuth2:
+            - item_transfer_save
+
+  # ============================================================
+  # PERSEDIAAN — STOCK OPNAME
+  # ============================================================
+  /api/stock-opname-order/list.do:
+    get:
+      summary: Daftar Perintah Stok Opname
+      tags:
+        - Persediaan - Stock Opname
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar perintah stok opname berhasil didapatkan
+      security:
+        - OAuth2:
+            - stock_opname_order_view
+
+  /api/stock-opname-result/list.do:
+    get:
+      summary: Daftar Hasil Stok Opname
+      tags:
+        - Persediaan - Stock Opname
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar hasil stok opname berhasil didapatkan
+      security:
+        - OAuth2:
+            - stock_opname_result_view
+
+  # ============================================================
+  # PERSEDIAAN — SELLING PRICE ADJUSTMENT
+  # ============================================================
+  /api/sellingprice-adjustment/list.do:
+    get:
+      summary: Daftar Penyesuaian Harga/Diskon
+      tags:
+        - Persediaan - Selling Price Adjustment
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar penyesuaian harga berhasil didapatkan
+      security:
+        - OAuth2:
+            - sellingprice_adjustment_view
+
+  # ============================================================
+  # PERSEDIAAN — VENDOR PRICE
+  # ============================================================
+  /api/vendor-price/list.do:
+    get:
+      summary: Daftar Harga Pemasok
+      tags:
+        - Persediaan - Vendor Price
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar harga pemasok berhasil didapatkan
+      security:
+        - OAuth2:
+            - vendor_price_view
+
+  # ============================================================
+  # PRODUKSI — BILL OF MATERIAL
+  # ============================================================
+  /api/bill-of-material/list.do:
+    get:
+      summary: Daftar Formula Produksi (BOM)
+      tags:
+        - Produksi - Bill of Material
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar BOM berhasil didapatkan
+      security:
+        - OAuth2:
+            - bill_of_material_view
+
+  /api/bill-of-material/save.do:
+    post:
+      summary: Simpan Formula Produksi
+      tags:
+        - Produksi - Bill of Material
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: BOM berhasil disimpan
+      security:
+        - OAuth2:
+            - bill_of_material_save
+
+  # ============================================================
+  # PRODUKSI — WORK ORDER
+  # ============================================================
+  /api/work-order/list.do:
+    get:
+      summary: Daftar Perintah Kerja
+      tags:
+        - Produksi - Work Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar perintah kerja berhasil didapatkan
+      security:
+        - OAuth2:
+            - work_order_view
+
+  # ============================================================
+  # PRODUKSI — MANUFACTURE ORDER
+  # ============================================================
+  /api/manufacture-order/list.do:
+    get:
+      summary: Daftar Rencana Produksi
+      tags:
+        - Produksi - Manufacture Order
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar rencana produksi berhasil didapatkan
+      security:
+        - OAuth2:
+            - manufacture_order_view
+
+  # ============================================================
+  # AKUNTANSI — JOURNAL VOUCHER
+  # ============================================================
+  /api/journal-voucher/list.do:
+    get:
+      summary: Daftar Jurnal Umum
+      tags:
+        - Akuntansi - Journal Voucher
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar jurnal umum berhasil didapatkan
+      security:
+        - OAuth2:
+            - journal_voucher_view
+
+  /api/journal-voucher/save.do:
+    post:
+      summary: Simpan Jurnal Umum
+      tags:
+        - Akuntansi - Journal Voucher
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Jurnal umum berhasil disimpan
+      security:
+        - OAuth2:
+            - journal_voucher_save
+
+  # ============================================================
+  # AKUNTANSI — EXPENSE
+  # ============================================================
+  /api/expense/list.do:
+    get:
+      summary: Daftar Pencatatan Beban
+      tags:
+        - Akuntansi - Expense
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar beban berhasil didapatkan
+      security:
+        - OAuth2:
+            - expense_accrual_view
+
+  # ============================================================
+  # LAPORAN — REPORT
+  # ============================================================
+  /api/report:
+    get:
+      summary: Laporan Accurate
+      description: Endpoint untuk berbagai jenis laporan
+      tags:
+        - Laporan - Report
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - serial-number-mutation
+              - serial-number-per-warehouse
+              - stock-mutation-summary
+              - work-order-detail
+          description: Jenis laporan
+      responses:
+        "200":
+          description: Laporan berhasil didapatkan
+      security:
+        - OAuth2:
+            - stock_mutation_history_view
+
+  # ============================================================
+  # POS — INTEGRATION
+  # ============================================================
+  /api/pos/customer/save.do:
+    post:
+      summary: Import/Update Pelanggan (POS)
+      description: Import atau update pelanggan secara upsert untuk integrasi POS
+      tags:
+        - POS - Integration
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Pelanggan berhasil diimport/diupdate
+      security:
+        - OAuth2:
+            - customer_save
+
+  /api/pos/item/save.do:
+    post:
+      summary: Import/Update Barang (POS)
+      description: Import atau update barang secara upsert untuk integrasi POS
+      tags:
+        - POS - Integration
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Barang berhasil diimport/diupdate
+      security:
+        - OAuth2:
+            - item_save
+
+  /api/pos/transaction/save.do:
+    post:
+      summary: Import Transaksi (POS)
+      description: Import faktur + pembayaran + retur dari POS
+      tags:
+        - POS - Integration
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+      responses:
+        "200":
+          description: Transaksi berhasil diimport
+      security:
+        - OAuth2:
+            - sales_invoice_save
+            - sales_receipt_save
+            - sales_return_save
+
+  # ============================================================
+  # LAINNYA — SALES CHECKIN
+  # ============================================================
+  /api/sales-checkin/list.do:
+    get:
+      summary: Daftar Check In
+      tags:
+        - Lainnya - Sales Checkin
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar check in berhasil didapatkan
+      security:
+        - OAuth2:
+            - sales_checkin_view
+
+  # ============================================================
+  # LAINNYA — SALESMAN COMMISSION
+  # ============================================================
+  /api/salesman-commission/list.do:
+    get:
+      summary: Daftar Komisi Penjual
+      tags:
+        - Lainnya - Salesman Commission
+      parameters:
+        - $ref: "#/components/parameters/sessionId"
+        - $ref: "#/components/parameters/sp"
+      responses:
+        "200":
+          description: Daftar komisi penjual berhasil didapatkan
+      security:
+        - OAuth2:
+            - salesman_commission_view
+
+components:
+  parameters:
+    sessionId:
+      name: X-Session-ID
+      in: header
+      schema:
+        type: string
+      description: Session ID (OAuth) — didapat dari response `/api/open-db.do`
+      required: false
+    fields:
+      name: fields
+      in: query
+      schema:
+        type: string
+      description: Field yang ingin ditampilkan (dipisah koma). Contoh: `id,name,no`
+      required: false
+    filter:
+      name: filter
+      in: query
+      schema:
+        type: string
+      description: Filter lanjutan (format JSON). Contoh: `{"name":{"op":"CONTAIN","val":["ABC"]}}`
+      required: false
+    keywords:
+      name: keywords
+      in: query
+      schema:
+        type: string
+      description: Kata kunci pencarian
+      required: false
+    lastUpdateFilter:
+      name: lastUpdateFilter
+      in: query
+      schema:
+        type: string
+      description: Filter waktu perubahan data
+      required: false
+    sp:
+      name: sp
+      in: query
+      schema:
+        type: string
+      description: "SortPaging: format JSON. Contoh: {\"page\":1,\"pageSize\":20,\"sort\":\"name|asc\"}"
+      required: false
+
+  schemas:
+    # ============================================================
+    # RESPONSE SCHEMAS
+    # ============================================================
+    ApiListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Halaman saat ini (1-based)
+        pageSize:
+          type: integer
+          description: Jumlah data per halaman
+        total:
+          type: integer
+          description: Total data
+        data:
+          type: array
+          description: Array data
+          items:
+            type: object
+        sort:
+          type: string
+          description: Urutan data
+        hasNextPage:
+          type: boolean
+          description: Apakah ada halaman berikutnya
+
+    # ============================================================
+    # FILTER SCHEMAS
+    # ============================================================
+    ApiFilter:
+      type: object
+      description: Filter lanjutan untuk list endpoints
+      properties:
+        op:
+          type: string
+          enum:
+            - EQUAL
+            - NOT_EQUAL
+            - GREATER_THAN
+            - GREATER_EQUAL_THAN
+            - LESS_THAN
+            - LESS_EQUAL_THAN
+            - BETWEEN
+            - NOT_BETWEEN
+            - CONTAIN
+            - EMPTY
+            - NOT_EMPTY
+          description: Operator filter
+          default: EQUAL
+        val:
+          type: array
+          description: Nilai filter (1 atau 2 nilai tergantung operator)
+          items:
+            type: string
+
+    SortPaging:
+      type: object
+      description: Parameter pagination dan sorting
+      properties:
+        page:
+          type: integer
+          description: Halaman data, mulai dari 1
+          default: 1
+        pageSize:
+          type: integer
+          description: Jumlah data per halaman
+          default: 20
+        sort:
+          type: string
+          description: "Format: `field:asc` atau `field:desc`. Multi: `name|asc;no|desc`"
+
+    LongFilter:
+      type: object
+      properties:
+        op:
+          type: string
+          enum: [EQUAL, NOT_EQUAL, BETWEEN, EMPTY, NOT_EMPTY]
+        val:
+          type: array
+          items:
+            type: integer
+
+    DateFilter:
+      type: object
+      properties:
+        op:
+          type: string
+          enum: [EQUAL, GREATER_THAN, GREATER_EQUAL_THAN, LESS_THAN, LESS_EQUAL_THAN, BETWEEN, EMPTY, NOT_EMPTY]
+        val:
+          type: array
+          items:
+            type: string
+            format: date
+
+    TimestampFilter:
+      type: object
+      properties:
+        op:
+          type: string
+          enum: [EQUAL, GREATER_THAN, GREATER_EQUAL_THAN, LESS_THAN, LESS_EQUAL_THAN, BETWEEN]
+        val:
+          type: array
+          items:
+            type: string
+            format: date-time
+
+    ApprovalStatusFilter:
+      type: object
+      properties:
+        op:
+          type: string
+          enum: [EQUAL, NOT_EQUAL]
+          default: EQUAL
+        val:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalStatus"
+
+    # ============================================================
+    # ENTITY SCHEMAS
+    # ============================================================
+    Customer:
+      type: object
+      description: Data pelanggan
+      properties:
+        id:
+          type: integer
+          description: ID otomatis dari sistem
+        customerNo:
+          type: string
+          description: Nomor identitas pelanggan
+        name:
+          type: string
+          description: Nama pelanggan
+        billStreet:
+          type: string
+          description: Alamat penagihan (jalan)
+        billCity:
+          type: string
+          description: Kota penagihan
+        billProvince:
+          type: string
+          description: Provinsi penagihan
+        billCountry:
+          type: string
+          description: Negara penagihan
+        billZipCode:
+          type: string
+          description: Kode pos penagihan
+        phone:
+          type: string
+          description: Nomor telepon
+        mobilePhone:
+          type: string
+          description: Nomor HP
+        fax:
+          type: string
+          description: Nomor fax
+        email:
+          type: string
+          format: email
+          description: Alamat email
+        website:
+          type: string
+          description: Website
+        categoryName:
+          type: string
+          description: Nama kategori pelanggan
+        termName:
+          type: string
+          description: Syarat pembayaran
+        currencyCode:
+          type: string
+          description: Kode mata uang
+        description:
+          type: string
+          description: Deskripsi
+        npwpNo:
+          type: string
+          description: Nomor NPWP
+        pkpNo:
+          type: string
+          description: Nomor PKP
+        wpNumber:
+          type: string
+          description: Nomor wajib pajak
+        wpName:
+          type: string
+          description: Nama wajib pajak
+        wpType:
+          type: string
+          description: Tipe wajib pajak
+        nitku:
+          type: string
+          description: NITKU
+        customerTaxType:
+          $ref: "#/components/schemas/CustomerTaxType"
+          description: Tipe pajak pelanggan
+        salesmanNumber:
+          type: string
+          description: Nomor penjual
+        priceCategoryName:
+          type: string
+          description: Kategori harga penjualan
+
+    CustomerSaveParams:
+      type: object
+      description: Parameter untuk save customer
+      properties:
+        id:
+          type: integer
+          description: ID pelanggan (untuk edit). Kosongkan untuk create baru.
+        name:
+          type: string
+          description: Nama pelanggan (required)
+        transDate:
+          type: string
+          format: date
+          description: Tanggal transaksi (required)
+        customerNo:
+          type: string
+          description: Nomor identitas pelanggan
+        billStreet:
+          type: string
+        billCity:
+          type: string
+        billProvince:
+          type: string
+        billCountry:
+          type: string
+        billZipCode:
+          type: string
+        shipStreet:
+          type: string
+        shipCity:
+          type: string
+        shipProvince:
+          type: string
+        shipCountry:
+          type: string
+        shipZipCode:
+          type: string
+        phone:
+          type: string
+        mobilePhone:
+          type: string
+        fax:
+          type: string
+        email:
+          type: string
+          format: email
+        website:
+          type: string
+        categoryName:
+          type: string
+          description: Nama kategori pelanggan
+        termName:
+          type: string
+          description: Syarat pembayaran
+        currencyCode:
+          type: string
+          description: Kode mata uang
+        description:
+          type: string
+        npwpNo:
+          type: string
+          description: Nomor NPWP
+        pkpNo:
+          type: string
+          description: Nomor PKP
+        wpNumber:
+          type: string
+        wpName:
+          type: string
+        wpType:
+          type: string
+        nitku:
+          type: string
+        customerTaxType:
+          $ref: "#/components/schemas/CustomerTaxType"
+        salesmanNumber:
+          type: string
+        priceCategoryName:
+          type: string
+        customerLimitAge:
+          type: integer
+        customerLimitAgeValue:
+          type: string
+        customerLimitAmount:
+          type: number
+        customerLimitAmountValue:
+          type: string
+        defaultIncTax:
+          type: boolean
+        defaultSalesDisc:
+          type: number
+        discountCategoryName:
+          type: string
+
+    Item:
+      type: object
+      description: Data barang & jasa
+      properties:
+        id:
+          type: integer
+        no:
+          type: string
+          description: Nomor barang
+        name:
+          type: string
+          description: Nama barang
+        itemType:
+          $ref: "#/components/schemas/ItemType"
+          description: Tipe barang
+        itemCategoryName:
+          type: string
+          description: Nama kategori barang
+        unit1Name:
+          type: string
+          description: Satuan 1
+        unit1Price:
+          type: number
+          description: Harga satuan 1
+        unit2Name:
+          type: string
+          description: Satuan 2
+        unit2Price:
+          type: number
+          description: Harga satuan 2
+        upcNo:
+          type: string
+          description: Barcode/UPC
+        weight:
+          type: number
+          description: Berat
+        minimumQuantity:
+          type: number
+          description: Stok minimum
+        minimumQuantityReorder:
+          type: number
+          description: Minimum reorder
+        notes:
+          type: string
+          description: Catatan
+        usePpn:
+          type: boolean
+          description: Gunakan PPN
+        manageSN:
+          type: boolean
+          description: Kelola nomor seri
+        manageExpired:
+          type: boolean
+          description: Kelola tanggal kadaluarsa
+        serialNumberType:
+          $ref: "#/components/schemas/SerialNumberType"
+        controlQuantity:
+          type: boolean
+          description: Kontrol kuantitas
+        defaultDiscount:
+          type: number
+          description: Diskon default (%)
+
+    ItemSaveParams:
+      type: object
+      description: Parameter untuk save item
+      properties:
+        id:
+          type: integer
+          description: ID barang (untuk edit)
+        name:
+          type: string
+          description: Nama barang (required)
+        itemCategoryName:
+          type: string
+          description: Kategori barang (required)
+        itemType:
+          $ref: "#/components/schemas/ItemType"
+          description: Tipe barang (required)
+        unit1Name:
+          type: string
+          description: Satuan 1 (required)
+        no:
+          type: string
+          description: Nomor barang
+        unit1Price:
+          type: number
+          description: Harga satuan 1
+        unit2Name:
+          type: string
+        unit2Price:
+          type: number
+        unit3Name:
+          type: string
+        unit3Price:
+          type: number
+        unit4Name:
+          type: string
+        unit4Price:
+          type: number
+        unit5Name:
+          type: string
+        unit5Price:
+          type: number
+        upcNo:
+          type: string
+          description: Barcode
+        weight:
+          type: number
+        notes:
+          type: string
+        minimumQuantity:
+          type: number
+        minimumQuantityReorder:
+          type: number
+        controlQuantity:
+          type: boolean
+        usePpn:
+          type: boolean
+        defaultDiscount:
+          type: number
+        manageSN:
+          type: boolean
+        manageExpired:
+          type: boolean
+        serialNumberType:
+          $ref: "#/components/schemas/SerialNumberType"
+        vendorPrice:
+          type: number
+          description: Harga beli dari pemasok
+
+    SalesInvoiceDetailParam:
+      type: object
+      description: Parameter untuk detail item dalam sales invoice
+      properties:
+        itemNo:
+          type: string
+          description: Nomor barang (required)
+        unitPrice:
+          type: number
+          description: Harga satuan (required)
+        quantity:
+          type: number
+          description: Kuantitas
+        detailName:
+          type: string
+          description: Nama detail (jika berbeda dari nama barang)
+        detailNotes:
+          type: string
+          description: Catatan detail
+        itemUnitName:
+          type: string
+          description: Nama satuan
+        itemDiscPercent:
+          type: number
+          description: Diskon per item (%)
+        warehouseName:
+          type: string
+          description: Nama gudang
+        salesOrderNumber:
+          type: string
+          description: Nomor pesanan penjualan (referensi)
+        controlQuantity:
+          type: boolean
+          description: Kontrol kuantitas
+        departmentName:
+          type: string
+          description: Departemen
+        projectNo:
+          type: string
+          description: Nomor proyek
+        useTax1:
+          type: boolean
+        useTax2:
+          type: boolean
+        useTax3:
+          type: boolean
+
+    # ============================================================
+    # ENUM SCHEMAS
+    # ============================================================
+    CustomerTaxType:
+      type: string
+      description: Tipe Pajak Pelanggan
+      enum:
+        - CTAS_KEPADA_SELAIN_PEMUNGUT_PPN
+        - CTAS_KEPADA_PEMUNGUT_PPN_INSTANSI_PEMERINTAH
+        - CTAS_KEPADA_PEMUNGUT_PPN_SELAIN_INSTANSI_PEMERINTAH
+        - CTAS_DPP_NILAI_LAIN
+        - CTAS_BESARAN_TERTENTU
+        - CTAS_KEPADA_ORANG_PRIBADI_PEMEGANG_PASPOR_LUAR_NEGERI
+        - CTAS_PENYERAHAN_DENGAN_FASILITAS_TIDAK_DIPUNGUT
+        - CTAS_PENYERAHAN_DENGAN_FASILITAS_DIBEBASKAN
+        - CTAS_PENYERAHAN_AKTIVA_TIDAK_DIPERJUALBELIKAN
+        - CTAS_PENYERAHAN_LAINNYA
+        - CTAS_EKSPOR_BARANG_BERWUJUD
+        - CTAS_EKSPOR_BARANG_TIDAK_BERWUJUD
+        - CTAS_EKSPOR_JASA
+
+    VendorTaxType:
+      type: string
+      description: Tipe Pajak Pemasok
+      enum:
+        - CTAS_KEPADA_SELAIN_PEMUNGUT_PPN
+        - CTAS_KEPADA_PEMUNGUT_PPN_INSTANSI_PEMERINTAH
+        - CTAS_KEPADA_PEMUNGUT_PPN_SELAIN_INSTANSI_PEMERINTAH
+        - CTAS_DPP_NILAI_LAIN
+        - CTAS_BESARAN_TERTENTU
+        - CTAS_KEPADA_ORANG_PRIBADI_PEMEGANG_PASPOR_LUAR_NEGERI
+        - CTAS_PENYERAHAN_DENGAN_FASILITAS_TIDAK_DIPUNGUT
+        - CTAS_PENYERAHAN_DENGAN_FASILITAS_DIBEBASKAN
+        - CTAS_PENYERAHAN_AKTIVA_TIDAK_DIPERJUALBELIKAN
+        - CTAS_PENYERAHAN_LAINNYA
+        - CTAS_IMPOR_BARANG_KENA_PAJAK
+        - CTAS_PEMANFAATAN_BARANG_TIDAK_BERWUJUD_DAN_JASA_KENA_PAJAK
+
+    ItemType:
+      type: string
+      description: Jenis barang
+      enum:
+        - INVENTORY
+        - NON_INVENTORY
+        - SERVICE
+        - GROUP
+        - PRODUCTION_COST
+
+    ItemAdjustmentType:
+      type: string
+      description: Tipe penyesuaian persediaan
+      enum:
+        - ADJUSTMENT_IN
+        - ADJUSTMENT_OUT
+        - ADJUSTMENT_STOCK
+
+    ItemTransferType:
+      type: string
+      description: Tipe pemindahan barang
+      enum:
+        - TRANSFER_OUT
+        - TRANSFER_IN
+
+    SalesAdjustmentType:
+      type: string
+      description: Tipe penyesuaian harga jual
+      enum:
+        - ITEM_PRICE_TYPE
+        - ITEM_DISCOUNT_TYPE
+
+    GlAccountType:
+      type: string
+      description: Jenis akun perkiraan
+      enum:
+        - CASH_BANK
+        - ACCOUNT_RECEIVABLE
+        - INVENTORY
+        - OTHER_CURRENT_ASSET
+        - FIXED_ASSET
+        - ACCUMULATED_DEPRECIATION
+        - OTHER_ASSET
+        - ACCOUNT_PAYABLE
+        - OTHER_CURRENT_LIABILITY
+        - LONG_TERM_LIABILITY
+        - EQUITY
+        - REVENUE
+        - COGS
+        - EXPENSE
+        - OTHER_INCOME
+        - OTHER_EXPENSE
+
+    ApprovalStatus:
+      type: string
+      description: Status persetujuan
+      enum:
+        - DRAFT
+        - UNAPPROVED
+        - APPROVED
+        - REJECTED
+        - NEXTUSER_TOAPPROVED
+
+    PaymentMethodType:
+      type: string
+      description: Metode pembayaran
+      enum:
+        - CASH_OTHER
+        - BANK_TRANSFER
+        - BANK_CHEQUE
+        - CREDIT_CARD
+        - DEBIT_CARD
+        - E_WALLET
+        - VIRTUAL_ACCOUNT
+        - QRIS
+        - EDC
+        - PAYMENT_LINK
+        - OTHERS
+
+    TaxType:
+      type: string
+      description: Tipe pajak
+      enum:
+        - PPN
+        - PPNBM
+        - PPH23
+        - PPHPS4
+        - PPH21
+        - PPH15
+        - PPH22
+
+    SerialNumberType:
+      type: string
+      description: Jenis nomor seri barang
+      enum:
+        - UNIQUE
+        - BATCH
+
+    SalesReturnReturnType:
+      type: string
+      description: Tipe retur penjualan
+      enum:
+        - INVOICE
+        - DELIVERY
+        - INVOICE_DP
+        - NO_INVOICE
+
+    PurchaseReturnReturnType:
+      type: string
+      description: Tipe retur pembelian
+      enum:
+        - INVOICE
+        - RECEIVE
+        - INVOICE_DP
+        - NO_INVOICE
+
+    ReturnStatusType:
+      type: string
+      description: Status pengembalian barang
+      enum:
+        - RETURNED
+        - PARTIALLY_RETURNED
+        - NOT_RETURNED
+
+    SalesOrderStatus:
+      type: string
+      description: Status pesanan penjualan
+      enum:
+        - QUEUE
+        - WAITING
+        - PROCEED
+        - CLOSED
+
+    PurchaseOrderStatus:
+      type: string
+      description: Status pesanan pembelian
+      enum:
+        - QUEUE
+        - WAITING
+        - ONPROCESS
+        - CLOSED
+        - FULLRECEIVED
+
+    DeliveryOrderStatus:
+      type: string
+      description: Status pengiriman
+      enum:
+        - SENT
+        - PARTIAL_INVOICED
+        - INVOICED
+
+    ContactSalutationType:
+      type: string
+      description: Sapaan kontak
+      enum:
+        - MR
+        - MRS
+
+    ReverseInvoiceStatus:
+      type: string
+      description: Status faktur dimuka
+      enum:
+        - NOT_REVERSE
+        - ALREADY_REVERSE
+        - PARTIAL_REVERSE
+
+  responses:
+    BadRequest:
+      description: Request tidak valid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Kode error
+              message:
+                type: string
+                description: Pesan error
+    Unauthorized:
+      description: Token tidak valid atau tidak ada
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: UNAUTHORIZED
+              message:
+                type: string
+                example: Token OAuth tidak valid
+    NotFound:
+      description: Resource tidak ditemukan
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: NOT_FOUND
+              message:
+                type: string
+                example: Data tidak ditemukan
+
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      description: OAuth 2.0 untuk autentikasi ke Accurate Online API
+      flows:
+        authorizationCode:
+          authorizationUrl: https://account.accurate.id/oauth/authorize
+          tokenUrl: https://account.accurate.id/oauth/token
+          scopes:
+            customer_view: Melihat data pelanggan
+            customer_save: Menyimpan data pelanggan
+            customer_delete: Menghapus data pelanggan
+            vendor_view: Melihat data pemasok
+            vendor_save: Menyimpan data pemasok
+            vendor_delete: Menghapus data pemasok
+            item_view: Melihat data barang & jasa
+            item_save: Menyimpan data barang & jasa
+            item_delete: Menghapus data barang & jasa
+            branch_view: Melihat data cabang
+            branch_save: Menyimpan data cabang
+            branch_delete: Menghapus data cabang
+            department_view: Melihat data departemen
+            department_save: Menyimpan data departemen
+            department_delete: Menghapus data departemen
+            employee_view: Melihat data karyawan
+            employee_save: Menyimpan data karyawan
+            employee_delete: Menghapus data karyawan
+            currency_view: Melihat data mata uang
+            currency_save: Menyimpan data mata uang
+            unit_view: Melihat data satuan barang
+            unit_save: Menyimpan data satuan barang
+            unit_delete: Menghapus data satuan barang
+            tax_view: Melihat data pajak
+            tax_save: Menyimpan data pajak
+            tax_delete: Menghapus data pajak
+            warehouse_view: Melihat data gudang
+            warehouse_save: Menyimpan data gudang
+            glaccount_view: Melihat data akun perkiraan
+            glaccount_save: Menyimpan data akun perkiraan
+            glaccount_delete: Menghapus data akun perkiraan
+            project_view: Melihat data proyek
+            project_save: Menyimpan data proyek
+            project_delete: Menghapus data proyek
+            payment_term_view: Melihat syarat pembayaran
+            payment_term_save: Menyimpan syarat pembayaran
+            payment_term_delete: Menghapus syarat pembayaran
+            sales_invoice_view: Melihat faktur penjualan
+            sales_invoice_save: Menyimpan faktur penjualan
+            sales_order_view: Melihat pesanan penjualan
+            sales_order_save: Menyimpan pesanan penjualan
+            sales_order_delete: Menghapus pesanan penjualan
+            delivery_order_view: Melihat pengiriman pesanan
+            delivery_order_save: Menyimpan pengiriman pesanan
+            delivery_order_delete: Menghapus pengiriman pesanan
+            sales_quotation_view: Melihat penawaran penjualan
+            sales_quotation_save: Menyimpan penawaran penjualan
+            sales_quotation_delete: Menghapus penawaran penjualan
+            sales_receipt_view: Melihat penerimaan penjualan
+            sales_receipt_save: Menyimpan penerimaan penjualan
+            sales_receipt_delete: Menghapus penerimaan penjualan
+            sales_return_view: Melihat retur penjualan
+            sales_return_save: Menyimpan retur penjualan
+            sales_return_delete: Menghapus retur penjualan
+            exchange_invoice_view: Melihat tukar faktur
+            exchange_invoice_save: Menyimpan tukar faktur
+            exchange_invoice_delete: Menghapus tukar faktur
+            purchase_invoice_view: Melihat faktur pembelian
+            purchase_invoice_save: Menyimpan faktur pembelian
+            purchase_invoice_delete: Menghapus faktur pembelian
+            purchase_order_view: Melihat pesanan pembelian
+            purchase_order_save: Menyimpan pesanan pembelian
+            purchase_order_delete: Menghapus pesanan pembelian
+            receive_item_view: Melihat penerimaan barang
+            receive_item_save: Menyimpan penerimaan barang
+            receive_item_delete: Menghapus penerimaan barang
+            purchase_payment_view: Melihat pembayaran pembelian
+            purchase_payment_save: Menyimpan pembayaran pembelian
+            purchase_payment_delete: Menghapus pembayaran pembelian
+            purchase_return_view: Melihat retur pembelian
+            purchase_return_save: Menyimpan retur pembelian
+            purchase_return_delete: Menghapus retur pembelian
+            purchase_requisition_view: Melihat permintaan barang
+            purchase_requisition_save: Menyimpan permintaan barang
+            purchase_requisition_delete: Menghapus permintaan barang
+            other_deposit_view: Melihat penerimaan kas
+            other_deposit_save: Menyimpan penerimaan kas
+            other_deposit_delete: Menghapus penerimaan kas
+            other_payment_view: Melihat pembayaran kas
+            other_payment_save: Menyimpan pembayaran kas
+            other_payment_delete: Menghapus pembayaran kas
+            bank_transfer_view: Melihat transfer bank
+            bank_transfer_save: Menyimpan transfer bank
+            bank_transfer_delete: Menghapus transfer bank
+            item_adjustment_view: Melihat penyesuaian persediaan
+            item_adjustment_save: Menyimpan penyesuaian persediaan
+            item_adjustment_delete: Menghapus penyesuaian persediaan
+            item_transfer_view: Melihat pemindahan barang
+            item_transfer_save: Menyimpan pemindahan barang
+            item_transfer_delete: Menghapus pemindahan barang
+            stock_opname_order_view: Melihat perintah stok opname
+            stock_opname_order_save: Menyimpan perintah stok opname
+            stock_opname_order_delete: Menghapus perintah stok opname
+            stock_opname_result_view: Melihat hasil stok opname
+            stock_opname_result_save: Menyimpan hasil stok opname
+            stock_opname_result_delete: Menghapus hasil stok opname
+            sellingprice_adjustment_view: Melihat penyesuaian harga jual
+            sellingprice_adjustment_save: Menyimpan penyesuaian harga jual
+            vendor_price_view: Melihat harga pemasok
+            vendor_price_save: Menyimpan harga pemasok
+            vendor_price_delete: Menghapus harga pemasok
+            bill_of_material_view: Melihat formula produksi
+            bill_of_material_save: Menyimpan formula produksi
+            bill_of_material_delete: Menghapus formula produksi
+            manufacture_order_view: Melihat rencana produksi
+            manufacture_order_save: Menyimpan rencana produksi
+            manufacture_order_delete: Menghapus rencana produksi
+            work_order_view: Melihat perintah kerja
+            work_order_save: Menyimpan perintah kerja
+            work_order_delete: Menghapus perintah kerja
+            journal_voucher_view: Melihat jurnal umum
+            journal_voucher_save: Menyimpan jurnal umum
+            journal_voucher_delete: Menghapus jurnal umum
+            expense_accrual_view: Melihat pencatatan beban
+            expense_accrual_save: Menyimpan pencatatan beban
+            expense_accrual_delete: Menghapus pencatatan beban
+            fixed_asset_view: Melihat aset tetap
+            fixed_asset_delete: Menghapus aset tetap
+            stock_mutation_history_view: Melihat riwayat mutasi stok
+            data_classification_view: Melihat kategori keuangan
+            data_classification_save: Menyimpan kategori keuangan
+            data_classification_delete: Menghapus kategori keuangan
+            salesman_commission_view: Melihat komisi penjual
+            sales_checkin_view: Melihat check in

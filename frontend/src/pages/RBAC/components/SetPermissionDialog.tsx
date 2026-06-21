@@ -43,15 +43,15 @@ export function SetPermissionDialog({
   const [permSearch, setPermSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [activePermIds, setActivePermIds] = useState<Set<number>>(() => 
-    new Set(role?.permissions.map((p) => p.id) ?? [])
+    new Set((role?.permissions ?? []).map((p: any) => (typeof p === 'object' ? p.id : p)))
   );
 
   const findPerm = useCallback(
     (group: string, action: string) => {
       if (!permissionsGrouped) return undefined;
-      return Object.values(permissionsGrouped)
-        .flat()
-        .find((p) => p.group_name === group && p.name.endsWith(`:${action}`));
+      const groupPerms = permissionsGrouped[group] ?? [];
+      // Match both formats: feature.action and feature:action
+      return groupPerms.find((p) => p.name.endsWith(`.${action}`) || p.name.endsWith(`:${action}`));
     },
     [permissionsGrouped]
   );
@@ -64,9 +64,9 @@ export function SetPermissionDialog({
 
   const groupHasAction = (group: string, action: string): boolean => {
     if (!permissionsGrouped) return false;
-    return Object.values(permissionsGrouped)
-      .flat()
-      .some((p) => p.group_name === group && p.name.endsWith(`:${action}`));
+    const groupPerms = permissionsGrouped[group] ?? [];
+    // Match both formats: feature.action and feature:action
+    return groupPerms.some((p) => p.name.endsWith(`.${action}`) || p.name.endsWith(`:${action}`));
   };
 
   const getGroupActiveCount = (group: string): number =>

@@ -29,7 +29,7 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
           <Typography variant="body2" sx={{ fontWeight: 700, flexGrow: 1 }}>
             {role.name}
           </Typography>
-          {role.is_system && (
+          {role.isSystem && (
             <StatusChip
               label={t('rbac.systemRole')}
               color="warning"
@@ -61,12 +61,12 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
         >
           {t('rbac.assignPermissions')}
         </Button>
-        <Tooltip title={role.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
+        <Tooltip title={role.isSystem ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
           <span>
             <IconButton
               size="small"
               color="error"
-              disabled={role.is_system}
+              disabled={role.isSystem}
               onClick={() => onDelete(role)}
             >
               <DeleteIcon sx={{ fontSize: 16 }} />

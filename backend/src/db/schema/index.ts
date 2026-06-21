@@ -9,22 +9,22 @@
  * Soft delete via: deleted_at (nullable)
  */
 
-// Contoh (uncomment setelah schema dibuat):
-// export * from './companies'
-// export * from './users'
+// Export schema — tambahkan export di sini setiap kali membuat schema baru.
+// Urutan sesuai migration order (FK dependencies).
+export * from './companies'
+export * from './users'
+export * from './roles'
+export * from './permissions'
+export * from './role_permissions'
+export * from './user_roles'
+export * from './user_companies'
+export * from './page_settings'
 // export * from './invoices'
 // export * from './invoice_items'
 // export * from './customers'
 // export * from './product_categories'
-// export * from './roles'
-// export * from './permissions'
-// export * from './user_roles'
-// export * from './role_permissions'
-// export * from './user_companies'
 // export * from './audit_logs'
 // export * from './import_logs'
 // export * from './import_log_errors'
-// export * from './app_configs'
+export * from './business_configs'
 // export * from './metric_cache'
-
-export {}

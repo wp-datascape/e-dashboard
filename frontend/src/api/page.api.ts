@@ -24,6 +24,13 @@ export const pageApi = {
     return apiFetch<PageSetting[]>(`${BASE_URL}/page-settings`);
   },
 
+  updatePageSetting: async (pageKey: string, ready: boolean): Promise<ApiResponse<PageSetting>> => {
+    return apiFetch<PageSetting>(`${BASE_URL}/page-settings/${encodeURIComponent(pageKey)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ready }),
+    });
+  },
+
   getConfig: async (): Promise<ApiResponse<ConfigItem[]>> => {
     return apiFetch<ConfigItem[]>(`${BASE_URL}/config`);
   },

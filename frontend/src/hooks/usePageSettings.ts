@@ -21,6 +21,17 @@ export function useConfig() {
   });
 }
 
+export function useUpdatePageSetting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ pageKey, ready }: { pageKey: string; ready: boolean }) =>
+      pageApi.updatePageSetting(pageKey, ready),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['page-settings'] });
+    },
+  });
+}
+
 export function useUpdateConfig() {
   const queryClient = useQueryClient();
   return useMutation({

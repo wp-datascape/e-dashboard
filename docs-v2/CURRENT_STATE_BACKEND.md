@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-20
+> Last updated: 2026-06-21
 
 ---
 
@@ -15,10 +15,11 @@
 | Config           | Done   | env.ts (Zod), db.ts (Drizzle)              |
 | Utils            | Done   | 10 utils siap pakai                        |
 | Middleware       | 0%     | Belum dibuat                               |
-| DB Schema        | 0%     | Belum dibuat (data-model.md sudah ada)     |
+| DB Schema        | ~6%    | users.ts selesai, 15 tabel lain belum      |
 | DB Migration     | 0%     | Belum dijalankan                           |
 | Feature: Auth    | 0%     | Belum dibuat                               |
 | Feature: RBAC    | 0%     | Belum dibuat                               |
+| Feature: Users   | ~60%   | CRUD selesai — docs: `features/users.md`   |
 | Feature: Import  | 0%     | Belum dibuat                               |
 | Feature: Metrics | 0%     | Belum dibuat                               |
 | Feature: Customers | 0%   | Belum dibuat                               |
@@ -76,7 +77,7 @@ File yang perlu dibuat di `src/db/schema/`:
 | Schema File | Status | Depends On |
 |-------------|--------|------------|
 | `companies.ts` | Not Started | — |
-| `users.ts` | Not Started | companies |
+| `users.ts` | Done | — (tidak ada FK langsung, relation via user_roles) |
 | `roles.ts` | Not Started | — |
 | `permissions.ts` | Not Started | — |
 | `user_roles.ts` | Not Started | users, roles |
@@ -141,13 +142,15 @@ File yang perlu dibuat di `src/middleware/`:
 | `src/features/rbac/rbac.service.ts` | Not Started |
 | `src/features/rbac/rbac.repository.ts` | Not Started |
 
-### Feature: Users (Priority: HIGH)
+### Feature: Users (Priority: HIGH) — ~60%
 | File | Status |
 |------|--------|
-| `src/features/users/users.route.ts` | Not Started |
-| `src/features/users/users.handler.ts` | Not Started |
-| `src/features/users/users.service.ts` | Not Started |
-| `src/features/users/users.repository.ts` | Not Started |
+| `src/features/users/user.schema.ts` | Done |
+| `src/features/users/user.repository.ts` | Done |
+| `src/features/users/user.service.ts` | Done |
+| `src/features/users/user.route.ts` | Done |
+
+Detail endpoint & implementation notes → `docs-v2/features/users.md`
 
 ### Feature: Import (Priority: HIGH — unblock data entry)
 | File | Status |
@@ -201,7 +204,7 @@ File yang perlu dibuat di `src/middleware/`:
 3. [HIGH]   DB Seed     — buat src/db/seed.ts (superadmin, roles, permissions)
 4. [HIGH]   Middleware  — csrf, rate-limit, auth, company-access, permission
 5. [HIGH]   Auth Feature — login, logout, refresh
-6. [HIGH]   Users + RBAC Feature
+6. [HIGH]   RBAC Feature — setelah RBAC, update users route dengan auth + role_ids
 7. [HIGH]   Import Feature — file upload + Accurate API
 8. [MEDIUM] Config Feature
 9. [HIGH]   Metrics Feature — 10 KPI (M1-M10)
@@ -211,6 +214,14 @@ File yang perlu dibuat di `src/middleware/`:
 ---
 
 ## Catatan Sesi
+
+### 2026-06-21 (sesi 2 Backend)
+- **users schema**: Buat `src/db/schema/users.ts` dengan Drizzle ORM
+  - Kolom: id, name, email (unique), password, is_active, created_at, updated_at, deleted_at (soft delete)
+  - Tipe: serial PK, varchar, boolean, timestamp withTimezone
+  - Ekspor: `User` (select) dan `NewUser` (insert) types
+- **Barrel export**: Update `src/db/schema/index.ts` — uncomment export untuk users
+- Status: `DB Schema` dari 0% → ~6%
 
 ### 2026-06-20 (sesi 1 Backend)
 - Setup project: Bun v1.3.14, bun-types, tsconfig (paths alias `@/*`)

@@ -14,7 +14,7 @@ export const usersKeys = {
 // ─── Query Hooks ──────────────────────────────────────────────────────────────
 
 export function useUsers() {
-  return useQuery({
+  return useQuery<User[]>({
     queryKey: usersKeys.all,
     queryFn: () => usersApi.getUsers(),
   });

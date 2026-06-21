@@ -24,15 +24,14 @@ import App from './App'
 // Global CSS
 import './index.css'
 
-// Mock Service Worker (hanya aktif di development)
+// Mock Service Worker — aktif di dev hanya jika VITE_ENABLE_MOCK !== 'false'
 async function enableMocking(): Promise<void> {
-  if (!import.meta.env.DEV) {
+  if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_MOCK === 'false') {
     return;
   }
   const { worker } = await import('./mocks/browser');
-  // Pastikan worker benar-benar resolved sebelum mengembalikan void
   await worker.start({
-    onUnhandledRequest: 'bypass', // Agar aset internal web seperti CSS/JS tidak terblokir
+    onUnhandledRequest: 'bypass',
   });
 }
 

@@ -72,6 +72,7 @@ export type AuditAction =
   | 'user_role.revoke'
   | 'config.update'
   | 'category.update'
+  | 'page_setting.update'
 
 export interface AuditOptions {
   /** Action yang terjadi, e.g. 'user.create' */

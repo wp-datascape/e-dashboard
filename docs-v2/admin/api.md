@@ -106,9 +106,15 @@ Detail baris error dari satu import.
 
 ## 5.2 Users
 
+> Detail lengkap (request/response/error codes) → `docs-v2/features/users.md`
+
 ### `GET /users` [users:manage]
 
-Query: `?page=1&per_page=20&search=budi&role=manager`
+Query: `?page=1&per_page=20&sort=created_at:desc`
+
+> `?search=` dan `?role=` belum tersedia — menunggu RBAC schema.
+
+### `GET /users/:id` [users:manage]
 
 ### `POST /users` [users:manage] CSRF
 
@@ -117,25 +123,25 @@ Query: `?page=1&per_page=20&search=budi&role=manager`
 {
   "name": "Sari Dewi",
   "email": "sari@company.com",
-  "password": "tempPassword123",
-  "role_ids": [3],
-  "company_ids": [1, 2]
+  "password": "minEightChars"
 }
 ```
 
-### `PUT /users/:id` [users:manage] CSRF
+> `role_ids` dan `company_ids` belum tersedia — menunggu tabel `user_roles`, `user_companies`.
 
-**Request:** `{ "name": "...", "role_ids": [...], "company_ids": [...], "is_active": true }`
+### `PATCH /users/:id` [users:manage] CSRF
+
+**Request:** `{ "name": "...", "isActive": true }`
 
 ### `DELETE /users/:id` [users:manage] CSRF
 
-Soft delete. Hanya superadmin bisa hapus user superadmin lain.
+Soft delete (`deleted_at`). Data tidak dihapus dari DB.
 
-### `PUT /rbac/users/:userId/roles` [users:manage] CSRF
+### `PUT /rbac/users/:userId/roles` [users:manage] CSRF _(Pending — RBAC)_
 
 Assign role ke user (replace all). **Request:** `{ "role_ids": [2, 4] }`
 
-### `GET /users/me`
+### `GET /users/me` _(Pending — authMiddleware)_
 
 Data user yang sedang login — roles, permissions, companies.
 

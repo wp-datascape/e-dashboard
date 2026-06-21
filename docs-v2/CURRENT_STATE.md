@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~88%   | Group 3 + 4.1 + 5.5 done, Admin sebagian |
-| Backend  | 0%     | Not started                    |
-| Database | 0%     | Schema designed, not migrated  |
-| Docs     | 100%   | docs-v2 refactor selesai semua 23 file |
+| Frontend | ~90%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done |
+| Backend  | ~30%   | Auth, Users CRUD, Roles, Permissions CRUD selesai. Metrics + Customer API belum |
+| Database | ~50%   | Schema + migrations 0000_init_schema, seed data OK |
+| Docs     | 100%   | docs-v2 selesai semua, termasuk features/rbac.md baru |
 
 ## Frontend — Page Status
 
@@ -21,7 +21,7 @@
 | Dormant Customer | `/dormant-customer` | M8 M9 M10                    |
 | Config           | `/config`           | 3 tabs: Business Rules, Integration, App Settings (theme + lang) |
 | Users            | `/users`            | List + create + edit user, mock API |
-| RBAC             | `/rbac`             | Role list, permission matrix, delete dialog |
+| RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, 35 permissions seeded |
 | Import           | `/import`           | Form upload/Accurate + riwayat log + error detail dialog, mock API |
 | Customer 360     | `/customers`        | DataGrid + detail drawer + ComboChart trend, mock API |
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
@@ -154,6 +154,28 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-21 (sesi 9): Backend RBAC + Dokumentasi
+
+**Backend RBAC (5.3 Admin) — 100% SELESAI:**
+- Roles CRUD: GET /roles, GET /roles/:id, POST /roles, PATCH /roles/:id, DELETE /roles/:id
+- Permissions CRUD: GET /permissions, POST /permissions, PUT /permissions/:id, DELETE /permissions/:id
+- Role-Permission mapping: GET /roles/:id/permissions, PUT /roles/:id/permissions
+- Database: 35 permissions seeded (9 kategori), 3 system roles (superadmin, admin, user)
+- Audit logging: semua mutasi (role.create, role.update, role.delete, permission.create, permission.update, permission.delete)
+- Error handling: NOT_FOUND, DUPLICATE_ENTRY, FORBIDDEN (system role), VALIDATION_ERROR
+
+**Dokumentasi:**
+- File baru: `docs-v2/features/rbac.md` (comprehensive guide + API docs)
+- Updated: `docs-v2/CURRENT_STATE.md` (progress update, catatan sesi)
+
+**Perubahan file backend:**
+- 4 file roles feature: roles.route.ts (tambah GET /:id/permissions), roles.service.ts, roles.repository.ts (tambah findRolePermissions)
+- 4 file permissions feature: permissions.route.ts, permissions.service.ts, permissions.repository.ts, permissions.schema.ts
+- db/seed.ts: 35 permissions + role-permission mapping
+- db/migrations/0000_init_schema.sql: semua tables (companies, users, roles, permissions, role_permissions, user_roles, user_companies, page_settings, audit_logs)
+
+---
 
 ### 2026-06-20 (sesi 8): Audit Log Viewer (5.5 Admin)
 

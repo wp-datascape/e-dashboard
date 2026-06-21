@@ -246,7 +246,8 @@
     "subtitle": "Kelola integrasi dan pengaturan aplikasi",
     "tabs": {
       "integration": "Integrasi",
-      "appSettings": "Pengaturan Aplikasi"
+      "appSettings": "Pengaturan Aplikasi",
+      "pageSettings": "Pengaturan Halaman"
     },
     "integration": {
       "title": "Integrasi Accurate Online",
@@ -279,12 +280,20 @@
     },
     "appSettings": {
       "title": "Pengaturan Aplikasi",
-      "subtitle": "Perubahan diterapkan langsung dan tersimpan otomatis.",
-      "languageTitle": "Bahasa / Language",
-      "languageHelper": "Pilihan bahasa tersimpan otomatis dan berlaku untuk seluruh aplikasi.",
+      "subtitle": "Perubahan diterapkan langsung dan disimpan otomatis.",
+      "languageTitle": "Bahasa",
+      "languageHelper": "Pilihan bahasa disimpan otomatis dan berlaku ke seluruh aplikasi.",
       "themeTitle": "Tema Tampilan",
-      "themeHelper": "Pilihan tema tersimpan otomatis dan berlaku untuk seluruh aplikasi.",
+      "themeHelper": "Pilihan tema disimpan otomatis dan berlaku ke seluruh aplikasi.",
       "paletteTitle": "Palet Warna (Mode: {{mode}})"
+    },
+    "pageSettings": {
+      "title": "Visibilitas Halaman",
+      "subtitle": "Atur visibilitas menu. Halaman yang disembunyikan akan menampilkan 'Under Maintenance'.",
+      "colPage": "Nama Halaman",
+      "colKey": "Key",
+      "colStatus": "Status",
+      "colToggle": "Tampil"
     },
     "globalConfig": "Konfigurasi Global",
     "companyConfig": "Konfigurasi Per Perusahaan",

@@ -28,6 +28,7 @@ import type { ConfigItem } from '@/types/page';
 import { Card } from '@/components/ui';
 import { AppSettingsTab } from './components/AppSettingsTab';
 import { IntegrationTab } from './components/IntegrationTab';
+import { PageSettingsTab } from './components/PageSettingsTab';
 
 // ─── BU labels ───────────────────────────────────────────────────────────────
 const BU_LABELS: Record<string, string> = {
@@ -257,11 +258,13 @@ export default function ConfigPage() {
         <Tab label={t('config.buThreshold.title')} />
         <Tab label={t('config.tabs.integration')} />
         <Tab label={t('config.tabs.appSettings')} />
+        <Tab label={t('config.tabs.pageSettings')} />
       </Tabs>
 
       <TabPanel value={tab} index={0}><BusinessRulesTab /></TabPanel>
       <TabPanel value={tab} index={1}><IntegrationTab /></TabPanel>
       <TabPanel value={tab} index={2}><AppSettingsTab /></TabPanel>
+      <TabPanel value={tab} index={3}><PageSettingsTab /></TabPanel>
     </Box>
   );
 }

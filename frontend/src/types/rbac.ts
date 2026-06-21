@@ -3,16 +3,17 @@
 export interface Permission {
   id: number;
   name: string;
-  description: string;
-  group_name: string;
+  description?: string | null;
+  group_name?: string;
+  category?: string;
 }
 
 export interface Role {
   id: number;
   name: string;
-  description: string;
-  is_system: boolean;
-  permissions: Permission[];
+  description?: string | null;
+  isSystem?: boolean;
+  permissions?: Permission[] | string[];
 }
 
 export interface CreateRolePayload {
@@ -22,4 +23,15 @@ export interface CreateRolePayload {
 
 export interface UpdateRolePermissionsPayload {
   permission_ids: number[];
+}
+
+export interface CreatePermissionPayload {
+  name: string;
+  description?: string;
+  category?: string;
+}
+
+export interface UpdatePermissionPayload {
+  description?: string;
+  category?: string;
 }

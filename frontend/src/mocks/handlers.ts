@@ -12,13 +12,14 @@ import { transactionsHandlers } from './handlers/transactions.handler';
 import { auditHandlers } from './handlers/audit.handler';
 
 // Menggabungkan seluruh domain handler secara bersih menggunakan spread operator
+// NOTE: pageHandlers & usersHandlers removed — using real API from backend
 export const handlers = [
   ...authHandlers,
-  ...pageHandlers,
+  // ...pageHandlers, // DISABLED — page settings now from real DB API
   ...dashboardHandlers,
   ...metricsHandlers,
-  ...rbacHandlers,
-  ...usersHandlers,
+  // ...rbacHandlers, // DISABLED — RBAC now from real backend API
+  // ...usersHandlers, // DISABLED — users now from real DB API (backend/src/features/users)
   ...customersHandlers,
   ...importHandlers,
   ...productsHandlers,
