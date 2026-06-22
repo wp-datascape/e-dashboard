@@ -40,7 +40,7 @@ import { permissionsRoutes } from '@/features/permissions/permissions.route'
 // import { productsRoutes } from '@/features/products/products.route'
 // import { transactionsRoutes } from '@/features/transactions/transactions.route'
 import { configRoutes } from '@/features/config/config.route'
-// import { auditRoutes } from '@/features/audit/audit.route'
+import { auditRoutes } from '@/features/audit/audit.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
 
@@ -97,6 +97,7 @@ export function createRouter(app: Hono): void {
   app.route('/api/v1/roles', rolesRoutes)
   app.route('/api/v1/permissions', permissionsRoutes)
   app.route('/api/v1/config', configRoutes)
+  app.route('/api/v1/audit-logs', auditRoutes)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
   // Cek: aplikasi hidup + koneksi DB responsif
   app.get('/health', async (c) => {

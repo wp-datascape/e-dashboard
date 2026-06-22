@@ -6,11 +6,13 @@ import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
+import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { useProductTrend } from '@/hooks/useProducts'
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget'
 
 export default function ProductsTrend() {
+  const theme = useTheme()
   const { t } = useTranslation()
 
   const { data, isLoading } = useProductTrend({
@@ -106,7 +108,7 @@ export default function ProductsTrend() {
         <AreaChartWidget
           title=""
           data={data?.trend ?? []}
-          series={[{ key: 'avg_category', label: t('productsTrend.seriesLabel'), color: '#6366F1' }]}
+          series={[{ key: 'avg_category', label: t('productsTrend.seriesLabel'), color: theme.palette.primary.main }]}
           xKey="month"
           height={320}
         />

@@ -103,8 +103,8 @@ export default function CrossSelling() {
                 subtitle={t('crossSelling.chartActiveSubtitle')}
                 data={data?.trend ?? []}
                 series={[
-                  { key: 'total_active',  label: t('crossSelling.seriesActiveCustomers'),  color: '#94A3B8' },
-                  { key: 'multi_product', label: t('crossSelling.seriesMultiCategory'),     color: '#3B82F6' },
+                  { key: 'total_active',  label: t('crossSelling.seriesActiveCustomers'),  color: theme.palette.text.secondary },
+                  { key: 'multi_product', label: t('crossSelling.seriesMultiCategory'),     color: theme.palette.primary.main },
                 ]}
                 xKey="month"
                 height={240}
@@ -123,7 +123,7 @@ export default function CrossSelling() {
                 subtitle={t('crossSelling.chartRatioSubtitle')}
                 value={`${latestTrend?.ratio ?? 0}%`}
                 data={data?.trend ?? []}
-                series={[{ key: 'ratio', label: t('crossSelling.seriesRatio'), color: '#0EA5E9' }]}
+                  series={[{ key: 'ratio', label: t('crossSelling.seriesRatio'), color: theme.palette.info.main }]}
                 xKey="month"
                 height={240}
                 tooltipFormatter={(v, n) => [`${v}%`, n]}
@@ -166,7 +166,7 @@ export default function CrossSelling() {
                 subtitle={t('crossSelling.chartAvgCatSubtitle')}
                 value={`${latestTrend?.avg_category ?? 0}`}
                 data={data?.trend ?? []}
-                series={[{ key: 'avg_category', label: t('crossSelling.seriesAvgCategory'), color: '#16a34a' }]}
+                  series={[{ key: 'avg_category', label: t('crossSelling.seriesAvgCategory'), color: theme.palette.success.main }]}
                 xKey="month"
                 height={220}
               />

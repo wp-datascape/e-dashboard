@@ -18,8 +18,9 @@ export async function updateConfig(key: string, body: { value: string }, c: Cont
     action: 'config.update',
     entity: 'business_configs',
     entityId: key,
-    companyId: 0,
-    meta: { changes: { key, from: existing.value, to: body.value } },
+    companyId: null,
+    oldValue: { key, value: existing.value },
+    newValue: { key, value: body.value },
   })
 
   logger.info(`Config updated: ${key} = ${body.value}`)

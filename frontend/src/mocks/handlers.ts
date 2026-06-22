@@ -24,5 +24,5 @@ export const handlers = [
   ...importHandlers,
   ...productsHandlers,
   ...transactionsHandlers,
-  ...auditHandlers,
+  // ...auditHandlers, // DISABLED — audit logs now from real DB API (backend/src/features/audit)
 ];

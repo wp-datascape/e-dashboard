@@ -10,6 +10,7 @@ import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import Chip from '@mui/material/Chip'
+import { useTheme } from '@mui/material/styles'
 import { Card } from '@/components/ui'
 import { useTranslation } from 'react-i18next'
 import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
@@ -53,6 +54,8 @@ const GROUP_MAP: Record<string, string> = {
 
 export function PageSettingsTab() {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const mono = theme.typography.caption.fontFamily
   const { data: pageSettings, isLoading, error } = usePageSettings()
   const { mutate, isPending } = useUpdatePageSetting()
   const [busyKey, setBusyKey] = useState<string | null>(null)
@@ -119,7 +122,7 @@ export function PageSettingsTab() {
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>
                         {item.pageKey}
                       </Typography>
                     </TableCell>

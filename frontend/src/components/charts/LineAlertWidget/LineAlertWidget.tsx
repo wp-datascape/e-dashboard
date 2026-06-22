@@ -93,20 +93,21 @@ export const LineAlertWidget = ({
           <ReferenceArea
             y1={threshold}
             y2={yMax}
-            fill="rgba(239,68,68,0.10)"
+            fill={theme.palette.error.main}
+            fillOpacity={0.1}
             ifOverflow="hidden"
           />
 
           {/* Threshold reference line */}
           <ReferenceLine
             y={threshold}
-            stroke="#ef4444"
+            stroke={theme.palette.error.main}
             strokeDasharray="5 3"
             label={{
               value: thresholdLabel ?? `Ambang ${threshold}%`,
               position: 'insideTopRight',
               fontSize: 10,
-              fill: '#ef4444',
+              fill: theme.palette.error.main,
               fontWeight: 600,
             }}
           />
@@ -114,9 +115,9 @@ export const LineAlertWidget = ({
           <Line
             dataKey={lineKey}
             name={lineLabel}
-            stroke="#3B82F6"
+            stroke={theme.palette.primary.main}
             strokeWidth={2}
-            dot={{ r: 3, fill: '#3B82F6' }}
+            dot={{ r: 3, fill: theme.palette.primary.main }}
             activeDot={{ r: 5 }}
             type="monotone"
           />

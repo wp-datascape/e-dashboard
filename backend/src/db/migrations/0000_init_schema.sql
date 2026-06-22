@@ -51,11 +51,16 @@ CREATE TABLE IF NOT EXISTS "page_settings" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "audit_logs" (
         "id" serial PRIMARY KEY NOT NULL,
-        "action" varchar(50) NOT NULL,
-        "entity_type" varchar(50) NOT NULL,
-        "entity_id" integer NOT NULL,
-        "user_id" integer,
-        "changes" jsonb,
+        "actor_id" integer,
+        "action" varchar(100) NOT NULL,
+        "entity" varchar(100) NOT NULL,
+        "entity_id" varchar(255) NOT NULL,
+        "company_id" integer,
+        "old_value" jsonb,
+        "new_value" jsonb,
+        "meta" jsonb,
+        "ip_address" varchar(45),
+        "request_id" varchar(100),
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -112,6 +117,18 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "user_companies" ADD CONSTRAINT "user_companies_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE set null ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

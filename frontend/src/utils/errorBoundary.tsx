@@ -52,7 +52,7 @@ const ErrorCode = styled('pre')(({ theme }) => ({
   textAlign: 'left',
   overflow: 'auto',
   maxHeight: 120,
-  fontFamily: '"JetBrains Mono", monospace',
+  fontFamily: theme.typography.caption.fontFamily,
 }))
 
 // ─── Props & State ────────────────────────────────────────────────────────────

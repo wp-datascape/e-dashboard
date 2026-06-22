@@ -135,10 +135,10 @@ export function AppSettingsTab() {
             {[
               { label: 'Primary', bg: muiTheme.palette.primary.main, text: muiTheme.palette.primary.contrastText },
               { label: 'Secondary', bg: muiTheme.palette.secondary.main, text: muiTheme.palette.secondary.contrastText },
-              { label: 'Success', bg: muiTheme.palette.success.main, text: '#fff' },
-              { label: 'Warning', bg: muiTheme.palette.warning.main, text: '#fff' },
-              { label: 'Error', bg: muiTheme.palette.error.main, text: '#fff' },
-              { label: 'Info', bg: muiTheme.palette.info.main, text: '#fff' },
+              { label: 'Success', bg: muiTheme.palette.success.main, text: muiTheme.palette.getContrastText(muiTheme.palette.success.main) },
+              { label: 'Warning', bg: muiTheme.palette.warning.main, text: muiTheme.palette.getContrastText(muiTheme.palette.warning.main) },
+              { label: 'Error', bg: muiTheme.palette.error.main, text: muiTheme.palette.getContrastText(muiTheme.palette.error.main) },
+              { label: 'Info', bg: muiTheme.palette.info.main, text: muiTheme.palette.getContrastText(muiTheme.palette.info.main) },
             ].map((color) => (
               <Box
                 key={color.label}

@@ -2,6 +2,7 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -35,6 +36,7 @@ function SectionLabel({ label }: { label: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DormantCustomer() {
+  const theme = useTheme();
   const { data, isLoading } = useDormantCustomer();
 
   const latestTrend = data?.trend.at(-1);
@@ -97,7 +99,7 @@ export default function DormantCustomer() {
                   sx={{
                     fontWeight: 700,
                     color:
-                      (latestTrend?.dormant_rate ?? 0) > 10 ? '#dc2626' : '#16a34a',
+                      (latestTrend?.dormant_rate ?? 0) > 10 ? 'error.main' : 'success.main',
                     lineHeight: 1,
                     mt: 0.5,
                   }}
@@ -137,7 +139,7 @@ export default function DormantCustomer() {
               {
                 key: 'estimated_lost_value',
                 label: 'Potensi Omset Hilang',
-                color: '#ef4444',
+                color: theme.palette.error.main,
               },
             ]}
             xKey="customer_name"

@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { PieLabelRenderProps } from 'recharts';
 
@@ -61,6 +62,7 @@ export const DonutChartWidget = ({
   centerLabel,
   centerValue,
 }: DonutChartWidgetProps) => {
+  const theme = useTheme();
   return (
     <Card sx={{ p: 2, height: '100%' }}>
       <Box sx={{ mb: 1 }}>
@@ -93,9 +95,14 @@ export const DonutChartWidget = ({
             </Pie>
             <Tooltip
               formatter={(value: unknown) => [`${value}%`, '']}
-              contentStyle={{ borderRadius: 0, fontSize: 12 }}
+              contentStyle={{
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 0,
+                fontSize: 12,
+              }}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: theme.palette.text.secondary }} />
           </PieChart>
         </ResponsiveContainer>
 

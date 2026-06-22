@@ -65,7 +65,7 @@ export function PermissionDialog({
       title={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.5 }}>
           <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <SecurityIcon sx={{ color: '#fff', fontSize: 22 }} />
+            <SecurityIcon sx={{ color: 'common.white', fontSize: 22 }} />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>

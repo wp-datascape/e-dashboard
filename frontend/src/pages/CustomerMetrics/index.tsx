@@ -2,6 +2,7 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -36,6 +37,7 @@ function SectionLabel({ label }: { label: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CustomerMetrics() {
+  const theme = useTheme();
   const { data, isLoading } = useCustomerMetrics();
 
   const latestTrend = data?.trend.at(-1);
@@ -68,10 +70,10 @@ export default function CustomerMetrics() {
                 data={data?.trend ?? []}
                 barKey="total_revenue_existing"
                 barLabel="Total Revenue Existing"
-                barColor="#3B82F6"
+                barColor={theme.palette.primary.main}
                 lineKey="avg_revenue"
                 lineLabel="Avg Revenue / Customer"
-                lineColor="#f97316"
+                lineColor={theme.palette.warning.main}
                 xKey="month"
                 height={240}
                 formatBar={(v) => fmtRp(v)}
@@ -96,9 +98,9 @@ export default function CustomerMetrics() {
                 value={latestTrend ? fmtRp(latestTrend.avg_gross_profit) : undefined}
                 data={data?.trend ?? []}
                 series={[
-                  { key: 'gp_tier1', label: 'Tier 1 (Top Customer)',  color: '#1d4ed8' },
-                  { key: 'gp_tier2', label: 'Tier 2 (Mid Customer)',   color: '#60a5fa' },
-                  { key: 'gp_tier3', label: 'Tier 3 (Long Tail)',      color: '#bfdbfe' },
+                  { key: 'gp_tier1', label: 'Tier 1 (Top Customer)',  color: theme.palette.primary.dark },
+                  { key: 'gp_tier2', label: 'Tier 2 (Mid Customer)',   color: theme.palette.primary.main },
+                  { key: 'gp_tier3', label: 'Tier 3 (Long Tail)',      color: theme.palette.primary.light },
                 ]}
                 xKey="month"
                 height={240}
@@ -126,12 +128,12 @@ export default function CustomerMetrics() {
                   {
                     name: 'Membeli High Margin',
                     value: hm?.bought_pct ?? 0,
-                    color: '#16a34a',
+                    color: theme.palette.success.main,
                   },
                   {
                     name: 'Tidak Membeli',
                     value: hm?.not_bought_pct ?? 0,
-                    color: '#e5e7eb',
+                    color: theme.palette.action.hover,
                   },
                 ]}
                 centerValue={`${hm?.bought_pct ?? 0}%`}
@@ -174,8 +176,8 @@ export default function CustomerMetrics() {
               flat_down_rate: t.flat_down_rate,
             }))}
             series={[
-              { key: 'up_rate',        label: 'Spending Naik (%)',     color: '#16a34a' },
-              { key: 'flat_down_rate', label: 'Flat / Turun (%)',      color: '#d1d5db' },
+              { key: 'up_rate',        label: 'Spending Naik (%)',     color: theme.palette.success.main },
+              { key: 'flat_down_rate', label: 'Flat / Turun (%)',      color: theme.palette.action.hover },
             ]}
             xKey="month"
             height={320}

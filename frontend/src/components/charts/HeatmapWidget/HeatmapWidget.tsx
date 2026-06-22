@@ -110,6 +110,7 @@ function DesktopHeatmapView({
   xLabels: string[];
   data: HeatmapRow[];
 }) {
+  const theme = useTheme();
   const innerMinWidth = ROW_LABEL_WIDTH + xLabels.length * COL_MIN_WIDTH;
 
   return (
@@ -175,8 +176,8 @@ function DesktopHeatmapView({
                 <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH }}>
                   <Box
                     sx={{
-                      bgcolor: bought ? '#15803d' : 'action.hover',
-                      color: bought ? '#fff' : 'text.disabled',
+                      bgcolor: bought ? 'success.main' : 'action.hover',
+                      color: bought ? 'common.white' : 'text.disabled',
                       height: 30,
                       display: 'flex',
                       alignItems: 'center',
@@ -201,7 +202,7 @@ function DesktopHeatmapView({
       {/* Legend */}
       <Box sx={{ display: 'flex', gap: 2, mt: 1.5, minWidth: innerMinWidth, pl: `${ROW_LABEL_WIDTH}px` }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Box sx={{ width: 14, height: 14, bgcolor: '#15803d', borderRadius: 0.5 }} />
+          <Box sx={{ width: 14, height: 14, bgcolor: 'success.main', borderRadius: 0.5 }} />
           <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
             Beli (nilai = jumlah transaksi)
           </Typography>

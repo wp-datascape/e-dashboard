@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 import {
   RadialBarChart,
   RadialBar,
@@ -23,8 +24,9 @@ export const RadialBarWidget = ({
   thresholdGreen = 80,
   height = 220,
 }: RadialBarWidgetProps) => {
+  const theme = useTheme();
   const color =
-    value >= thresholdGreen ? '#16a34a' : value >= 60 ? '#eab308' : '#dc2626';
+    value >= thresholdGreen ? theme.palette.success.main : value >= 60 ? theme.palette.warning.main : theme.palette.error.main;
 
   const statusLabel =
     value >= thresholdGreen
@@ -68,7 +70,7 @@ export const RadialBarWidget = ({
             <RadialBar
               dataKey="value"
               cornerRadius={0}
-              background={{ fill: '#e5e7eb' }}
+              background={{ fill: theme.palette.action.hover }}
               angleAxisId={0}
             />
           </RadialBarChart>

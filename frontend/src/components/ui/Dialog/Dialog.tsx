@@ -52,7 +52,7 @@ export function Dialog({
       fullScreen={fullScreen}
       slotProps={{ paper: { sx: paperSx } }}
     >
-      <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+      <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>
         {title}
       </DialogTitle>
 

@@ -108,7 +108,7 @@ export function SetPermissionDialog({
       title={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.5 }}>
           <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <SecurityIcon sx={{ color: '#fff', fontSize: 22 }} />
+            <SecurityIcon sx={{ color: 'common.white', fontSize: 22 }} />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>
@@ -172,7 +172,7 @@ export function SetPermissionDialog({
                 >
                   <ListItemText
                     primary={
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: isOpen ? '#fff' : 'text.primary' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: isOpen ? 'common.white' : 'text.primary' }}>
                         {group}
                       </Typography>
                     }
@@ -182,14 +182,14 @@ export function SetPermissionDialog({
                       <StatusChip
                         label={`${activeCount}/${totalCount}`}
                         color={isFullyActive ? 'success' : 'warning'}
-                        sx={isOpen ? { bgcolor: 'rgba(255,255,255,0.25)', color: '#fff', borderColor: 'transparent' } : undefined}
+                        sx={isOpen ? { bgcolor: 'rgba(255,255,255,0.25)', color: 'common.white', borderColor: 'transparent' } : undefined}
                       />
                     )}
                   </Box>
                   <ExpandMoreIcon
                     sx={{
                       fontSize: 20,
-                      color: isOpen ? '#fff' : 'text.secondary',
+                      color: isOpen ? 'common.white' : 'text.secondary',
                       transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                       transition: 'transform 0.2s',
                       flexShrink: 0,

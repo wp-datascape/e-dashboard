@@ -26,7 +26,7 @@ export async function getUserById(id: number) {
   return user
 }
 
-export async function createUserService(dto: CreateUserDto) {
+export async function createUserService(dto: CreateUserDto, ctx: Context) {
   const existing = await findUserByEmail(dto.email)
   if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
 
@@ -34,17 +34,27 @@ export async function createUserService(dto: CreateUserDto) {
   const user = await createUser({ ...dto, password: hashed })
 
   logger.info('[user] User created', { id: user!.id, email: dto.email })
+
+  await logAudit(ctx, {
+    action: 'user.create',
+    entity: 'users',
+    entityId: user!.id,
+    companyId: null,
+    newValue: { id: user!.id, email: user!.email, name: user!.name },
+  })
+
   return user
 }
 
 export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Context) {
-  await getUserById(id)
+  // Ambil state sebelum update untuk oldValue
+  const before = await getUserById(id)
 
   // Extract relation fields before updating user data
   const { role_ids, company_ids, ...userData } = dto
 
   // Update user basic fields
-  const user = await updateUser(id, userData)
+  await updateUser(id, userData)
 
   // Sync roles if provided
   if (role_ids !== undefined) {
@@ -56,8 +66,11 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
     await replaceUserCompanies(id, company_ids)
   }
 
-  // Re-fetch with relations
-  const updated = await findUserById(id)
+  // Re-fetch dengan relasi (state setelah update)
+  const after = await findUserById(id)
+
+  // Ambil companyId dari company pertama user (default context)
+  const companyId = (before.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null
 
   logger.info('[user] User updated', { id })
 
@@ -65,11 +78,26 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
     action: 'user.update',
     entity: 'users',
     entityId: id,
-    companyId: null,
-    meta: { changes: dto },
+    companyId,
+    oldValue: {
+      id: before.id,
+      name: before.name,
+      email: before.email,
+      isActive: before.isActive,
+      roles: (before.roles as Array<{ id: number; name: string }> | undefined)?.map(r => ({ id: r.id, name: r.name })),
+      companies: (before.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
+    },
+    newValue: {
+      id: after!.id,
+      name: after!.name,
+      email: after!.email,
+      isActive: after!.isActive,
+      roles: (after!.roles as Array<{ id: number; name: string }> | undefined)?.map(r => ({ id: r.id, name: r.name })),
+      companies: (after!.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
+    },
   })
 
-  return updated
+  return after
 }
 
 export async function deleteUserService(id: number, ctx: Context) {
@@ -79,6 +107,8 @@ export async function deleteUserService(id: number, ctx: Context) {
     throw new AppError(ErrorCode.FORBIDDEN, 'Cannot delete a user with a system role', 403)
   }
 
+  const companyId = (user.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null
+
   await softDeleteUser(id)
   logger.info('[user] User soft-deleted', { id })
 
@@ -86,7 +116,7 @@ export async function deleteUserService(id: number, ctx: Context) {
     action: 'user.delete',
     entity: 'users',
     entityId: id,
-    companyId: null,
+    companyId,
     oldValue: { id: user.id, email: user.email, name: user.name },
   })
 }

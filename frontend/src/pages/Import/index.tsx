@@ -28,6 +28,7 @@ import WarningIcon from '@mui/icons-material/Warning'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui'
+import { useTheme } from '@mui/material/styles'
 import { Button } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { useImportLogs, useImportErrors, useImportFile, useImportAccurate, useCompanies } from '@/hooks/useImport'
@@ -343,6 +344,8 @@ function AccurateApiCard({ companies }: { companies: Company[] }) {
 
 function ErrorDetailDialog({ log, onClose }: { log: ImportLog | null; onClose: () => void }) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const mono = theme.typography.caption.fontFamily
   const { data, isLoading } = useImportErrors(log?.id ?? null)
 
   return (
@@ -378,7 +381,7 @@ function ErrorDetailDialog({ log, onClose }: { log: ImportLog | null; onClose: (
                 <TableRow key={row.id}>
                   <TableCell>{row.row_number}</TableCell>
                   <TableCell>
-                    <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    <Typography variant="caption" sx={{ fontFamily: mono, wordBreak: 'break-all' }}>
                       {row.raw_data}
                     </Typography>
                   </TableCell>

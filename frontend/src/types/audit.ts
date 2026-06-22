@@ -12,9 +12,14 @@ export interface AuditLog {
   actor: AuditLogActor | null
   action: string
   entity: string
-  entity_id: number | null
+  entity_id: string
+  entity_key: string
+  company_id: number | null
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
   meta: AuditLogMeta | null
   ip_address: string | null
+  request_id: string | null
   created_at: string
 }
 
@@ -51,6 +56,7 @@ export const ACTION_TYPES = [
   'user_role.revoke',
   'config.update',
   'category.update',
+  'page_setting.update',
 ] as const
 
 export type ActionType = (typeof ACTION_TYPES)[number]

@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useTheme } from '@mui/material/styles';
 
 export interface BulletChartWidgetProps {
   title: string;
@@ -21,11 +22,12 @@ export const BulletChartWidget = ({
   max = 30,
   unit = '%',
 }: BulletChartWidgetProps) => {
+  const theme = useTheme();
   const clamp = (v: number) => Math.min(Math.max(v, 0), max);
   const pct = (v: number) => `${(clamp(v) / max) * 100}%`;
 
   const inTarget = value >= targetLow && value <= targetHigh;
-  const barColor = inTarget ? '#16a34a' : value < targetLow ? '#eab308' : '#3B82F6';
+  const barColor = inTarget ? theme.palette.success.main : value < targetLow ? theme.palette.warning.main : theme.palette.primary.main;
   const bandBg = inTarget ? 'rgba(22,163,74,0.18)' : 'rgba(234,179,8,0.22)';
 
   const statusText = inTarget
@@ -72,7 +74,7 @@ export const BulletChartWidget = ({
             right: 0,
             top: '25%',
             height: '50%',
-            bgcolor: '#f3f4f6',
+            bgcolor: theme.palette.action.hover,
           }}
         />
 
@@ -85,8 +87,8 @@ export const BulletChartWidget = ({
             top: 0,
             height: '100%',
             bgcolor: bandBg,
-            borderLeft: `2px solid ${inTarget ? '#16a34a' : '#eab308'}`,
-            borderRight: `2px solid ${inTarget ? '#16a34a' : '#eab308'}`,
+            borderLeft: `2px solid ${inTarget ? theme.palette.success.main : theme.palette.warning.main}`,
+            borderRight: `2px solid ${inTarget ? theme.palette.success.main : theme.palette.warning.main}`,
           }}
         />
 
@@ -119,7 +121,7 @@ export const BulletChartWidget = ({
               variant="caption"
               sx={{
                 fontSize: '0.62rem',
-                color: t === targetLow || t === targetHigh ? '#eab308' : 'text.secondary',
+                color: t === targetLow || t === targetHigh ? 'warning.main' : 'text.secondary',
                 fontWeight: t === targetLow || t === targetHigh ? 700 : 400,
               }}
             >

@@ -1,4 +1,4 @@
-.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset
+.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset docker-status docker-stop docker-up docker-down
 SHELL := /bin/bash
 
 help:
@@ -32,6 +32,12 @@ help:
 	@echo "[Development]"
 	@echo " make dev-frontend"
 	@echo " make dev-backend"
+	@echo ""
+	@echo "[Docker]"
+	@echo " make docker-status   Show running containers"
+	@echo " make docker-stop     Stop all running containers"
+	@echo " make docker-up       Start Infrastructure"
+	@echo " make docker-down     Shut down Infrastructure"
 	@echo ""
 	@echo "[Database]"
 	@echo " make db-up           Start postgres container"
@@ -224,6 +230,26 @@ dev-backend:
 		exit 1; \
 	fi
 	@bun run --cwd backend dev
+
+docker-status:
+	@echo "Showing running containers"
+	docker ps -a
+
+docker-stop:
+	@echo "Stopping all running containers"
+	@if [ -n "$$(docker ps -q)" ]; then \
+		docker stop $$(docker ps -q); \
+	else \
+		echo "No running containers."; \
+	fi
+
+docker-up:
+	@echo "Starting Infrastructure"
+	docker compose up -d
+
+docker-down:
+	@echo "Shutting down Infrastructure"
+	docker compose down
 
 db-up:
 	@echo "Starting postgres container..."

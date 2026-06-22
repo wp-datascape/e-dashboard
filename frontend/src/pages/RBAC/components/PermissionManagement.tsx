@@ -6,6 +6,7 @@ import Tooltip from '@mui/material/Tooltip';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import { useTheme } from '@mui/material/styles';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import { Button, StatusChip } from '@/components/ui';
@@ -28,6 +29,8 @@ export function PermissionManagement({
   isLoading = false,
 }: PermissionManagementProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
+  const mono = theme.typography.caption.fontFamily;
 
   const columns: GridColDef[] = [
     {
@@ -36,7 +39,7 @@ export function PermissionManagement({
       flex: 1,
       minWidth: 150,
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: mono }}>
           {params.value}
         </Typography>
       ),
@@ -135,7 +138,7 @@ export function PermissionManagement({
             >
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                 <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: mono }}>
                     {permission.name}
                   </Typography>
                   <StatusChip

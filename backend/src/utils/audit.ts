@@ -52,6 +52,7 @@
  */
 
 import type { Context } from 'hono'
+import { getConnInfo } from 'hono/bun'
 import { sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { logger } from '@/utils/logger'
@@ -104,13 +105,27 @@ export interface AuditOptions {
  */
 export async function logAudit(c: Context, opts: AuditOptions): Promise<void> {
   try {
-    const user = c.var.user as { userId: number } | undefined
-    const actorId = user?.userId ?? null
+    const actorId = (c.get('userId') as string | undefined) ?? null
+    // companyId: gunakan dari opts, fallback ke context var (di-set oleh auth middleware)
+    const companyId =
+      opts.companyId !== undefined
+        ? opts.companyId
+        : ((c.get('companyId') as number | undefined) ?? null)
     const requestId = c.req.header('x-request-id') ?? null
-    const ipAddress =
+    // Proxy headers first, fallback ke Bun connection info
+    let ipAddress =
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
       c.req.header('x-real-ip') ??
       null
+
+    if (!ipAddress) {
+      try {
+        const info = getConnInfo(c)
+        ipAddress = info.remote.address ?? null
+      } catch {
+        // Tidak tersedia di luar Bun
+      }
+    }
 
     await db.execute(sql`
       INSERT INTO audit_logs
@@ -121,7 +136,7 @@ export async function logAudit(c: Context, opts: AuditOptions): Promise<void> {
           ${opts.action},
           ${opts.entity},
           ${String(opts.entityId)},
-          ${opts.companyId},
+          ${companyId},
           ${opts.oldValue ? JSON.stringify(opts.oldValue) : null},
           ${opts.newValue ? JSON.stringify(opts.newValue) : null},
           ${opts.meta ? JSON.stringify(opts.meta) : null},

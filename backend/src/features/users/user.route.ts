@@ -30,7 +30,7 @@ usersRoutes.get('/:id', async (c) => {
 // POST /users
 usersRoutes.post('/', async (c) => {
   const body = await validateBody(c, createUserSchema)
-  const user = await createUserService(body)
+  const user = await createUserService(body, c)
   return success(c, user, 'User created', 201)
 })
 

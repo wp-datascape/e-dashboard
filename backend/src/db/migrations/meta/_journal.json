@@ -15,6 +15,13 @@
       "when": 1782064935282,
       "tag": "0001_rare_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782100094437,
+      "tag": "0002_smart_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

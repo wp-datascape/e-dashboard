@@ -11,6 +11,7 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
 import CloseIcon from '@mui/icons-material/Close'
+import { useTheme } from '@mui/material/styles'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices, useInvoiceDetail } from '@/hooks/useTransactions'
@@ -149,6 +150,7 @@ function InvoiceDetailDrawer({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Transactions() {
+  const theme = useTheme()
   const { t } = useTranslation()
 
   const [search, setSearch] = useState('')
@@ -185,7 +187,7 @@ export default function Transactions() {
       width: 150,
       sortable: false,
       renderCell: ({ row }) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: theme.typography.caption.fontFamily }}>
           {row.invoice_number}
         </Typography>
       ),

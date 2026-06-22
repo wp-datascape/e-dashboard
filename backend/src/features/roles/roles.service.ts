@@ -54,8 +54,8 @@ export async function updateRoleService(id: number, dto: UpdateRoleDto, ctx: Con
       entity: 'roles',
       entityId: id,
       companyId: null,
-      oldValue: { description: existing.description },
-      meta: { changes: dto },
+      oldValue: { id: existing.id, name: existing.name, description: existing.description },
+      newValue: { id: existing.id, name: existing.name, description: role!.description },
     })
 
     return role
@@ -69,8 +69,8 @@ export async function updateRoleService(id: number, dto: UpdateRoleDto, ctx: Con
     entity: 'roles',
     entityId: id,
     companyId: null,
-    oldValue: { description: existing.description },
-    meta: { changes: dto },
+    oldValue: { id: existing.id, name: existing.name, description: existing.description },
+    newValue: { id: existing.id, name: role!.name, description: role!.description },
   })
 
   return role

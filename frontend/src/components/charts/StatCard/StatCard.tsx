@@ -3,6 +3,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
+import { useTheme } from '@mui/material/styles';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -32,12 +33,14 @@ export const StatCard = ({
   change,
   trend,
   data,
-  color = '#3B82F6',
+  color: colorProp,
   link,
 }: StatCardProps) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const isPositive = trend === 'up';
   const isNeutral = trend === 'stable';
+  const color = colorProp ?? theme.palette.primary.main;
 
   const TrendIcon = isNeutral
     ? RemoveIcon

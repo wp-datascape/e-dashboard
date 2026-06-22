@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -13,6 +13,7 @@ import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useAuditLogs } from '@/hooks/useAuditLogs'
 import type { AuditLog, AuditLogFilters } from '@/types/audit'
+import { ViewAuditLogDialog } from './components/ViewAuditLogDialog'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -73,13 +74,13 @@ const auditColumns: GridColDef[] = [
   },
   {
     field: 'entity',
-    headerName: 'Entity',
+    headerName: 'Tabel',
     width: 120,
   },
   {
-    field: 'entity_id',
-    headerName: 'Entity ID',
-    width: 100,
+    field: 'entity_key',
+    headerName: 'Item',
+    width: 200,
     renderCell: (params) => params.value ?? '—',
   },
   {
@@ -94,6 +95,10 @@ const auditColumns: GridColDef[] = [
 
 export default function AuditLog() {
   const { t } = useTranslation()
+
+  // ── Dialog State ──
+  const [viewLogId, setViewLogId] = useState<number | null>(null)
+  const handleView = useCallback((id: number) => setViewLogId(id), [])
 
   // ── State ──
   const [filters, setFilters] = useState<AuditLogFilters>({
@@ -113,7 +118,7 @@ export default function AuditLog() {
     setFilters((prev) => ({
       ...prev,
       [key]: value || undefined,
-      page: 1, // Reset ke halaman 1 saat filter berubah
+      page: 1,
     }))
     setPaginationModel({ pageSize: 50, page: 0 })
   }
@@ -121,6 +126,24 @@ export default function AuditLog() {
   const rows: AuditLog[] = data?.data ?? []
   const totalRows = data?.meta?.total ?? 0
   const pageSize = filters.per_page ?? 50
+
+  // ── Wrap entity_key column with click handler ──
+  const columnsWithClick = auditColumns.map((col) => {
+    if (col.field === 'entity_key') {
+      return {
+        ...col,
+        renderCell: (params: any) => (
+          <Box
+            sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
+            onClick={() => handleView(params.row.id as number)}
+          >
+            {params.value ?? '—'}
+          </Box>
+        ),
+      }
+    }
+    return col
+  })
 
   // Custom mobile card renderer for audit logs
   const renderAuditCard = (row: Record<string, unknown>) => {
@@ -156,19 +179,17 @@ export default function AuditLog() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                 {t('auditLog.entity')}
               </Typography>
-              <Typography variant="body2">{audit.entity}</Typography>
+              <Typography variant="body2">{audit.entity_key}</Typography>
             </Box>
           </Stack>
 
           <Stack direction="row" spacing={2}>
-            {audit.entity_id && (
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  Entity ID
-                </Typography>
-                <Typography variant="body2">{audit.entity_id}</Typography>
-              </Box>
-            )}
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block',mb: 0.5 }}>
+              Tabel
+            </Typography>
+            <Typography variant="body2">{audit.entity}</Typography>
+          </Box>
             {audit.ip_address && (
               <Box sx={{ flex: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -198,18 +219,10 @@ export default function AuditLog() {
       </Box>
 
       {/* Filters */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: 2,
-          mb: 3,
-        }}
-      >
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField
           label={t('auditLog.filterAction')}
-          select
-          size="small"
+          select size="small"
           value={filters.action ?? ''}
           onChange={(e) => handleFilterChange('action', e.target.value)}
           sx={{ minWidth: 160 }}
@@ -225,31 +238,23 @@ export default function AuditLog() {
           <MenuItem value="config.update">config.update</MenuItem>
         </TextField>
 
-        <TextField
-          label={t('auditLog.filterDateFrom')}
-          type="date"
-          size="small"
+        <TextField label={t('auditLog.filterDateFrom')} type="date" size="small"
           value={filters.date_from ?? ''}
           onChange={(e) => handleFilterChange('date_from', e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          sx={{ minWidth: 160 }}
+          slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }}
         />
-
-        <TextField
-          label={t('auditLog.filterDateTo')}
-          type="date"
-          size="small"
+        <TextField label={t('auditLog.filterDateTo')} type="date" size="small"
           value={filters.date_to ?? ''}
           onChange={(e) => handleFilterChange('date_to', e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          sx={{ minWidth: 160 }}
+          slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }}
         />
       </Box>
 
       {/* Table */}
       <ResponsiveListView
         rows={rows}
-        columns={auditColumns}
+        columns={columnsWithClick}
+        onRowClick={(row) => handleView((row as unknown as AuditLog).id)}
         renderCard={renderAuditCard}
         loading={isLoading}
         error={error as Error | null}
@@ -266,6 +271,13 @@ export default function AuditLog() {
           }))
         }}
         height={600}
+      />
+
+      {/* View Detail Dialog */}
+      <ViewAuditLogDialog
+        open={viewLogId !== null}
+        onClose={() => setViewLogId(null)}
+        logId={viewLogId}
       />
     </Box>
   )

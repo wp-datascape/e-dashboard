@@ -3,6 +3,7 @@ import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 import { Card } from '@/components/ui';
 import { StatusChip } from '@/components/ui/StatusChip';
 
@@ -101,6 +102,7 @@ function ClickableChart({
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const theme = useTheme();
   const { data, isLoading } = useDashboard();
 
   const metrics = data?.metrics ?? [];
@@ -202,7 +204,7 @@ export default function Dashboard() {
                 value={formatMetricValue(mAvgCategory)}
                 change={mAvgCategory.summary.change_percent}
                 data={mAvgCategory.monthly_trend}
-                series={[{ key: 'value', label: 'Avg Kategori', color: '#16a34a' }]}
+                series={[{ key: 'value', label: 'Avg Kategori', color: theme.palette.success.main }]}
                 xKey="month"
                 height={180}
               />
@@ -223,14 +225,14 @@ export default function Dashboard() {
                   {
                     name: 'Membeli High Margin',
                     value: parseFloat(mHighMargin.summary.current_value.toFixed(1)),
-                    color: '#F59E0B',
+                    color: theme.palette.warning.main,
                   },
                   {
                     name: 'Tidak Membeli',
                     value: parseFloat(
                       (100 - mHighMargin.summary.current_value).toFixed(1)
                     ),
-                    color: '#e5e7eb',
+                    color: theme.palette.action.hover,
                   },
                 ]}
                 centerValue={formatMetricValue(mHighMargin)}
@@ -270,7 +272,7 @@ export default function Dashboard() {
                 value={formatMetricValue(mExpansion)}
                 change={mExpansion.summary.change_percent}
                 data={mExpansion.monthly_trend}
-                series={[{ key: 'value', label: 'Expansion Rate (%)', color: '#10B981' }]}
+                series={[{ key: 'value', label: 'Expansion Rate (%)', color: theme.palette.success.main }]}
                 xKey="month"
                 height={200}
                 tooltipFormatter={(v, n) => [`${v}%`, n]}
