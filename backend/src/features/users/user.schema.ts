@@ -10,7 +10,7 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   name: z.string().min(2).max(255).optional(),
-  isActive: z.boolean().optional(),
+  is_active: z.boolean().optional(),
   role_ids: z.array(z.number().int().positive()).optional(),
   company_ids: z.array(z.number().int().positive()).optional(),
 })
@@ -25,9 +25,9 @@ export const userResponseSchema = z.object({
   id: z.number(),
   name: z.string(),
   email: z.string(),
-  isActive: z.boolean(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  is_active: z.boolean(),
+  created_at: z.date(),
+  updated_at: z.date(),
 })
 
 export type CreateUserDto = z.infer<typeof createUserSchema>

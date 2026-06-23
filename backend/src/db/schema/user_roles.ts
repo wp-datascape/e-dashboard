@@ -14,18 +14,18 @@ import { roles } from './roles'
 export const userRoles = pgTable(
   'user_roles',
   {
-    userId: integer('user_id')
+    user_id: integer('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
 
-    roleId: integer('role_id')
+    role_id: integer('role_id')
       .notNull()
       .references(() => roles.id, { onDelete: 'cascade' }),
 
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.userId, table.roleId] }),
+    pk: primaryKey({ columns: [table.user_id, table.role_id] }),
   }),
 )
 

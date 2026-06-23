@@ -12,7 +12,7 @@ import { transactionsHandlers } from './handlers/transactions.handler';
 import { auditHandlers } from './handlers/audit.handler';
 
 // Menggabungkan seluruh domain handler secara bersih menggunakan spread operator
-// NOTE: pageHandlers & usersHandlers removed — using real API from backend
+// NOTE: authHandlers ENABLED untuk mock login di development
 export const handlers = [
   ...authHandlers,
   // ...pageHandlers, // DISABLED — page settings now from real DB API

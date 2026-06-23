@@ -3,7 +3,7 @@
 export interface UserRole {
   id: number;
   name: string;
-  isSystem?: boolean;
+  is_system?: boolean;
 }
 
 export interface UserCompany {

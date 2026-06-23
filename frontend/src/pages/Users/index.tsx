@@ -55,7 +55,7 @@ const getRoleColor = (roleName: string): StatusChipColor => {
 };
 
 const isSystemUser = (user: User): boolean =>
-  user.roles?.some(r => r.isSystem) ?? false
+  user.roles?.some(r => r.is_system) ?? false
 
 const fmtDate = (iso: string | null, fallback: string): string => {
   if (!iso) return fallback;
@@ -139,7 +139,7 @@ export default function Users() {
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', height: '100%' }}>
           {((params.row as User).roles ?? []).map(r => (
-            <StatusChip key={r.id} label={r.name} color={getRoleColor(r.name)} icon={r.isSystem ? <LockIcon /> : undefined} />
+            <StatusChip key={r.id} label={r.name} color={getRoleColor(r.name)} icon={r.is_system ? <LockIcon /> : undefined} />
           ))}
         </Box>
       ),

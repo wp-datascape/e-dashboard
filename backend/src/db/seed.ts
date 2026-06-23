@@ -10,9 +10,9 @@ const defaultCompanies = [
 ]
 
 const defaultRoles = [
-  { name: 'superadmin', description: 'Full access to all features', isSystem: true },
-  { name: 'admin', description: 'Administrative access', isSystem: false },
-  { name: 'user', description: 'User access', isSystem: false },
+  { name: 'superadmin', description: 'Full access to all features', is_system: true },
+  { name: 'admin', description: 'Administrative access', is_system: false },
+  { name: 'user', description: 'User access', is_system: false },
 ]
 
 const defaultPermissions = [
@@ -117,7 +117,7 @@ async function seedRoles() {
   for (const r of defaultRoles) {
     const [existing] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, r.name)).limit(1)
     if (existing) { console.log(`  skip  ${r.name}`); continue }
-    await db.insert(roles).values({ name: r.name, description: r.description, isSystem: r.isSystem })
+    await db.insert(roles).values({ name: r.name, description: r.description, is_system: r.is_system })
     console.log(`  ok    ${r.name}`)
   }
 }
@@ -128,7 +128,7 @@ async function seedUsers() {
     const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, u.email)).limit(1)
     if (existing) { console.log(`  skip  ${u.email}`); continue }
     const hashed = await hashPassword(u.password)
-    await db.insert(users).values({ name: u.name, email: u.email, password: hashed, isActive: true, lastLoginAt: null })
+    await db.insert(users).values({ name: u.name, email: u.email, password: hashed, is_active: true, last_login_at: null })
     console.log(`  ok    ${u.email}`)
   }
 }

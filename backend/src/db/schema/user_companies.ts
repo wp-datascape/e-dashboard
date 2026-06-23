@@ -14,18 +14,18 @@ import { companies } from './companies'
 export const userCompanies = pgTable(
   'user_companies',
   {
-    userId: integer('user_id')
+    user_id: integer('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
 
-    companyId: integer('company_id')
+    company_id: integer('company_id')
       .notNull()
       .references(() => companies.id, { onDelete: 'cascade' }),
 
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.userId, table.companyId] }),
+    pk: primaryKey({ columns: [table.user_id, table.company_id] }),
   }),
 )
 

@@ -39,7 +39,7 @@ function mapRow(row: any) {
     meta: row.meta as Record<string, unknown> | null,
     ip_address: row.ipAddress,
     request_id: row.requestId,
-    created_at: row.createdAt.toISOString(),
+    created_at: row.created_at.toISOString(),
   }
 }
 
@@ -49,13 +49,13 @@ export async function findAuditLogs(query: AuditLogsQuery) {
   const conditions = []
 
   if (action) conditions.push(eq(auditLogs.action, action))
-  if (actor_id) conditions.push(eq(auditLogs.actorId, actor_id))
-  if (company_id) conditions.push(eq(auditLogs.companyId, company_id))
-  if (date_from) conditions.push(gte(auditLogs.createdAt, new Date(date_from)))
+  if (actor_id) conditions.push(eq(auditLogs.actor_id, actor_id))
+  if (company_id) conditions.push(eq(auditLogs.company_id, company_id))
+  if (date_from) conditions.push(gte(auditLogs.created_at, new Date(date_from)))
   if (date_to) {
     const end = new Date(date_to)
     end.setHours(23, 59, 59, 999)
-    conditions.push(lte(auditLogs.createdAt, end))
+    conditions.push(lte(auditLogs.created_at, end))
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined
@@ -67,21 +67,21 @@ export async function findAuditLogs(query: AuditLogsQuery) {
           id: auditLogs.id,
           action: auditLogs.action,
           entity: auditLogs.entity,
-          entityId: auditLogs.entityId,
-          companyId: auditLogs.companyId,
-          oldValue: auditLogs.oldValue,
-          newValue: auditLogs.newValue,
+          entityId: auditLogs.entity_id,
+          companyId: auditLogs.company_id,
+          oldValue: auditLogs.old_value,
+          newValue: auditLogs.new_value,
           meta: auditLogs.meta,
-          ipAddress: auditLogs.ipAddress,
-          requestId: auditLogs.requestId,
-          createdAt: auditLogs.createdAt,
-          actorId: auditLogs.actorId,
+          ipAddress: auditLogs.ip_address,
+          requestId: auditLogs.request_id,
+          createdAt: auditLogs.created_at,
+          actorId: auditLogs.actor_id,
           actorName: sql<string | null>`${users.name}`.as('actor_name'),
         })
         .from(auditLogs)
-        .leftJoin(users, eq(auditLogs.actorId, users.id))
+        .leftJoin(users, eq(auditLogs.actor_id, users.id))
         .where(where)
-        .orderBy(desc(auditLogs.createdAt))
+        .orderBy(desc(auditLogs.created_at))
         .limit(per_page)
         .offset((page - 1) * per_page),
 
@@ -102,19 +102,19 @@ export async function findAuditLogById(id: number) {
         id: auditLogs.id,
         action: auditLogs.action,
         entity: auditLogs.entity,
-        entityId: auditLogs.entityId,
-        companyId: auditLogs.companyId,
-        oldValue: auditLogs.oldValue,
-        newValue: auditLogs.newValue,
+        entityId: auditLogs.entity_id,
+        companyId: auditLogs.company_id,
+        oldValue: auditLogs.old_value,
+        newValue: auditLogs.new_value,
         meta: auditLogs.meta,
-        ipAddress: auditLogs.ipAddress,
-        requestId: auditLogs.requestId,
-        createdAt: auditLogs.createdAt,
-        actorId: auditLogs.actorId,
+        ipAddress: auditLogs.ip_address,
+        requestId: auditLogs.request_id,
+        createdAt: auditLogs.created_at,
+        actorId: auditLogs.actor_id,
         actorName: sql<string | null>`${users.name}`.as('actor_name'),
       })
       .from(auditLogs)
-      .leftJoin(users, eq(auditLogs.actorId, users.id))
+      .leftJoin(users, eq(auditLogs.actor_id, users.id))
       .where(eq(auditLogs.id, id))
       .limit(1)
 

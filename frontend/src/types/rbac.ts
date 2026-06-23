@@ -12,7 +12,7 @@ export interface Role {
   id: number;
   name: string;
   description?: string | null;
-  isSystem?: boolean;
+  is_system?: boolean;
   permissions?: Permission[] | string[];
 }
 

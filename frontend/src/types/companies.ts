@@ -2,8 +2,8 @@ export interface Company {
   id: number
   code: string
   name: string
-  createdAt?: string
-  updatedAt?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface CreateCompanyPayload {

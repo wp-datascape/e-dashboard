@@ -1,7 +1,7 @@
 // src/types/page.ts
 
 export interface PageSetting {
-  pageKey: string;
+  page_key: string;
   ready: boolean;
 }
 

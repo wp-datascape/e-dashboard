@@ -66,7 +66,7 @@ export async function replaceRolePermissions(roleId: number, permissionIds: numb
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId))
     if (permissionIds.length > 0) {
       await db.insert(rolePermissions).values(
-        permissionIds.map(permissionId => ({ roleId, permissionId }))
+        permissionIds.map(permissionId => ({ role_id: roleId, permission_id: permissionId }))
       )
     }
   } catch (err) {

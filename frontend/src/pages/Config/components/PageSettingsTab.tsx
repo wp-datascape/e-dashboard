@@ -71,7 +71,7 @@ export function PageSettingsTab() {
 
   const items = pageSettings ?? []
   const grouped = items.reduce<Record<string, typeof items>>((acc, item) => {
-    const group = GROUP_MAP[item.pageKey] ?? 'Other'
+    const group = GROUP_MAP[item.page_key] ?? 'Other'
     if (!acc[group]) acc[group] = []
     acc[group].push(item)
     return acc
@@ -114,16 +114,16 @@ export function PageSettingsTab() {
             </TableHead>
             <TableBody>
               {pages.map((item) => {
-                const label = PAGE_LABELS[item.pageKey] ?? item.pageKey
-                const isBusy = isPending && busyKey === item.pageKey
+                const label = PAGE_LABELS[item.page_key] ?? item.page_key
+                const isBusy = isPending && busyKey === item.page_key
                 return (
-                  <TableRow key={item.pageKey} hover>
+                  <TableRow key={item.page_key} hover>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>
-                        {item.pageKey}
+                        {item.page_key}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -140,7 +140,7 @@ export function PageSettingsTab() {
                       ) : (
                         <Switch
                           checked={item.ready}
-                          onChange={() => handleToggle(item.pageKey, item.ready)}
+                          onChange={() => handleToggle(item.page_key, item.ready)}
                           size="small"
                           color="primary"
                         />

@@ -155,6 +155,55 @@ Nothing built. Start with:
 
 ## Catatan Sesi Terakhir
 
+### 2026-06-23 (sesi 10): Audit Penamaan Variabel — Backend Drizzle Schema + Zod + Repository
+
+**Standarisasi naming ke snake_case (seluruh backend):**
+
+**Database Schema (10 file Drizzle):**
+- `db/schema/companies.ts`: `createdAt` → `created_at`, `updatedAt` → `updated_at`
+- `db/schema/users.ts`: `isActive` → `is_active`, `createdAt` → `created_at`, `updatedAt` → `updated_at`, `lastLoginAt` → `last_login_at`, `deletedAt` → `deleted_at`
+- `db/schema/roles.ts`: `isSystem` → `is_system`, `createdAt` → `created_at`, `updatedAt` → `updated_at`
+- `db/schema/permissions.ts`: `createdAt` → `created_at`, `updatedAt` → `updated_at`
+- `db/schema/role_permissions.ts`: `roleId` → `role_id`, `permissionId` → `permission_id`, `createdAt` → `created_at`
+- `db/schema/user_roles.ts`: `userId` → `user_id`, `roleId` → `role_id`, `createdAt` → `created_at`
+- `db/schema/user_companies.ts`: `userId` → `user_id`, `companyId` → `company_id`, `createdAt` → `created_at`
+- `db/schema/audit_logs.ts`: `actorId` → `actor_id`, `entityId` → `entity_id`, `companyId` → `company_id`, `ipAddress` → `ip_address`, `requestId` → `request_id`, `oldValue` → `old_value`, `newValue` → `new_value`, `createdAt` → `created_at`
+- `db/schema/page_settings.ts`: `pageKey` → `page_key`, `createdAt` → `created_at`, `updatedAt` → `updated_at`
+- `db/schema/business_configs.ts`: `createdAt` → `created_at`, `updatedAt` → `updated_at`
+
+**Zod Schema (features/*/):**
+- `user.schema.ts`: `isActive` → `is_active`, `createdAt` → `created_at`, `updatedAt` → `updated_at`
+
+**Repository files (6 files):**
+- `users/user.repository.ts`, `roles/roles.repository.ts`, `companies/companies.repository.ts`
+- `permissions/permissions.repository.ts`, `audit/audit.repository.ts`, `config/config.repository.ts`
+- `page/page.repository.ts` — semua Drizzle query references di-update ke snake_case
+
+**Service files & seed:**
+- `users/user.service.ts`: `before.isActive` → `before.is_active`
+- `utils/audit.ts`: parameter names diupdate dari camelCase ke snake_case
+- `db/seed.ts`: semua insert key names diupdate ke snake_case
+
+**Prinsip:**
+- DB column names dan JSON property names AWS konsisten snake_case
+- Tidak mengubah nama yang bersifat JavaScript internal (function parameter, variable lokal) — hanya nama property yang map ke Drizzle schema atau DB JSON response
+- Konsistensi: Sekarang semua JS property name yang mereferensi kolom database menggunakan snake_case
+
+**Perubahan file Backend:**
+- 10 schema files di `db/schema/` — snake_case property names
+- 7 feature schema files — Zod field names snake_case
+- 7 repository files — Drizzle query references snake_case
+- 2 service files — object access snake_case
+- 1 seed file — insert keys snake_case
+- 1 util file — audit utils parameter names snake_case
+
+**Frontend:**
+- Frontend types (`src/types/users.ts`) sudah snake_case untuk `is_active`, `last_login_at`, `created_at` ✅
+- Frontend API adapter `adaptUser()` di `users.api.ts` masih ada — akan di-refactor saat backend response service dikonfigurasi
+- Frontend lainnya belum diaudit (perlu sesi terpisah)
+
+---
+
 ### 2026-06-21 (sesi 9): Backend RBAC + Dokumentasi
 
 **Backend RBAC (5.3 Admin) — 100% SELESAI:**

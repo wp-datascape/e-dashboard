@@ -3,10 +3,10 @@ export interface Role {
   name: string
   description?: string | null
   is_system?: boolean
-  isSystem?: boolean
+  is_system?: boolean
   permissions?: string[]
-  createdAt?: string
-  updatedAt?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface CreateRolePayload {

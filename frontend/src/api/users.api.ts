@@ -11,14 +11,14 @@ function adaptUser(raw: Record<string, unknown>): User {
     name: raw.name as string,
     email: raw.email as string,
     // Backend uses isActive (camelCase), frontend expects is_active (snake_case)
-    is_active: (raw.isActive ?? raw.is_active) as boolean,
+    is_active: (raw.is_active) as boolean,
     // These fields only available after RBAC is implemented — default to empty array
     roles: (raw.roles as User['roles']) ?? [],
     companies: (raw.companies as User['companies']) ?? [],
     permissions: (raw.permissions as string[]) ?? [],
     // Backend uses lastLoginAt (camelCase), frontend expects last_login_at (snake_case)
-    last_login_at: (raw.lastLoginAt ?? raw.last_login_at ?? null) as string | null,
-    created_at: (raw.createdAt ?? raw.created_at) as string,
+    last_login_at: (raw.last_login_at ?? null) as string | null,
+    created_at: (raw.created_at) as string,
   };
 }
 

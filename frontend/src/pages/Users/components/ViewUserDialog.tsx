@@ -114,7 +114,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
           {/* Created */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: 130, fontWeight: 600 }}>
-              {t('users.createdAt')}
+              {t('users.created_at')}
             </Typography>
             <Typography variant="body2">{fmtDate(user.created_at, '-')}</Typography>
           </Box>

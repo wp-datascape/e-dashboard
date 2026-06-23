@@ -9,7 +9,7 @@ export async function findAllPageSettings() {
     const results = await db
       .select()
       .from(pageSettings)
-      .orderBy(pageSettings.pageKey)
+      .orderBy(pageSettings.page_key)
 
     return results
   } catch (err) {
@@ -22,7 +22,7 @@ export async function findPageSettingByKey(pageKey: string) {
     const [result] = await db
       .select()
       .from(pageSettings)
-      .where(eq(pageSettings.pageKey, pageKey))
+      .where(eq(pageSettings.page_key, pageKey))
       .limit(1)
 
     return result ?? null
@@ -39,7 +39,7 @@ export async function updatePageSetting(
     const [result] = await db
       .update(pageSettings)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(pageSettings.pageKey, pageKey))
+      .where(eq(pageSettings.page_key, pageKey))
       .returning()
 
     return result ?? null

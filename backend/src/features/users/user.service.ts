@@ -83,7 +83,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
       id: before.id,
       name: before.name,
       email: before.email,
-      isActive: before.isActive,
+      isActive: before.is_active,
       roles: (before.roles as Array<{ id: number; name: string }> | undefined)?.map(r => ({ id: r.id, name: r.name })),
       companies: (before.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
     },
@@ -91,7 +91,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
       id: after!.id,
       name: after!.name,
       email: after!.email,
-      isActive: after!.isActive,
+      isActive: after!.is_active,
       roles: (after!.roles as Array<{ id: number; name: string }> | undefined)?.map(r => ({ id: r.id, name: r.name })),
       companies: (after!.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
     },
@@ -103,7 +103,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
 export async function deleteUserService(id: number, ctx: Context) {
   const user = await getUserById(id)
 
-  if (user.roles?.some(r => (r as Record<string, unknown>).isSystem)) {
+  if (user.roles?.some(r => (r as Record<string, unknown>).is_system)) {
     throw new AppError(ErrorCode.FORBIDDEN, 'Cannot delete a user with a system role', 403)
   }
 

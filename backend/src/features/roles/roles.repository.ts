@@ -21,14 +21,14 @@ export async function findAllRoles() {
         id: roles.id,
         name: roles.name,
         description: roles.description,
-        isSystem: roles.isSystem,
-        createdAt: roles.createdAt,
-        updatedAt: roles.updatedAt,
+        isSystem: roles.is_system,
+        createdAt: roles.created_at,
+        updatedAt: roles.updated_at,
         permissions: sql`COALESCE(json_agg(json_build_object('id', ${permissions.id}, 'name', ${permissions.name})) FILTER (WHERE ${permissions.id} IS NOT NULL), '[]'::json)`,
       })
       .from(roles)
-      .leftJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
-      .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .leftJoin(rolePermissions, eq(roles.id, rolePermissions.role_id))
+      .leftJoin(permissions, eq(rolePermissions.permission_id, permissions.id))
       .groupBy(roles.id)
       .orderBy(roles.name)
     return rows as unknown as RoleWithPermissions[]
@@ -98,8 +98,8 @@ export async function findRolePermissions(roleId: number) {
         category: permissions.category,
       })
       .from(permissions)
-      .innerJoin(rolePermissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, roleId))
+      .innerJoin(rolePermissions, eq(rolePermissions.permission_id, permissions.id))
+      .where(eq(rolePermissions.role_id, roleId))
       .orderBy(permissions.category, permissions.name)
     return rows
   } catch (err) {

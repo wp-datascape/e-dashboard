@@ -122,6 +122,37 @@ const items = await db.select().from(invoiceItems)
 ```
 `superadmin` + `admin` bypass `user_companies` check. Others: `requireCompanyAccess` middleware.
 
+## Naming Convention
+
+**Semua property name yang mereferensi DB column WAJIB snake_case.**
+
+### Backend — Aturan Naming
+| Scope | Convention | Contoh |
+|-------|-----------|--------|
+| Drizzle schema JS properties | snake_case | `is_active`, `created_at`, `updated_at`, `last_login_at`, `deleted_at` |
+| Drizzle schema DB column name arg | snake_case | `boolean('is_active')`, `timestamp('created_at')` |
+| Zod schema fields | snake_case | `is_active: z.boolean()`, `role_ids: z.array(...)` |
+| Repository query field references | snake_case | `users.is_active`, `users.created_at` |
+| Repository `.set()` object keys | snake_case | `.set({ ...data, updated_at: new Date() })` |
+| Service object property access | snake_case | `before.is_active`, `after.is_active` |
+| Seed insert keys | snake_case | `is_active: true`, `created_at: new Date()` |
+| logAudit call parameter names | **camelCase** (JS API) | `entityId`, `companyId`, `oldValue`, `newValue` |
+| Drizzle `.select({})` aliases | Any (temporary) | `rolesJson`, `companiesJson` |
+| SQL template literals | Any (SQL keys) | `'is_system'` dalam `json_build_object` |
+
+### Frontend — Aturan Naming
+| Scope | Convention | Contoh |
+|-------|-----------|--------|
+| TypeScript type fields | snake_case | `is_active: boolean`, `last_login_at: string` |
+| API adapter property access | snake_case (prefer) | `raw.is_active` (backend returns snake_case) |
+| Component prop access on role object | snake_case | `role.is_system` |
+| i18n keys | snake_case | `users.created_at` |
+| Mock data keys | snake_case | `page_key: 'dashboard'` |
+| Hooks/Component local variables | camelCase (JS internal) | `isActive` sebagai local var |
+
+### Pengecualian
+Parameter AUDIT utils (`logAudit()`) tetap camelCase karena JS API convention — internal mapping ke snake_case dilakukan di dalam function.
+
 ## Frontend Conventions
 
 - Functional components + hooks only (no class components)

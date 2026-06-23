@@ -21,12 +21,12 @@ export async function findAllUsers(pagination: PaginationQuery) {
           id: users.id,
           name: users.name,
           email: users.email,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          updatedAt: users.updatedAt,
-          lastLoginAt: users.lastLoginAt,
-          deletedAt: users.deletedAt,
-          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.isSystem})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
+          isActive: users.is_active,
+          createdAt: users.created_at,
+          updatedAt: users.updated_at,
+          lastLoginAt: users.last_login_at,
+          deletedAt: users.deleted_at,
+          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
           companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
         })
         .from(users)
@@ -34,11 +34,11 @@ export async function findAllUsers(pagination: PaginationQuery) {
         .leftJoin(roles, eq(userRoles.roleId, roles.id))
         .leftJoin(userCompanies, eq(users.id, userCompanies.userId))
         .leftJoin(companies, eq(userCompanies.companyId, companies.id))
-        .where(isNull(users.deletedAt))
+        .where(isNull(users.deleted_at))
         .groupBy(users.id)
         .limit(per_page)
         .offset((page - 1) * per_page),
-      db.select({ value: count() }).from(users).where(isNull(users.deletedAt)),
+      db.select({ value: count() }).from(users).where(isNull(users.deleted_at)),
     ])
 
     const rows = usersData.map((row) => {
@@ -63,12 +63,12 @@ export async function findUserById(id: number) {
         id: users.id,
         name: users.name,
         email: users.email,
-        isActive: users.isActive,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-        lastLoginAt: users.lastLoginAt,
-        deletedAt: users.deletedAt,
-        rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.isSystem})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
+        isActive: users.is_active,
+        createdAt: users.created_at,
+        updatedAt: users.updated_at,
+        lastLoginAt: users.last_login_at,
+        deletedAt: users.deleted_at,
+        rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
         companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
       })
       .from(users)
@@ -76,7 +76,7 @@ export async function findUserById(id: number) {
       .leftJoin(roles, eq(userRoles.roleId, roles.id))
       .leftJoin(userCompanies, eq(users.id, userCompanies.userId))
       .leftJoin(companies, eq(userCompanies.companyId, companies.id))
-      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .where(and(eq(users.id, id), isNull(users.deleted_at)))
       .groupBy(users.id)
 
     if (result.length === 0) return null
@@ -98,7 +98,7 @@ export async function findUserByEmail(email: string) {
     const [user] = await db
       .select()
       .from(users)
-      .where(and(eq(users.email, email), isNull(users.deletedAt)))
+      .where(and(eq(users.email, email), isNull(users.deleted_at)))
       .limit(1)
 
     return user ?? null
@@ -120,8 +120,8 @@ export async function updateUser(id: number, data: UpdateUserDto) {
   try {
     const [user] = await db
       .update(users)
-      .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .set({ ...data, updated_at: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deleted_at)))
       .returning()
 
     return user ? stripPassword(user) : null
@@ -134,7 +134,7 @@ export async function replaceUserRoles(userId: number, roleIds: number[]) {
   try {
     await db.delete(userRoles).where(eq(userRoles.userId, userId))
     if (roleIds.length > 0) {
-      await db.insert(userRoles).values(roleIds.map(roleId => ({ userId, roleId })))
+      await db.insert(userRoles).values(roleIds.map(roleId => ({ user_id: userId, role_id: roleId })))
     }
   } catch (err) {
     handleDbError(err)
@@ -145,7 +145,7 @@ export async function replaceUserCompanies(userId: number, companyIds: number[])
   try {
     await db.delete(userCompanies).where(eq(userCompanies.userId, userId))
     if (companyIds.length > 0) {
-      await db.insert(userCompanies).values(companyIds.map(companyId => ({ userId, companyId })))
+      await db.insert(userCompanies).values(companyIds.map(companyId => ({ user_id: userId, company_id: companyId })))
     }
   } catch (err) {
     handleDbError(err)
@@ -156,8 +156,8 @@ export async function softDeleteUser(id: number) {
   try {
     const [user] = await db
       .update(users)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .set({ deleted_at: new Date(), updated_at: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deleted_at)))
       .returning({ id: users.id })
 
     return user ?? null

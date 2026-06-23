@@ -31,11 +31,11 @@ export const permissions = pgTable('permissions', {
   category: varchar('category', { length: 50 }),
   // Permission category for grouping, e.g. 'user', 'invoice', 'role', 'company'
 
-  createdAt: timestamp('created_at', { withTimezone: true })
+  created_at: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updated_at: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 })

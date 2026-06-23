@@ -30,14 +30,14 @@ export const roles = pgTable('roles', {
   description: text('description'),
   // Optional description of what this role can do
 
-  isSystem: boolean('is_system').notNull().default(false),
+  is_system: boolean('is_system').notNull().default(false),
   // System roles cannot be deleted or renamed
 
-  createdAt: timestamp('created_at', { withTimezone: true })
+  created_at: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updated_at: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 })

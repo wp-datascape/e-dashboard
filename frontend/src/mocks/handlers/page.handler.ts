@@ -38,21 +38,21 @@ export const pageHandlers = [
   // GET /page-settings — page ready flags
   http.get(`${BASE_URL}/page-settings`, () => {
     const mockDbData: PageSetting[] = [
-      { pageKey: 'dashboard', ready: true },
-      { pageKey: 'customers', ready: true },
-      { pageKey: 'customers-expansion', ready: true },
-      { pageKey: 'dormant-customer', ready: true },
-      { pageKey: 'cross-selling', ready: true },
-      { pageKey: 'products', ready: true },
-      { pageKey: 'products-high-margin', ready: true },
-      { pageKey: 'products-trend', ready: true },
-      { pageKey: 'transactions', ready: true },
-       { pageKey: 'projects', ready: false },
-       { pageKey: 'import', ready: true },
-       { pageKey: 'users', ready: true },
-       { pageKey: 'rbac', ready: true },
-       { pageKey: 'config', ready: true },
-       { pageKey: 'audit-log', ready: true },
+      { page_key: 'dashboard', ready: true },
+      { page_key: 'customers', ready: true },
+      { page_key: 'customers-expansion', ready: true },
+      { page_key: 'dormant-customer', ready: true },
+      { page_key: 'cross-selling', ready: true },
+      { page_key: 'products', ready: true },
+      { page_key: 'products-high-margin', ready: true },
+      { page_key: 'products-trend', ready: true },
+      { page_key: 'transactions', ready: true },
+       { page_key: 'projects', ready: false },
+       { page_key: 'import', ready: true },
+       { page_key: 'users', ready: true },
+       { page_key: 'rbac', ready: true },
+       { page_key: 'config', ready: true },
+       { page_key: 'audit-log', ready: true },
     ];
 
     return HttpResponse.json<ApiResponse<PageSetting[]>>({

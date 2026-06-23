@@ -44,7 +44,7 @@ export async function createRoleService(dto: CreateRoleDto, ctx: Context) {
 export async function updateRoleService(id: number, dto: UpdateRoleDto, ctx: Context) {
   const existing = await getRoleById(id)
 
-  if (existing.isSystem) {
+  if (existing.is_system) {
     // System roles can only update description, not name
     const role = await updateRole(id, { description: dto.description })
     logger.info('[role] System role description updated', { id })
@@ -85,7 +85,7 @@ export async function getRolePermissionsService(id: number) {
 export async function deleteRoleService(id: number, ctx: Context) {
   const existing = await getRoleById(id)
 
-  if (existing.isSystem) {
+  if (existing.is_system) {
     throw new AppError(ErrorCode.FORBIDDEN, 'Cannot delete a system role', 403)
   }
 

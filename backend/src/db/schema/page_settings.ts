@@ -12,7 +12,7 @@
  * Dependency: tidak ada FK
  *
  * Konvensi:
- * - pageKey: unique identifier, format lowercase-with-dashes
+ * - page_key: unique identifier, format lowercase-with-dashes
  * - ready: default false (safer — hidden until explicitly ready)
  * - created_at, updated_at: untuk audit trail
  */
@@ -28,18 +28,18 @@ import {
 export const pageSettings = pgTable('page_settings', {
   id: serial('id').primaryKey(),
 
-  pageKey: varchar('page_key', { length: 100 }).unique().notNull(),
+  page_key: varchar('page_key', { length: 100 }).unique().notNull(),
   // Unique identifier for each page
   // Examples: 'dashboard', 'users', 'products', 'transactions', 'import', 'rbac', 'config', 'audit-log'
 
   ready: boolean('ready').notNull().default(false),
   // Is this page fully implemented, tested, and ready for production?
 
-  createdAt: timestamp('created_at', { withTimezone: true })
+  created_at: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updated_at: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 })

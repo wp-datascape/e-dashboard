@@ -33,7 +33,7 @@ export const auditLogs = pgTable('audit_logs', {
   id: serial('id').primaryKey(),
 
   /** User yang melakukan aksi — null jika sistem */
-  actorId: integer('actor_id').references(() => users.id, {
+  actor_id: integer('actor_id').references(() => users.id, {
     onDelete: 'set null',
   }),
 
@@ -44,29 +44,29 @@ export const auditLogs = pgTable('audit_logs', {
   entity: varchar('entity', { length: 100 }).notNull(),
 
   /** ID row yang terpengaruh — disimpan sebagai string (mendukung int dan UUID) */
-  entityId: varchar('entity_id', { length: 255 }).notNull(),
+  entity_id: varchar('entity_id', { length: 255 }).notNull(),
 
   /** Perusahaan dalam konteks mutasi — null untuk aksi global */
-  companyId: integer('company_id').references(() => companies.id, {
+  company_id: integer('company_id').references(() => companies.id, {
     onDelete: 'set null',
   }),
 
   /** State sebelum mutasi (untuk update/delete) */
-  oldValue: jsonb('old_value'),
+  old_value: jsonb('old_value'),
 
   /** State setelah mutasi (untuk create/update) */
-  newValue: jsonb('new_value'),
+  new_value: jsonb('new_value'),
 
   /** Konteks tambahan, e.g. { filename, total_rows } untuk import */
   meta: jsonb('meta'),
 
   /** IP address actor */
-  ipAddress: varchar('ip_address', { length: 45 }),
+  ip_address: varchar('ip_address', { length: 45 }),
 
   /** Request ID untuk tracing (dari header x-request-id) */
-  requestId: varchar('request_id', { length: 100 }),
+  request_id: varchar('request_id', { length: 100 }),
 
-  createdAt: timestamp('created_at', { withTimezone: true })
+  created_at: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 })

@@ -5,6 +5,6 @@ export const businessConfigs = pgTable('business_configs', {
   key: varchar('key', { length: 100 }).notNull().unique(),
   value: varchar('value', { length: 255 }).notNull(),
   description: text('description'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

@@ -27,14 +27,13 @@ export const companies = pgTable('companies', {
   name: varchar('name', { length: 255 }).notNull(),
   // e.g. 'PT ABC Sejahtera'
 
-  createdAt: timestamp('created_at', { withTimezone: true })
+  created_at: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updated_at: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 })
 
 export type Company = typeof companies.$inferSelect
-export type NewCompany = typeof companies.$inferInsert
