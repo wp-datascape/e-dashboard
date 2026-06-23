@@ -3,7 +3,7 @@ import TextField from '@mui/material/TextField';
 import SecurityIcon from '@mui/icons-material/Security';
 import { Dialog } from '@/components/ui';
 import type { Permission, CreatePermissionPayload, UpdatePermissionPayload } from '@/types/rbac';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Typography from '@mui/material/Typography';
 
 interface PermissionDialogProps {
@@ -24,26 +24,10 @@ export function PermissionDialog({
   error,
 }: PermissionDialogProps) {
   const [formData, setFormData] = useState<CreatePermissionPayload>({
-    name: '',
-    description: '',
-    category: '',
+    name: permission?.name ?? '',
+    description: permission?.description ?? '',
+    category: permission?.category ?? '',
   });
-
-  useEffect(() => {
-    if (permission) {
-      setFormData({
-        name: permission.name,
-        description: permission.description || '',
-        category: permission.category || '',
-      });
-    } else {
-      setFormData({
-        name: '',
-        description: '',
-        category: '',
-      });
-    }
-  }, [permission, open]);
 
   const handleChange = (field: keyof typeof formData) => (
     e: React.ChangeEvent<HTMLInputElement>

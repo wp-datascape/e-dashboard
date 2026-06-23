@@ -38,7 +38,7 @@ export async function updatePageSetting(
   try {
     const [result] = await db
       .update(pageSettings)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updated_at: new Date() })
       .where(eq(pageSettings.page_key, pageKey))
       .returning()
 

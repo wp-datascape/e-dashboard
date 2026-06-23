@@ -57,7 +57,7 @@ export async function updateCompany(id: number, data: Partial<Pick<NewCompany, '
   try {
     const [row] = await db
       .update(companies)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updated_at: new Date() })
       .where(eq(companies.id, id))
       .returning()
     return row ?? null

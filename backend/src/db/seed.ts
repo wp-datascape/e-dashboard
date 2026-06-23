@@ -85,21 +85,21 @@ const defaultBusinessConfigs = [
 ]
 
 const defaultPageSettings = [
-  { pageKey: 'dashboard', ready: true },
-  { pageKey: 'customers', ready: true },
-  { pageKey: 'customers-expansion', ready: true },
-  { pageKey: 'dormant-customer', ready: true },
-  { pageKey: 'cross-selling', ready: true },
-  { pageKey: 'products', ready: true },
-  { pageKey: 'products-high-margin', ready: true },
-  { pageKey: 'products-trend', ready: true },
-  { pageKey: 'transactions', ready: true },
-  { pageKey: 'projects', ready: false },
-  { pageKey: 'import', ready: true },
-  { pageKey: 'users', ready: true },
-  { pageKey: 'rbac', ready: true },
-  { pageKey: 'config', ready: true },
-  { pageKey: 'audit-log', ready: true },
+  { page_key: 'dashboard', ready: true },
+  { page_key: 'customers', ready: true },
+  { page_key: 'customers-expansion', ready: true },
+  { page_key: 'dormant-customer', ready: true },
+  { page_key: 'cross-selling', ready: true },
+  { page_key: 'products', ready: true },
+  { page_key: 'products-high-margin', ready: true },
+  { page_key: 'products-trend', ready: true },
+  { page_key: 'transactions', ready: true },
+  { page_key: 'projects', ready: false },
+  { page_key: 'import', ready: true },
+  { page_key: 'users', ready: true },
+  { page_key: 'rbac', ready: true },
+  { page_key: 'config', ready: true },
+  { page_key: 'audit-log', ready: true },
 ]
 
 async function seedCompanies() {
@@ -150,8 +150,8 @@ async function seedRolePermissions() {
     if (!role) { console.log('  skip  superadmin not found'); return }
     const allPerms = await db.select({ id: permissions.id }).from(permissions)
     for (const p of allPerms) {
-      const [ex] = await db.select({ roleId: rolePermissions.roleId }).from(rolePermissions).where(and(eq(rolePermissions.roleId, role.id), eq(rolePermissions.permissionId, p.id))).limit(1)
-      if (!ex) await db.insert(rolePermissions).values({ roleId: role.id, permissionId: p.id })
+      const [ex] = await db.select({ roleId: rolePermissions.role_id }).from(rolePermissions).where(and(eq(rolePermissions.role_id, role.id), eq(rolePermissions.permission_id, p.id))).limit(1)
+      if (!ex) await db.insert(rolePermissions).values({ role_id: role.id, permission_id: p.id })
     }
     console.log(`  ok    ${allPerms.length} perms -> superadmin`)
   } catch (err) { console.error('  error:', err) }
@@ -165,14 +165,14 @@ async function seedUserAssignments() {
 
     const [role] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, 'superadmin')).limit(1)
     if (role) {
-      const [ex] = await db.select({ userId: userRoles.userId }).from(userRoles).where(eq(userRoles.userId, u.id)).limit(1)
-      if (!ex) { await db.insert(userRoles).values({ userId: u.id, roleId: role.id }); console.log('  ok    superadmin -> admin@mail.com') }
+      const [ex] = await db.select({ userId: userRoles.user_id }).from(userRoles).where(eq(userRoles.user_id, u.id)).limit(1)
+      if (!ex) { await db.insert(userRoles).values({ user_id: u.id, role_id: role.id }); console.log('  ok    superadmin -> admin@mail.com') }
     }
 
     const cs = await db.select({ id: companies.id }).from(companies)
     for (const c of cs) {
-      const [ex] = await db.select({ userId: userCompanies.userId }).from(userCompanies).where(eq(userCompanies.userId, u.id)).limit(1)
-      if (!ex) await db.insert(userCompanies).values({ userId: u.id, companyId: c.id })
+      const [ex] = await db.select({ userId: userCompanies.user_id }).from(userCompanies).where(eq(userCompanies.user_id, u.id)).limit(1)
+      if (!ex) await db.insert(userCompanies).values({ user_id: u.id, company_id: c.id })
     }
     console.log(`  ok    ${cs.length} companies -> admin@mail.com`)
   } catch (err) { console.error('  error:', err) }
@@ -191,10 +191,10 @@ async function seedBusinessConfigs() {
 async function seedPageSettings() {
   console.log('Seeding page settings...')
   for (const page of defaultPageSettings) {
-    const [existing] = await db.select({ id: pageSettings.id }).from(pageSettings).where(eq(pageSettings.pageKey, page.pageKey)).limit(1)
-    if (existing) { console.log(`  skip  ${page.pageKey}`); continue }
-    await db.insert(pageSettings).values({ pageKey: page.pageKey, ready: page.ready })
-    console.log(`  ok    ${page.pageKey} (ready: ${page.ready})`)
+    const [existing] = await db.select({ id: pageSettings.id }).from(pageSettings).where(eq(pageSettings.page_key, page.page_key)).limit(1)
+    if (existing) { console.log(`  skip  ${page.page_key}`); continue }
+    await db.insert(pageSettings).values({ page_key: page.page_key, ready: page.ready })
+    console.log(`  ok    ${page.page_key} (ready: ${page.ready})`)
   }
 }
 

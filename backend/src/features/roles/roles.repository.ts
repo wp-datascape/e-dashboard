@@ -8,9 +8,9 @@ type RoleWithPermissions = {
   id: number
   name: string
   description: string | null
-  isSystem: boolean
-  createdAt: Date
-  updatedAt: Date
+  is_system: boolean
+  created_at: Date
+  updated_at: Date
   permissions: unknown
 }
 
@@ -21,9 +21,9 @@ export async function findAllRoles() {
         id: roles.id,
         name: roles.name,
         description: roles.description,
-        isSystem: roles.is_system,
-        createdAt: roles.created_at,
-        updatedAt: roles.updated_at,
+        is_system: roles.is_system,
+        created_at: roles.created_at,
+        updated_at: roles.updated_at,
         permissions: sql`COALESCE(json_agg(json_build_object('id', ${permissions.id}, 'name', ${permissions.name})) FILTER (WHERE ${permissions.id} IS NOT NULL), '[]'::json)`,
       })
       .from(roles)
@@ -63,7 +63,7 @@ export async function findRoleByName(name: string) {
   }
 }
 
-export async function createRole(data: Pick<NewRole, 'name' | 'description' | 'isSystem'>) {
+export async function createRole(data: Pick<NewRole, 'name' | 'description' | 'is_system'>) {
   try {
     const [row] = await db
       .insert(roles)
@@ -79,7 +79,7 @@ export async function updateRole(id: number, data: Partial<Pick<NewRole, 'descri
   try {
     const [row] = await db
       .update(roles)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updated_at: new Date() })
       .where(eq(roles.id, id))
       .returning()
     return row ?? null

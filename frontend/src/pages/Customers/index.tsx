@@ -431,7 +431,7 @@ export default function Customers() {
         sortModel={sortModel}
         onSortModelChange={setSortModel}
         pageSizeOptions={[25, 50, 100]}
-        onRowClick={(row) => handleRowClick(row as any)}
+        onRowClick={(row) => handleRowClick(row as unknown as Customer360Row)}
         height={600}
       />
 

@@ -14,6 +14,7 @@ import {
   type GridRowsProp,
   type GridPaginationModel,
   type GridSortModel,
+  type GridRenderCellParams,
 } from '@mui/x-data-grid';
 import { Card } from '@/components/ui';
 
@@ -127,7 +128,7 @@ function AutoCard({
                       hasFocus: false,
                       tabIndex: -1,
                       formattedValue: formatColumnValue(row, col),
-                    } as any)}
+                    } as unknown as GridRenderCellParams<Record<string, unknown>, Record<string, unknown>>)}
                   </Box>
                 ) : (
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>

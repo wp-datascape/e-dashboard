@@ -28,7 +28,7 @@ export async function findPermissionById(id: number) {
   }
 }
 
-export async function createPermission(data: Omit<NewPermission, 'createdAt' | 'updatedAt'>) {
+export async function createPermission(data: Omit<NewPermission, 'created_at' | 'updated_at'>) {
   try {
     const result = await db.insert(permissions).values(data).returning()
     return result[0] || null
@@ -37,13 +37,13 @@ export async function createPermission(data: Omit<NewPermission, 'createdAt' | '
   }
 }
 
-export async function updatePermission(id: number, data: Partial<Omit<NewPermission, 'id' | 'createdAt' | 'updatedAt'>>) {
+export async function updatePermission(id: number, data: Partial<Omit<NewPermission, 'id' | 'created_at' | 'updated_at'>>) {
   try {
     const result = await db
       .update(permissions)
       .set({
         ...data,
-        updatedAt: new Date(),
+        updated_at: new Date(),
       })
       .where(eq(permissions.id, id))
       .returning()
@@ -63,7 +63,7 @@ export async function deletePermission(id: number) {
 
 export async function replaceRolePermissions(roleId: number, permissionIds: number[]) {
   try {
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId))
+    await db.delete(rolePermissions).where(eq(rolePermissions.role_id, roleId))
     if (permissionIds.length > 0) {
       await db.insert(rolePermissions).values(
         permissionIds.map(permissionId => ({ role_id: roleId, permission_id: permissionId }))
@@ -79,8 +79,8 @@ export async function findPermissionsByRoleId(roleId: number) {
     return await db
       .select({ id: permissions.id, name: permissions.name })
       .from(rolePermissions)
-      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, roleId))
+      .innerJoin(permissions, eq(rolePermissions.permission_id, permissions.id))
+      .where(eq(rolePermissions.role_id, roleId))
   } catch (err) {
     handleDbError(err)
   }

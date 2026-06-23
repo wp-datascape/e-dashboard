@@ -110,7 +110,6 @@ function DesktopHeatmapView({
   xLabels: string[];
   data: HeatmapRow[];
 }) {
-  const theme = useTheme();
   const innerMinWidth = ROW_LABEL_WIDTH + xLabels.length * COL_MIN_WIDTH;
 
   return (

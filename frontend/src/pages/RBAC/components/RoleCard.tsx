@@ -47,7 +47,7 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
 
         {/* Permission count */}
         <StatusChip
-          label={`${role.permissions.length} permission`}
+          label={`${(role.permissions ?? []).length} permission`}
           color="primary"
         />
       </CardContent>

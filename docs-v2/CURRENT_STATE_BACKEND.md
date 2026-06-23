@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-21
+> Last updated: 2026-06-23
 
 ---
 
@@ -14,19 +14,24 @@
 | Folder Structure | Done   | Feature-based + Router Orchestrator        |
 | Config           | Done   | env.ts (Zod), db.ts (Drizzle)              |
 | Utils            | Done   | 10 utils siap pakai                        |
-| Middleware       | 0%     | Belum dibuat                               |
-| DB Schema        | ~6%    | users.ts selesai, 15 tabel lain belum      |
-| DB Migration     | 0%     | Belum dijalankan                           |
-| Feature: Auth    | 0%     | Belum dibuat                               |
-| Feature: RBAC    | 0%     | Belum dibuat                               |
-| Feature: Users   | ~60%   | CRUD selesai — docs: `features/users.md`   |
-| Feature: Import  | 0%     | Belum dibuat                               |
-| Feature: Metrics | 0%     | Belum dibuat                               |
-| Feature: Customers | 0%   | Belum dibuat                               |
-| Feature: Products  | 0%   | Belum dibuat                               |
-| Feature: Transactions | 0% | Belum dibuat                             |
-| Feature: Config  | 0%     | Belum dibuat                               |
-| Feature: Audit   | 0%     | Belum dibuat                               |
+| Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
+| DB Schema        | Done   | 0000_init_schema.sql selesai, semua tabel terdefinisi |
+| DB Migration     | Done   | Migration 0000 applied                     |
+| DB Seed          | Done   | seed.ts dibuat                             |
+| Feature: Auth    | 0%     | Belum dibuat, router.ts masih commented    |
+| Feature: RBAC    | Done   | roles + permissions mounted, rbac folder ada |
+| Feature: Users   | Done   | CRUD selesai — docs: `features/users.md`   |
+| Feature: Companies | Done | CRUD selesai — docs: `features/companies.md` |
+| Feature: Roles   | Done   | CRUD + permissions — docs: `features/roles.md` |
+| Feature: Permissions | Done | CRUD + assign — docs: `features/permissions.md` |
+| Feature: Config  | Done   | GET + PUT per key — docs: `features/config-page.md` |
+| Feature: Page    | Done   | GET + PUT page settings — docs: `features/page-settings.md` |
+| Feature: Audit   | Done   | 2 endpoints (list + detail) — docs: `features/audit.md` |
+| Feature: Import  | 0%     | Folder ada tapi belum dibuat               |
+| Feature: Metrics | 0%     | Folder ada tapi belum dibuat               |
+| Feature: Customers | 0%   | Folder ada tapi belum dibuat               |
+| Feature: Products  | 0%   | Folder ada tapi belum dibuat               |
+| Feature: Transactions | 0% | Folder ada tapi belum dibuat             |
 
 ---
 
@@ -199,21 +204,26 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 ## Next Actions (Priority Order)
 
 ```
-1. [HIGH]   DB Schema   — buat semua 16 schema files di src/db/schema/
-2. [HIGH]   DB Migrate  — docker-compose up postgres → bun run db:migrate
-3. [HIGH]   DB Seed     — buat src/db/seed.ts (superadmin, roles, permissions)
-4. [HIGH]   Middleware  — csrf, rate-limit, auth, company-access, permission
-5. [HIGH]   Auth Feature — login, logout, refresh
-6. [HIGH]   RBAC Feature — setelah RBAC, update users route dengan auth + role_ids
-7. [HIGH]   Import Feature — file upload + Accurate API
-8. [MEDIUM] Config Feature
-9. [HIGH]   Metrics Feature — 10 KPI (M1-M10)
-10. [MEDIUM] Customers, Products, Transactions, Audit features
+1. [HIGH]   Auth Feature     — login, logout, refresh + authMiddleware
+2. [HIGH]   Middleware       — csrf, rate-limit, auth, company-access, permission
+3. [HIGH]   Import Feature   — file upload CSV/Excel + Accurate API (blocker: format belum konfirmasi)
+4. [HIGH]   Metrics Feature  — 10 KPI (M1-M10), query berat pakai window functions
+5. [MEDIUM] Customers Feature — list + detail, auto dari import
+6. [MEDIUM] Products Feature  — list + detail + update category flags
+7. [MEDIUM] Transactions Feature — list + detail + summary
 ```
 
 ---
 
 ## Catatan Sesi
+
+### 2026-06-23 (sesi 4)
+- Dokumentasi backend diupdate berdasarkan kondisi aktual kode
+- Tambah `docs-v2/features/audit.md` — feature audit sudah selesai tapi belum ada docs
+- Update `CURRENT_STATE_BACKEND.md` — status banyak yang sudah Done tapi belum dicatat
+- Fitur aktif di router: users, page, companies, roles, permissions, config, audit
+- Fitur belum dibuat: auth, import, metrics, customers, products, transactions
+- `make check` frontend: lint + TypeScript errors diperbaiki (3 error, 0 warning tersisa)
 
 ### 2026-06-21 (sesi 2 Backend)
 - **users schema**: Buat `src/db/schema/users.ts` dengan Drizzle ORM

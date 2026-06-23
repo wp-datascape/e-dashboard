@@ -305,6 +305,11 @@ db-reset:
 	echo "Reset complete"
 
 check:
+	@echo "=== Backend ==="
+	@echo "Running TypeScript..."
+	@bun --cwd backend tsc --noEmit
+	@echo ""
+	@echo "=== Frontend ==="
 	@echo "Running TypeScript..."
 	@bun --cwd frontend tsc --noEmit
 	@echo "Running lint..."

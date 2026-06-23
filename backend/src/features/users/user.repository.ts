@@ -21,19 +21,19 @@ export async function findAllUsers(pagination: PaginationQuery) {
           id: users.id,
           name: users.name,
           email: users.email,
-          isActive: users.is_active,
-          createdAt: users.created_at,
-          updatedAt: users.updated_at,
-          lastLoginAt: users.last_login_at,
-          deletedAt: users.deleted_at,
-          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
+          is_active: users.is_active,
+          created_at: users.created_at,
+          updated_at: users.updated_at,
+          last_login_at: users.last_login_at,
+          deleted_at: users.deleted_at,
+          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'is_system', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
           companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
         })
         .from(users)
-        .leftJoin(userRoles, eq(users.id, userRoles.userId))
-        .leftJoin(roles, eq(userRoles.roleId, roles.id))
-        .leftJoin(userCompanies, eq(users.id, userCompanies.userId))
-        .leftJoin(companies, eq(userCompanies.companyId, companies.id))
+        .leftJoin(userRoles, eq(users.id, userRoles.user_id))
+        .leftJoin(roles, eq(userRoles.role_id, roles.id))
+        .leftJoin(userCompanies, eq(users.id, userCompanies.user_id))
+        .leftJoin(companies, eq(userCompanies.company_id, companies.id))
         .where(isNull(users.deleted_at))
         .groupBy(users.id)
         .limit(per_page)
@@ -63,19 +63,19 @@ export async function findUserById(id: number) {
         id: users.id,
         name: users.name,
         email: users.email,
-        isActive: users.is_active,
-        createdAt: users.created_at,
-        updatedAt: users.updated_at,
-        lastLoginAt: users.last_login_at,
-        deletedAt: users.deleted_at,
-        rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'isSystem', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
+          is_active: users.is_active,
+          created_at: users.created_at,
+          updated_at: users.updated_at,
+          last_login_at: users.last_login_at,
+          deleted_at: users.deleted_at,
+          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'is_system', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
         companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
       })
       .from(users)
-      .leftJoin(userRoles, eq(users.id, userRoles.userId))
-      .leftJoin(roles, eq(userRoles.roleId, roles.id))
-      .leftJoin(userCompanies, eq(users.id, userCompanies.userId))
-      .leftJoin(companies, eq(userCompanies.companyId, companies.id))
+      .leftJoin(userRoles, eq(users.id, userRoles.user_id))
+      .leftJoin(roles, eq(userRoles.role_id, roles.id))
+      .leftJoin(userCompanies, eq(users.id, userCompanies.user_id))
+      .leftJoin(companies, eq(userCompanies.company_id, companies.id))
       .where(and(eq(users.id, id), isNull(users.deleted_at)))
       .groupBy(users.id)
 
@@ -132,7 +132,7 @@ export async function updateUser(id: number, data: UpdateUserDto) {
 
 export async function replaceUserRoles(userId: number, roleIds: number[]) {
   try {
-    await db.delete(userRoles).where(eq(userRoles.userId, userId))
+    await db.delete(userRoles).where(eq(userRoles.user_id, userId))
     if (roleIds.length > 0) {
       await db.insert(userRoles).values(roleIds.map(roleId => ({ user_id: userId, role_id: roleId })))
     }
@@ -143,7 +143,7 @@ export async function replaceUserRoles(userId: number, roleIds: number[]) {
 
 export async function replaceUserCompanies(userId: number, companyIds: number[]) {
   try {
-    await db.delete(userCompanies).where(eq(userCompanies.userId, userId))
+    await db.delete(userCompanies).where(eq(userCompanies.user_id, userId))
     if (companyIds.length > 0) {
       await db.insert(userCompanies).values(companyIds.map(companyId => ({ user_id: userId, company_id: companyId })))
     }

@@ -199,8 +199,9 @@ export const rbacHandlers = [
   // GET /rbac/permissions — daftar semua permission digroup
   http.get(`${BASE_URL}/rbac/permissions`, () => {
     const grouped = allPermissions.reduce<Record<string, Permission[]>>((acc, p) => {
-      if (!acc[p.group_name]) acc[p.group_name] = [];
-      acc[p.group_name].push(p);
+      const group = p.group_name ?? 'Uncategorized';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(p);
       return acc;
     }, {});
     return HttpResponse.json({ message: 'OK', data: grouped }, { status: 200 });

@@ -132,7 +132,7 @@ export default function AuditLog() {
     if (col.field === 'entity_key') {
       return {
         ...col,
-        renderCell: (params: any) => (
+        renderCell: (params: import('@mui/x-data-grid').GridRenderCellParams) => (
           <Box
             sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
             onClick={() => handleView(params.row.id as number)}

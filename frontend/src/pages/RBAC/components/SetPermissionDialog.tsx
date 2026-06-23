@@ -43,7 +43,9 @@ export function SetPermissionDialog({
   const [permSearch, setPermSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [activePermIds, setActivePermIds] = useState<Set<number>>(() => 
-    new Set((role?.permissions ?? []).map((p: any) => (typeof p === 'object' ? p.id : p)))
+    new Set((role?.permissions ?? []).map((p) =>
+      typeof p === 'object' && p !== null ? (p as Permission).id : Number(p)
+    ))
   );
 
   const findPerm = useCallback(

@@ -231,7 +231,7 @@ export const productsHandlers = [
     const sortBy = url.searchParams.get('sort_by') as keyof CategoryPerformanceRow | null
     const sortDir = url.searchParams.get('sort_dir') ?? 'desc'
 
-    let rows = [...mockCategories]
+    const rows = [...mockCategories]
 
     if (sortBy && sortBy in rows[0]) {
       rows.sort((a, b) => {

@@ -27,7 +27,7 @@ export async function createRoleService(dto: CreateRoleDto, ctx: Context) {
   const existing = await findRoleByName(dto.name)
   if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Role name already in use', 409)
 
-  const role = await createRole({ name: dto.name, description: dto.description, isSystem: false })
+  const role = await createRole({ name: dto.name, description: dto.description, is_system: false })
   logger.info('[role] Role created', { id: role!.id, name: dto.name })
 
   await logAudit(ctx, {

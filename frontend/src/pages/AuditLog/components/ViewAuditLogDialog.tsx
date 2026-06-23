@@ -57,10 +57,11 @@ function toVal(v: unknown): string {
 }
 
 function DiffTable({ oldData, newData }: { oldData: Record<string, unknown> | null; newData: Record<string, unknown> | null }) {
-  if (!oldData && !newData) return null
-  const allKeys = [...new Set([...Object.keys(oldData ?? {}), ...Object.keys(newData ?? {})])]
   const theme = useTheme()
   const mono = theme.typography.caption.fontFamily
+
+  if (!oldData && !newData) return null
+  const allKeys = [...new Set([...Object.keys(oldData ?? {}), ...Object.keys(newData ?? {})])]
 
   return (
     <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: 400 }}>

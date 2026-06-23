@@ -61,8 +61,8 @@ function AppRouter() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         {/* Dynamic Generated Routes Mapping Berdasarkan Kontrol DB */}
-        {pageSettings?.map(({ pageKey, ready }) => {
-          const registry = routeRegistry[pageKey]
+        {pageSettings?.map(({ page_key, ready }) => {
+          const registry = routeRegistry[page_key]
 
           // Defensif: Jika ada key baru di DB tetapi frontend belum di-deploy komponennya
           if (!registry) return null

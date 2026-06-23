@@ -30,7 +30,7 @@ export async function findConfigByKey(key: string) {
 export async function updateConfigValue(key: string, value: string) {
   const [row] = await db
     .update(businessConfigs)
-    .set({ value, updatedAt: new Date() })
+    .set({ value, updated_at: new Date() })
     .where(eq(businessConfigs.key, key))
     .returning({
       key: businessConfigs.key,

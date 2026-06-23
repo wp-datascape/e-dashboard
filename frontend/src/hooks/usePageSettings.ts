@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pageApi } from '@/api/page.api';
 
 // Used in App.tsx with no args: data = PageSetting[] (via select)
-export function usePageSettings(_pageKey?: string) {
+export function usePageSettings() {
   return useQuery({
     queryKey: ['page-settings'],
     queryFn: () => pageApi.getPageSettings(),

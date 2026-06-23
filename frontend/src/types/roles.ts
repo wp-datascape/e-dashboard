@@ -3,7 +3,6 @@ export interface Role {
   name: string
   description?: string | null
   is_system?: boolean
-  is_system?: boolean
   permissions?: string[]
   created_at?: string
   updated_at?: string
