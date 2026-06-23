@@ -1,6 +1,20 @@
 .PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset docker-status docker-stop docker-up docker-down
 SHELL := /bin/bash
 
+# Database config — dibaca dari backend/.env
+DB_USER := $(shell grep -E '^DATABASE_URL=' backend/.env 2>/dev/null | sed 's|.*://\([^:]*\).*|\1|')
+DB_CONTAINER := e-dashboard-db
+DB_URL := $(shell grep -E '^DATABASE_URL=' backend/.env 2>/dev/null | cut -d= -f2)
+DB_NAME := $(shell echo "$(DB_URL)" | sed 's|.*/\([^?]*\).*|\1|')
+DB_PORT := 5432
+
+ifeq ($(DB_USER),)
+$(warning Could not parse DATABASE_URL from backend/.env — using defaults)
+DB_USER := dashboard
+DB_PASS := dashboard123
+DB_NAME := e_dashboard
+endif
+
 help:
 	@echo "====================================================="
 	@echo " e-dashboard Workflow"
@@ -255,7 +269,7 @@ db-up:
 	@echo "Starting postgres container..."
 	@docker compose up -d postgres
 	@echo "Waiting for postgres to be healthy..."
-	@until docker exec e-dashboard-db pg_isready -U dashboard > /dev/null 2>&1; do sleep 1; done
+	@until docker exec $(DB_CONTAINER) pg_isready -U $(DB_USER) > /dev/null 2>&1; do sleep 1; done
 	@echo "Postgres is ready"
 
 db-down:
@@ -264,10 +278,13 @@ db-down:
 
 db-status:
 	@echo "=== Container Status ==="
-	@docker ps --filter name=e-dashboard-db --format "  {{.Names}} — {{.Status}}"
+	@docker ps --filter name=$(DB_CONTAINER) --format "  {{.Names}} — {{.Status}}"
 	@echo ""
-	@echo "=== Tables in e_dashboard ==="
-	@docker exec e-dashboard-db psql -U dashboard -d e_dashboard -c "\dt" 2>/dev/null || echo "  (cannot connect)"
+	@echo "=== Tables in $(DB_NAME) ==="
+	@docker exec $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -c "\dt" 2>/dev/null || echo "  (cannot connect)"
+	@echo ""
+	@echo "=== Drizzle Migration Schema ==="
+	@docker exec $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -c "SELECT * FROM drizzle.__drizzle_migrations;" 2>/dev/null || echo "  (no drizzle schema yet)"
 	@echo ""
 	@echo "=== Migration Files ==="
 	@ls backend/src/db/migrations/*.sql 2>/dev/null | xargs -I{} basename {} || echo "  (no migration files)"
@@ -294,12 +311,15 @@ db-studio:
 	@cd backend && bun run db:studio
 
 db-reset:
-	@echo "WARNING: This will DROP all tables and re-run all migrations."
+	@echo "WARNING: This will DROP all schemas and re-run all migrations."
 	@read -p "Are you sure? (y/N): " confirm; \
 	[ "$$confirm" = "y" ] || exit 1; \
-	echo "Dropping all tables..."; \
-	docker exec e-dashboard-db psql -U dashboard -d e_dashboard -c \
-		"DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO dashboard;"; \
+	echo "Dropping drizzle schema (migration tracking)..."; \
+	docker exec $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -c \
+		"DROP SCHEMA IF EXISTS drizzle CASCADE;"; \
+	echo "Dropping public schema (all tables)..."; \
+	docker exec $(DB_CONTAINER) psql -U $(DB_USER) -d $(DB_NAME) -c \
+		"DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO $(DB_USER);"; \
 	echo "Re-running migrations..."; \
 	cd backend && bun run db:migrate; \
 	echo "Reset complete"

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { Card } from '@/components/ui'
+import { Card, DatePicker } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useAuditLogs } from '@/hooks/useAuditLogs'
@@ -238,15 +238,19 @@ export default function AuditLog() {
           <MenuItem value="config.update">config.update</MenuItem>
         </TextField>
 
-        <TextField label={t('auditLog.filterDateFrom')} type="date" size="small"
+        <DatePicker
+          label={t('auditLog.filterDateFrom')}
+          size="small"
           value={filters.date_from ?? ''}
           onChange={(e) => handleFilterChange('date_from', e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }}
+          sx={{ minWidth: 160 }}
         />
-        <TextField label={t('auditLog.filterDateTo')} type="date" size="small"
+        <DatePicker
+          label={t('auditLog.filterDateTo')}
+          size="small"
           value={filters.date_to ?? ''}
           onChange={(e) => handleFilterChange('date_to', e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }}
+          sx={{ minWidth: 160 }}
         />
       </Box>
 

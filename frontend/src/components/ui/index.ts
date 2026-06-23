@@ -8,3 +8,4 @@ export * from './Sidebar';
 export * from './Footer';
 export * from './Dialog';
 export * from './StatusChip';
+export * from './DatePicker';

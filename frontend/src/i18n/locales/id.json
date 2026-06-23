@@ -169,7 +169,8 @@
       "errorCompany": "Pilih perusahaan terlebih dahulu",
       "errorPeriod": "Masukkan periode terlebih dahulu",
       "errorFile": "Pilih file yang akan diupload",
-      "errorGeneric": "Import gagal. Silakan coba lagi."
+      "errorGeneric": "Import gagal. Silakan coba lagi.",
+      "periodHint": "Pilih tahun dan bulan untuk data faktur"
     },
     "result": {
       "success": "Import selesai dengan sukses",

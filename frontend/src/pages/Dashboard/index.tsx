@@ -2,10 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Skeleton from '@mui/material/Skeleton';
 import { useTheme } from '@mui/material/styles';
 import { Card } from '@/components/ui';
-import { StatusChip } from '@/components/ui/StatusChip';
 
 import { StatCard } from '@/components/charts/StatCard';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -16,6 +14,10 @@ import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDashboard } from '@/hooks/useDashboard';
 import type { MetricCard } from '@/types/dashboard';
+import { StatCardSkeleton } from './components/StatCardSkeleton';
+import { ChartSkeleton } from './components/ChartSkeleton';
+import { PeriodStrip } from './components/PeriodStrip';
+import { ClickableChart } from './components/ClickableChart';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -30,75 +32,6 @@ function formatMetricValue(card: MetricCard): string {
   return v % 1 === 0 ? v.toString() : v.toFixed(2);
 }
 
-// ─── Skeleton loaders ─────────────────────────────────────────────────────────
-
-function StatCardSkeleton() {
-  return (
-    <Box
-      sx={{
-        p: 2,
-        border: '1px solid',
-        borderColor: 'divider',
-        bgcolor: 'background.paper',
-        height: 160,
-      }}
-    >
-      <Skeleton variant="text" width="60%" height={14} />
-      <Skeleton variant="text" width="40%" height={36} sx={{ my: 0.5 }} />
-      <Skeleton variant="text" width="80%" height={12} />
-      <Skeleton variant="rectangular" width="100%" height={48} sx={{ mt: 1 }} />
-    </Box>
-  );
-}
-
-function ChartSkeleton({ height = 280 }: { height?: number }) {
-  return <Skeleton variant="rectangular" width="100%" height={height} />;
-}
-
-// ─── Summary strip (period info) ─────────────────────────────────────────────
-
-function PeriodStrip({
-  period,
-  activeWindow,
-}: {
-  period: string;
-  activeWindow: number;
-}) {
-  return (
-    <Box
-      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}
-    >
-      <StatusChip label={`Periode: ${period}`} color="default" />
-      <StatusChip label={`Window Aktif: ${activeWindow} bulan`} color="default" />
-    </Box>
-  );
-}
-
-// ─── Clickable wrapper ───────────────────────────────────────────────────────
-
-function ClickableChart({
-  link,
-  children,
-}: {
-  link: string;
-  children: React.ReactNode;
-}) {
-  const navigate = useNavigate();
-  return (
-    <Box
-      onClick={() => navigate(link)}
-      sx={{
-        cursor: 'pointer',
-        height: '100%',
-        '&:hover': { opacity: 0.92 },
-        transition: 'opacity 0.15s',
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
-
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -109,7 +42,6 @@ export default function Dashboard() {
 
   const findMetric = (key: string) => metrics.find((x) => x.metric_key === key);
 
-  // individual metrics
   const mCrossRatio      = findMetric('cross_selling_ratio');
   const mAvgCategory     = findMetric('avg_category');
   const mHighMargin      = findMetric('high_margin_penetration');
@@ -168,10 +100,8 @@ export default function Dashboard() {
             ))}
       </Grid>
 
-      {/* ── Row 2: Chart Widgets (spec-matched types) ── */}
+      {/* ── Row 2: Chart Widgets ── */}
       <Grid container spacing={2}>
-
-        {/* M1: Cross Selling Ratio — Bar Chart (trend) */}
         <Grid size={{ xs: 12, md: 6 }}>
           {isLoading ? (
             <ChartSkeleton />
@@ -186,13 +116,12 @@ export default function Dashboard() {
                 series={[{ key: 'value', label: 'Cross Selling Ratio (%)', color: mCrossRatio.color }]}
                 xKey="month"
                 height={180}
-                tooltipFormatter={(v, n) => [`${v}%`, n]}
+                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
               />
             </ClickableChart>
           ) : null}
         </Grid>
 
-        {/* M2: Avg Category — Spline Area, green gradient */}
         <Grid size={{ xs: 12, md: 6 }}>
           {isLoading ? (
             <ChartSkeleton />
@@ -212,7 +141,6 @@ export default function Dashboard() {
           ) : null}
         </Grid>
 
-        {/* M5: High Margin Penetration — Donut Chart */}
         <Grid size={{ xs: 12, md: 4 }}>
           {isLoading ? (
             <ChartSkeleton height={260} />
@@ -222,18 +150,8 @@ export default function Dashboard() {
                 title={mHighMargin.title}
                 subtitle={mHighMargin.subtitle}
                 data={[
-                  {
-                    name: 'Membeli High Margin',
-                    value: parseFloat(mHighMargin.summary.current_value.toFixed(1)),
-                    color: theme.palette.warning.main,
-                  },
-                  {
-                    name: 'Tidak Membeli',
-                    value: parseFloat(
-                      (100 - mHighMargin.summary.current_value).toFixed(1)
-                    ),
-                    color: theme.palette.action.hover,
-                  },
+                  { name: 'Membeli High Margin', value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
+                  { name: 'Tidak Membeli', value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
                 ]}
                 centerValue={formatMetricValue(mHighMargin)}
                 centerLabel="High Margin"
@@ -243,7 +161,6 @@ export default function Dashboard() {
           ) : null}
         </Grid>
 
-        {/* M6: Repeat Order Rate — Radial Bar */}
         <Grid size={{ xs: 12, md: 4 }}>
           {isLoading ? (
             <ChartSkeleton height={260} />
@@ -260,7 +177,6 @@ export default function Dashboard() {
           ) : null}
         </Grid>
 
-        {/* M7: Customer Expansion Rate — Bar Chart */}
         <Grid size={{ xs: 12, md: 4 }}>
           {isLoading ? (
             <ChartSkeleton height={260} />
@@ -275,13 +191,12 @@ export default function Dashboard() {
                 series={[{ key: 'value', label: 'Expansion Rate (%)', color: theme.palette.success.main }]}
                 xKey="month"
                 height={200}
-                tooltipFormatter={(v, n) => [`${v}%`, n]}
+                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
               />
             </ClickableChart>
           ) : null}
         </Grid>
 
-        {/* M8: Dormant Customer Rate — Line Alert Chart (threshold 10%) */}
         <Grid size={{ xs: 12, md: 6 }}>
           {isLoading ? (
             <ChartSkeleton />
@@ -302,7 +217,6 @@ export default function Dashboard() {
           ) : null}
         </Grid>
 
-        {/* M10: Customer Reactivation Rate — Bullet Chart */}
         <Grid size={{ xs: 12, md: 6 }}>
           {isLoading ? (
             <ChartSkeleton />
@@ -329,43 +243,16 @@ export default function Dashboard() {
         </Typography>
         <Grid container spacing={1}>
           {[
-            {
-              term: 'Customer Aktif',
-              def: `last_transaction_date ≥ awal periode − ${data?.active_window ?? 6} bulan`,
-            },
-            {
-              term: 'Existing Customer',
-              def: 'first_transaction_date < awal periode',
-            },
-            {
-              term: 'New Customer',
-              def: 'first_transaction_date dalam periode ini',
-            },
-            {
-              term: 'Dormant Customer',
-              def: 'last_transaction_date < awal periode − 3 bulan (default)',
-            },
-            {
-              term: 'Kategori Produk',
-              def: 'Hardware + Consumable saja — jasa/service tidak dihitung',
-            },
-            {
-              term: 'High Margin Product',
-              def: 'product_categories.is_high_margin = true',
-            },
+            { term: 'Customer Aktif', def: `last_transaction_date ≥ awal periode − ${data?.active_window ?? 6} bulan` },
+            { term: 'Existing Customer', def: 'first_transaction_date < awal periode' },
+            { term: 'New Customer', def: 'first_transaction_date dalam periode ini' },
+            { term: 'Dormant Customer', def: 'last_transaction_date < awal periode − 3 bulan (default)' },
+            { term: 'Kategori Produk', def: 'Hardware + Consumable saja — jasa/service tidak dihitung' },
+            { term: 'High Margin Product', def: 'product_categories.is_high_margin = true' },
           ].map(({ term, def }) => (
             <Grid key={term} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Box
-                sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}
-              >
-                <Typography
-                  variant="caption"
-                  sx={{
-                    fontWeight: 700,
-                    color: 'primary.main',
-                    display: 'block',
-                  }}
-                >
+              <Box sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
                   {term}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">

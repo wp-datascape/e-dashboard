@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1782059148271,
+      "when": 1718000000000,
       "tag": "0000_init_schema",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1782064935282,
-      "tag": "0001_rare_molly_hayes",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1782100094437,
-      "tag": "0002_smart_goblin_queen",
+      "when": 1782205221438,
+      "tag": "0001_daily_rawhide_kid",
       "breakpoints": true
     }
   ]

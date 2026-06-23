@@ -10,12 +10,12 @@ import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import Chip from '@mui/material/Chip'
+import Stack from '@mui/material/Stack'
 import { useTheme } from '@mui/material/styles'
 import { Card } from '@/components/ui'
 import { useTranslation } from 'react-i18next'
 import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
 
-// Mapping pageKey → label yang user-friendly
 const PAGE_LABELS: Record<string, string> = {
   dashboard: 'Executive Dashboard',
   customers: 'Customer 360',
@@ -98,43 +98,79 @@ export function PageSettingsTab() {
         <Box key={group} sx={{ mb: 3 }}>
           <Typography
             variant="subtitle2"
-            sx={{ fontWeight: 700, mb: 1, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}
+            sx={{ fontWeight: 700, mb: 1.5, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}
           >
             {group}
           </Typography>
 
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600, width: '40%' }}>{t('config.pageSettings.colPage')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, width: '25%' }}>{t('config.pageSettings.colKey')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, width: '20%' }}>{t('config.pageSettings.colStatus')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, width: '15%' }}>{t('config.pageSettings.colToggle')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {pages.map((item) => {
-                const label = PAGE_LABELS[item.page_key] ?? item.page_key
-                const isBusy = isPending && busyKey === item.page_key
-                return (
-                  <TableRow key={item.page_key} hover>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>
-                        {item.page_key}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
+          {/* ─── Desktop: Table ─── */}
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, width: '40%' }}>{t('config.pageSettings.colPage')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '25%' }}>{t('config.pageSettings.colKey')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '20%' }}>{t('config.pageSettings.colStatus')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '15%' }}>{t('config.pageSettings.colToggle')}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {pages.map((item) => {
+                  const label = PAGE_LABELS[item.page_key] ?? item.page_key
+                  const isBusy = isPending && busyKey === item.page_key
+                  return (
+                    <TableRow key={item.page_key} hover>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>
+                          {item.page_key}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={item.ready ? t('common.active') : t('common.inactive')}
+                          color={item.ready ? 'success' : 'default'}
+                          size="small"
+                          variant={item.ready ? 'filled' : 'outlined'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {isBusy ? (
+                          <CircularProgress size={20} />
+                        ) : (
+                          <Switch
+                            checked={item.ready}
+                            onChange={() => handleToggle(item.page_key, item.ready)}
+                            size="small"
+                            color="primary"
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+
+          {/* ─── Mobile: Cards ─── */}
+          <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+            {pages.map((item) => {
+              const label = PAGE_LABELS[item.page_key] ?? item.page_key
+              const isBusy = isPending && busyKey === item.page_key
+              return (
+                <Card key={item.page_key} sx={{ p: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip
                         label={item.ready ? t('common.active') : t('common.inactive')}
                         color={item.ready ? 'success' : 'default'}
                         size="small"
                         variant={item.ready ? 'filled' : 'outlined'}
                       />
-                    </TableCell>
-                    <TableCell>
                       {isBusy ? (
                         <CircularProgress size={20} />
                       ) : (
@@ -145,12 +181,15 @@ export function PageSettingsTab() {
                           color="primary"
                         />
                       )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>
+                    {item.page_key}
+                  </Typography>
+                </Card>
+              )
+            })}
+          </Stack>
         </Box>
       ))}
     </Card>

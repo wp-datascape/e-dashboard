@@ -169,7 +169,8 @@
       "errorCompany": "Please select a company",
       "errorPeriod": "Please enter the period",
       "errorFile": "Please select a file to upload",
-      "errorGeneric": "Import failed. Please try again."
+      "errorGeneric": "Import failed. Please try again.",
+      "periodHint": "Select year and month for invoice data"
     },
     "result": {
       "success": "Import completed successfully",
