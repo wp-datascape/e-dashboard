@@ -41,6 +41,9 @@ const envSchema = z.object({
     .string()
     .default('10')
     .transform((val) => Number(val)),
+
+  // Encryption
+  CREDENTIALS_ENCRYPTION_KEY: z.string().min(32, 'CREDENTIALS_ENCRYPTION_KEY must be at least 32 characters'),
 })
 
 const parsed = envSchema.safeParse(process.env)

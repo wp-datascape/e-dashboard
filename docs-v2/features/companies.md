@@ -1,7 +1,7 @@
 # Feature: Companies
 
-> Status: ✅ Complete — CRUD backend live
-> Last updated: 2026-06-22
+> Status: ✅ Complete — CRUD backend live + Branch Management
+> Last updated: 2026-06-24
 > Baca juga: `shared/data-model.md`, `shared/api-conventions.md`
 
 ---
@@ -10,10 +10,17 @@
 
 Companies feature mengelola entitas perusahaan dalam holding group. Setiap user bisa memiliki akses ke satu atau lebih perusahaan.
 
-**Saat ini ada 3 perusahaan (seed):**
-- PT Mesin Kasri Online (MKO)
-- PT Kode Niaga Tama (KNT)  
-- PT Solusi Kartu Indonesia (SKI)
+Setiap perusahaan dapat memiliki satu atau lebih **cabang (branches)**. Cabang digunakan untuk:
+- Isolasi data kredensial Accurate (per cabang punya koneksi sendiri)
+- Filter data transaksi berdasarkan cabang
+- Manajemen status aktif/nonaktif cabang
+
+**Saat ini ada 3 perusahaan + 5 cabang (seed):**
+| Company | Cabang | Status |
+|---------|--------|--------|
+| PT Mesin Kasri Online (MKO) | Pusat | ✅ Aktif |
+| PT Kode Niaga Tama (KNT) | Surabaya, Jakarta, Semarang | ✅ Aktif |
+| PT Solusi Kartu Indonesia (SKI) | Pusat | ✅ Aktif |
 
 ---
 
@@ -21,10 +28,13 @@ Companies feature mengelola entitas perusahaan dalam holding group. Setiap user 
 
 ```
 src/features/companies/
-├── companies.schema.ts      — Zod DTO (request & response types)
-├── companies.repository.ts  — Drizzle queries (DB layer)
-├── companies.service.ts     — Business logic + audit logging
-└── companies.route.ts       — HTTP handlers + route definitions
+├── companies.schema.ts         — Zod DTO (request & response types)
+├── companies.repository.ts     — Drizzle queries (DB layer), includes branch_count
+├── companies.service.ts        — Business logic + audit logging
+├── companies.route.ts          — HTTP handlers + route definitions
+├── branch.schema.ts            — Zod DTO for branch create/update/params
+├── branch.service.ts           — Business logic for branches
+└── branch.repository.ts        — Drizzle queries for branches
 ```
 
 ---
@@ -39,7 +49,7 @@ Base URL: `http://localhost:3000/api/v1/companies`
 
 ### `GET /api/v1/companies`
 
-List semua perusahaan.
+List semua perusahaan dengan jumlah cabang.
 
 **Response 200:**
 ```json
@@ -50,8 +60,9 @@ List semua perusahaan.
       "id": 1,
       "code": "PT MKO",
       "name": "PT Mesin Kasri Online",
-      "createdAt": "2026-06-21T08:00:00.000Z",
-      "updatedAt": "2026-06-21T08:00:00.000Z"
+      "created_at": "2026-06-21T08:00:00.000Z",
+      "updated_at": "2026-06-21T08:00:00.000Z",
+      "branch_count": 1
     }
   ]
 }
@@ -71,8 +82,8 @@ Ambil satu perusahaan berdasarkan ID.
     "id": 1,
     "code": "PT MKO",
     "name": "PT Mesin Kasri Online",
-    "createdAt": "2026-06-21T08:00:00.000Z",
-    "updatedAt": "2026-06-21T08:00:00.000Z"
+    "created_at": "2026-06-21T08:00:00.000Z",
+    "updated_at": "2026-06-21T08:00:00.000Z"
   }
 }
 ```
@@ -109,8 +120,8 @@ Buat perusahaan baru.
     "id": 4,
     "code": "PT ABC",
     "name": "PT Abadi Cemerlang",
-    "createdAt": "2026-06-22T08:00:00.000Z",
-    "updatedAt": "2026-06-22T08:00:00.000Z"
+    "created_at": "2026-06-22T08:00:00.000Z",
+    "updated_at": "2026-06-22T08:00:00.000Z"
   }
 }
 ```
@@ -145,12 +156,100 @@ Hapus perusahaan.
 
 ---
 
+## Branch Endpoints
+
+Base URL: `http://localhost:3000/api/v1/companies`
+
+---
+
+### `GET /api/v1/companies/:id/branches`
+
+List cabang untuk satu perusahaan.
+
+**Response 200:**
+```json
+{
+  "message": "Success",
+  "data": [
+    {
+      "id": 1,
+      "company_id": 1,
+      "name": "Pusat",
+      "code": "PUSAT",
+      "is_active": true,
+      "created_at": "2026-06-24T08:00:00.000Z",
+      "updated_at": "2026-06-24T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/v1/companies/:id/branches`
+
+Buat cabang baru.
+
+**Request body:**
+```json
+{
+  "name": "Cabang Bandung",
+  "code": "BDG",
+  "is_active": true
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `name` | string | min 2, max 100 |
+| `code` | string | min 2, max 50, uppercase |
+| `is_active` | boolean | required |
+
+**Response 201:** Branch data.
+
+---
+
+### `PATCH /api/v1/companies/branches/:branchId?company_id=...`
+
+Update cabang (edit nama/kode, toggle aktif/nonaktif).
+
+**Query params:**
+| Param | Type | Rules |
+|-------|------|-------|
+| `company_id` | number | required — validasi FK |
+
+**Request body (partial):**
+```json
+{
+  "name": "Cabang Bandung Updated",
+  "is_active": false
+}
+```
+
+**Response 200:** Updated branch data.
+
+---
+
+### `DELETE /api/v1/companies/branches/:branchId?company_id=...`
+
+Hapus cabang.
+
+**Query params:**
+| Param | Type | Rules |
+|-------|------|-------|
+| `company_id` | number | required — validasi FK |
+
+**Response:** `204 No Content`
+
+---
+
 ## Error Codes
 
 | HTTP | Code | Kondisi |
 |------|------|---------|
 | 400 | `VALIDATION_ERROR` | Field tidak valid |
-| 404 | `NOT_FOUND` | Company tidak ditemukan |
+| 403 | `FORBIDDEN` | Branch tidak milik company yg dimaksud |
+| 404 | `NOT_FOUND` | Company/branch tidak ditemukan |
 | 409 | `DUPLICATE_ENTRY` | Code sudah digunakan |
 | 500 | `INTERNAL_ERROR` | Server/DB error |
 
@@ -158,20 +257,23 @@ Hapus perusahaan.
 
 ## Implementation Notes
 
-- **Audit trail**: Semua mutasi dicatat via `logAudit()` dengan action `company.create`, `company.update`, `company.delete`
-- **Cascade**: Delete company akan otomatis menghapus relasi di `user_companies`
-- **Seed**: 3 perusahaan default di-seed via `seedCompanies()`
+- **Audit trail**: Semua mutasi company (`create`, `update`, `delete`) dan branch dicatat via `logAudit()` dengan action `company.*` / `config.update`
+- **Cascade**: Delete company akan otomatis menghapus relasi di `user_companies` dan `company_branches`
+- **Branch count**: `GET /companies` menggunakan LEFT JOIN + COUNT untuk menampilkan jumlah cabang per perusahaan
+- **Branch isolation**: Validasi `company_id` di setiap endpoint branch untuk memastikan cabang milik perusahaan yang benar (403 jika mismatch)
+- **Seed**: 3 perusahaan default + 5 cabang di-seed via `seedCompanies()`, `companies:manage` permission, `companies` page setting
 
 ---
 
 ## References
 
 - **Backend API**: `src/features/companies/`
-- **Database Schema**: `src/db/schema/companies.ts`
+- **Database Schema**: `src/db/schema/companies.ts`, `src/db/schema/company_branches.ts`
 - **Frontend Types**: `frontend/src/types/companies.ts`
+- **Frontend Page**: `frontend/src/pages/Companies/`
 - **Seed Data**: `src/db/seed.ts`
 
 ---
 
-**Last Updated**: 2026-06-22
+**Last Updated**: 2026-06-24
 **Status**: ✅ Production Ready

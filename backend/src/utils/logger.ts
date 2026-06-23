@@ -38,22 +38,34 @@ const consoleFormat = printf(({ level, message, timestamp: ts, ...meta }) => {
 const REDACT_KEYS = ['password', 'token', 'secret', 'authorization', 'cookie', 'access_key']
 
 const redactFormat = winston.format((info) => {
-  const redact = (obj: Record<string, unknown>): Record<string, unknown> => {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => {
-        if (REDACT_KEYS.some((k) => key.toLowerCase().includes(k))) {
-          return [key, '***']
-        }
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-          return [key, redact(value as Record<string, unknown>)]
-        }
-        return [key, value]
-      }),
-    )
+  // Mutate info in-place — jangan buat object baru agar Symbol(level) winston tidak hilang
+  // Membuat object baru akan menghilangkan Symbol properties yang digunakan winston
+  // untuk routing ke file transports, menyebabkan log tidak tersimpan ke file.
+  const redactInPlace = (obj: Record<string, unknown>): void => {
+    for (const key of Object.keys(obj)) {
+      const value = obj[key]
+      if (REDACT_KEYS.some((k) => key.toLowerCase().includes(k))) {
+        obj[key] = '***'
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        redactInPlace(value as Record<string, unknown>)
+      }
+    }
   }
 
-  return redact(info as unknown as Record<string, unknown>) as typeof info
+  redactInPlace(info as unknown as Record<string, unknown>)
+  return info
 })()
+
+const fs = require('fs')
+const path = require('path')
+
+// Create log directories if they don't exist
+const logDirs = ['log/warn', 'log/error']
+logDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+})
 
 const transports: winston.transport[] = [
   // Console — semua level
@@ -72,7 +84,8 @@ const transports: winston.transport[] = [
     filename: '%DATE%.log',
     datePattern: 'YYYY-MM-DD',
     maxFiles: '30d',
-    format: combine(timestamp(), json()),
+    maxSize: '20m',
+    format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), json()),
   }),
 
   // File error — hanya error
@@ -82,13 +95,14 @@ const transports: winston.transport[] = [
     filename: '%DATE%.log',
     datePattern: 'YYYY-MM-DD',
     maxFiles: '30d',
-    format: combine(timestamp(), json()),
+    maxSize: '20m',
+    format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), json()),
   }),
 ]
 
 export const logger = winston.createLogger({
   level: env.NODE_ENV === 'production' ? 'warn' : 'info',
-  format: combine(redactFormat, timestamp()),
+  format: combine(redactFormat),
   transports,
   exitOnError: false,
 })

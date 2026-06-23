@@ -17,13 +17,13 @@ function mapRow(row: any) {
   const oldVal = row.oldValue as Record<string, unknown> | null
   const newVal = row.newValue as Record<string, unknown> | null
 
-  let entityKey: string = row.entityId
+  let entityKey: string = String(row.entityId ?? '')
   if (row.entity === 'users') {
-    entityKey = (newVal?.name as string) ?? (oldVal?.name as string) ?? (newVal?.email as string) ?? (oldVal?.email as string) ?? row.entityId
+    entityKey = (newVal?.name as string) ?? (oldVal?.name as string) ?? (newVal?.email as string) ?? (oldVal?.email as string) ?? String(row.entityId ?? '')
   } else if (row.entity === 'roles') {
-    entityKey = (newVal?.name as string) ?? (oldVal?.name as string) ?? row.entityId
+    entityKey = (newVal?.name as string) ?? (oldVal?.name as string) ?? String(row.entityId ?? '')
   } else if (row.entity === 'business_configs') {
-    entityKey = (oldVal?.key as string) ?? row.entityId
+    entityKey = (oldVal?.key as string) ?? String(row.entityId ?? '')
   }
 
   return {
@@ -31,15 +31,15 @@ function mapRow(row: any) {
     actor: row.actorId != null ? { id: row.actorId, name: row.actorName ?? '' } : null,
     action: row.action,
     entity: row.entity,
-    entity_id: row.entityId,
+    entity_id: String(row.entityId ?? ''),
     entity_key: entityKey,
-    company_id: row.companyId,
+    company_id: row.companyId ?? null,
     old_value: oldVal,
     new_value: newVal,
     meta: row.meta as Record<string, unknown> | null,
-    ip_address: row.ipAddress,
-    request_id: row.requestId,
-    created_at: row.created_at.toISOString(),
+    ip_address: row.ipAddress ?? '',
+    request_id: row.requestId ?? '',
+    created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
   }
 }
 

@@ -1,14 +1,23 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { companies } from '@/db/schema'
+import { companies, company_branches } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
 import type { NewCompany } from '@/db/schema/companies'
 
 export async function findAllCompanies() {
   try {
     return await db
-      .select()
+      .select({
+        id: companies.id,
+        code: companies.code,
+        name: companies.name,
+        created_at: companies.created_at,
+        updated_at: companies.updated_at,
+        branch_count: sql<number>`count(${company_branches.id})::int`,
+      })
       .from(companies)
+      .leftJoin(company_branches, eq(companies.id, company_branches.company_id))
+      .groupBy(companies.id)
       .orderBy(companies.name)
   } catch (err) {
     handleDbError(err)

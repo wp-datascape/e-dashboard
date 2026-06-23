@@ -16,6 +16,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SecurityIcon from '@mui/icons-material/Security';
 import TuneIcon from '@mui/icons-material/Tune';
 import HistoryIcon from '@mui/icons-material/History';
+import BusinessIcon from '@mui/icons-material/Business';
 
 export interface NavItem {
   key: string;
@@ -141,5 +142,11 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/audit-log',
     labelKey: 'nav.auditLog',
     icon: <HistoryIcon fontSize="small" />,
+  },
+  {
+    key: 'companies',
+    path: '/companies',
+    labelKey: 'nav.companies',
+    icon: <BusinessIcon fontSize="small" />,
   },
 ];

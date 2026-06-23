@@ -1,52 +1,166 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { Card } from '@/components/ui'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import FormControl from '@mui/material/FormControl'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import Alert from '@mui/material/Alert'
 import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
+import CircularProgress from '@mui/material/CircularProgress'
+import MenuItem from '@mui/material/MenuItem'
+import FormControl from '@mui/material/FormControl'
+import InputLabel from '@mui/material/InputLabel'
+import Select from '@mui/material/Select'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import FormLabel from '@mui/material/FormLabel'
 import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
-import FormLabel from '@mui/material/FormLabel'
+import DoneIcon from '@mui/icons-material/Done'
+import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
+import { useCompanies } from '@/hooks/useCompanies'
+import { useBranches, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
+import type { AccurateCredentialsPayload } from '@/types/accurate'
 
 export function IntegrationTab() {
   const { t } = useTranslation()
-  
-  // Integration form state
-  const [authMethod, setAuthMethod] = useState<'api-token' | 'oauth'>('oauth')
-  const [appKey, setAppKey] = useState('')
+
+  // ─── Data ─────────────────────────────────────────────────────────────────
+  const { data: companies = [] } = useCompanies()
+
+  // ─── Auth Method ──────────────────────────────────────────────────────────
+  const [authMethod, setAuthMethod] = useState<'api-token' | 'oauth'>('api-token')
+
+  // ─── Form State: Company & Branch ─────────────────────────────────────────
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
+  const [selectedBranchId, setSelectedBranchId] = useState<number>(0)
+
+  // ─── Form State: API Token Method ─────────────────────────────────────────
+  const [subdomain, setSubdomain] = useState('')
+  const [apiToken, setApiToken] = useState('')
   const [signatureSecret, setSignatureSecret] = useState('')
+
+  // ─── Form State: OAuth Method ─────────────────────────────────────────────
+  const [appKey, setAppKey] = useState('')
+  const [signatureSecretOauth, setSignatureSecretOauth] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
-  const [callbackUrl, setCallbackUrl] = useState('https://your-domain.com/api/v1/accurate/callback')
+  const [callbackUrl, setCallbackUrl] = useState('')
   const [companyDb, setCompanyDb] = useState('')
 
-  // Save feedback state
-  const [integrationSaved, setIntegrationSaved] = useState(false)
+  // ─── Feedback State ───────────────────────────────────────────────────────
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [statusMessage, setStatusMessage] = useState('')
+  const [testResult, setTestResult] = useState<{
+    status: 'idle' | 'testing' | 'success' | 'fail'
+    message?: string
+    host?: string
+    alias?: string
+    userName?: string
+  }>({ status: 'idle' })
 
-  const handleSaveIntegration = () => {
-    // TODO: Ganti dengan API call ke backend ketika backend sudah siap
-    setIntegrationSaved(true)
-    setTimeout(() => setIntegrationSaved(false), 3000)
+  // ─── Branches ─────────────────────────────────────────────────────────────
+  const { data: branches = [] } = useBranches(selectedCompanyId || null)
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId)
+
+  // Reset when company changes
+  useEffect(() => {
+    setSelectedBranchId(0)
+    setSubdomain('')
+    setApiToken('')
+    setSignatureSecret('')
+    setTestResult({ status: 'idle' })
+    setStatus('idle')
+  }, [selectedCompanyId])
+
+  // ─── Mutations ────────────────────────────────────────────────────────────
+  const saveMutation = useSaveCredentials()
+  const testMutation = useTestConnection()
+
+  const isFormValid = authMethod === 'api-token'
+    ? (selectedBranchId > 0 && subdomain.trim() && apiToken.startsWith('aat.') && signatureSecret.trim())
+    : (selectedBranchId > 0 && appKey.trim() && signatureSecretOauth.trim() && companyDb.trim())
+
+  // ─── Save Handler ─────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!isFormValid) return
+    setStatus('saving')
+    setStatusMessage('')
+
+    if (authMethod === 'api-token') {
+      const payload: AccurateCredentialsPayload = {
+        branch_id: selectedBranchId,
+        api_token: apiToken.trim(),
+        signature_secret: signatureSecret.trim(),
+        subdomain: subdomain.trim(),
+      }
+      try {
+        await saveMutation.mutateAsync(payload)
+        setStatus('saved')
+        setTimeout(() => setStatus('idle'), 3000)
+      } catch (err: unknown) {
+        setStatus('error')
+        setStatusMessage(err instanceof Error ? err.message : 'Failed to save credentials')
+      }
+    } else {
+      // OAuth — placeholder, backend belum siap
+      setStatus('saved')
+      setTimeout(() => setStatus('idle'), 3000)
+    }
   }
 
-  const handleResetIntegration = () => {
-    setAppKey('')
+  // ─── Test Connection Handler ──────────────────────────────────────────────
+  const handleTestConnection = async () => {
+    if (!isFormValid || authMethod !== 'api-token') return
+    setTestResult({ status: 'testing' })
+
+    const payload: AccurateCredentialsPayload = {
+      branch_id: selectedBranchId,
+      api_token: apiToken.trim(),
+      signature_secret: signatureSecret.trim(),
+      subdomain: subdomain.trim(),
+    }
+
+    try {
+      const result = await testMutation.mutateAsync(payload)
+      if (result.success) {
+        setTestResult({
+          status: 'success',
+          message: result.message || 'Connection successful!',
+          host: result.host,
+          alias: result.alias,
+          userName: result.user_name,
+        })
+      } else {
+        setTestResult({
+          status: 'fail',
+          message: result.message || 'Connection failed',
+        })
+      }
+    } catch (err: unknown) {
+      setTestResult({
+        status: 'fail',
+        message: err instanceof Error ? err.message : 'Connection error',
+      })
+    }
+  }
+
+  // ─── Reset Handler ────────────────────────────────────────────────────────
+  const handleReset = () => {
+    setSelectedBranchId(0)
+    setSubdomain('')
+    setApiToken('')
     setSignatureSecret('')
+    setAppKey('')
+    setSignatureSecretOauth('')
     setClientId('')
     setClientSecret('')
     setCallbackUrl('https://your-domain.com/api/v1/accurate/callback')
     setCompanyDb('')
+    setTestResult({ status: 'idle' })
+    setStatus('idle')
   }
-
-  const isIntegrationValid = authMethod === 'oauth'
-    ? (clientId && clientSecret && callbackUrl && companyDb)
-    : (appKey && signatureSecret && companyDb)
 
   return (
     <Card sx={{ p: 3 }}>
@@ -57,18 +171,69 @@ export function IntegrationTab() {
         {t('config.integration.subtitle')}
       </Typography>
 
-      {integrationSaved && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setIntegrationSaved(false)}>
+      {/* Status Alert */}
+      {status === 'saved' && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
           {t('config.integration.success')}
         </Alert>
       )}
+      {status === 'error' && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
+          {statusMessage || 'Failed to save'}
+        </Alert>
+      )}
 
+      {/* Info Alert */}
       <Alert severity="info" sx={{ mb: 3 }}>
-        <strong>{t('config.integration.infoTitle')}</strong> {t('config.integration.infoText')}<br />
-        <strong>{t('config.integration.infoApiTitle')}</strong> {t('config.integration.infoApiText')}
+        <strong>{t('config.integration.infoTitle')}</strong> {t('config.integration.infoText')}
+        <br />
+        <strong>App Key:</strong> <code>86ed8d58-3d00-487b-8e91-661d8f60e434</code>
+        <br />
+        <strong>Flow:</strong> API Token + HMAC-SHA256 signature → <code>/api/api-token.do</code> →
+        host → data API
       </Alert>
 
       <Stack spacing={3}>
+        {/* Company Selector */}
+        <FormControl fullWidth>
+          <InputLabel>{t('config.integration.selectCompany')}</InputLabel>
+          <Select
+            value={selectedCompanyId}
+            label={t('config.integration.selectCompany')}
+            onChange={(e) => setSelectedCompanyId(Number(e.target.value))}
+          >
+            <MenuItem value={0}>
+              <em>— {t('common.select')} —</em>
+            </MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>
+                {c.name} ({c.code})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Branch Selector */}
+        <FormControl fullWidth disabled={!selectedCompanyId}>
+          <InputLabel>{t('config.integration.selectBranch')}</InputLabel>
+          <Select
+            value={selectedBranchId}
+            label={t('config.integration.selectBranch')}
+            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+          >
+            <MenuItem value={0}>
+              <em>— {t('common.select')} —</em>
+            </MenuItem>
+            {branches.map((b) => (
+              <MenuItem key={b.id} value={b.id}>
+                {b.name} ({b.code})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Divider />
+
         {/* Auth Method Selector */}
         <FormControl component="fieldset">
           <FormLabel component="legend">{t('config.integration.authMethod')}</FormLabel>
@@ -84,12 +249,92 @@ export function IntegrationTab() {
 
         <Divider />
 
-        {/* OAuth Method */}
-        {authMethod === 'oauth' && (
+        {/* ─── API Token Method ──────────────────────────────────────────────── */}
+        {authMethod === 'api-token' && selectedBranch && (
           <>
-            <Typography variant="subtitle2" color="primary">
-              {t('config.integration.oauthTitle')}
+            <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
+              {t('config.integration.apiTokenTitle')} — {selectedBranch.name}
             </Typography>
+
+            <TextField
+              fullWidth
+              label={t('config.integration.subdomain')}
+              value={subdomain}
+              onChange={(e) => setSubdomain(e.target.value)}
+              placeholder="odin"
+              helperText={t('config.integration.subdomainHelper')}
+            />
+
+            <TextField
+              fullWidth
+              label={t('config.integration.apiToken')}
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              placeholder="aat.MTAw.eyJ2..."
+              helperText={t('config.integration.apiTokenHelper')}
+              type="password"
+            />
+
+            <TextField
+              fullWidth
+              label={t('config.integration.signatureSecret')}
+              value={signatureSecret}
+              onChange={(e) => setSignatureSecret(e.target.value)}
+              placeholder="3soFMSAKxTdkraVPtLqyE2H1..."
+              helperText={t('config.integration.signatureSecretHelper')}
+              type="password"
+            />
+
+            {/* Test Result */}
+            {testResult.status === 'success' && (
+              <Alert severity="success" icon={<DoneIcon />}>
+                <strong>{t('config.integration.testSuccess')}</strong>
+                <Box sx={{ mt: 1, fontSize: '0.875rem' }}>
+                  <div>{t('config.integration.testUser')}: {testResult.userName}</div>
+                  <div>{t('config.integration.testHost')}: {testResult.host}</div>
+                  <div>{t('config.integration.testAlias')}: {testResult.alias}</div>
+                </Box>
+              </Alert>
+            )}
+            {testResult.status === 'fail' && (
+              <Alert severity="error" icon={<CloseIcon />}>
+                <strong>{t('config.integration.testFail')}</strong>
+                <Box sx={{ mt: 1, fontSize: '0.875rem' }}>{testResult.message}</Box>
+              </Alert>
+            )}
+            {testResult.status === 'testing' && (
+              <Alert severity="info" icon={<CircularProgress size={20} />}>
+                {t('config.integration.testing')}
+              </Alert>
+            )}
+          </>
+        )}
+
+        {/* ─── OAuth Method ──────────────────────────────────────────────────── */}
+        {authMethod === 'oauth' && selectedBranch && (
+          <>
+            <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
+              {t('config.integration.oauthTitle')} — {selectedBranch.name}
+            </Typography>
+
+            <TextField
+              fullWidth
+              label={t('config.integration.appKey')}
+              value={appKey}
+              onChange={(e) => setAppKey(e.target.value)}
+              placeholder="86ed8d58-3d00-487b-8e91-661d8f60e434"
+              helperText={t('config.integration.appKeyHelper')}
+            />
+
+            <TextField
+              fullWidth
+              label={t('config.integration.signatureSecret')}
+              type="password"
+              value={signatureSecretOauth}
+              onChange={(e) => setSignatureSecretOauth(e.target.value)}
+              placeholder="3soFMSAKxTdkraVPtLqyE2H1..."
+              helperText={t('config.integration.signatureSecretHelper')}
+            />
 
             <TextField
               fullWidth
@@ -118,71 +363,54 @@ export function IntegrationTab() {
               placeholder="https://your-domain.com/api/v1/accurate/callback"
               helperText={t('config.integration.callbackUrlHelper')}
             />
+
+            <TextField
+              fullWidth
+              label={t('config.integration.companyDb')}
+              value={companyDb}
+              onChange={(e) => setCompanyDb(e.target.value)}
+              placeholder="2704558"
+              helperText={t('config.integration.companyDbHelper')}
+            />
           </>
         )}
 
-        {/* API Token Method */}
-        {authMethod === 'api-token' && (
+        {selectedBranch && (
           <>
-            <Typography variant="subtitle2" color="primary">
-              {t('config.integration.apiTokenTitle')}
-            </Typography>
+            <Alert severity="warning">
+              {t('config.integration.saveWarning')}
+            </Alert>
 
-            <TextField
-              fullWidth
-              label={t('config.integration.appKey')}
-              value={appKey}
-              onChange={(e) => setAppKey(e.target.value)}
-              placeholder="5eaa6dda-376a-4dc9-97ba-f5f387bb519f"
-              helperText={t('config.integration.appKeyHelper')}
-            />
+            <Divider />
 
-            <TextField
-              fullWidth
-              label={t('config.integration.signatureSecret')}
-              type="password"
-              value={signatureSecret}
-              onChange={(e) => setSignatureSecret(e.target.value)}
-              placeholder="F400EJif1S95iaHjDvfh4pHKemqAe2kpNDruXASDm0JctNVbr4o6VGMgSqph7V0M"
-              helperText={t('config.integration.signatureSecretHelper')}
-            />
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                onClick={handleSave}
+                disabled={!isFormValid || status === 'saving'}
+                startIcon={status === 'saving' ? <CircularProgress size={16} /> : undefined}
+              >
+                {t('config.integration.saveButton')}
+              </Button>
+
+              {authMethod === 'api-token' && (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={handleTestConnection}
+                  disabled={!isFormValid || testResult.status === 'testing'}
+                  startIcon={testResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}
+                >
+                  {t('config.integration.testButton')}
+                </Button>
+              )}
+
+              <Button variant="outlined" onClick={handleReset}>
+                {t('common.reset')}
+              </Button>
+            </Box>
           </>
         )}
-
-        <Divider />
-
-        {/* Common Fields */}
-        <Typography variant="subtitle2" color="text.secondary">
-          {t('config.integration.dbInfo')}
-        </Typography>
-
-        <TextField
-          fullWidth
-          label={t('config.integration.companyDb')}
-          value={companyDb}
-          onChange={(e) => setCompanyDb(e.target.value)}
-          placeholder="12345"
-          helperText={t('config.integration.companyDbHelper')}
-        />
-
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          {t('config.integration.saveWarning')}
-        </Alert>
-
-        <Divider />
-
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            onClick={handleSaveIntegration}
-            disabled={!isIntegrationValid}
-          >
-            {t('config.integration.saveButton')}
-          </Button>
-          <Button variant="outlined" onClick={handleResetIntegration}>
-            {t('common.reset')}
-          </Button>
-        </Box>
       </Stack>
     </Card>
   )

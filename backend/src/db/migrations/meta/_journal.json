@@ -15,6 +15,27 @@
       "when": 1782205221438,
       "tag": "0001_daily_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782240882243,
+      "tag": "0002_company_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782243453544,
+      "tag": "0003_accurate_credentials_sig",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782247333336,
+      "tag": "0004_accurate_credentials_text",
+      "breakpoints": true
     }
   ]
 }

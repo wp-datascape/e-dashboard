@@ -1,5 +1,5 @@
 import { db } from '@/config/db'
-import { users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { eq, and } from 'drizzle-orm'
 
@@ -7,6 +7,17 @@ const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasri Online' },
   { code: 'PT KNT', name: 'PT Kode Niaga Tama' },
   { code: 'PT SKI', name: 'PT Solusi Kartu Indonesia' },
+]
+
+const defaultBranches = [
+  // PT MKO — 1 branch (Pusat)
+  { company_code: 'PT MKO', name: 'Pusat', code: 'PUSAT', is_active: true },
+  // PT KNT — 3 branches
+  { company_code: 'PT KNT', name: 'Surabaya', code: 'SBY', is_active: true },
+  { company_code: 'PT KNT', name: 'Jakarta', code: 'JKT', is_active: true },
+  { company_code: 'PT KNT', name: 'Semarang', code: 'SMG', is_active: true },
+  // PT SKI — 1 branch (Pusat)
+  { company_code: 'PT SKI', name: 'Pusat', code: 'PUSAT', is_active: true },
 ]
 
 const defaultRoles = [
@@ -68,6 +79,9 @@ const defaultPermissions = [
   // Audit Log
   { name: 'audit:menu', description: 'Menu Audit Log', category: 'Audit Log' },
   { name: 'audit:view', description: 'View Audit Log', category: 'Audit Log' },
+
+  // Companies
+  { name: 'companies:manage', description: 'Manage Companies & Branches', category: 'Companies' },
 ]
 
 const defaultUsers = [
@@ -100,6 +114,7 @@ const defaultPageSettings = [
   { page_key: 'rbac', ready: true },
   { page_key: 'config', ready: true },
   { page_key: 'audit-log', ready: true },
+  { page_key: 'companies', ready: true },
 ]
 
 async function seedCompanies() {
@@ -109,6 +124,35 @@ async function seedCompanies() {
     if (existing) { console.log(`  skip  ${c.code}`); continue }
     await db.insert(companies).values({ code: c.code, name: c.name })
     console.log(`  ok    ${c.code}`)
+  }
+}
+
+async function seedBranches() {
+  console.log('Seeding branches...')
+  const allCompanies = await db.select().from(companies)
+  const companyMap = new Map(allCompanies.map(c => [c.code, c.id]))
+
+  for (const b of defaultBranches) {
+    const companyId = companyMap.get(b.company_code)
+    if (!companyId) { console.log(`  skip  company ${b.company_code} not found`); continue }
+
+    const [existing] = await db
+      .select({ id: company_branches.id })
+      .from(company_branches)
+      .where(and(
+        eq(company_branches.company_id, companyId),
+        eq(company_branches.code, b.code),
+      ))
+      .limit(1)
+    if (existing) { console.log(`  skip  ${b.company_code}/${b.code}`); continue }
+
+    await db.insert(company_branches).values({
+      company_id: companyId,
+      name: b.name,
+      code: b.code,
+      is_active: b.is_active,
+    })
+    console.log(`  ok    ${b.company_code}/${b.code} (${b.name})`)
   }
 }
 
@@ -201,6 +245,7 @@ async function seedPageSettings() {
 async function seed() {
   try {
     await seedCompanies()
+    await seedBranches()
     await seedRoles()
     await seedUsers()
     await seedPermissionsList()

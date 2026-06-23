@@ -1,7 +1,7 @@
 # Feature: Config Page — System Configuration
 
 > Status: ✅ Complete — All 4 tabs functional
-> Last updated: 2026-06-22
+> Last updated: 2026-06-24
 
 ---
 
@@ -12,7 +12,7 @@ Halaman Config adalah pusat pengaturan sistem. Terdiri dari 4 tab:
 | Tab | Konten |
 |-----|--------|
 | **Business Rules** | Dormant threshold per BU, active_window, general settings |
-| **Integration** | Accurate Online API credentials (OAuth / API Token) |
+| **Integration** | Accurate Online API credentials (company + branch selector) |
 | **App Settings** | Language, Theme (dark/light), Color palette |
 | **Page Settings** | Toggle menu visibility (ready/not ready) |
 
@@ -25,10 +25,55 @@ frontend/src/pages/Config/
 ├── index.tsx                     — Main page + tab orchestrator
 ├── components/
 │   ├── BusinessRulesTab.tsx       — Tab 1: Dormant thresholds & general config
-│   ├── IntegrationTab.tsx         — Tab 2: Accurate Online credentials
+│   ├── IntegrationTab.tsx         — Tab 2: Accurate Online credentials (UPDATED)
 │   ├── AppSettingsTab.tsx         — Tab 3: Language + Theme
 │   └── PageSettingsTab.tsx        — Tab 4: Page visibility toggles
 ```
+
+---
+
+## Tab 2: Integration (Updated 2026-06-24)
+
+### Fitur
+
+1. **Pilih Company** — dropdown dari data companies
+2. **Pilih Branch** — otomatis terfilter berdasarkan company:
+   - PT MKO: Pusat (1 branch)
+   - PT KNT: Surabaya, Jakarta, Semarang (3 branch)
+   - PT SKI: Pusat (1 branch)
+3. **Auth Method selector** — Radio group: OAuth 2.0 / API Token
+4. **API Token method** (default):
+   - Subdomain (e.g. `odin` dari `odin.accurate.id`)
+   - API Token (`aat.xxx...`)
+   - Signature Secret (dari Area Developer)
+   - **Test Connection** — verifikasi token ke Accurate `/api/api-token.do`
+5. **OAuth method** (alternate):
+   - App Key + Signature Secret
+   - Client ID + Client Secret
+   - Callback URL + Company DB ID
+
+### Flow Test Connection (API Token)
+
+```
+Frontend → POST /api/v1/config/accurate/test-connection
+  → Backend: POST https://account.accurate.id/api/api-token.do
+    Headers:
+      Authorization: Bearer {api_token}
+      X-Api-Timestamp: {dd/mm/yyyy hh:nn:ss}
+      X-Api-Signature: HMAC-SHA256(timestamp, signature_secret) → Base64
+  → Response: { database: { host, alias, id }, application, user }
+  → Frontend display: User, Host, Database name
+```
+
+### Frontend Files
+
+| File | Role |
+|------|------|
+| `src/types/accurate.ts` | Types: CompanyBranch, AccurateCredential, AccurateTestResult |
+| `src/api/accurate.api.ts` | API layer: getBranches, getCredentials, saveCredentials, testConnection |
+| `src/hooks/useAccurate.ts` | TanStack Query hooks: useBranches, useCredentials, useSaveCredentials, useTestConnection |
+| `src/mocks/handlers/accurate.handler.ts` | MSW mock handlers for dev |
+| `src/pages/Config/components/IntegrationTab.tsx` | Main component |
 
 ---
 
@@ -54,8 +99,7 @@ List semua page settings.
 {
   "message": "Success",
   "data": [
-    { "id": 1, "pageKey": "dashboard", "ready": true, "createdAt": "...", "updatedAt": "..." },
-    { "id": 2, "pageKey": "customers", "ready": true, "createdAt": "...", "updatedAt": "..." }
+    { "id": 1, "pageKey": "dashboard", "ready": true, "created_at": "...", "updated_at": "..." }
   ]
 }
 ```
@@ -69,32 +113,7 @@ Toggle ready status.
 { "ready": false }
 ```
 
-**Response 200:**
-```json
-{
-  "message": "Success",
-  "data": {
-    "id": 2,
-    "pageKey": "customers",
-    "ready": false,
-    "createdAt": "...",
-    "updatedAt": "..."
-  }
-}
-```
-
-### UI Components
-
-**PageSettingsTab.tsx**
-- Data: `usePageSettings()` → `GET /api/v1/page-settings`
-- Mutation: `useUpdatePageSetting()` → `PUT /api/v1/page-settings/:pageKey`
-- Tampilan: Table dengan Switch per row, grouped by menu group
-- Loading state: CircularProgress per row saat toggle
-- Error state: Alert component
-
 ### Group Mapping
-
-Page keys dikelompokkan secara hardcoded:
 
 | Group | Pages |
 |-------|-------|
@@ -118,7 +137,7 @@ Semua page di-seed via `backend/src/db/seed.ts`:
   { pageKey: 'products-high-margin', ready: true },
   { pageKey: 'products-trend', ready: true },
   { pageKey: 'transactions', ready: true },
-  { pageKey: 'projects', ready: false },         // Pending MVP decision
+  { pageKey: 'projects', ready: false },
   { pageKey: 'import', ready: true },
   { pageKey: 'users', ready: true },
   { pageKey: 'rbac', ready: true },
@@ -127,28 +146,17 @@ Semua page di-seed via `backend/src/db/seed.ts`:
 ]
 ```
 
-### Files Modified
-
-| File | Perubahan |
-|------|-----------|
-| `frontend/src/api/page.api.ts` | Tambah `updatePageSetting(pageKey, ready)` |
-| `frontend/src/hooks/usePageSettings.ts` | Tambah `useUpdatePageSetting()` mutation hook |
-| `frontend/src/pages/Config/components/PageSettingsTab.tsx` | **BARU** — komponen tab |
-| `frontend/src/pages/Config/index.tsx` | Register tab ke-4 |
-| `frontend/src/i18n/locales/en.json` | Keys: `config.tabs.pageSettings`, `config.pageSettings.*` |
-| `frontend/src/i18n/locales/id.json` | Keys bahasa Indonesia |
-
 ---
 
 ## References
 
-- **Backend**: `src/features/page/`
+- **Backend**: `src/features/page/`, `src/db/schema/company_branches.ts`, `src/db/schema/accurate_credentials.ts`
 - **Database Schema**: `src/db/schema/page_settings.ts`
 - **Seed Data**: `src/db/seed.ts`
-- **Frontend API**: `frontend/src/api/page.api.ts`
+- **Frontend API**: `frontend/src/api/page.api.ts`, `frontend/src/api/accurate.api.ts`
 - **Frontend Config Page**: `frontend/src/pages/Config/`
 
 ---
 
-**Last Updated**: 2026-06-22
+**Last Updated**: 2026-06-24
 **Status**: ✅ Production Ready

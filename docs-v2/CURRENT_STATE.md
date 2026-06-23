@@ -6,8 +6,8 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~90%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done |
-| Backend  | ~30%   | Auth, Users CRUD, Roles, Permissions CRUD selesai. Metrics + Customer API belum |
-| Database | ~50%   | Schema + migrations 0000_init_schema, seed data OK |
+| Backend  | ~35%   | Auth, Users CRUD, Roles, Permissions, Companies, Config, Page, Audit CRUD selesai. Accurate API client + test OK |
+| Database | ~55%   | Schema + 12 tabel (termasuk company_branches, accurate_credentials), migrations, seed OK |
 | Docs     | 100%   | docs-v2 selesai semua, termasuk features/rbac.md baru |
 
 ## Frontend — Page Status
@@ -29,6 +29,7 @@
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
 | Order Ledger     | `/orders`           | DataGrid invoice + BU filter + detail drawer, mock API |
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
+| Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -52,6 +53,7 @@
 | RBAC Management             | 5.3   | High     |
 | Config UI                   | 5.4   | Medium   |
 | Audit Log Viewer            | 5.5   | ~~Done~~ |
+| Companies Management        | 5.6   | ~~Done~~ |
 
 *4.2 B2B Project: high complexity — konfirmasi dulu apakah masuk MVP sebelum mulai
 
@@ -154,6 +156,121 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-24 (sesi 13): Companies Management Page — Backend Endpoints + Frontend CRUD
+
+**Backend — Branch CRUD (5 endpoints):**
+- `branch.schema.ts` — Zod schemas for branch create/update, branch ID param validation
+- `branch.service.ts` — Service layer: getBranchesByCompany, getBranchById, create/update/delete with audit logging
+- `companies.route.ts` — Added 4 branch endpoints:
+  - `GET /companies/:id/branches` — list branches
+  - `POST /companies/:id/branches` — create branch
+  - `PATCH /companies/branches/:branchId?company_id=...` — update branch
+  - `DELETE /companies/branches/:branchId?company_id=...` — delete branch
+- `seed.ts` — Added:
+  - 5 default branches (PT MKO: Pusat, PT KNT: SBY/JKT/SMG, PT SKI: Pusat)
+  - `companies:manage` permission (category: Companies)
+  - `companies` page setting (ready: true)
+
+**Frontend — Companies Management Page:**
+- `types/companies.ts` — Added `CompanyBranch`, `CreateBranchPayload`, `UpdateBranchPayload`, `CompanyWithBranches`
+- `api/companies.api.ts` — Added branch API calls (getBranchesByCompany, create/update/delete branch)
+- `hooks/useCompanies.ts` — Added `useBranchesByCompany`, `useCreateBranch`, `useUpdateBranch`, `useDeleteBranch`
+- `pages/Companies/` — Full page with 4 components:
+  - `index.tsx` — DataGrid + action menu (view/edit/delete/manage branches)
+  - `CompanyDialog.tsx` — Create/Edit/Delete company form dialog
+  - `CompanyDetailDialog.tsx` — View company details dialog
+  - `BranchSection.tsx` — Inline branch management with inline edit/create/delete
+- Route registration in `routeConstants.tsx` (path: `/companies`, key: `companies`)
+- Lazy import in `routeLazyComponents.tsx`
+- Menu item in `menu.tsx` (Admin group, BusinessIcon)
+- `page.handler.ts` — Added `companies: ready: true`
+- i18n `en.json` + `id.json` — Added full `companies.*` keys (title, dialog labels, branch management)
+
+**IntegrationTab:**
+- Already uses `useCompanies()` + `useBranches()` from existing hooks — no changes needed, both hooks call the same real API endpoints (`/companies` and `/companies/:id/branches`)
+
+**Perubahan file:**
+- `backend/src/features/companies/branch.schema.ts` — NEW (Zod schemas)
+- `backend/src/features/companies/branch.service.ts` — NEW (service layer)
+- `backend/src/features/companies/branch.repository.ts` — existing (no changes)
+- `backend/src/features/companies/companies.route.ts` — UPDATED (+4 branch endpoints)
+- `backend/src/db/seed.ts` — UPDATED (+branches, +permission, +page setting)
+- `frontend/src/types/companies.ts` — UPDATED (+branch types)
+- `frontend/src/api/companies.api.ts` — UPDATED (+branch API calls)
+- `frontend/src/hooks/useCompanies.ts` — UPDATED (+branch hooks)
+- `frontend/src/pages/Companies/` — NEW (4 files)
+- `frontend/src/route/routeConstants.tsx` — UPDATED
+- `frontend/src/route/routeLazyComponents.tsx` — UPDATED
+- `frontend/src/config/menu.tsx` — UPDATED
+- `frontend/src/mocks/handlers/page.handler.ts` — UPDATED
+- `frontend/src/i18n/locales/en.json` — UPDATED (fix + companies keys)
+- `frontend/src/i18n/locales/id.json` — UPDATED (+companies keys)
+- `docs-v2/CURRENT_STATE.md` — catatan sesi ini
+
+---
+
+### 2026-06-24 (sesi 12): Integrasi Accurate — Schema + Test + Frontend
+
+**Database Schema (2 tabel baru):**
+- `company_branches` — cabang perusahaan per company (Pusat, Surabaya, Jakarta, Semarang)
+- `accurate_credentials` — kredensial API Token per branch (api_token, signature_secret, subdomain, company_db_id)
+
+**Test Koneksi Accurate (HASIL ✅):**
+- Flow: `POST /api/api-token.do` dengan HMAC-SHA256 signature
+- Auth: Token `aat.MTAw...` + Signature Secret `3soFMSAK...`
+- Response: `{"s":true,"d":{"database":{"host":"https://odin.accurate.id","alias":"Sandbox","id":2704558},"user":{"fullName":"Semanggi"}}}`
+- Customer list: 5 customers (Aab, Aaf, Aal, dll)
+- Invoice list: 1 invoice (SI.2026.06.00001, Rp 2,995,800)
+
+**Frontend — Integration Tab (Config):**
+- `src/types/accurate.ts` — tipe data baru
+- `src/api/accurate.api.ts` — API layer (branches, credentials, test connection)
+- `src/hooks/useAccurate.ts` — TanStack Query hooks
+- `src/mocks/handlers/accurate.handler.ts` — MSW mock
+- `src/pages/Config/components/IntegrationTab.tsx` — update besar: Company dropdown → Branch dropdown → Auth method selector (OAuth/API Token) → form credentials → test connection button
+- i18n en.json + id.json — semua keys integration lengkap
+
+**Credentials Terkonfirmasi:**
+| Item | Value |
+|------|-------|
+| App Key | `86ed8d58-3d00-487b-8e91-661d8f60e434` |
+| Signature Secret | `3soFMSAKxTdkraVPtLqyE2H1la6kGWSNM7HuHcQTzK6HHArb9YtTSTTOn4wS87E1` |
+| Sandbox API Token | `aat.MTAw.eyJ2...` |
+| Host | `odin.accurate.id` |
+| DB ID | 2704558 |
+
+**Dokumentasi:**
+- `docs-v2/shared/data-model.md` — tambah definisi company_branches + accurate_credentials
+- `docs-v2/features/config-page.md` — update detail Integration Tab
+- `docs-v2/CURRENT_STATE.md` — catatan sesi ini
+
+---
+
+### 2026-06-23 (sesi 11): Codebase Memory Indexing Full
+
+**Codebase memory di-index ke knowledge graph:**
+
+- **Repository**: `home-pacman-e-dashbord` — mode `full` dengan persistence
+- **Nodes**: 3,150 (Function: 508, Variable: 1,136, Interface: 148, Type: 56, Route: 34, File: 286, dll)
+- **Edges**: 4,871 (CALLS: 684, IMPORTS: 439, USAGE: 338, HTTP_CALLS: 13, SEMANTICALLY_RELATED: 140, dll)
+- **Languages**: TypeScript (226 files), SQL (4), YAML (2), JavaScript (2), HTML (1), CSS (1)
+- **Clusters detected**: 12 komunitas — backend (62 members, 0.95 cohesion), frontend pages (RBAC, Users, Import, Customers, Transactions, Products, Config, Dashboard/Login), docs-v2
+- **Hotspots**: `handleDbError` (33 callers), `usePageSettings.select` (27 callers), `error` response (10 callers), `Card` component (9 callers), `logAudit` (6 callers)
+- **Entry points**: 20 functions identified (AppError, registerErrorHandlers, findAuditLogs, findAllCompanies, dll)
+- **Routes**: 20 HTTP routes detected (companies, roles, permissions, config, page-settings, import, users)
+
+**Architecture Decision Record (ADR) dibuat:**
+- Menyimpan arsitektur lengkap: project structure, backend layer pattern (Route→Handler→Service→Repository), frontend data flow (Page→Hook→API→Axios), component inventory, progress status
+- Disimpan di codebase-memory knowledge graph untuk persistensi antar sesi
+
+**Perubahan file:**
+- `.codebase-memory/artifact.json` — diupdate (kompresi graph ke .zst)
+- `.codebase-memory/graph.db.zst` — artifact baru untuk team sharing
+- `docs-v2/CURRENT_STATE.md` — catatan sesi ini
+- ADR disimpan di knowledge graph internal
+
+---
 
 ### 2026-06-23 (sesi 10): Audit Penamaan Variabel — Backend Drizzle Schema + Zod + Repository
 

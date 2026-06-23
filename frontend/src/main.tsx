@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { SnackbarProvider } from 'notistack'
 
+// ─── API Initialization ────────────────────────────────────────────────────────
+// WAJIB: Import axios di boot time untuk trigger logger interceptors
+import '@/api/axios'
+
 // Offline fonts
 import '@fontsource/plus-jakarta-sans/400.css'
 import '@fontsource/plus-jakarta-sans/500.css'

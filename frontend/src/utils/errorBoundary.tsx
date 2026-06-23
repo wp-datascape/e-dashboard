@@ -87,10 +87,9 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ errorInfo: info })
     this.props.onError?.(error, info)
 
-    // Kirim ke error tracker jika ada (misal Sentry)
-    if (import.meta.env.PROD) {
-      console.error('[ErrorBoundary]', error, info)
-    }
+    // Log ke console — selalu, karena error boundary penting untuk debug
+    // (di production, idealnya dikirim ke Sentry/monitoring tool)
+    console.error('[ErrorBoundary]', error, info)
   }
 
   private handleReload = () => {

@@ -30,7 +30,7 @@ export async function createCompanyService(dto: CreateCompanyDto, ctx: Context) 
   logger.info('[company] Company created', { id: company!.id, code: dto.code })
 
   await logAudit(ctx, {
-    action: 'config.update',
+    action: 'company.create',
     entity: 'companies',
     entityId: company!.id,
     companyId: null,
@@ -52,12 +52,12 @@ export async function updateCompanyService(id: number, dto: UpdateCompanyDto, ct
   logger.info('[company] Company updated', { id })
 
   await logAudit(ctx, {
-    action: 'config.update',
+    action: 'company.update',
     entity: 'companies',
     entityId: id,
     companyId: null,
     oldValue: { code: existing.code, name: existing.name },
-    meta: { changes: dto },
+    newValue: { code: dto.code ?? existing.code, name: dto.name ?? existing.name },
   })
 
   return company
@@ -70,7 +70,7 @@ export async function deleteCompanyService(id: number, ctx: Context) {
   logger.info('[company] Company deleted', { id })
 
   await logAudit(ctx, {
-    action: 'config.update',
+    action: 'company.delete',
     entity: 'companies',
     entityId: id,
     companyId: null,

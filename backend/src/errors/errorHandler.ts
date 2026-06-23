@@ -92,13 +92,16 @@ export function registerErrorHandlers(app: Hono): void {
 
     // Unknown / unexpected error
     // Log detail termasuk stack trace — JANGAN kirim ke client
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorStack = err instanceof Error ? err.stack : undefined
+    
     logger.error('[error] Unhandled exception', {
       request_id: requestId,
       path,
       method,
-      name: err.name,
-      message: err.message,
-      stack: err.stack, // hanya di log server, tidak dikirim ke client
+      name: err instanceof Error ? err.name : 'Unknown',
+      message: errorMessage,
+      stack: errorStack, // hanya di log server, tidak dikirim ke client
     })
 
     return jsonError(

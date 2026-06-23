@@ -16,6 +16,7 @@ import {
   RBAC,
   Config,
   AuditLog,
+  Companies,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -110,6 +111,11 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'audit-log': { 
     path: '/audit-log', 
     element: withLayout(<AuditLog />), 
+    protected: true 
+  },
+  'companies': { 
+    path: '/companies', 
+    element: withLayout(<Companies />), 
     protected: true 
   },
 }

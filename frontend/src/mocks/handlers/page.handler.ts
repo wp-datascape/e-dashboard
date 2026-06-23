@@ -53,6 +53,7 @@ export const pageHandlers = [
        { page_key: 'rbac', ready: true },
        { page_key: 'config', ready: true },
        { page_key: 'audit-log', ready: true },
+       { page_key: 'companies', ready: true },
     ];
 
     return HttpResponse.json<ApiResponse<PageSetting[]>>({

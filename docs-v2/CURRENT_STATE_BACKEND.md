@@ -13,10 +13,10 @@
 | Project Setup    | Done   | Bun, tsconfig, bun-types, .env             |
 | Folder Structure | Done   | Feature-based + Router Orchestrator        |
 | Config           | Done   | env.ts (Zod), db.ts (Drizzle)              |
-| Utils            | Done   | 10 utils siap pakai                        |
+| Utils            | Done   | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
 | Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
-| DB Schema        | Done   | 0000_init_schema.sql selesai, semua tabel terdefinisi |
-| DB Migration     | Done   | Migration 0000 applied                     |
+| DB Schema        | Done   | 0000_init_schema.sql selesai + 3 migrations (company_branches, accurate_credentials); accurate_credentials token columns: varchar→text |
+| DB Migration     | Done   | 0000-0003 applied, 0004 generated (pending apply) |
 | DB Seed          | Done   | seed.ts dibuat                             |
 | Feature: Auth    | 0%     | Belum dibuat, router.ts masih commented    |
 | Feature: RBAC    | Done   | roles + permissions mounted, rbac folder ada |
@@ -62,7 +62,7 @@
 
 | File | Status | Exports | Keterangan |
 |------|--------|---------|------------|
-| `src/utils/logger.ts` | Done | `logger` | Winston wrapper, PII redaction, daily rotate file |
+| `src/utils/logger.ts` | Done | `logger`, `logHttpRequest`, `logHttpResponse` | Winston wrapper, PII redaction, daily rotate file; **Fixed**: Symbol(level) preservation for file transports |
 | `src/utils/error.ts` | Done | `AppError`, `ErrorCode`, `isAppError`, `ERROR_STATUS` | 14 error codes |
 | `src/utils/response.ts` | Done | `success()`, `paginated()`, `error()`, `noContent()` | Standardized API responses |
 | `src/utils/jwt.ts` | Done | `generateToken()`, `generateRefreshToken()`, `verifyToken()`, `verifyRefreshToken()` | Payload tanpa permissions (Opsi B) |
@@ -216,6 +216,20 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 ---
 
 ## Catatan Sesi
+
+### 2026-06-24 (sesi 5 — Logger & Schema Fixes)
+- **Logger Root Cause FIXED**: Winston `redactFormat` menggunakan `Object.fromEntries()` yang menghilangkan Symbol properties
+  - Root cause: Plain object baru tidak preserve Symbol(level) milik Winston
+  - Solution: Mutate object in-place agar Symbol properties tetap ada
+  - Hasil: Log file kini berfungsi (error.log & warn.log dengan daily rotate)
+- **Error Logging Added**: Try-catch di `PUT /config/accurate/credentials/:branchId`
+  - Hanya log 5xx errors ke file (bukan 4xx AppError yang expected/operational)
+  - Error 5xx sekarang tercatat dengan stack trace di `backend/log/error/YYYY-MM-DD.log`
+- **Database Schema Updated**: accurate_credentials token columns
+  - Problem: Accurate API token sangat panjang (JWT multi-part) + AES-256-GCM encryption → overflow varchar(500)
+  - Solution: `api_token`, `signature_secret`, `client_secret`, `access_token`, `refresh_token` dari varchar → text
+  - Migration: `0004_accurate_credentials_text.sql` generated (status: pending apply dengan `make db-migrate`)
+- Test verified: Error handling pipeline complete — validation → error log → file persistence ✅
 
 ### 2026-06-23 (sesi 4)
 - Dokumentasi backend diupdate berdasarkan kondisi aktual kode

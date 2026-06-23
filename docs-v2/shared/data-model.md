@@ -321,6 +321,62 @@ revenue          -- numeric, no thousand separator, decimal comma
 gross_profit     -- numeric
 Column mapping handled in utils/parser.ts — do not change internal column names.
 
+## New Tables (Added 2026-06-23)
+
+### company_branches
+id              serial PK
+
+company_id      FK companies
+
+name            varchar               -- 'Pusat', 'Surabaya', 'Jakarta', 'Semarang'
+
+code            varchar               -- 'PUSAT', 'SBY', 'JKT', 'SMG'
+
+is_active       boolean default true
+
+created_at      timestamp
+
+updated_at      timestamp
+
+UNIQUE (company_id, code)
+
+Tiap company punya minimal 1 branch (Pusat). PT KNT punya 3 branch terpisah karena masing-masing punya Accurate DB sendiri.
+
+### accurate_credentials
+id              serial PK
+
+branch_id       FK company_branches (unique)
+
+auth_method     varchar default 'api_token'  -- 'api_token' | 'oauth'
+
+api_token       varchar nullable             -- WAJIB encrypt di DB
+
+client_id       varchar nullable             -- OAuth only
+
+client_secret   varchar nullable             -- OAuth only
+
+callback_url    varchar nullable             -- OAuth only
+
+subdomain       varchar not null             -- e.g. 'mko' dari mko.accurate.id
+
+company_db_id   varchar nullable             -- Accurate internal DB ID
+
+access_token    varchar nullable             -- OAuth runtime token
+
+refresh_token   varchar nullable             -- OAuth refresh
+
+token_expires_at timestamp nullable          -- OAuth expiry
+
+is_active       boolean default true
+
+created_at      timestamp
+
+updated_at      timestamp
+
+UNIQUE (branch_id)
+
+API Token adalah method yang direkomendasikan (stabil, tanpa refresh cycle). OAuth tersedia sebagai alternatif.
+
 ## Pending Schema Items (not yet added)
 customers.business_unit  -- add: B2B_DC | B2B_PROJECT | B2C | MANUFACTURING
 

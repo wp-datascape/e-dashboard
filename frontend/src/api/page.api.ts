@@ -1,44 +1,32 @@
 // src/api/page.api.ts
+import { api } from './axios';
 import { PageSetting, ConfigItem } from '@/types/page';
 import { ApiResponse } from '@/types/api';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
-
-async function apiFetch<T>(
-  url: string,
-  options?: RequestInit
-): Promise<ApiResponse<T>> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw { status: response.status, message: err.message || 'Request failed' };
-  }
-  return response.json();
-}
-
 export const pageApi = {
   getPageSettings: async (): Promise<ApiResponse<PageSetting[]>> => {
-    return apiFetch<PageSetting[]>(`${BASE_URL}/page-settings`);
+    const response = await api.get<ApiResponse<PageSetting[]>>('/page-settings');
+    return response.data;
   },
 
   updatePageSetting: async (pageKey: string, ready: boolean): Promise<ApiResponse<PageSetting>> => {
-    return apiFetch<PageSetting>(`${BASE_URL}/page-settings/${encodeURIComponent(pageKey)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ ready }),
-    });
+    const response = await api.put<ApiResponse<PageSetting>>(
+      `/page-settings/${encodeURIComponent(pageKey)}`,
+      { ready }
+    );
+    return response.data;
   },
 
   getConfig: async (): Promise<ApiResponse<ConfigItem[]>> => {
-    return apiFetch<ConfigItem[]>(`${BASE_URL}/config`);
+    const response = await api.get<ApiResponse<ConfigItem[]>>('/config');
+    return response.data;
   },
 
   updateConfig: async (key: string, value: string): Promise<ApiResponse<ConfigItem>> => {
-    return apiFetch<ConfigItem>(`${BASE_URL}/config/${encodeURIComponent(key)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ value }),
-    });
+    const response = await api.put<ApiResponse<ConfigItem>>(
+      `/config/${encodeURIComponent(key)}`,
+      { value }
+    );
+    return response.data;
   },
 };
