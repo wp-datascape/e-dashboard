@@ -106,19 +106,23 @@ created_at  timestamp
 superadmin + admin bypass this table check.
 
 ### product_categories
-id            serial PK
+id                  serial PK
 
-company_id    FK companies
+company_id          FK companies
 
-name          varchar
+name                varchar
 
-is_high_margin boolean default false
+item_type           varchar default 'unit'    -- unit | consumable | sparepart | service (BARU — gantikan is_service)
 
-is_service    boolean default false
+is_high_margin      boolean default false
 
-created_at    timestamp
+avg_margin_percent  numeric(5,2) default 0    -- rata-rata margin % dari transaksi (BARU)
 
-updated_at    timestamp
+is_service          boolean default false     -- deprecated (ganti ke item_type)
+
+created_at          timestamp
+
+updated_at          timestamp
 
 ### customers
 id                  serial PK
@@ -142,27 +146,31 @@ updated_at          timestamp
 UNIQUE (customer_code, company_id)
 
 ### invoices
-id             serial PK
+id               serial PK
 
-company_id     FK companies
+company_id       FK companies
 
-customer_id    FK customers
+customer_id      FK customers
 
-invoice_number varchar
+invoice_number   varchar
 
-invoice_date   date
+invoice_date     date
 
-total_revenue  numeric
+total_revenue    numeric
 
-total_gp       numeric
+total_gp         numeric
 
-import_log_id  FK import_logs nullable
+salesperson_name varchar nullable      -- nama sales (dari API Accurate / mapping manual)
 
-created_at     timestamp
+business_unit    varchar nullable      -- B2B_DC | B2B_PROJECT | B2C | MANUFACTURING (copy dari customers)
 
-updated_at     timestamp
+import_log_id    FK import_logs nullable
 
-deleted_at     timestamp nullable      -- soft delete only
+created_at       timestamp
+
+updated_at       timestamp
+
+deleted_at       timestamp nullable    -- soft delete only
 
 UNIQUE (invoice_number, company_id)   -- dedup key
 
@@ -378,8 +386,22 @@ UNIQUE (branch_id)
 API Token adalah method yang direkomendasikan (stabil, tanpa refresh cycle). OAuth tersedia sebagai alternatif.
 
 ## Pending Schema Items (not yet added)
-customers.business_unit  -- add: B2B_DC | B2B_PROJECT | B2C | MANUFACTURING
 
 products table           -- product master with SKU, margin, qty_sold
 
 projects table           -- B2B project milestone tracking (confirm if MVP)
+
+## Future Filter Fields (dokumentasi untuk pengembangan)
+
+### Filter yang direncanakan (belum implementasi):
+1. **Salesperson** — `invoices.salesperson_name` — filter metrik per sales
+2. **Business Unit** — `invoices.business_unit` (B2B_DC/B2B_PROJECT/B2C/MANUFACTURING) — filter metrik per divisi
+   - Nilai di-copy dari `customers.business_unit` saat insert invoice
+   - `customers.business_unit` diisi manual via UI Customer Workbench
+   - Data sumber dari Accurate: perlu konfirmasi apakah ada endpoint API yang menyediakan business_unit
+
+### Cara filter dashboard ke depan:
+```
+GET /api/metrics/m1?company_id=1&period_month=2024-03&salesperson=ANDI&business_unit=B2B_DC
+```
+Filter ini optional — jika tidak dikirim, hitung semua sales / semua business unit.
