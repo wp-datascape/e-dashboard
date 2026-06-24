@@ -204,18 +204,57 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 ## Next Actions (Priority Order)
 
 ```
-1. [HIGH]   Auth Feature     — login, logout, refresh + authMiddleware
-2. [HIGH]   Middleware       — csrf, rate-limit, auth, company-access, permission
-3. [HIGH]   Import Feature   — file upload CSV/Excel + Accurate API (blocker: format belum konfirmasi)
-4. [HIGH]   Metrics Feature  — 10 KPI (M1-M10), query berat pakai window functions
-5. [MEDIUM] Customers Feature — list + detail, auto dari import
-6. [MEDIUM] Products Feature  — list + detail + update category flags
-7. [MEDIUM] Transactions Feature — list + detail + summary
+1. [HIGH]   Auth Feature           — login, logout, refresh + authMiddleware
+2. [HIGH]   Middleware             — csrf, rate-limit, auth, company-access, permission
+3. [HIGH]   Metrics Feature        — 10 KPI (M1-M10), query berat pakai window functions
+4. [HIGH]   Migration & DB Apply   — generate migration + db-migrate untuk 7 tabel baru
+5. [MEDIUM] Import Classification  — seed data classification rules + CRUD endpoints
+6. [MEDIUM] Import Unclassified    — PUT endpoint untuk override item_type
+7. [MEDIUM] Customers Feature      — list + detail, auto dari import
+8. [MEDIUM] Products Feature       — list + detail + update category flags
 ```
 
 ---
 
 ## Catatan Sesi
+
+### 2026-06-25 (sesi 6 — Backend Import Feature: Schema + Classification Engine + CSV Import API)
+
+**Phase 1 — Schema Database (7 file baru):**
+- `product_categories.ts` — item_type (unit|consumable|sparepart|service), avg_margin_percent, is_high_margin
+- `customers.ts` — customer_code nullable, business_unit, first/last_invoice_date
+- `invoices.ts` — header faktur, UNIQUE (invoice_number, company_id), soft delete
+- `invoice_items.ts` — line items, quantity, unit_price, revenue, gross_profit
+- `import_logs.ts` — riwayat import, status partial/success/failed
+- `import_log_errors.ts` — detail error per baris import
+- `item_classification_rules.ts` — aturan klasifikasi 4-layer per company
+- `schema/index.ts` — uncomment semua export baru
+
+**Phase 2 — Classification Engine (utils/classifier.ts):**
+- Layer 1: 22 keyword rules (CARTRIDGE→consumable, PRINTER→unit, SERVICE→service)
+- Layer 2: Price range heuristic (>=500k→unit, 50k-499k→consumable, <50k→sparepart)
+- Layer 3: DB lookup ke `item_classification_rules` with priority
+- Layer 4: Fallback ke 'unit' + needs_review=true
+- Export `classifyItemType()` dan `classifyItemTypeSync()`
+
+**Phase 3 — Import Repository (import.repository.ts):**
+- `upsertCustomer()` — lookup UPPER name + company_id, auto update dates
+- `upsertProductCategory()` — lookup UPPER name + company_id, create if not exists
+- `findInvoiceByNumber()` — dedup check UPPER invoice_number
+- `createInvoice()` / `createInvoiceItem()` / `updateInvoiceTotals()`
+- Logs: `createImportLog()`, `findImportLogs()`, `findImportErrors()`
+- Rules: `findClassificationRules()`, CRUD operations
+
+**Phase 4 — Import Service & API (import.service.ts + handler + route):**
+- `POST /api/v1/import/csv` — multipart upload CSV/Excel, parse, classify, upsert, store
+- `GET /api/v1/import/logs` — paginated import history
+- `GET /api/v1/import/logs/:id` — detail + errors
+- Validasi: MIME type, file size 10MB, partial success, UPPERCASE normalization
+
+**Route Registration:**
+- `router.ts` — import route mounted at `/api/v1/import`
+
+**Status: Feature Import dari 0% → ~70%** (backend siap, tinggal migration apply + seed rules + testing)
 
 ### 2026-06-24 (sesi 5 — Logger & Schema Fixes)
 - **Logger Root Cause FIXED**: Winston `redactFormat` menggunakan `Object.fromEntries()` yang menghilangkan Symbol properties

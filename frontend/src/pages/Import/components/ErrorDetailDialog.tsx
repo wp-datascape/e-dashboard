@@ -42,7 +42,7 @@ export function ErrorDetailDialog({ log, onClose }: ErrorDetailDialogProps) {
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress size={32} />
           </Box>
-        ) : !data?.data?.length ? (
+        ) : !data?.length ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
             {t('import.errorDetail.noErrors')}
           </Typography>
@@ -56,7 +56,7 @@ export function ErrorDetailDialog({ log, onClose }: ErrorDetailDialogProps) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {data.data.map((row: { id: number; row_number: number; raw_data: string; error_message: string }) => (
+              {(data as Array<{ id: number; row_number: number; raw_data: string; error_message: string }>).map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{row.row_number}</TableCell>
                   <TableCell>

@@ -12,7 +12,7 @@ export const useImportLogs = (params?: { company_id?: number }) =>
 export const useImportErrors = (logId: number | null) =>
   useQuery({
     queryKey: ['import', 'errors', logId],
-    queryFn: () => getImportErrors(logId!).then(r => r.data),
+    queryFn: () => getImportErrors(logId!).then(r => r.data.data?.errors ?? []),
     enabled: logId !== null,
   })
 

@@ -536,5 +536,20 @@
       "codePlaceholder": "Code",
       "deleteConfirm": "Are you sure you want to delete this branch?"
     }
+  },
+  "classification_rules": {
+    "title": "Classification Rules",
+    "subtitle": "Layer 3 — Database-driven rules to classify item type during invoice import. These rules override Layer 1 (hardcoded keywords) and Layer 2 (price heuristic).",
+    "tooltip": "Classification Rules (Layer 3) are queried from the database each time an invoice is imported. Add/edit/delete rules without code deployment. Higher priority wins.",
+    "add": "Add Rule",
+    "edit": "Edit Rule",
+    "deleteConfirm": "Delete this classification rule?",
+    "empty": "No classification rules yet. Add one to customize item type detection.",
+    "colMatchType": "Match Type",
+    "colPattern": "Pattern",
+    "colItemType": "Item Type",
+    "colPriority": "Priority",
+    "colActive": "Active",
+    "colActions": "Actions"
   }
 }

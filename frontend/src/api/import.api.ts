@@ -9,7 +9,7 @@ export const importFile = (payload: ImportFilePayload) => {
   form.append('file', payload.file)
   form.append('company_id', String(payload.company_id))
   form.append('period_month', payload.period_month)
-  return axiosInstance.post<ApiResponse<ImportResult>>('/import/file', form, {
+  return axiosInstance.post<ApiResponse<ImportResult>>('/import/csv', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
@@ -21,7 +21,7 @@ export const getImportLogs = (params?: { company_id?: number; page?: number; per
   axiosInstance.get<PaginatedResponse<ImportLog>>('/import/logs', { params })
 
 export const getImportErrors = (logId: number) =>
-  axiosInstance.get<ApiResponse<ImportErrorRow[]>>(`/import/logs/${logId}/errors`)
+  axiosInstance.get<ApiResponse<{ log: ImportLog; errors: ImportErrorRow[] }>>(`/import/logs/${logId}`)
 
 export const getCompanies = () =>
   axiosInstance.get<ApiResponse<Company[]>>('/companies')

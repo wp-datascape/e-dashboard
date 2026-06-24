@@ -536,5 +536,20 @@
       "codePlaceholder": "Kode",
       "deleteConfirm": "Yakin ingin menghapus cabang ini?"
     }
+  },
+  "classification_rules": {
+    "title": "Aturan Klasifikasi",
+    "subtitle": "Layer 3 — Aturan berbasis database untuk mengklasifikasi tipe item saat import invoice. Aturan ini override Layer 1 (keyword hardcoded) dan Layer 2 (estimasi harga).",
+    "tooltip": "Classification Rules (Layer 3) di-query dari database setiap kali import invoice. Tambah/edit/hapus aturan tanpa deploy kode. Prioritas lebih tinggi menang.",
+    "add": "Tambah Aturan",
+    "edit": "Edit Aturan",
+    "deleteConfirm": "Hapus aturan klasifikasi ini?",
+    "empty": "Belum ada aturan klasifikasi. Tambah satu untuk kostumisasi deteksi tipe item.",
+    "colMatchType": "Tipe Match",
+    "colPattern": "Pola",
+    "colItemType": "Tipe Item",
+    "colPriority": "Prioritas",
+    "colActive": "Aktif",
+    "colActions": "Aksi"
   }
 }

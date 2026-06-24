@@ -45,31 +45,76 @@ export interface ParseRowError {
   errorMessage: string
 }
 
-// ─── Required columns ─────────────────────────────────────────────────────────
+// ─── Column mapping — mendukung INGGRIS + INDONESIA + variasi umum ────────────
 
-const REQUIRED_COLUMNS = [
-  'invoice_number',
-  'invoice_date',
-  'customer_code',
-  'customer_name',
-  'product_category',
-  'revenue',
-  'gross_profit',
-] as const
+const COLUMN_ALIASES: Record<string, string[]> = {
+  invoice_number: [
+    'invoice_number', 'invoice no', 'invoice no.', 'invoice#', 'inv_no', 'inv number',
+    'no_faktur', 'no faktur', 'nomor faktur', 'faktur', 'invoice',
+  ],
+  invoice_date: [
+    'invoice_date', 'invoice date', 'inv_date', 'inv date', 'date', 'tanggal',
+    'tgl', 'trans_date', 'transaction date', 'tgl_faktur', 'tanggal faktur',
+  ],
+  customer_code: [
+    'customer_code', 'customer code', 'cust_code', 'cust code', 'kode customer',
+    'kode_customer', 'kode pelanggan', 'cust_id', 'customer id', 'customer_id',
+  ],
+  customer_name: [
+    'customer_name', 'customer name', 'cust_name', 'cust name', 'nama customer',
+    'nama_customer', 'nama pelanggan', 'pelanggan', 'customer', 'client',
+  ],
+  product_category: [
+    'product_category', 'product category', 'prod_category', 'prod cat',
+    'kategori', 'kategori produk', 'kategori_produk', 'category', 'product',
+    'item', 'barang', 'nama barang', 'nama_item', 'item_name', 'item name',
+  ],
+  revenue: [
+    'revenue', 'total', 'amount', 'jumlah', 'harga', 'total_price', 'total price',
+    'nilai', 'subtotal', 'sales', 'penjualan', 'dpp', 'harga_satuan', 'unit_price',
+  ],
+  gross_profit: [
+    'gross_profit', 'gross profit', 'gp', 'laba', 'laba kotor', 'laba_kotor',
+    'profit', 'margin', 'keuntungan', 'net profit', 'net_profit',
+  ],
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function normalizeHeaders(headers: string[]): string[] {
-  return headers.map((h) => h.trim().toLowerCase().replace(/\s+/g, '_'))
+  return headers.map((h) => h.trim().toLowerCase().replace(/[^a-z0-9_ ]/g, '').replace(/\s+/g, '_'))
+}
+
+/**
+ * Map actual header names to canonical column names.
+ * Returns a mapping dari canonical name → original key untuk ambil data row.
+ */
+function mapColumns(headers: string[]): Record<string, string> {
+  const normalized = normalizeHeaders(headers)
+  const mapping: Record<string, string> = {}
+
+  for (const [canonical, aliases] of Object.entries(COLUMN_ALIASES)) {
+    const normalizedAliases = aliases.map((a) => a.toLowerCase().replace(/[^a-z0-9_ ]/g, '').replace(/\s+/g, '_'))
+
+    for (let i = 0; i < normalized.length; i++) {
+      if (normalizedAliases.includes(normalized[i])) {
+        mapping[canonical] = headers[i] // pakai original key (case asli)
+        break
+      }
+    }
+  }
+
+  return mapping
 }
 
 function validateHeaders(headers: string[]): void {
-  const normalized = normalizeHeaders(headers)
-  const missing = REQUIRED_COLUMNS.filter((col) => !normalized.includes(col))
+  const mapping = mapColumns(headers)
+  const required = Object.keys(COLUMN_ALIASES)
+  const missing = required.filter((col) => !mapping[col])
   if (missing.length > 0) {
     throw new AppError(
       ErrorCode.INVALID_FILE_FORMAT,
-      `Missing required columns: ${missing.join(', ')}`,
+      `Missing required columns: ${missing.join(', ')}. Detected headers: ${headers.join(', ')}`,
       400,
     )
   }
@@ -84,15 +129,19 @@ function parseNumeric(value: unknown, fieldName: string, rowNum: number): number
   return num
 }
 
-function mapRow(raw: Record<string, unknown>, rowNum: number): InvoiceRow {
+function mapRow(raw: Record<string, unknown>, rowNum: number, columnMapping?: Record<string, string>): InvoiceRow {
+  // Helper: ambil nilai dari raw data, coba canonical key dulu, lalu alias
+  const rawKey = (canonical: string): string => columnMapping?.[canonical] ?? canonical
+  const val = (canonical: string) => String(raw[rawKey(canonical)] ?? '').trim()
+
   return {
-    invoice_number: String(raw['invoice_number'] ?? '').trim(),
-    invoice_date: String(raw['invoice_date'] ?? '').trim(),
-    customer_code: String(raw['customer_code'] ?? '').trim(),
-    customer_name: String(raw['customer_name'] ?? '').trim(),
-    product_category: String(raw['product_category'] ?? '').trim(),
-    revenue: parseNumeric(raw['revenue'], 'revenue', rowNum),
-    gross_profit: parseNumeric(raw['gross_profit'], 'gross_profit', rowNum),
+    invoice_number: val('invoice_number'),
+    invoice_date: val('invoice_date'),
+    customer_code: val('customer_code'),
+    customer_name: val('customer_name'),
+    product_category: val('product_category'),
+    revenue: parseNumeric(raw[rawKey('revenue')], 'revenue', rowNum),
+    gross_profit: parseNumeric(raw[rawKey('gross_profit')], 'gross_profit', rowNum),
   }
 }
 
@@ -113,23 +162,28 @@ function validateRow(row: InvoiceRow, rowNum: number): string | null {
 export async function parseCsv(buffer: Buffer): Promise<ParseResult> {
   const content = buffer.toString('utf-8')
 
+  // Parse dengan transformHeader — row keys akan menjadi normalized (lowercase, underscore)
   const parsed = Papa.parse<Record<string, unknown>>(content, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h: string) => h.trim().toLowerCase().replace(/\s+/g, '_'),
+    transformHeader: (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9_ ]/g, '').replace(/\s+/g, '_'),
   })
 
+  // Build column mapping dari normalized headers → canonical keys
+  let columnMapping: Record<string, string> = {}
   if (parsed.meta.fields) {
-    validateHeaders(parsed.meta.fields)
+    const normalizedFields = parsed.meta.fields
+    validateHeaders(normalizedFields)
+    columnMapping = mapColumns(normalizedFields)
   }
 
   const rows: InvoiceRow[] = []
   const errors: ParseRowError[] = []
 
   parsed.data.forEach((raw, index) => {
-    const rowNum = index + 2 // +2 karena row 1 = header
+    const rowNum = index + 2
     try {
-      const row = mapRow(raw, rowNum)
+      const row = mapRow(raw, rowNum, columnMapping)
       const validationError = validateRow(row, rowNum)
       if (validationError) {
         errors.push({ rowNumber: rowNum, rawData: JSON.stringify(raw), errorMessage: validationError })
@@ -148,10 +202,66 @@ export async function parseCsv(buffer: Buffer): Promise<ParseResult> {
   return { rows, totalRows: parsed.data.length, errors }
 }
 
-// ─── Excel Parser ─────────────────────────────────────────────────────────────
+// ─── Column positions for Accurate Online "Rincian Faktur Penjualan Laba" export ──
+// Kolom B sampai K (index 1-10)
+// Header row (index 5, 0-based) berisi: Tanggal | Sales Invoice | Pelanggan | Nama Cabang | Nama Kategori | Nama Barang | Kuantitas | @Harga | Total Harga | BPP | Laba
+const EXCEL_COL = {
+  DATE: 1,          // Tanggal (YYYY-MM-DD)
+  INVOICE_NO: 2,    // Sales Invoice
+  CUSTOMER_NAME: 3, // Pelanggan
+  CATEGORY: 5,      // Nama Kategori Barang Barang & Jasa
+  REVENUE: 8,       // Total Harga
+  GROSS_PROFIT: 10, // Laba
+} as const
+
+/**
+ * Check if a row from an Accurate export is a data row (not header, not summary, not footer).
+ */
+function isAccurateDataRow(row: unknown[]): boolean {
+  // Row kosong → skip
+  if (!row || row.length === 0) return false
+
+  const dateVal = String(row[EXCEL_COL.DATE] ?? '').trim()
+  const invVal = String(row[EXCEL_COL.INVOICE_NO] ?? '').trim()
+
+  // Tidak ada invoice number → bukan data row (subtotal/separator)
+  if (!invVal) return false
+
+  // Skip footer rows
+  const fullText = row.join(' ')
+  if (
+    fullText.includes('ACCURATE Accounting System') ||
+    fullText.includes('Tercetak pada') ||
+    fullText.includes('Halaman')
+  ) return false
+
+  // Skip date-only separator rows (ada tanggal tapi no invoice)
+  if (dateVal && !invVal) return false
+
+  // Skip rows where invoice doesn't look like an invoice number
+  if (!invVal.startsWith('SI.') && !invVal.startsWith('INV-')) return false
+
+  return true
+}
+
+/**
+ * Convert YYYY-MM-DD to DD/MM/YYYY (format internal).
+ */
+function formatDateFromExport(dateStr: string): string {
+  const cleaned = dateStr.trim()
+  // Already DD/MM/YYYY?
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) return cleaned
+  // YYYY-MM-DD
+  const parts = cleaned.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return cleaned
+}
 
 /**
  * Parse Excel (.xlsx) file buffer → array of InvoiceRow.
+ * Khusus format Accurate Online "Rincian Faktur Penjualan Laba".
  * Partial success: valid rows dikembalikan, error rows di-collect di result.errors.
  */
 export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
@@ -163,48 +273,81 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
   }
 
   const sheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+
+  // Parse sebagai row array — merged cells jadi string kosong, bukan __EMPTY
+  const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
     defval: '',
-    raw: false, // semua value sebagai string, biar kita parse sendiri
+    raw: false,
   })
 
   if (rawData.length === 0) {
     throw new AppError(ErrorCode.INVALID_FILE_FORMAT, 'Excel sheet is empty', 400)
   }
 
-  // Normalize headers dari key pertama
-  const firstRow = rawData[0]
-  const headers = Object.keys(firstRow).map((h) => h.trim().toLowerCase().replace(/\s+/g, '_'))
-  validateHeaders(headers)
-
-  // Re-map keys menjadi normalized
-  const normalizedData = rawData.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([k, v]) => [k.trim().toLowerCase().replace(/\s+/g, '_'), v]),
-    ),
-  )
-
   const rows: InvoiceRow[] = []
   const errors: ParseRowError[] = []
 
-  normalizedData.forEach((raw, index) => {
-    const rowNum = index + 2 // +2 karena row 1 = header
+  for (let i = 0; i < rawData.length; i++) {
+    const row = rawData[i] as unknown[]
+    const rowNum = i + 1
+
+    if (!isAccurateDataRow(row)) continue
+
     try {
-      const row = mapRow(raw, rowNum)
-      const validationError = validateRow(row, rowNum)
+      const dateRaw = String(row[EXCEL_COL.DATE] ?? '').trim()
+      const invNo = String(row[EXCEL_COL.INVOICE_NO] ?? '').trim()
+      const customerName = String(row[EXCEL_COL.CUSTOMER_NAME] ?? '').trim()
+      const categoryRaw = String(row[EXCEL_COL.CATEGORY] ?? '').trim()
+      const revRaw = String(row[EXCEL_COL.REVENUE] ?? '').trim().replace(/\./g, '').replace(',', '.')
+      const gpRaw = String(row[EXCEL_COL.GROSS_PROFIT] ?? '').trim().replace(/\./g, '').replace(',', '.')
+
+      const invoiceDate = formatDateFromExport(dateRaw)
+      const revenueNum = parseFloat(revRaw)
+      const gpNum = parseFloat(gpRaw)
+
+      if (isNaN(revenueNum)) {
+        errors.push({
+          rowNumber: rowNum,
+          rawData: JSON.stringify(row),
+          errorMessage: `Invalid revenue: "${revRaw}"`,
+        })
+        continue
+      }
+
+      if (isNaN(gpNum)) {
+        errors.push({
+          rowNumber: rowNum,
+          rawData: JSON.stringify(row),
+          errorMessage: `Invalid gross_profit: "${gpRaw}"`,
+        })
+        continue
+      }
+
+      const invoiceRow: InvoiceRow = {
+        invoice_number: invNo,
+        invoice_date: invoiceDate,
+        customer_code: `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`, // generate dari invoice number
+        customer_name: customerName.toUpperCase().trim(),
+        product_category: categoryRaw.toUpperCase().trim(),
+        revenue: revenueNum,
+        gross_profit: gpNum,
+      }
+
+      const validationError = validateRow(invoiceRow, rowNum)
       if (validationError) {
-        errors.push({ rowNumber: rowNum, rawData: JSON.stringify(raw), errorMessage: validationError })
+        errors.push({ rowNumber: rowNum, rawData: JSON.stringify(row), errorMessage: validationError })
       } else {
-        rows.push(row)
+        rows.push(invoiceRow)
       }
     } catch (err) {
       errors.push({
         rowNumber: rowNum,
-        rawData: JSON.stringify(raw),
+        rawData: JSON.stringify(row),
         errorMessage: err instanceof Error ? err.message : String(err),
       })
     }
-  })
+  }
 
-  return { rows, totalRows: rawData.length, errors }
+  return { rows, totalRows: rows.length + errors.length, errors }
 }

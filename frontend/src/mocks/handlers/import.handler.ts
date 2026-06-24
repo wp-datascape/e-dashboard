@@ -99,8 +99,8 @@ const simulateResult = (total: number): Omit<ImportResult, 'import_log_id'> => {
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
 export const importHandlers = [
-  // POST /import/file
-  http.post(`${BASE_URL}/import/file`, async ({ request }) => {
+  // POST /import/csv
+  http.post(`${BASE_URL}/import/csv`, async ({ request }) => {
     const form = await request.formData()
     const file = form.get('file') as File | null
     const companyId = Number(form.get('company_id'))
@@ -200,13 +200,17 @@ export const importHandlers = [
     })
   }),
 
-  // GET /import/logs/:id/errors
-  http.get(`${BASE_URL}/import/logs/:id/errors`, ({ params }) => {
+  // GET /import/logs/:id
+  http.get(`${BASE_URL}/import/logs/:id`, ({ params }) => {
     const id = Number(params.id)
+    const log = logs.find(l => l.id === id)
+    if (!log) {
+      return HttpResponse.json({ error: 'NOT_FOUND', message: 'Import log not found' }, { status: 404 })
+    }
     const errors = errorsByLogId[id] ?? []
-    return HttpResponse.json<ApiResponse<ImportErrorRow[]>>({
+    return HttpResponse.json<ApiResponse<{ log: ImportLog; errors: ImportErrorRow[] }>>({
       message: 'OK',
-      data: errors,
+      data: { log, errors },
     })
   }),
 ]

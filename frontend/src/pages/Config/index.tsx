@@ -9,6 +9,7 @@ import { BusinessRulesTab } from './components/BusinessRulesTab';
 import { AppSettingsTab } from './components/AppSettingsTab';
 import { IntegrationTab } from './components/IntegrationTab';
 import { PageSettingsTab } from './components/PageSettingsTab';
+import { ClassificationRulesTab } from './components/ClassificationRulesTab';
 
 function TabPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   return value === index ? <Box sx={{ pt: 3 }}>{children}</Box> : null;
@@ -35,12 +36,14 @@ export default function ConfigPage() {
         <Tab label={t('config.tabs.integration')} />
         <Tab label={t('config.tabs.appSettings')} />
         <Tab label={t('config.tabs.pageSettings')} />
+        <Tab label={t('classification_rules.title')} />
       </Tabs>
 
       <TabPanel value={tab} index={0}><BusinessRulesTab /></TabPanel>
       <TabPanel value={tab} index={1}><IntegrationTab /></TabPanel>
       <TabPanel value={tab} index={2}><AppSettingsTab /></TabPanel>
       <TabPanel value={tab} index={3}><PageSettingsTab /></TabPanel>
+      <TabPanel value={tab} index={4}><ClassificationRulesTab /></TabPanel>
     </Box>
   );
 }

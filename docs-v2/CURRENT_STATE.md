@@ -157,6 +157,63 @@ Nothing built. Start with:
 
 ## Catatan Sesi Terakhir
 
+### 2026-06-25 (sesi 14): Backend Import Feature — Schema + Classification Engine + CSV Import API
+
+**Phase 1 — Schema & Database (7 new Drizzle schema files):**
+- `product_categories.ts` — item_type (unit|consumable|sparepart|service), avg_margin_percent, is_high_margin
+- `customers.ts` — customer_code nullable, business_unit, first/last_invoice_date
+- `invoices.ts` — header faktur dengan UNIQUE (invoice_number, company_id), soft delete
+- `invoice_items.ts` — line items dengan quantity, unit_price, revenue, gross_profit
+- `import_logs.ts` — riwayat import (source file/accurate_api, status partial/success/failed)
+- `import_log_errors.ts` — detail error per baris import
+- `item_classification_rules.ts` — aturan klasifikasi 4-layer per company
+- Update `schema/index.ts` — uncomment semua export baru
+
+**Phase 2 — Classification Engine (utils/classifier.ts):**
+- Layer 1: 22 keyword rules (CARTRIDGE→consumable, PRINTER→unit, SERVICE→service, dll)
+- Layer 2: Price range heuristic (>=500k→unit, 50k-499k→consumable, <50k→sparepart)
+- Layer 3: DB lookup ke `item_classification_rules` dengan priority system
+- Layer 4: Fallback ke 'unit' + needs_review=true
+- Export `classifyItemType()` (async, full 4-layer) dan `classifyItemTypeSync()` (sync, Layer 1+2)
+
+**Phase 3 — Import Repository (import.repository.ts):**
+- `upsertCustomer()` — lookup by UPPER(customer_name) + company_id, update first/last_invoice_date
+- `upsertProductCategory()` — lookup by UPPER(name) + company_id, create if not exists
+- `findInvoiceByNumber()` — dedup check UPPER(invoice_number) + company_id
+- `createInvoice()` / `createInvoiceItem()` — insert with audit trail
+- `updateInvoiceTotals()` — recalculate SUM revenue + gross_profit
+- `createImportLog()` / `findImportLogs()` / `findImportErrors()` — import history
+- `findClassificationRules()` / CRUD — manage classification rules
+
+**Phase 4 — Import Service & API (import.service.ts + handler + route):**
+- `POST /api/v1/import/csv` — multipart upload, parse CSV/Excel, classify, upsert, store
+- `GET /api/v1/import/logs` — paginated import history
+- `GET /api/v1/import/logs/:id` — detail import log + errors
+- Validasi: MIME type, file size (10MB), ISO format periode
+- Partial success: valid rows masuk, errors dicatat ke import_log_errors
+- Normalisasi UPPERCASE: semua teks dikonversi saat import
+
+**Route Registration:**
+- `backend/src/router.ts` — import route mounted at `/api/v1/import`
+- Import routes are currently unprotected (authMiddleware not yet active)
+
+**Perubahan file:**
+- `backend/src/db/schema/product_categories.ts` — NEW
+- `backend/src/db/schema/customers.ts` — NEW
+- `backend/src/db/schema/invoices.ts` — NEW (with unique constraint)
+- `backend/src/db/schema/invoice_items.ts` — NEW
+- `backend/src/db/schema/import_logs.ts` — NEW
+- `backend/src/db/schema/import_log_errors.ts` — NEW
+- `backend/src/db/schema/item_classification_rules.ts` — NEW
+- `backend/src/db/schema/index.ts` — UPDATED (all new exports)
+- `backend/src/utils/classifier.ts` — NEW (4-layer classification engine)
+- `backend/src/features/import/import.schema.ts` — NEW (Zod schemas)
+- `backend/src/features/import/import.repository.ts` — NEW (all DB queries)
+- `backend/src/features/import/import.service.ts` — NEW (business logic)
+- `backend/src/features/import/import.handler.ts` — NEW (HTTP handlers)
+- `backend/src/features/import/import.route.ts` — NEW (route definitions)
+- `backend/src/router.ts` — UPDATED (import route mounted)
+
 ### 2026-06-24 (sesi 13): Companies Management Page — Backend Endpoints + Frontend CRUD
 
 **Backend — Branch CRUD (5 endpoints):**

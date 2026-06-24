@@ -23,7 +23,7 @@ export const handlers = [
   // ...usersHandlers, // DISABLED — users now from real DB API (backend/src/features/users)
   // ...accurateHandlers, // DISABLED — Accurate API now from real backend
   ...customersHandlers,
-  ...importHandlers,
+  // ...importHandlers, // DISABLED — import now from real backend API (backend/src/features/import)
   ...productsHandlers,
   ...transactionsHandlers,
   // ...auditHandlers, // DISABLED — audit logs now from real DB API (backend/src/features/audit)
