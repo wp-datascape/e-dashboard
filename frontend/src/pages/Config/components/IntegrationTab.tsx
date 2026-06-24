@@ -20,7 +20,7 @@ import DoneIcon from '@mui/icons-material/Done'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useCompanies'
-import { useBranches, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
+import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 
 export function IntegrationTab() {
@@ -64,6 +64,9 @@ export function IntegrationTab() {
   const { data: branches = [] } = useBranches(selectedCompanyId || null)
   const selectedBranch = branches.find((b) => b.id === selectedBranchId)
 
+  // ─── Existing Credentials (load when branch selected) ─────────────────────
+  const { data: existingCredentials } = useCredentials(selectedBranchId || null)
+
   // Reset when company changes
   useEffect(() => {
     setSelectedBranchId(0)
@@ -73,6 +76,19 @@ export function IntegrationTab() {
     setTestResult({ status: 'idle' })
     setStatus('idle')
   }, [selectedCompanyId])
+
+  // Pre-fill form when existing credentials load
+  useEffect(() => {
+    if (existingCredentials) {
+      setSubdomain(existingCredentials.subdomain ?? '')
+      setApiToken(existingCredentials.api_token ?? '')
+      setSignatureSecret(existingCredentials.signature_secret ?? '')
+    } else if (selectedBranchId === 0) {
+      setSubdomain('')
+      setApiToken('')
+      setSignatureSecret('')
+    }
+  }, [existingCredentials, selectedBranchId])
 
   // ─── Mutations ────────────────────────────────────────────────────────────
   const saveMutation = useSaveCredentials()

@@ -1,4 +1,4 @@
-.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset docker-status docker-stop docker-up docker-down
+.PHONY: help doctor current feature commit fetch push pull sync sync-all update-main finish delete-remote status graph history branches clean-branches dev-frontend dev-backend check build release db-up db-down db-generate db-migrate db-studio db-seed db-status db-reset docker-status docker-stop docker-up docker-down generate-key
 SHELL := /bin/bash
 
 # Database config — dibaca dari backend/.env
@@ -52,6 +52,9 @@ help:
 	@echo " make docker-stop     Stop all running containers"
 	@echo " make docker-up       Start Infrastructure"
 	@echo " make docker-down     Shut down Infrastructure"
+	@echo ""
+	@echo "[Security]"
+	@echo " make generate-key    Generate secret key for encrypting credentials"
 	@echo ""
 	@echo "[Database]"
 	@echo " make db-up           Start postgres container"
@@ -264,6 +267,29 @@ docker-up:
 docker-down:
 	@echo "Shutting down Infrastructure"
 	docker compose down
+
+generate-key:
+	@echo "WARNING: Rotating the encryption key will make all previously"
+	@echo "encrypted data in the database UNREADABLE!"
+	@echo "Make sure to re-save all credentials after rotating the key."
+	@echo ""
+	@read -p "   Are you sure you want to continue? (yes/no): " confirm; \
+	if [ "$$confirm" != "yes" ]; then \
+		echo "Aborted."; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Generating CREDENTIALS_ENCRYPTION_KEY..."
+	@KEY=$$(openssl rand -base64 32); \
+	if grep -q "CREDENTIALS_ENCRYPTION_KEY" backend/.env 2>/dev/null; then \
+		sed -i "s|CREDENTIALS_ENCRYPTION_KEY=.*|CREDENTIALS_ENCRYPTION_KEY=$$KEY|" backend/.env; \
+		echo "Key updated in backend/.env"; \
+	else \
+		echo "CREDENTIALS_ENCRYPTION_KEY=$$KEY" >> backend/.env; \
+		echo "Key added to backend/.env"; \
+	fi
+	@echo ""
+	@echo "Restart server agar key baru terbaca!"
 
 db-up:
 	@echo "Starting postgres container..."
