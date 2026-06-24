@@ -219,6 +219,25 @@ test:     tambah/ubah test
 
 ---
 
+## Aturan Efisiensi Token — WAJIB DIIKUTI
+
+### Untuk Mencari Kode / File
+- **SELALU gunakan MCP `codebase-memory` TERLEBIH DAHULU** sebelum membaca file apapun
+  - `search_code` untuk mencari pattern/fungsi di codebase
+  - `search_graph` untuk mencari definisi class/function
+  - `get_code_snippet` untuk membaca isi fungsi spesifik
+- **JANGAN gunakan `read_file` atau `list_files` untuk eksplorasi** — hanya gunakan setelah tahu persis file & baris yang dibutuhkan
+- **JANGAN buka file docs-v2 kecuali task memang membutuhkannya** — untuk bug fix di frontend/backend, langsung cari kode dengan MCP
+- Project names di codebase-memory: `home-pacman-e-dashboard-frontend`, `home-pacman-e-dashboard-backend`, `home-pacman-e-dashboard`
+- Selalu set `regex: true` di `search_code` jika pattern mengandung `|` (OR)
+
+### Untuk Bug Fix
+1. Gunakan `search_code` dengan pattern nama komponen/fungsi yang relevan
+2. Baca HANYA file yang langsung terkait bug (maksimal 2-3 file)
+3. Fix langsung — jangan baca dokumentasi kecuali ada keraguan arsitektur
+
+---
+
 ## Blocker Aktif (Jangan Mulai Tanpa Konfirmasi Tim)
 
 1. Format kolom CSV/Excel export Accurate Online — belum dikonfirmasi
