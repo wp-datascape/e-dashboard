@@ -6,9 +6,9 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~90%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done |
-| Backend  | ~35%   | Auth, Users CRUD, Roles, Permissions, Companies, Config, Page, Audit CRUD selesai. Accurate API client + test OK |
-| Database | ~55%   | Schema + 12 tabel (termasuk company_branches, accurate_credentials), migrations, seed OK |
-| Docs     | 100%   | docs-v2 selesai semua, termasuk features/rbac.md baru |
+| Backend  | ~55%   | Import feature Done (parser fix + multi-item invoice + handler refactor). Auth, Metrics, Customers, Transactions belum. |
+| Database | ~70%   | 19 tabel aktif + migration applied, import data real sudah masuk |
+| Docs     | ~95%   | Updated sesi ini |
 
 ## Frontend — Page Status
 
@@ -156,6 +156,48 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-25 (sesi 15): Import Feature Fixes + Handler Pattern Refactor
+
+**Import Parser (parser.ts) — 4 bug diperbaiki:**
+- `EXCEL_COL` indices salah semua: setiap kolom Accurate export dipisah 1 cell kosong (merged cells). Fix: DATE=1, INVOICE_NO=3, CUSTOMER_NAME=5, CATEGORY=9, ITEM_NAME=11, QUANTITY=13, UNIT_PRICE=15, REVENUE=17, GROSS_PROFIT=21
+- Format tanggal salah: kode expect YYYY-MM-DD, aktual Accurate kirim "DD MMM YYYY" (e.g. "02 Jun 2026"). Fix: tambah `MONTH_MAP` + regex match DD MMM YYYY
+- Numeric parsing salah: `.replace(/\./g,'')` menghapus titik desimal. Format Accurate: koma=ribuan, titik di akhir=integer. Fix: `.replace(/,/g,'').replace(/\.$/,'')`
+- Tambah field baru ke `InvoiceRow`: `item_name?`, `quantity?`, `unit_price?` — diisi dari kolom Nama Barang, Kuantitas, @Harga (hanya Excel Accurate)
+
+**Import Service (import.service.ts) — 2 bug diperbaiki:**
+- Multi-item invoice: setiap baris ke-2+ dengan invoice number sama dianggap duplikat. Fix: `batchInvoiceCache: Map<invoiceNumber, invoiceId>` — cache invoice yang dibuat dalam batch ini, baris berikutnya langsung `createInvoiceItem` tanpa `createInvoice` baru
+- Empty file handling: kondisi `rows=0 && errors=0` fall-through ke loop kosong, return `{status:'failed', errorRows:0}` tanpa pesan jelas. Fix: throw `AppError(INVALID_FILE_FORMAT)` untuk kasus ini
+
+**Import Repository (import.repository.ts) — 1 bug diperbaiki:**
+- `findImportLogs` return flat rows (`company_id: number`, `imported_by: number`). Frontend type `ImportLog` expect `{company: {id,name}, imported_by: {id,name}}`. Fix: LEFT JOIN ke `companies` dan `users`
+
+**Frontend ImportLogsTable — 1 bug diperbaiki:**
+- `log.company.name` dan `log.imported_by.name` crash jika JOIN null. Fix: optional chaining `?.`
+
+**Handler Pattern Refactor — 8 fitur dimigrasikan:**
+- Sebelum: semua route file punya inline `async (c) => { ... }` tanpa try/catch
+- Sekarang: setiap fitur punya `feature.handler.ts` — logic + error handling di sini, route file hanya register
+- Pola seragam: `if (err instanceof AppError) throw err` → rethrow operational error; wrap unexpected error dengan `ErrorCode` yang kontekstual
+- File baru: `audit.handler.ts`, `page.handler.ts`, `roles.handler.ts`, `permissions.handler.ts`, `user.handler.ts`, `products.handler.ts`, `config.handler.ts`, `companies.handler.ts`
+- `config.handler.ts`: logger untuk unexpected error di `saveAccurateCredentials` tetap dipertahankan
+
+**Perubahan file:**
+- `backend/src/utils/parser.ts` — UPDATED (EXCEL_COL fix, date format, numeric parsing, item_name/qty/unit_price)
+- `backend/src/features/import/import.service.ts` — UPDATED (batchInvoiceCache, empty file guard, AppError import)
+- `backend/src/features/import/import.repository.ts` — UPDATED (findImportLogs JOIN companies+users)
+- `frontend/src/pages/Import/components/ImportLogsTable.tsx` — UPDATED (optional chaining)
+- `backend/src/features/audit/audit.handler.ts` — NEW
+- `backend/src/features/page/page.handler.ts` — NEW
+- `backend/src/features/roles/roles.handler.ts` — NEW
+- `backend/src/features/permissions/permissions.handler.ts` — NEW
+- `backend/src/features/users/user.handler.ts` — NEW
+- `backend/src/features/products/products.handler.ts` — NEW
+- `backend/src/features/config/config.handler.ts` — NEW
+- `backend/src/features/companies/companies.handler.ts` — NEW
+- 8 route files — UPDATED (delegate ke handler masing-masing)
+
+---
 
 ### 2026-06-25 (sesi 14): Backend Import Feature — Schema + Classification Engine + CSV Import API
 

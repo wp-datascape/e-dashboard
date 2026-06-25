@@ -48,6 +48,7 @@ const DEFAULT_KEYWORD_RULES: KeywordEntry[] = [
   { keyword: 'LABEL', itemType: 'consumable' },
   { keyword: 'STICKER', itemType: 'consumable' },
   { keyword: 'THERMAL PAPER', itemType: 'consumable' },
+  { keyword: 'SPARE PART', itemType: 'sparepart' },
   { keyword: 'PART ', itemType: 'sparepart' },
   { keyword: 'CABLE', itemType: 'sparepart' },
   { keyword: 'ADAPTOR', itemType: 'sparepart' },
@@ -75,14 +76,24 @@ function classifyByPrice(unitPrice: number): ItemType | null {
 
 // ─── Layer 1: Keyword Classification ─────────────────────────────────────────
 
+// Non-unit types outrank unit — "SPARE PART MONEY COUNTER" → sparepart, not unit
+const TYPE_PRIORITY: Record<ItemType, number> = {
+  service:    3,
+  consumable: 2,
+  sparepart:  2,
+  unit:       1,
+}
+
 function matchKeyword(text: string): KeywordEntry | null {
   const upper = text.toUpperCase()
-  // Sort by keyword length descending (more specific first)
-  const sorted = [...DEFAULT_KEYWORD_RULES].sort((a, b) => b.keyword.length - a.keyword.length)
-  for (const entry of sorted) {
-    if (upper.includes(entry.keyword)) return entry
-  }
-  return null
+  const matches = DEFAULT_KEYWORD_RULES.filter(e => upper.includes(e.keyword))
+  if (matches.length === 0) return null
+  // Sort: higher type priority first, then longer keyword (more specific) first
+  return matches.sort((a, b) => {
+    const pd = TYPE_PRIORITY[b.itemType] - TYPE_PRIORITY[a.itemType]
+    if (pd !== 0) return pd
+    return b.keyword.length - a.keyword.length
+  })[0]
 }
 
 // ─── Layer 3: DB Lookup ──────────────────────────────────────────────────────

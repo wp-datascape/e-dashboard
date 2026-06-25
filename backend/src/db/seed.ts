@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs, item_classification_rules } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasri Online' },
@@ -242,6 +242,62 @@ async function seedPageSettings() {
   }
 }
 
+const defaultClassificationRules: Array<{
+  match_type: string
+  match_pattern: string
+  item_type: string
+  priority: number
+}> = [
+  // Keyword Item Name (priority 100 — paling tinggi)
+  { match_type: 'keyword_item_name', match_pattern: 'CARTRIDGE',   item_type: 'consumable', priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'INK ',        item_type: 'consumable', priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'RIBBON',      item_type: 'consumable', priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'TONER',       item_type: 'consumable', priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'SPARE PART',  item_type: 'sparepart',  priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'PART ',       item_type: 'sparepart',  priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'CABLE',       item_type: 'sparepart',  priority: 100 },
+  { match_type: 'keyword_item_name', match_pattern: 'ADAPTOR',     item_type: 'sparepart',  priority: 100 },
+  // Keyword Category (priority 90)
+  { match_type: 'keyword_category',  match_pattern: 'PRINTER',     item_type: 'unit',       priority: 90 },
+  { match_type: 'keyword_category',  match_pattern: 'SCANNER',     item_type: 'unit',       priority: 90 },
+  { match_type: 'keyword_category',  match_pattern: 'MONEY COUNTER', item_type: 'unit',     priority: 90 },
+  { match_type: 'keyword_category',  match_pattern: 'DISPLAY',     item_type: 'unit',       priority: 90 },
+  { match_type: 'keyword_category',  match_pattern: 'MONITOR',     item_type: 'unit',       priority: 90 },
+  { match_type: 'keyword_category',  match_pattern: 'SPARE PART',  item_type: 'sparepart',  priority: 100 },
+  { match_type: 'keyword_category',  match_pattern: 'CARTRIDGE',   item_type: 'consumable', priority: 90 },
+  // Price Range (priority 10 — fallback jika Layer 1+2 tidak match)
+  { match_type: 'price_range', match_pattern: '{"min": 500000}', item_type: 'unit',      priority: 10 },
+  { match_type: 'price_range', match_pattern: '{"max": 50000}',  item_type: 'sparepart', priority: 10 },
+]
+
+async function seedClassificationRules() {
+  console.log('Seeding classification rules...')
+  for (const rule of defaultClassificationRules) {
+    // Dedup: skip jika global rule dengan match_type + match_pattern yang sama sudah ada
+    const [existing] = await db
+      .select({ id: item_classification_rules.id })
+      .from(item_classification_rules)
+      .where(
+        and(
+          eq(item_classification_rules.match_type, rule.match_type),
+          eq(item_classification_rules.match_pattern, rule.match_pattern),
+          isNull(item_classification_rules.company_id),
+        ),
+      )
+      .limit(1)
+    if (existing) { console.log(`  skip  ${rule.match_type}:${rule.match_pattern}`); continue }
+    await db.insert(item_classification_rules).values({
+      company_id: null,
+      match_type: rule.match_type,
+      match_pattern: rule.match_pattern,
+      item_type: rule.item_type,
+      priority: rule.priority,
+      is_active: true,
+    })
+    console.log(`  ok    ${rule.match_type}:${rule.match_pattern} → ${rule.item_type}`)
+  }
+}
+
 async function seed() {
   try {
     await seedCompanies()
@@ -253,6 +309,7 @@ async function seed() {
     await seedUserAssignments()
     await seedBusinessConfigs()
     await seedPageSettings()
+    await seedClassificationRules()
     console.log('All seeds completed.')
   } catch (err) {
     console.error('Seed failed:', err)

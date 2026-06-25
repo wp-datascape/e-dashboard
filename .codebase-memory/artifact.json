@@ -1,11 +1,11 @@
 {
     "schema_version": 1,
-    "commit": "f8f855ec8eab75742e76eaf462b4debc724ddd68",
-    "indexed_at": "2026-06-23T21:34:53Z",
-    "project": "home-pacman-e-dashbord",
-    "nodes": 3656,
-    "edges": 5596,
-    "original_size": 7864320,
-    "compressed_size": 1298419,
+    "commit": "a3a5c0faa44446a6f10cc68dfbcc733fd3d5d93b",
+    "indexed_at": "2026-06-25T04:46:31Z",
+    "project": "home-pacman-e-dashboard",
+    "nodes": 4134,
+    "edges": 7038,
+    "original_size": 8978432,
+    "compressed_size": 1472569,
     "compression_level": 3
 }

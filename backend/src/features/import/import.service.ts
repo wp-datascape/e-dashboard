@@ -18,6 +18,7 @@
 import { classifyItemType } from '@/utils/classifier'
 import { parseCsv, parseExcel } from '@/utils/parser'
 import { logAudit } from '@/utils/audit'
+import { AppError, ErrorCode } from '@/utils/error'
 import type { Context } from 'hono'
 import {
   createImportLog,
@@ -42,6 +43,7 @@ export interface ImportFileOptions {
   buffer: Buffer
   filename: string
   mimetype: string
+  ctx: Context
 }
 
 export interface ImportResult {
@@ -54,12 +56,20 @@ export interface ImportResult {
 }
 
 export async function importFile(options: ImportFileOptions): Promise<ImportResult> {
-  const { companyId, periodMonth, userId, buffer, filename, mimetype } = options
+  const { companyId, periodMonth, userId, buffer, filename, mimetype, ctx } = options
 
   // ── Parse file ─────────────────────────────────────────────────────────────
   const parseResult = mimetype.includes('csv')
     ? await parseCsv(buffer)
     : await parseExcel(buffer)
+
+  if (parseResult.rows.length === 0 && parseResult.errors.length === 0) {
+    throw new AppError(
+      ErrorCode.INVALID_FILE_FORMAT,
+      'Tidak ada baris data yang ditemukan di file. Pastikan format file sesuai dengan export Accurate Online.',
+      422,
+    )
+  }
 
   if (parseResult.rows.length === 0 && parseResult.errors.length > 0) {
     // All rows failed
@@ -83,6 +93,15 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
       error_message: e.errorMessage,
     }))
     await createImportErrors(errors)
+
+    await logAudit(ctx, {
+      action: 'import.file',
+      entity: 'import_logs',
+      entityId: importLog.id,
+      companyId,
+      newValue: { status: 'failed', total_invoices: 0, success_invoices: 0, error_rows: parseResult.errors.length },
+      meta: { filename, period_month: periodMonth, source: 'file' },
+    })
 
     return {
       importLogId: importLog.id,
@@ -113,6 +132,11 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   let totalItems = 0
   let totalItemRows = 0
 
+  // Cache invoice_id per invoice_number dalam batch ini.
+  // Satu invoice bisa punya banyak baris produk — baris ke-2, ke-3 dst
+  // cukup tambah invoice_item ke invoice yang sudah dibuat, bukan buat invoice baru.
+  const batchInvoiceCache = new Map<string, number>() // invoice_number → invoice_id
+
   for (const row of parseResult.rows) {
     const rowNum = parseResult.rows.indexOf(row) + 2
 
@@ -125,12 +149,10 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
       }
 
       // ── Classify product ───────────────────────────────────────────────
-      // For CSV import, we don't have unit_price directly from the old parser format
-      // revenue is the total price for the line item
       const classification = await classifyItemType({
-        itemName: row.product_category, // fallback: gunakan category name
+        itemName: row.product_category,
         categoryName: row.product_category,
-        unitPrice: row.revenue, // fallback revenue as price
+        unitPrice: row.revenue,
         companyId,
       })
 
@@ -141,51 +163,59 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
         item_type: classification.itemType,
       })
 
-      // ── Customer upsert ─────────────────────────────────────────────────
-      const customer = await upsertCustomer({
-        company_id: companyId,
-        customer_name: row.customer_name,
-        invoice_date: invoiceDate,
-      })
+      // ── Resolve invoice: reuse dari batch ini, atau buat baru ───────────
+      const invoiceKey = row.invoice_number.toUpperCase().trim()
+      let invoiceId = batchInvoiceCache.get(invoiceKey)
 
-      // ── Dedup check ─────────────────────────────────────────────────────
-      const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
-      if (existingInvoice) {
-        // Invoice already exists — skip but count as error
-        errors.push({
-          import_log_id: importLog.id,
-          row_number: rowNum,
-          raw_data: JSON.stringify(row),
-          error_message: `Invoice ${row.invoice_number} already exists`,
+      if (!invoiceId) {
+        // Cek duplikat dari import SEBELUMNYA (beda batch)
+        const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
+        if (existingInvoice) {
+          errors.push({
+            import_log_id: importLog.id,
+            row_number: rowNum,
+            raw_data: JSON.stringify(row),
+            error_message: `Invoice ${row.invoice_number} sudah ada dari import sebelumnya`,
+          })
+          continue
+        }
+
+        // ── Customer upsert (hanya saat pertama kali invoice ini muncul) ──
+        const customer = await upsertCustomer({
+          company_id: companyId,
+          customer_name: row.customer_name,
+          invoice_date: invoiceDate,
         })
-        continue
-      }
 
-      // ── Create invoice ──────────────────────────────────────────────────
-      const invoice = await createInvoice({
-        company_id: companyId,
-        customer_id: customer.id,
-        invoice_number: row.invoice_number.toUpperCase().trim(),
-        invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
-        total_revenue: '0',
-        total_gp: '0',
-        import_log_id: importLog.id,
-      })
+        // ── Create invoice ────────────────────────────────────────────────
+        const invoice = await createInvoice({
+          company_id: companyId,
+          customer_id: customer.id,
+          invoice_number: invoiceKey,
+          invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
+          total_revenue: '0',
+          total_gp: '0',
+          import_log_id: importLog.id,
+        })
+
+        invoiceId = invoice.id
+        batchInvoiceCache.set(invoiceKey, invoiceId)
+      }
 
       // ── Create invoice item ─────────────────────────────────────────────
       await createInvoiceItem({
-        invoice_id: invoice.id,
+        invoice_id: invoiceId,
         product_category_id: category.id,
-        product_name: row.product_category.toUpperCase().trim(),
-        quantity: 1,
-        unit_price: String(row.revenue),
+        product_name: (row.item_name ?? row.product_category).toUpperCase().trim(),
+        quantity: row.quantity ?? 1,
+        unit_price: String(row.unit_price ?? row.revenue),
         revenue: String(row.revenue),
         gross_profit: String(row.gross_profit),
       })
       totalItems++
 
       // ── Update invoice totals ───────────────────────────────────────────
-      await updateInvoiceTotals(invoice.id)
+      await updateInvoiceTotals(invoiceId)
 
       successCount++
     } catch (err) {
@@ -211,6 +241,20 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
     total_items: totalItems,
     success_invoices: successCount,
     error_rows: errors.length,
+  })
+
+  await logAudit(ctx, {
+    action: 'import.file',
+    entity: 'import_logs',
+    entityId: importLog.id,
+    companyId,
+    newValue: {
+      status: finalStatus,
+      total_invoices: totalItemRows,
+      success_invoices: successCount,
+      error_rows: errors.length,
+    },
+    meta: { filename, period_month: periodMonth, source: 'file' },
   })
 
   return {

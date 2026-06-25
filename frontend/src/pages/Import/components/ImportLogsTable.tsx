@@ -172,7 +172,7 @@ export function ImportLogsTable() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                 {t('import.logs.colCompany')}
               </Typography>
-              <Typography variant="body2">{log.company.name}</Typography>
+              <Typography variant="body2">{log.company?.name ?? '—'}</Typography>
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -236,7 +236,7 @@ export function ImportLogsTable() {
             </Typography>
           )}
           <Typography variant="caption" color="text.disabled">
-            {t('import.logs.colBy')}: {log.imported_by.name}
+            {t('import.logs.colBy')}: {log.imported_by?.name ?? '—'}
           </Typography>
         </Stack>
       </Card>

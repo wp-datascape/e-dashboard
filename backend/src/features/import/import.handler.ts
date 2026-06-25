@@ -49,6 +49,7 @@ export async function handleImportFile(c: Context) {
       buffer,
       filename: file.name,
       mimetype: file.type,
+      ctx: c,
     })
 
     return success(c, {

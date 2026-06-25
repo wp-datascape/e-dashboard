@@ -13,6 +13,8 @@ import {
   import_logs,
   import_log_errors,
   item_classification_rules,
+  companies,
+  users,
 } from '@/db/schema'
 import type { NewInvoice } from '@/db/schema/invoices'
 import type { NewInvoiceItem } from '@/db/schema/invoice_items'
@@ -44,7 +46,6 @@ export async function updateImportLog(id: number, data: Partial<NewImportLog>) {
 
 export async function findImportLogs(companyId?: number, page = 1, perPage = 20) {
   const offset = (page - 1) * perPage
-
   const whereClause = companyId ? eq(import_logs.company_id, companyId) : undefined
 
   const [totalResult] = await db
@@ -53,8 +54,30 @@ export async function findImportLogs(companyId?: number, page = 1, perPage = 20)
     .where(whereClause)
 
   const rows = await db
-    .select()
+    .select({
+      id: import_logs.id,
+      source: import_logs.source,
+      filename: import_logs.filename,
+      period_month: import_logs.period_month,
+      status: import_logs.status,
+      total_invoices: import_logs.total_invoices,
+      total_items: import_logs.total_items,
+      success_invoices: import_logs.success_invoices,
+      error_rows: import_logs.error_rows,
+      created_at: import_logs.created_at,
+      updated_at: import_logs.updated_at,
+      company: {
+        id: companies.id,
+        name: companies.name,
+      },
+      imported_by: {
+        id: users.id,
+        name: users.name,
+      },
+    })
     .from(import_logs)
+    .leftJoin(companies, eq(import_logs.company_id, companies.id))
+    .leftJoin(users, eq(import_logs.imported_by, users.id))
     .where(whereClause)
     .orderBy(desc(import_logs.created_at))
     .limit(perPage)

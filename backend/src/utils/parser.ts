@@ -29,6 +29,9 @@ export interface InvoiceRow {
   customer_code: string
   customer_name: string
   product_category: string
+  item_name?: string         // Nama Barang (Excel only); CSV fallback ke product_category
+  quantity?: number
+  unit_price?: number
   revenue: number
   gross_profit: number
 }
@@ -203,15 +206,19 @@ export async function parseCsv(buffer: Buffer): Promise<ParseResult> {
 }
 
 // ─── Column positions for Accurate Online "Rincian Faktur Penjualan Laba" export ──
-// Kolom B sampai K (index 1-10)
-// Header row (index 5, 0-based) berisi: Tanggal | Sales Invoice | Pelanggan | Nama Cabang | Nama Kategori | Nama Barang | Kuantitas | @Harga | Total Harga | BPP | Laba
+// Setiap kolom di Accurate export diikuti 1 cell kosong (merged cells), jadi index berlipat.
+// Layout actual (0-based): B(1) | C(2)empty | D(3) | E(4)empty | F(5) | ... dst
+// Row 4 = header: Tanggal | | Sales Invoice | | Pelanggan | | Nama Cabang | | Nama Kategori | | Nama Barang | | Kuantitas | | @Harga | | Total Harga | | BPP | | Laba
 const EXCEL_COL = {
-  DATE: 1,          // Tanggal (YYYY-MM-DD)
-  INVOICE_NO: 2,    // Sales Invoice
-  CUSTOMER_NAME: 3, // Pelanggan
-  CATEGORY: 5,      // Nama Kategori Barang Barang & Jasa
-  REVENUE: 8,       // Total Harga
-  GROSS_PROFIT: 10, // Laba
+  DATE: 1,           // Tanggal (format: "DD MMM YYYY", e.g. "02 Jun 2026")
+  INVOICE_NO: 3,     // Sales Invoice
+  CUSTOMER_NAME: 5,  // Pelanggan
+  CATEGORY: 9,       // Nama Kategori Barang Barang & Jasa
+  ITEM_NAME: 11,     // Nama Barang
+  QUANTITY: 13,      // Kuantitas
+  UNIT_PRICE: 15,    // @Harga (harga satuan)
+  REVENUE: 17,       // Total Harga
+  GROSS_PROFIT: 21,  // Laba
 } as const
 
 /**
@@ -244,17 +251,29 @@ function isAccurateDataRow(row: unknown[]): boolean {
   return true
 }
 
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04',
+  mei: '05', may: '05', jun: '06', jul: '07',
+  agu: '08', aug: '08', sep: '09',
+  okt: '10', oct: '10', nov: '11', des: '12', dec: '12',
+}
+
 /**
- * Convert YYYY-MM-DD to DD/MM/YYYY (format internal).
+ * Convert berbagai format tanggal dari Accurate export ke DD/MM/YYYY (format internal).
+ * Mendukung: "DD MMM YYYY" (e.g. "02 Jun 2026"), "YYYY-MM-DD", "DD/MM/YYYY".
  */
 function formatDateFromExport(dateStr: string): string {
   const cleaned = dateStr.trim()
-  // Already DD/MM/YYYY?
+  // Already DD/MM/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) return cleaned
   // YYYY-MM-DD
-  const parts = cleaned.split('-')
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  const isoMatch = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
+  // DD MMM YYYY — format Accurate export, e.g. "02 Jun 2026"
+  const accurateMatch = cleaned.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/)
+  if (accurateMatch) {
+    const month = MONTH_MAP[accurateMatch[2].toLowerCase()]
+    if (month) return `${accurateMatch[1].padStart(2, '0')}/${month}/${accurateMatch[3]}`
   }
   return cleaned
 }
@@ -299,8 +318,12 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
       const invNo = String(row[EXCEL_COL.INVOICE_NO] ?? '').trim()
       const customerName = String(row[EXCEL_COL.CUSTOMER_NAME] ?? '').trim()
       const categoryRaw = String(row[EXCEL_COL.CATEGORY] ?? '').trim()
-      const revRaw = String(row[EXCEL_COL.REVENUE] ?? '').trim().replace(/\./g, '').replace(',', '.')
-      const gpRaw = String(row[EXCEL_COL.GROSS_PROFIT] ?? '').trim().replace(/\./g, '').replace(',', '.')
+      const itemNameRaw = String(row[EXCEL_COL.ITEM_NAME] ?? '').trim()
+      const qtyRaw = String(row[EXCEL_COL.QUANTITY] ?? '').trim().replace(/\.$/, '')
+      const unitPriceRaw = String(row[EXCEL_COL.UNIT_PRICE] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
+      // Format Accurate: koma = pemisah ribuan ("5,648,662."), titik akhir = integer tanpa desimal
+      const revRaw = String(row[EXCEL_COL.REVENUE] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
+      const gpRaw = String(row[EXCEL_COL.GROSS_PROFIT] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
 
       const invoiceDate = formatDateFromExport(dateRaw)
       const revenueNum = parseFloat(revRaw)
@@ -327,9 +350,12 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
       const invoiceRow: InvoiceRow = {
         invoice_number: invNo,
         invoice_date: invoiceDate,
-        customer_code: `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`, // generate dari invoice number
+        customer_code: `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`,
         customer_name: customerName.toUpperCase().trim(),
         product_category: categoryRaw.toUpperCase().trim(),
+        item_name: itemNameRaw.toUpperCase().trim() || undefined,
+        quantity: qtyRaw ? parseFloat(qtyRaw) : undefined,
+        unit_price: unitPriceRaw ? parseFloat(unitPriceRaw) : undefined,
         revenue: revenueNum,
         gross_profit: gpNum,
       }

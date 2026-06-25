@@ -2,36 +2,37 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-23
+> Last updated: 2026-06-25
 
 ---
 
 ## Overall Backend Progress
 
-| Layer            | Status | Notes                                      |
-|------------------|--------|--------------------------------------------|
-| Project Setup    | Done   | Bun, tsconfig, bun-types, .env             |
-| Folder Structure | Done   | Feature-based + Router Orchestrator        |
-| Config           | Done   | env.ts (Zod), db.ts (Drizzle)              |
-| Utils            | Done   | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
+| Layer            | Status  | Notes                                      |
+|------------------|---------|--------------------------------------------|
+| Project Setup    | Done    | Bun, tsconfig, bun-types, .env             |
+| Folder Structure | Done    | Feature-based + Router Orchestrator        |
+| Config           | Done    | env.ts (Zod), db.ts (Drizzle)              |
+| Utils            | Done    | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
 | Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
-| DB Schema        | Done   | 0000_init_schema.sql selesai + 3 migrations (company_branches, accurate_credentials); accurate_credentials token columns: varchar→text |
-| DB Migration     | Done   | 0000-0003 applied, 0004 generated (pending apply) |
-| DB Seed          | Done   | seed.ts dibuat                             |
-| Feature: Auth    | 0%     | Belum dibuat, router.ts masih commented    |
-| Feature: RBAC    | Done   | roles + permissions mounted, rbac folder ada |
-| Feature: Users   | Done   | CRUD selesai — docs: `features/users.md`   |
-| Feature: Companies | Done | CRUD selesai — docs: `features/companies.md` |
-| Feature: Roles   | Done   | CRUD + permissions — docs: `features/roles.md` |
-| Feature: Permissions | Done | CRUD + assign — docs: `features/permissions.md` |
-| Feature: Config  | Done   | GET + PUT per key — docs: `features/config-page.md` |
-| Feature: Page    | Done   | GET + PUT page settings — docs: `features/page-settings.md` |
-| Feature: Audit   | Done   | 2 endpoints (list + detail) — docs: `features/audit.md` |
-| Feature: Import  | 0%     | Folder ada tapi belum dibuat               |
-| Feature: Metrics | 0%     | Folder ada tapi belum dibuat               |
-| Feature: Customers | 0%   | Folder ada tapi belum dibuat               |
-| Feature: Products  | 0%   | Folder ada tapi belum dibuat               |
-| Feature: Transactions | 0% | Folder ada tapi belum dibuat             |
+| DB Schema        | Done    | 19 tabel aktif, migrations applied, import data real sudah masuk |
+| DB Migration     | Done    | 0000-0005 applied                          |
+| DB Seed          | Done    | seed.ts dibuat                             |
+| Handler Pattern  | Done    | Semua fitur punya handler.ts terpisah dengan error handling |
+| Feature: Auth    | 0%      | Belum dibuat, router.ts masih commented    |
+| Feature: RBAC    | Done    | roles + permissions mounted                |
+| Feature: Users   | Done    | CRUD + handler — docs: `features/users.md`   |
+| Feature: Companies | Done  | CRUD + branches + handler — docs: `features/companies.md` |
+| Feature: Roles   | Done    | CRUD + permissions + handler — docs: `features/roles.md` |
+| Feature: Permissions | Done | CRUD + assign + handler — docs: `features/permissions.md` |
+| Feature: Config  | Done    | GET + PUT + Accurate credentials + handler — docs: `features/config-page.md` |
+| Feature: Page    | Done    | GET + PUT + handler — docs: `features/page-settings.md` |
+| Feature: Audit   | Done    | list + detail + handler — docs: `features/audit.md` |
+| Feature: Products | Done   | GET categories + products dari Accurate API + handler |
+| Feature: Import  | ~90%    | File upload Excel/CSV selesai + tested. Sisa: auth guard, rollback endpoint |
+| Feature: Metrics | 0%      | Belum dibuat                               |
+| Feature: Customers | 0%    | Belum dibuat                               |
+| Feature: Transactions | 0%  | Belum dibuat                              |
 
 ---
 
@@ -207,16 +208,48 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 1. [HIGH]   Auth Feature           — login, logout, refresh + authMiddleware
 2. [HIGH]   Middleware             — csrf, rate-limit, auth, company-access, permission
 3. [HIGH]   Metrics Feature        — 10 KPI (M1-M10), query berat pakai window functions
-4. [HIGH]   Migration & DB Apply   — generate migration + db-migrate untuk 7 tabel baru
-5. [MEDIUM] Import Classification  — seed data classification rules + CRUD endpoints
-6. [MEDIUM] Import Unclassified    — PUT endpoint untuk override item_type
-7. [MEDIUM] Customers Feature      — list + detail, auto dari import
-8. [MEDIUM] Products Feature       — list + detail + update category flags
+4. [MEDIUM] Import: Rollback       — DELETE /import/logs/:id (hapus invoice batch gagal)
+5. [MEDIUM] Import: Auth Guard     — pasang authMiddleware di import routes
+6. [MEDIUM] Customers Feature      — list + detail, auto dari import
+7. [MEDIUM] Transactions Feature   — invoice list + detail
+8. [LOW]    Import Classification  — CRUD endpoint + seed rules
 ```
 
 ---
 
 ## Catatan Sesi
+
+### 2026-06-25 (sesi 7 — Import Feature Fixes + Handler Pattern Refactor)
+
+**Import Parser — 4 bug diperbaiki:**
+- `EXCEL_COL` indices semua salah: Accurate export pakai merged cells, setiap kolom diikuti 1 cell kosong. Indeks yang benar: INVOICE_NO=3, CUSTOMER_NAME=5, CATEGORY=9, ITEM_NAME=11, QUANTITY=13, UNIT_PRICE=15, REVENUE=17, GROSS_PROFIT=21
+- Format tanggal: Accurate kirim "DD MMM YYYY" (e.g. "02 Jun 2026"), bukan YYYY-MM-DD. Tambah `MONTH_MAP` + regex
+- Numeric parsing: `.replace(/\./g,'')` menghapus titik desimal. Format Accurate: koma=ribuan, titik akhir=integer tanpa desimal. Fix: `.replace(/,/g,'').replace(/\.$/,'')`
+- Field baru di `InvoiceRow`: `item_name?`, `quantity?`, `unit_price?` dari kolom Nama Barang/Kuantitas/@Harga
+
+**Import Service — 2 bug diperbaiki:**
+- Multi-item invoice: `batchInvoiceCache: Map<invoiceNumber, invoiceId>` — invoice di-cache per batch. Baris ke-2+ dengan invoice sama langsung `createInvoiceItem` tanpa buat invoice baru
+- Empty file: guard `rows=0 && errors=0` → throw `AppError(INVALID_FILE_FORMAT)`
+
+**Import Repository — 1 bug diperbaiki:**
+- `findImportLogs`: LEFT JOIN ke `companies` dan `users` — return `{company: {id,name}, imported_by: {id,name}}`
+
+**Frontend ImportLogsTable — 1 bug diperbaiki:**
+- Crash `log.company.name` → fix dengan `log.company?.name ?? '—'`
+
+**Handler Pattern — semua fitur dimigrasikan:**
+- 8 handler baru: audit, page, roles, permissions, users, products, config, companies
+- Pola: `try/catch` per handler, `AppError` di-rethrow, unexpected error di-wrap dengan `ErrorCode` kontekstual
+- Route files sekarang hanya register handler (2-10 baris)
+- `config.handler.ts`: logger dipertahankan di `handleSaveAccurateCredentials` untuk 5xx error tracking
+
+**Perubahan file:**
+- `backend/src/utils/parser.ts` — UPDATED
+- `backend/src/features/import/import.service.ts` — UPDATED
+- `backend/src/features/import/import.repository.ts` — UPDATED
+- `frontend/src/pages/Import/components/ImportLogsTable.tsx` — UPDATED
+- 8 handler files baru di masing-masing feature folder
+- 8 route files — UPDATED (delegate ke handler)
 
 ### 2026-06-25 (sesi 6 — Backend Import Feature: Schema + Classification Engine + CSV Import API)
 

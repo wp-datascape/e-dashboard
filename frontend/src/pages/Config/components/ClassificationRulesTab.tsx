@@ -29,6 +29,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api as axiosInstance } from '@/api/axios'
 import { Card } from '@/components/ui'
 import { Button } from '@/components/ui'
+import { cip } from '@components/ui'
 
 interface Rule {
   id: number
