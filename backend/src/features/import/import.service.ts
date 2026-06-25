@@ -36,6 +36,13 @@ import {
 } from './import.repository'
 import type { NewImportLogError } from '@/db/schema/import_log_errors'
 
+export interface ImportProgress {
+  processed: number
+  total: number
+  success: number
+  errors: number
+}
+
 export interface ImportFileOptions {
   companyId: number
   periodMonth: string
@@ -44,6 +51,7 @@ export interface ImportFileOptions {
   filename: string
   mimetype: string
   ctx: Context
+  onProgress?: (p: ImportProgress) => Promise<void>
 }
 
 export interface ImportResult {
@@ -56,7 +64,7 @@ export interface ImportResult {
 }
 
 export async function importFile(options: ImportFileOptions): Promise<ImportResult> {
-  const { companyId, periodMonth, userId, buffer, filename, mimetype, ctx } = options
+  const { companyId, periodMonth, userId, buffer, filename, mimetype, ctx, onProgress } = options
 
   // ── Parse file ─────────────────────────────────────────────────────────────
   const parseResult = mimetype.includes('csv')
@@ -113,13 +121,15 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
     }
   }
 
-  // ── Create import log (partial status) ─────────────────────────────────────
+  // ── Create import log — status awal 'failed', diupdate ke final di akhir ────
+  // Pesimistik: jika proses terputus (browser refresh, crash), log tetap 'failed'
+  // bukan 'partial' yang menyesatkan.
   const importLog = await createImportLog({
     company_id: companyId,
     source: 'file',
     filename,
     period_month: periodMonth,
-    status: 'partial',
+    status: 'failed',
     total_invoices: parseResult.rows.length,
     total_items: 0,
     success_invoices: 0,
@@ -195,6 +205,8 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
           invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
           total_revenue: '0',
           total_gp: '0',
+          salesperson_name: row.salesperson ?? null,
+          branch_name: row.branch_name ?? null,
           import_log_id: importLog.id,
         })
 
@@ -224,6 +236,15 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
         row_number: rowNum,
         raw_data: JSON.stringify(row),
         error_message: err instanceof Error ? err.message : String(err),
+      })
+    }
+
+    if (onProgress) {
+      await onProgress({
+        processed: parseResult.rows.indexOf(row) + 1,
+        total: parseResult.rows.length,
+        success: successCount,
+        errors: errors.length,
       })
     }
   }

@@ -229,6 +229,86 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 
 **Lokasi:** `src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
 
+## ProgressBar — Segmented Import Progress
+
+**`ProgressBar`** adalah atomic component untuk indikator progres import data. Tersedia di `src/components/ui/ProgressBar/`.
+
+```typescript
+import { ProgressBar } from '@/components/ui'
+
+// Saat loading/upload (sebelum total diketahui) — shimmer indeterminate
+<ProgressBar status="loading" size="sm" showLabel={false} />
+
+// Saat processing — bar tersegmentasi real-time
+<ProgressBar
+  total={progress.total}
+  success={progress.success}
+  error={progress.errors}
+  size="sm"
+  showLabel={false}
+/>
+
+// Hasil akhir import — animasi dari 0 saat pertama render
+<ProgressBar
+  total={result.total_invoices}
+  success={result.success_invoices}
+  error={result.error_rows}
+  status={result.status}
+  size="sm"
+  showLabel
+/>
+```
+
+**Props:**
+
+| Prop | Type | Default | Keterangan |
+|------|------|---------|------------|
+| `success` | `number` | `0` | Jumlah baris sukses |
+| `error` | `number` | `0` | Jumlah baris error |
+| `total` | `number` | `0` | Total baris data |
+| `status` | `ProgressBarStatus` | `'idle'` | `loading` = shimmer; `idle/success/partial/failed` = segmented bar |
+| `size` | `'sm'|'md'|'lg'` | `'md'` | Tinggi bar: sm=4px md=8px lg=12px |
+| `showLabel` | `boolean` | `true` | Tampilkan angka di bawah bar |
+| `animated` | `boolean` | `true` | Transisi width 0.6s ease |
+| `sx` | `SxProps` | — | Override MUI sx |
+
+**Struktur visual bar (kiri → kanan):**
+```
+[ sukses (hijau) ][ error (merah) ][ belum diproses (abu) ]
+```
+
+**Animasi mount:** Komponen selalu start dari 0% dan animate ke nilai target. Update berikutnya (streaming) langsung set tanpa delay sehingga CSS transition tetap smooth.
+
+**Pola integrasi dengan SSE streaming** → lihat `useImportFileProgress` di `src/hooks/useImport.ts`.
+
+---
+
+## Import Streaming Pattern (useImportFileProgress)
+
+Untuk operasi panjang yang butuh progress real-time, gunakan native `fetch` + `ReadableStream` bukan `useMutation` axios.
+
+```typescript
+import { useImportFileProgress } from '@/hooks/useImport'
+
+const { phase, progress, result, errorMessage, mutate, reset, isPending } = useImportFileProgress()
+
+// phase: 'idle' | 'uploading' | 'processing' | 'done' | 'error'
+// progress: { processed, total, success, errors }
+// isPending: phase === 'uploading' || phase === 'processing'
+
+// Saat upload:
+<ProgressBar status="loading" size="sm" showLabel={false} />
+
+// Saat processing:
+<ProgressBar total={progress.total} success={progress.success} error={progress.errors} size="sm" showLabel={false} />
+<Typography variant="caption">{progress.processed} / {progress.total} baris</Typography>
+```
+
+Backend endpoint yang bersesuaian: `POST /api/v1/import/csv/stream` (Hono `streamSSE`).
+Format event: `data: {"event":"progress","processed":5,"total":100,"success":4,"errors":1}`
+
+---
+
 ## Form Pattern
 React Hook Form v7 + Zod v4 di setiap form
 

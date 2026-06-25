@@ -5,8 +5,9 @@
  * Output selalu dikonversi ke format internal yang konsisten.
  *
  * Column mapping dari Accurate Online export (sesuai data-model.md):
- *   invoice_number   | invoice_date (DD/MM/YYYY) | customer_code | customer_name
- *   product_category | revenue                   | gross_profit
+ *   invoice_number   | invoice_date (DD/MM/YYYY) | customer_name
+ *   product_category | item_name    | quantity    | unit_price
+ *   revenue          | gross_profit | branch_name | salesperson
  *
  * DILARANG: Mengubah nama kolom internal tanpa update data-model.md.
  *
@@ -34,6 +35,8 @@ export interface InvoiceRow {
   unit_price?: number
   revenue: number
   gross_profit: number
+  branch_name?: string       // Nama Cabang — dari kolom "Nama Cabang"
+  salesperson?: string       // Tenaga Penjual — dari kolom "Nama Tenaga Penjual"
 }
 
 export interface ParseResult {
@@ -205,33 +208,93 @@ export async function parseCsv(buffer: Buffer): Promise<ParseResult> {
   return { rows, totalRows: parsed.data.length, errors }
 }
 
-// ─── Column positions for Accurate Online "Rincian Faktur Penjualan Laba" export ──
-// Setiap kolom di Accurate export diikuti 1 cell kosong (merged cells), jadi index berlipat.
-// Layout actual (0-based): B(1) | C(2)empty | D(3) | E(4)empty | F(5) | ... dst
-// Row 4 = header: Tanggal | | Sales Invoice | | Pelanggan | | Nama Cabang | | Nama Kategori | | Nama Barang | | Kuantitas | | @Harga | | Total Harga | | BPP | | Laba
-const EXCEL_COL = {
-  DATE: 1,           // Tanggal (format: "DD MMM YYYY", e.g. "02 Jun 2026")
-  INVOICE_NO: 3,     // Sales Invoice
-  CUSTOMER_NAME: 5,  // Pelanggan
-  CATEGORY: 9,       // Nama Kategori Barang Barang & Jasa
-  ITEM_NAME: 11,     // Nama Barang
-  QUANTITY: 13,      // Kuantitas
-  UNIT_PRICE: 15,    // @Harga (harga satuan)
-  REVENUE: 17,       // Total Harga
-  GROSS_PROFIT: 21,  // Laba
-} as const
+// ─── Excel Header Detection ──────────────────────────────────────────────────
+// Template resmi: "Rincian Faktur Penjualan" dari Accurate Online.
+// Header dideteksi secara dinamis sehingga perubahan urutan kolom tidak memutus parser.
+
+const REQUIRED_EXCEL_HEADERS = [
+  { key: 'date',             label: 'Tanggal' },
+  { key: 'invoice_number',   label: 'Sales Invoice' },
+  { key: 'customer_name',    label: 'Pelanggan' },
+  { key: 'product_category', label: 'Nama Kategori Barang Barang & Jasa' },
+  { key: 'item_name',        label: 'Nama Barang' },
+  { key: 'quantity',         label: 'Kuantitas' },
+  { key: 'unit_price',       label: '@Harga' },
+  { key: 'revenue',          label: 'Total Harga' },
+  { key: 'gross_profit',     label: 'Laba' },
+] as const
+
+const OPTIONAL_EXCEL_HEADERS = [
+  { key: 'branch_name',  label: 'Nama Cabang' },
+  { key: 'salesperson',  label: 'Nama Tenaga Penjual' },
+] as const
+
+type ExcelColMap = Record<string, number>
 
 /**
- * Check if a row from an Accurate export is a data row (not header, not summary, not footer).
+ * Scan baris pertama (max 10) untuk menemukan header row.
+ * Header row dikenali dari keberadaan "Tanggal" DAN "Sales Invoice".
+ * Mengembalikan index baris header, mapping field → index kolom, dan raw header row.
  */
-function isAccurateDataRow(row: unknown[]): boolean {
-  // Row kosong → skip
+function detectExcelHeaders(rawData: unknown[][]): { headerRowIndex: number; colMap: ExcelColMap; headerRow: string[] } | null {
+  for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+    const row = (rawData[i] as unknown[]).map((c) => String(c ?? '').trim())
+
+    if (!row.includes('Tanggal') || !row.includes('Sales Invoice')) continue
+
+    const colMap: ExcelColMap = {}
+    for (const h of [...REQUIRED_EXCEL_HEADERS, ...OPTIONAL_EXCEL_HEADERS]) {
+      const idx = row.indexOf(h.label)
+      if (idx !== -1) colMap[h.key] = idx
+    }
+    return { headerRowIndex: i, colMap, headerRow: row }
+  }
+  return null
+}
+
+/**
+ * Validasi header row:
+ * 1. Semua kolom wajib harus ada.
+ * 2. Tidak boleh ada kolom yang tidak dikenali — jika ada, template dianggap tidak valid.
+ */
+function validateExcelHeaders(colMap: ExcelColMap, headerRow: string[]): void {
+  const missing = REQUIRED_EXCEL_HEADERS
+    .filter((h) => colMap[h.key] === undefined)
+    .map((h) => `"${h.label}"`)
+
+  if (missing.length > 0) {
+    throw new AppError(
+      ErrorCode.INVALID_FILE_FORMAT,
+      `Kolom wajib tidak ditemukan: ${missing.join(', ')}. Pastikan menggunakan template resmi "Rincian Faktur Penjualan".`,
+      400,
+    )
+  }
+
+  const knownLabels = new Set<string>([
+    ...REQUIRED_EXCEL_HEADERS.map((h) => h.label),
+    ...OPTIONAL_EXCEL_HEADERS.map((h) => h.label),
+  ])
+
+  const unexpected = headerRow
+    .filter((h) => h !== '' && !knownLabels.has(h))
+    .map((h) => `"${h}"`)
+
+  if (unexpected.length > 0) {
+    throw new AppError(
+      ErrorCode.INVALID_FILE_FORMAT,
+      `Template tidak valid. Kolom tidak dikenali: ${unexpected.join(', ')}. Pastikan menggunakan template resmi "Rincian Faktur Penjualan".`,
+      400,
+    )
+  }
+}
+
+/**
+ * Cek apakah baris adalah data invoice (bukan header, summary, atau footer).
+ */
+function isDataRow(row: unknown[], invoiceColIdx: number): boolean {
   if (!row || row.length === 0) return false
 
-  const dateVal = String(row[EXCEL_COL.DATE] ?? '').trim()
-  const invVal = String(row[EXCEL_COL.INVOICE_NO] ?? '').trim()
-
-  // Tidak ada invoice number → bukan data row (subtotal/separator)
+  const invVal = String(row[invoiceColIdx] ?? '').trim()
   if (!invVal) return false
 
   // Skip footer rows
@@ -242,10 +305,7 @@ function isAccurateDataRow(row: unknown[]): boolean {
     fullText.includes('Halaman')
   ) return false
 
-  // Skip date-only separator rows (ada tanggal tapi no invoice)
-  if (dateVal && !invVal) return false
-
-  // Skip rows where invoice doesn't look like an invoice number
+  // Invoice number harus diawali SI. atau INV-
   if (!invVal.startsWith('SI.') && !invVal.startsWith('INV-')) return false
 
   return true
@@ -280,8 +340,10 @@ function formatDateFromExport(dateStr: string): string {
 
 /**
  * Parse Excel (.xlsx) file buffer → array of InvoiceRow.
- * Khusus format Accurate Online "Rincian Faktur Penjualan Laba".
- * Partial success: valid rows dikembalikan, error rows di-collect di result.errors.
+ * Khusus format Accurate Online "Rincian Faktur Penjualan".
+ *
+ * Header dideteksi secara dinamis — jika header tidak sesuai template resmi,
+ * import dibatalkan dengan pesan error yang jelas.
  */
 export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
@@ -304,60 +366,71 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
     throw new AppError(ErrorCode.INVALID_FILE_FORMAT, 'Excel sheet is empty', 400)
   }
 
+  // ── Detect & validate header row ─────────────────────────────────────────
+  const headerResult = detectExcelHeaders(rawData)
+  if (!headerResult) {
+    throw new AppError(
+      ErrorCode.INVALID_FILE_FORMAT,
+      'Header tidak ditemukan dalam 10 baris pertama. Pastikan menggunakan template resmi "Rincian Faktur Penjualan" dari Accurate Online.',
+      400,
+    )
+  }
+
+  const { headerRowIndex, colMap, headerRow } = headerResult
+  validateExcelHeaders(colMap, headerRow)  // throws jika kolom wajib hilang atau ada kolom asing
+
   const rows: InvoiceRow[] = []
   const errors: ParseRowError[] = []
 
-  for (let i = 0; i < rawData.length; i++) {
+  for (let i = headerRowIndex + 1; i < rawData.length; i++) {
     const row = rawData[i] as unknown[]
     const rowNum = i + 1
 
-    if (!isAccurateDataRow(row)) continue
+    if (!isDataRow(row, colMap.invoice_number)) continue
 
     try {
-      const dateRaw = String(row[EXCEL_COL.DATE] ?? '').trim()
-      const invNo = String(row[EXCEL_COL.INVOICE_NO] ?? '').trim()
-      const customerName = String(row[EXCEL_COL.CUSTOMER_NAME] ?? '').trim()
-      const categoryRaw = String(row[EXCEL_COL.CATEGORY] ?? '').trim()
-      const itemNameRaw = String(row[EXCEL_COL.ITEM_NAME] ?? '').trim()
-      const qtyRaw = String(row[EXCEL_COL.QUANTITY] ?? '').trim().replace(/\.$/, '')
-      const unitPriceRaw = String(row[EXCEL_COL.UNIT_PRICE] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
+      const str = (key: string) => String(row[colMap[key]] ?? '').trim()
+
+      const dateRaw     = str('date')
+      const invNo       = str('invoice_number')
+      const custName    = str('customer_name')
+      const categoryRaw = str('product_category')
+      const itemNameRaw = str('item_name')
+      const qtyRaw      = str('quantity').replace(/\.$/, '')
+      const unitPriceRaw = str('unit_price').replace(/,/g, '').replace(/\.$/, '')
       // Format Accurate: koma = pemisah ribuan ("5,648,662."), titik akhir = integer tanpa desimal
-      const revRaw = String(row[EXCEL_COL.REVENUE] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
-      const gpRaw = String(row[EXCEL_COL.GROSS_PROFIT] ?? '').trim().replace(/,/g, '').replace(/\.$/, '')
+      const revRaw = str('revenue').replace(/,/g, '').replace(/\.$/, '')
+      const gpRaw  = str('gross_profit').replace(/,/g, '').replace(/\.$/, '')
+      const branchRaw     = colMap.branch_name !== undefined ? str('branch_name') : ''
+      const salespersonRaw = colMap.salesperson !== undefined ? str('salesperson') : ''
 
       const invoiceDate = formatDateFromExport(dateRaw)
-      const revenueNum = parseFloat(revRaw)
-      const gpNum = parseFloat(gpRaw)
+      const revenueNum  = parseFloat(revRaw)
+      const gpNum       = parseFloat(gpRaw)
 
       if (isNaN(revenueNum)) {
-        errors.push({
-          rowNumber: rowNum,
-          rawData: JSON.stringify(row),
-          errorMessage: `Invalid revenue: "${revRaw}"`,
-        })
+        errors.push({ rowNumber: rowNum, rawData: JSON.stringify(row), errorMessage: `Invalid revenue: "${revRaw}"` })
         continue
       }
 
       if (isNaN(gpNum)) {
-        errors.push({
-          rowNumber: rowNum,
-          rawData: JSON.stringify(row),
-          errorMessage: `Invalid gross_profit: "${gpRaw}"`,
-        })
+        errors.push({ rowNumber: rowNum, rawData: JSON.stringify(row), errorMessage: `Invalid gross_profit: "${gpRaw}"` })
         continue
       }
 
       const invoiceRow: InvoiceRow = {
-        invoice_number: invNo,
-        invoice_date: invoiceDate,
-        customer_code: `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        customer_name: customerName.toUpperCase().trim(),
+        invoice_number:   invNo,
+        invoice_date:     invoiceDate,
+        customer_code:    `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        customer_name:    custName.toUpperCase().trim(),
         product_category: categoryRaw.toUpperCase().trim(),
-        item_name: itemNameRaw.toUpperCase().trim() || undefined,
-        quantity: qtyRaw ? parseFloat(qtyRaw) : undefined,
-        unit_price: unitPriceRaw ? parseFloat(unitPriceRaw) : undefined,
-        revenue: revenueNum,
-        gross_profit: gpNum,
+        item_name:        itemNameRaw.toUpperCase().trim() || undefined,
+        quantity:         qtyRaw ? parseFloat(qtyRaw) : undefined,
+        unit_price:       unitPriceRaw ? parseFloat(unitPriceRaw) : undefined,
+        revenue:          revenueNum,
+        gross_profit:     gpNum,
+        branch_name:      branchRaw.toUpperCase().trim() || undefined,
+        salesperson:      salespersonRaw.toUpperCase().trim() || undefined,
       }
 
       const validationError = validateRow(invoiceRow, rowNum)

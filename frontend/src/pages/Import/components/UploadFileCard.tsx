@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
@@ -8,19 +8,19 @@ import CircularProgress from '@mui/material/CircularProgress'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import { useTranslation } from 'react-i18next'
-import { Card } from '@/components/ui'
-import { Button } from '@/components/ui'
-import { useImportFile } from '@/hooks/useImport'
+import { Card, Button, ProgressBar } from '@/components/ui'
+import { useImportFileProgress } from '@/hooks/useImport'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
 import { ResultBanner } from './ResultBanner'
 import type { Company } from '@/types/users'
-import type { ImportResult } from '@/types/import'
 
 interface UploadFileCardProps {
   companies: Company[]
+  disabled?: boolean
+  onPendingChange?: (pending: boolean) => void
 }
 
-export function UploadFileCard({ companies }: UploadFileCardProps) {
+export function UploadFileCard({ companies, disabled = false, onPendingChange }: UploadFileCardProps) {
   const { t } = useTranslation()
   const [companyId, setCompanyId] = useState<number | ''>('')
   const [periodMonth, setPeriodMonth] = useState(() => {
@@ -29,40 +29,48 @@ export function UploadFileCard({ companies }: UploadFileCardProps) {
   })
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [result, setResult] = useState<ImportResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { mutate, isPending } = useImportFile()
+
+  const { phase, progress, result, errorMessage, mutate, reset, isPending } = useImportFileProgress()
+
+  useEffect(() => {
+    onPendingChange?.(isPending)
+  }, [isPending, onPendingChange])
+
+  const isDisabled = isPending || disabled
 
   const handleFile = (f: File | null) => {
+    if (isDisabled) return
     if (!f) return
-    if (!f.name.match(/\.(csv|xlsx|xls)$/i)) { setError(t('import.form.errorFormat')); return }
-    if (f.size > 10 * 1024 * 1024) { setError(t('import.form.errorSize')); return }
+    if (!f.name.match(/\.(csv|xlsx|xls)$/i)) { setFormError(t('import.form.errorFormat')); return }
+    if (f.size > 10 * 1024 * 1024) { setFormError(t('import.form.errorSize')); return }
     setFile(f)
-    setError(null)
+    setFormError(null)
   }
 
   const handleSubmit = () => {
-    setError(null)
-    setResult(null)
-    if (!companyId) { setError(t('import.form.errorCompany')); return }
-    if (!periodMonth) { setError(t('import.form.errorPeriod')); return }
-    if (!file) { setError(t('import.form.errorFile')); return }
+    if (isDisabled) return
+    setFormError(null)
+    reset()
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (!companyId) { setFormError(t('import.form.errorCompany')); return }
+    if (!periodMonth) { setFormError(t('import.form.errorPeriod')); return }
+    if (!file) { setFormError(t('import.form.errorFile')); return }
 
-    mutate(
-      { file, company_id: companyId as number, period_month: periodMonth },
-      {
-        onSuccess: (r: { data: ImportResult }) => { setResult(r.data); setFile(null) },
-        onError: (e: unknown) => {
-          const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-          setError(msg ?? t('import.form.errorGeneric'))
-        },
-      },
-    )
+    void mutate({ file, company_id: companyId as number, period_month: periodMonth })
+
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (phase === 'done') setFile(null)
+  }
+
+  const handleCloseResult = () => {
+    reset()
+    setFile(null)
   }
 
   return (
-    <Card sx={{ p: 3, height: '100%' }}>
+    <Card sx={{ p: 3, height: '100%', opacity: disabled && !isPending ? 0.5 : 1, transition: 'opacity 0.2s' }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
         <Box sx={{ p: 1, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex' }}>
           <UploadFileIcon fontSize="small" />
@@ -86,6 +94,7 @@ export function UploadFileCard({ companies }: UploadFileCardProps) {
           periodMonth={periodMonth}
           onCompany={setCompanyId}
           onPeriod={setPeriodMonth}
+          disabled={isDisabled}
         />
 
         <Box>
@@ -97,23 +106,26 @@ export function UploadFileCard({ companies }: UploadFileCardProps) {
             onChange={e => handleFile(e.target.files?.[0] ?? null)}
           />
           <Box
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onClick={() => !isDisabled && fileInputRef.current?.click()}
+            onDragOver={e => { if (!isDisabled) { e.preventDefault(); setDragOver(true) } }}
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
             sx={{
               border: '2px dashed',
-              borderColor: dragOver ? 'primary.main' : file ? 'success.main' : 'divider',
-              bgcolor: dragOver ? 'action.hover' : 'background.default',
-              p: 3, textAlign: 'center', cursor: 'pointer',
+              borderColor: isDisabled ? 'action.disabledBackground' : dragOver ? 'primary.main' : file ? 'success.main' : 'divider',
+              bgcolor: dragOver && !isDisabled ? 'action.hover' : 'background.default',
+              p: 3, textAlign: 'center',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
               transition: 'border-color 0.15s, background-color 0.15s',
-              '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+              '&:hover': !isDisabled ? { borderColor: 'primary.main', bgcolor: 'action.hover' } : {},
             }}
           >
             {file ? (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                <InsertDriveFileIcon color="success" />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{file.name}</Typography>
+                <InsertDriveFileIcon color={isDisabled ? 'disabled' : 'success'} />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: isDisabled ? 'text.disabled' : 'inherit' }}>
+                  {file.name}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   ({(file.size / 1024).toFixed(0)} KB)
                 </Typography>
@@ -121,7 +133,7 @@ export function UploadFileCard({ companies }: UploadFileCardProps) {
             ) : (
               <>
                 <UploadFileIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 0.5 }} />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: isDisabled ? 'text.disabled' : 'inherit' }}>
                   {t('import.form.dropzone')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -132,13 +144,39 @@ export function UploadFileCard({ companies }: UploadFileCardProps) {
           </Box>
         </Box>
 
-        {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-        {result && <ResultBanner result={result} onClose={() => setResult(null)} />}
+        {/* ── Progress saat upload / processing ── */}
+        {(phase === 'uploading' || phase === 'processing') && (
+          <Box>
+            <ProgressBar
+              total={progress.total}
+              success={progress.success}
+              error={progress.errors}
+              status={phase === 'uploading' ? 'loading' : undefined}
+              size="sm"
+              showLabel={false}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
+              {phase === 'uploading'
+                ? t('import.form.loading')
+                : `${progress.processed.toLocaleString()} / ${progress.total.toLocaleString()} baris`}
+            </Typography>
+          </Box>
+        )}
+
+        {formError && (
+          <Alert severity="error" onClose={() => setFormError(null)}>{formError}</Alert>
+        )}
+        {phase === 'error' && errorMessage && (
+          <Alert severity="error" onClose={reset}>{errorMessage}</Alert>
+        )}
+        {phase === 'done' && result && (
+          <ResultBanner result={result} onClose={handleCloseResult} />
+        )}
 
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={isPending}
+          disabled={isDisabled}
           startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
         >
           {isPending ? t('import.form.loading') : t('import.file.submit')}

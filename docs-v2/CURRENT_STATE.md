@@ -5,9 +5,9 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~90%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done |
-| Backend  | ~55%   | Import feature Done (parser fix + multi-item invoice + handler refactor). Auth, Metrics, Customers, Transactions belum. |
-| Database | ~70%   | 19 tabel aktif + migration applied, import data real sudah masuk |
+| Frontend | ~92%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done. Import streaming progress done. |
+| Backend  | ~60%   | Import feature ~95% (SSE streaming + template validation + branch_name). Auth, Metrics, Customers, Transactions belum. |
+| Database | ~75%   | 19 tabel aktif, migrasi konsolidasi 3-file, branch_name di invoices |
 | Docs     | ~95%   | Updated sesi ini |
 
 ## Frontend — Page Status
@@ -70,6 +70,7 @@
 | `RadialBarWidget`  | Ring progress               | M6                   |
 | `LineAlertWidget`  | Line + ReferenceArea        | M8                   |
 | `BulletChartWidget`| Custom CSS bullet           | M10                  |
+| `ProgressBar`      | Segmented progress bar (success/error/loading shimmer) | Import page |
 | `ResponsiveListView` | Responsive table (desktop DataGrid / mobile card list) | Customers, Users, RBAC, CrossSelling |
 | `DataTable` (removed) | — | Digantikan oleh `ResponsiveListView` |
 
@@ -156,6 +157,70 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-26 (sesi 16): Import Streaming Progress + ProgressBar Component + Template Validation
+
+**Parser — Dynamic header detection + template validation:**
+- Ganti `EXCEL_COL` hardcoded indices dengan deteksi header dinamis (`detectExcelHeaders`, `validateExcelHeaders`)
+- Tambah `branch_name` (Nama Cabang) dan `salesperson` (Nama Tenaga Penjual) ke `InvoiceRow` — optional
+- `REQUIRED_EXCEL_HEADERS`: 9 kolom wajib. `OPTIONAL_EXCEL_HEADERS`: 2 kolom opsional
+- Protect import: tolak jika ada kolom tidak dikenal ATAU kolom wajib hilang → `AppError(INVALID_FILE_FORMAT)` + pesan jelas
+- Scan header di 10 baris pertama (toleransi metadata baris awal di Excel export Accurate)
+
+**Database — branch_name di invoices:**
+- Tambah `branch_name varchar(255)` ke `invoices` schema
+- Migrasi konsolidasi: 3 file deskriptif (`0001_auth_system.sql`, `0002_branches_credentials.sql`, `0003_transactions_import.sql`)
+- Hapus semua file ALTER TABLE terpisah — semua kolom embed langsung ke CREATE TABLE
+- Journal direbuild dengan 3 entries; semua snapshot dihapus
+
+**Import Service:**
+- Status awal import log: `'failed'` (pesimistik) → diupdate ke status final di akhir. Mencegah log orphan 'partial' saat browser di-refresh
+- Tambah `salesperson_name` dan `branch_name` ke `createInvoice()` call
+
+**SSE Streaming — progress real-time:**
+- Endpoint baru: `POST /import/csv/stream` — Hono `streamSSE`, emit event per baris yang diproses
+- Event: `progress {processed, total, success, errors}` per baris, `done {result}` di akhir, `error {message}` jika gagal
+- Hook baru: `useImportFileProgress` — native `fetch` + `ReadableStream` SSE consumer, tidak pakai axios
+- State: `phase: 'idle'|'uploading'|'processing'|'done'|'error'`, `progress: {processed, total, success, errors}`
+
+**ProgressBar — Atomic component baru:**
+- Lokasi: `src/components/ui/ProgressBar/`
+- Bar tersegmentasi: hijau (sukses) + merah (error) + abu (sisa/belum diproses)
+- `status="loading"` → shimmer indeterminate (saat fase upload sebelum total diketahui)
+- Animasi: mount pertama dari 0 via `requestAnimationFrame`, update streaming langsung (CSS transition smooth)
+- Props: `success`, `error`, `total`, `status`, `size (sm/md/lg)`, `showLabel`, `animated`
+
+**UploadFileCard — re-import fix + disabled state:**
+- Reset `fileInputRef.current.value` di onSuccess, onError, dan handleSubmit — fix bug re-upload tanpa refresh
+- Ganti `useImportFile` → `useImportFileProgress`
+- Tampilkan ProgressBar shimmer saat `uploading`, bar aktual saat `processing` dengan label `N / T baris`
+
+**Disable semua field saat import berlangsung:**
+- `ImportPage` kelola `fileImporting` + `accurateImporting` state via `onPendingChange` callback
+- `UploadFileCard` dan `AccurateApiCard` masing-masing terima `disabled` prop
+- Saat salah satu card loading: card lain opacity 0.5, semua field (Select, TextField, dropzone, Button) disabled
+- `CompanyPeriodFields` terima `disabled` prop, diteruskan ke `FormControl` dan `TextField`
+
+**Perubahan file:**
+- `backend/src/utils/parser.ts` — UPDATED (dynamic header, template validation, branch_name/salesperson)
+- `backend/src/db/schema/invoices.ts` — UPDATED (+branch_name)
+- `backend/src/db/migrations/0001_auth_system.sql` — UPDATED (+business_configs table)
+- `backend/src/db/migrations/0003_transactions_import.sql` — UPDATED (+branch_name di CREATE TABLE invoices)
+- `backend/src/features/import/import.service.ts` — UPDATED (onProgress callback, pessimistic status, branch_name)
+- `backend/src/features/import/import.handler.ts` — UPDATED (+handleImportFileStream)
+- `backend/src/features/import/import.route.ts` — UPDATED (+POST /csv/stream)
+- `frontend/src/api/axios.ts` — UPDATED (+getCsrfToken export)
+- `frontend/src/hooks/useImport.ts` — UPDATED (+useImportFileProgress hook)
+- `frontend/src/components/ui/ProgressBar/ProgressBar.tsx` — NEW
+- `frontend/src/components/ui/ProgressBar/index.ts` — NEW
+- `frontend/src/components/ui/index.ts` — UPDATED (+ProgressBar export)
+- `frontend/src/pages/Import/index.tsx` — UPDATED (state manajemen loading antar card)
+- `frontend/src/pages/Import/components/UploadFileCard.tsx` — UPDATED (hook baru, progress bar, disabled)
+- `frontend/src/pages/Import/components/AccurateApiCard.tsx` — UPDATED (disabled prop + onPendingChange)
+- `frontend/src/pages/Import/components/CompanyPeriodFields.tsx` — UPDATED (+disabled prop)
+- `frontend/src/pages/Import/components/ResultBanner.tsx` — UPDATED (+ProgressBar di result)
+
+---
 
 ### 2026-06-25 (sesi 15): Import Feature Fixes + Handler Pattern Refactor
 

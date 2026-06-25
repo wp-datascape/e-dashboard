@@ -1,1 +1,0 @@
-ALTER TABLE "accurate_credentials" ADD COLUMN "signature_secret" varchar(500);

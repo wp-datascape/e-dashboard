@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
@@ -17,9 +17,11 @@ import type { ImportResult } from '@/types/import'
 
 interface AccurateApiCardProps {
   companies: Company[]
+  disabled?: boolean
+  onPendingChange?: (pending: boolean) => void
 }
 
-export function AccurateApiCard({ companies }: AccurateApiCardProps) {
+export function AccurateApiCard({ companies, disabled = false, onPendingChange }: AccurateApiCardProps) {
   const { t } = useTranslation()
   const [companyId, setCompanyId] = useState<number | ''>('')
   const [periodMonth, setPeriodMonth] = useState(() => {
@@ -30,7 +32,14 @@ export function AccurateApiCard({ companies }: AccurateApiCardProps) {
   const [error, setError] = useState<string | null>(null)
   const { mutate, isPending } = useImportAccurate()
 
+  useEffect(() => {
+    onPendingChange?.(isPending)
+  }, [isPending, onPendingChange])
+
+  const isDisabled = isPending || disabled
+
   const handleSubmit = () => {
+    if (isDisabled) return
     setError(null)
     setResult(null)
     if (!companyId) { setError(t('import.form.errorCompany')); return }
@@ -49,7 +58,7 @@ export function AccurateApiCard({ companies }: AccurateApiCardProps) {
   }
 
   return (
-    <Card sx={{ p: 3, height: '100%' }}>
+    <Card sx={{ p: 3, height: '100%', opacity: disabled && !isPending ? 0.5 : 1, transition: 'opacity 0.2s' }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
         <Box sx={{ p: 1, bgcolor: 'secondary.main', color: 'secondary.contrastText', display: 'flex' }}>
           <SyncIcon fontSize="small" />
@@ -73,6 +82,7 @@ export function AccurateApiCard({ companies }: AccurateApiCardProps) {
           periodMonth={periodMonth}
           onCompany={setCompanyId}
           onPeriod={setPeriodMonth}
+          disabled={isDisabled}
         />
 
         <Alert severity="info" sx={{ py: 1 }}>
@@ -85,7 +95,7 @@ export function AccurateApiCard({ companies }: AccurateApiCardProps) {
         <Button
           variant="outlined"
           onClick={handleSubmit}
-          disabled={isPending}
+          disabled={isDisabled}
           startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
         >
           {isPending ? t('import.form.loading') : t('import.accurate.submit')}

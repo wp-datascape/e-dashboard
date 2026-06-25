@@ -43,7 +43,8 @@ export const invoices = pgTable('invoices', {
   // Diisi dari SUM gross_profit invoice_items
 
   salesperson_name: varchar('salesperson_name', { length: 255 }),
-  // nullable — future filter
+
+  branch_name: varchar('branch_name', { length: 255 }),
 
   business_unit: varchar('business_unit', { length: 50 }),
   // B2B_DC | B2B_PROJECT | B2C | MANUFACTURING — copy dari customers

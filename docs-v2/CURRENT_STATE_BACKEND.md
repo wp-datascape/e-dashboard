@@ -16,7 +16,7 @@
 | Utils            | Done    | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
 | Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
 | DB Schema        | Done    | 19 tabel aktif, migrations applied, import data real sudah masuk |
-| DB Migration     | Done    | 0000-0005 applied                          |
+| DB Migration     | Done    | Konsolidasi 3 file deskriptif: 0001_auth_system, 0002_branches_credentials, 0003_transactions_import |
 | DB Seed          | Done    | seed.ts dibuat                             |
 | Handler Pattern  | Done    | Semua fitur punya handler.ts terpisah dengan error handling |
 | Feature: Auth    | 0%      | Belum dibuat, router.ts masih commented    |
@@ -29,7 +29,7 @@
 | Feature: Page    | Done    | GET + PUT + handler — docs: `features/page-settings.md` |
 | Feature: Audit   | Done    | list + detail + handler — docs: `features/audit.md` |
 | Feature: Products | Done   | GET categories + products dari Accurate API + handler |
-| Feature: Import  | ~90%    | File upload Excel/CSV selesai + tested. Sisa: auth guard, rollback endpoint |
+| Feature: Import  | ~95%    | File upload + SSE streaming + template validation + branch_name. Sisa: auth guard, rollback endpoint |
 | Feature: Metrics | 0%      | Belum dibuat                               |
 | Feature: Customers | 0%    | Belum dibuat                               |
 | Feature: Transactions | 0%  | Belum dibuat                              |
@@ -218,6 +218,44 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 ---
 
 ## Catatan Sesi
+
+### 2026-06-26 (sesi 8 — Import SSE Streaming + Template Validation + Migration Konsolidasi)
+
+**Parser — dynamic header + protect import:**
+- `detectExcelHeaders()`: scan 10 baris pertama, cari baris yang punya "Tanggal" AND "Sales Invoice"
+- `validateExcelHeaders()`: 2-stage — required columns MUST exist, unknown columns REJECTED
+- `REQUIRED_EXCEL_HEADERS` (9 kolom), `OPTIONAL_EXCEL_HEADERS` (branch_name, salesperson)
+- Menolak template salah dengan pesan error spesifik kolom yang hilang / tidak dikenal
+
+**Schema + Migration:**
+- `invoices.ts`: tambah `branch_name varchar(255)` nullable
+- Konsolidasi migrasi: hapus semua ALTER TABLE terpisah (0003, 0004, 0006), embed ke CREATE TABLE
+- 3 file final: `0001_auth_system.sql`, `0002_branches_credentials.sql`, `0003_transactions_import.sql`
+- `business_configs` yang hilang ditemukan dan ditambahkan ke `0001_auth_system.sql`
+- DB di-reset dan re-migrate dengan struktur bersih
+
+**Import Service:**
+- `onProgress` callback di `ImportFileOptions` — dipanggil setiap baris selesai diproses
+- Status awal log: `'failed'` (bukan `'partial'`) — pessimistic init
+- `salesperson_name` dan `branch_name` disimpan ke `invoices` table
+
+**SSE Streaming (endpoint baru):**
+- `handleImportFileStream` di `import.handler.ts` pakai Hono `streamSSE`
+- Emit `progress` event setiap baris, `done` event di akhir, `error` event jika gagal
+- Route: `POST /api/v1/import/csv/stream`
+- Endpoint lama `POST /csv` tetap ada (one-shot response, tidak dihapus)
+
+**Perubahan file:**
+- `backend/src/utils/parser.ts` — UPDATED (dynamic header, template validation, branch_name/salesperson)
+- `backend/src/db/schema/invoices.ts` — UPDATED (+branch_name)
+- `backend/src/db/migrations/0001_auth_system.sql` — UPDATED (+business_configs)
+- `backend/src/db/migrations/0003_transactions_import.sql` — UPDATED (+branch_name di invoices CREATE TABLE)
+- `backend/src/db/migrations/meta/_journal.json` — REBUILT (3 entries)
+- `backend/src/features/import/import.service.ts` — UPDATED (onProgress, pessimistic status, branch_name)
+- `backend/src/features/import/import.handler.ts` — UPDATED (+handleImportFileStream)
+- `backend/src/features/import/import.route.ts` — UPDATED (+POST /csv/stream)
+
+---
 
 ### 2026-06-25 (sesi 7 — Import Feature Fixes + Handler Pattern Refactor)
 

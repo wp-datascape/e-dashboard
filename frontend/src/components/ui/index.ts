@@ -9,3 +9,4 @@ export * from './Footer';
 export * from './Dialog';
 export * from './StatusChip';
 export * from './DatePicker';
+export * from './ProgressBar';

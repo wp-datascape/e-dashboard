@@ -14,6 +14,7 @@ interface CompanyPeriodFieldsProps {
   periodMonth: string
   onCompany: (v: number) => void
   onPeriod: (v: string) => void
+  disabled?: boolean
 }
 
 export function CompanyPeriodFields({
@@ -22,12 +23,13 @@ export function CompanyPeriodFields({
   periodMonth,
   onCompany,
   onPeriod,
+  disabled = false,
 }: CompanyPeriodFieldsProps) {
   const { t } = useTranslation()
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth size="small">
+        <FormControl fullWidth size="small" disabled={disabled}>
           <InputLabel>{t('import.form.company')}</InputLabel>
           <Select
             value={companyId}
@@ -48,6 +50,7 @@ export function CompanyPeriodFields({
           value={periodMonth}
           onChange={(e: ChangeEvent<HTMLInputElement>) => onPeriod(e.target.value)}
           placeholder="YYYY-MM"
+          disabled={disabled}
           slotProps={{ inputLabel: { shrink: true } }}
           sx={{ minWidth: 160 }}
           helperText={t('import.form.periodHint')}
