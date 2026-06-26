@@ -20,3 +20,4 @@ Thumbs.db
 
 # Upload temp
 backend/uploads/
+.codebase-memory/
