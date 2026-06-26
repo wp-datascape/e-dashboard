@@ -37,7 +37,7 @@ import { pageRoutes } from '@/features/page/page.route'
 import { companiesRoutes } from '@/features/companies/companies.route'
 import { rolesRoutes } from '@/features/roles/roles.route'
 import { permissionsRoutes } from '@/features/permissions/permissions.route'
-// import { customersRoutes } from '@/features/customers/customers.route'
+import { customersRoutes } from '@/features/customers/customers.route'
 import { productsRoutes } from '@/features/products/products.route'
 // import { transactionsRoutes } from '@/features/transactions/transactions.route'
 import { configRoutes } from '@/features/config/config.route'
@@ -100,6 +100,7 @@ export function createRouter(app: Hono): void {
   app.route('/api/v1/permissions', permissionsRoutes)
   app.route('/api/v1/config', configRoutes)
   app.route('/api/v1/audit-logs', auditRoutes)
+  app.route('/api/v1/customers', customersRoutes)
   app.route('/api/v1/products', productsRoutes)
   app.route('/api/v1/import', importRoutes)
   app.route('/api/v1/classification-rules', classificationRoutes)

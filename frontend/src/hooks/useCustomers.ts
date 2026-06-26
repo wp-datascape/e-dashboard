@@ -1,20 +1,26 @@
 // frontend/src/hooks/useCustomers.ts
 import { useQuery } from '@tanstack/react-query';
 import { customersApi } from '@/api/customers.api';
-import type { Customer360Params } from '@/types/customers';
+import type { CustomerParams } from '@/types/customers';
 
-export function useCustomers360(params: Customer360Params) {
+export function useCustomers(params: CustomerParams) {
   return useQuery({
-    queryKey: ['customers360', params],
-    queryFn: () => customersApi.getCustomers360(params),
+    queryKey: ['customers', params],
+    queryFn: () => customersApi.getCustomers(params),
     enabled: !!params.company_id,
   });
 }
 
-export function useCustomer360Detail(id: number | null) {
+export function useCustomerDetail(id: number | null) {
   return useQuery({
-    queryKey: ['customer360Detail', id],
-    queryFn: () => customersApi.getCustomer360Detail(id!),
+    queryKey: ['customerDetail', id],
+    queryFn: () => customersApi.getCustomerDetail(id!),
     enabled: !!id,
   });
 }
+
+// ─── Backward-compat aliases ───────────────────────────────────────────────────
+/** @deprecated gunakan useCustomers */
+export const useCustomers360 = useCustomers;
+/** @deprecated gunakan useCustomerDetail */
+export const useCustomer360Detail = useCustomerDetail;

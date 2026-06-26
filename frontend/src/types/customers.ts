@@ -1,9 +1,9 @@
 // frontend/src/types/customers.ts
 
 export type BusinessUnit = 'b2b_dc' | 'b2b_project' | 'b2c' | 'manufacturing' | null;
-export type CustomerStatus = 'active' | 'dormant' | 'new';
+export type CustomerStatus = 'active' | 'dormant' | 'new' | 'existing';
 
-export interface Customer360Row {
+export interface CustomerRow {
   id: number;
   customer_code: string;
   name: string;
@@ -18,7 +18,7 @@ export interface Customer360Row {
   total_invoices: number;
 }
 
-export interface Customer360Detail {
+export interface CustomerDetail {
   id: number;
   customer_code: string;
   name: string;
@@ -40,7 +40,7 @@ export interface Customer360Detail {
   }>;
 }
 
-export interface Customer360Params {
+export interface CustomerParams {
   company_id?: number | 'all';
   business_unit?: BusinessUnit;
   status?: CustomerStatus;
@@ -49,4 +49,13 @@ export interface Customer360Params {
   sort_dir?: 'asc' | 'desc';
   page?: number;
   per_page?: number;
+  as_of_date?: string;
 }
+
+// ─── Backward-compat aliases (hapus saat semua referensi sudah diupdate) ──────
+/** @deprecated gunakan CustomerRow */
+export type Customer360Row = CustomerRow;
+/** @deprecated gunakan CustomerDetail */
+export type Customer360Detail = CustomerDetail;
+/** @deprecated gunakan CustomerParams */
+export type Customer360Params = CustomerParams;

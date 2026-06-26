@@ -7,7 +7,7 @@ import Divider from '@mui/material/Divider'
 import Skeleton from '@mui/material/Skeleton'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
-import { useCustomer360Detail } from '@/hooks/useCustomers'
+import { useCustomerDetail } from '@/hooks/useCustomers'
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
 import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
@@ -22,7 +22,7 @@ interface CustomerDetailDrawerProps {
 
 export function CustomerDetailDrawer({ customerId, onClose }: CustomerDetailDrawerProps) {
   const { t } = useTranslation()
-  const { data: detail, isLoading } = useCustomer360Detail(customerId)
+  const { data: detail, isLoading } = useCustomerDetail(customerId)
   return (
     <Drawer anchor="right" open={!!customerId} onClose={onClose} slotProps={{ paper: { sx: { width: { xs: '100%', sm: 480 } } } }}>
       <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>

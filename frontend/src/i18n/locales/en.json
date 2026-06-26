@@ -47,7 +47,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "customers": "Customer 360",
+    "customers": "Customer",
     "expansionTargets": "Expansion",
     "churnRisk": "Churn Risk",
     "crossSellMatrix": "Cross Selling",
@@ -405,7 +405,8 @@
     "statusLabels": {
       "active": "Active",
       "dormant": "Dormant",
-      "new": "New"
+      "new": "New",
+      "existing": "Existing"
     },
     "detail": {
       "title": "Customer View",

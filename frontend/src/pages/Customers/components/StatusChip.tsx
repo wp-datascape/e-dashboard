@@ -6,10 +6,11 @@ interface StatusChipProps {
   status: CustomerStatus
 }
 
-const colorMap: Record<CustomerStatus, 'success' | 'error' | 'info'> = {
+const colorMap: Record<CustomerStatus, 'success' | 'error' | 'info' | 'warning'> = {
   active: 'success',
   dormant: 'error',
   new: 'info',
+  existing: 'warning',
 }
 
 export function StatusChip({ status }: StatusChipProps) {

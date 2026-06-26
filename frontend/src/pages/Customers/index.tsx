@@ -1,5 +1,5 @@
 // frontend/src/pages/Customers/index.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -7,22 +7,21 @@ import MenuItem from '@mui/material/MenuItem';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
-import { useCustomers360 } from '@/hooks/useCustomers';
-import type { CustomerStatus, BusinessUnit, Customer360Row } from '@/types/customers';
+import { useCustomers } from '@/hooks/useCustomers';
+import type { CustomerStatus, BusinessUnit, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { BuChip } from '@/pages/Transactions/components/BuChip';
-import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
+import { CustomerDetailModal } from './components/CustomerDetailModal';
 
-// ─── Format currency IDR ──────────────────────────────────────────────────────
 function formatIDR(val: number) {
   return `Rp ${(val / 1_000_000).toFixed(1)}M`;
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Customers() {
   const { t } = useTranslation();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [buFilter, setBuFilter] = useState<NonNullable<BusinessUnit> | ''>('');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -32,9 +31,20 @@ export default function Customers() {
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
+  // Debounce search 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset ke halaman 1 setiap kali filter berubah
+  useEffect(() => {
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  }, [debouncedSearch, statusFilter, buFilter]);
+
   const queryParams = {
     company_id: 'all' as const,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: (statusFilter || undefined) as CustomerStatus | undefined,
     business_unit: (buFilter || undefined) as NonNullable<BusinessUnit> | undefined,
     page: paginationModel.page + 1,
@@ -48,13 +58,13 @@ export default function Customers() {
     sort_dir: sortModel[0]?.sort as 'asc' | 'desc' | undefined,
   };
 
-  const { data, isLoading, error } = useCustomers360(queryParams);
+  const { data, isLoading, error } = useCustomers(queryParams);
 
-  const handleRowClick = useCallback((row: Customer360Row) => {
+  const handleRowClick = useCallback((row: CustomerRow) => {
     setSelectedCustomerId(row.id);
   }, []);
 
-  const columns: GridColDef<Customer360Row>[] = [
+  const columns: GridColDef<CustomerRow>[] = [
     { field: 'customer_code', headerName: t('customers.code'), width: 130, sortable: false },
     { field: 'name', headerName: t('customers.name'), flex: 1, minWidth: 180, sortable: false },
     { field: 'company', headerName: t('customers.detail.company'), width: 160, sortable: false, valueGetter: (_value, row) => row.company.name },
@@ -77,6 +87,7 @@ export default function Customers() {
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ minWidth: 140 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
           <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
+          <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
           <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
           <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
         </TextField>
@@ -102,11 +113,11 @@ export default function Customers() {
         sortModel={sortModel}
         onSortModelChange={setSortModel}
         pageSizeOptions={[25, 50, 100]}
-        onRowClick={(row) => handleRowClick(row as unknown as Customer360Row)}
+        onRowClick={(row) => handleRowClick(row as unknown as CustomerRow)}
         height={600}
       />
 
-      <CustomerDetailDrawer
+      <CustomerDetailModal
         customerId={selectedCustomerId}
         onClose={() => setSelectedCustomerId(null)}
       />

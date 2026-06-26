@@ -11,7 +11,7 @@ Frontend : React 19 + Vite 8 + TypeScript 6 + MUI v9 (SPA)
 
 Auth     : JWT httpOnly Cookie + CSRF (dev: localStorage + MSW)
 
-Status   : Frontend ~95% | Backend ~67%
+Status   : Frontend ~96% | Backend ~72%
 
 ## Read Order
 1. `CRITICAL_RULES.md` — hard constraints, tech stack, conventions

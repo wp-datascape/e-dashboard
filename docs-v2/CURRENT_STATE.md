@@ -5,9 +5,9 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~95%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 + settings-high-margin done. UI polish: ActionMenu, mobileIconOnly, StatusChip enforcement selesai. |
-| Backend  | ~67%   | Import ~95%, Settings High Margin 100%. Bug fix z.coerce.boolean + active_only filter. Auth, Metrics, Customers, Transactions belum. |
-| Database | ~80%   | 21 tabel aktif (+ products, high_margin_products). Migrasi konsolidasi 3-file. |
+| Frontend | ~96%   | Customer page real API (bukan mock). Modal detail responsive. Debounce + page reset filter. |
+| Backend  | ~72%   | Customers feature selesai. Threshold dari business_configs (per-BU dormant + active_window). Auth, Metrics, Transactions belum. |
+| Database | ~80%   | 21 tabel aktif. business_configs dipakai live oleh customers status logic. |
 | Docs     | ~98%   | Updated sesi ini |
 
 ## Frontend — Page Status
@@ -23,7 +23,7 @@
 | Users            | `/users`            | List + create + edit user, mock API |
 | RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, 35 permissions seeded |
 | Import           | `/import`           | Form upload/Accurate + riwayat log + error detail dialog, mock API |
-| Customer 360     | `/customers`        | DataGrid + detail drawer + ComboChart trend, mock API |
+| Customer         | `/customers`        | DataGrid + detail modal (responsive) + ComboChart trend, **real API** |
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
@@ -80,13 +80,22 @@
 | `DataTable` (removed) | — | Digantikan oleh `ResponsiveListView` |
 
 ## Backend — Status
-Nothing built. Start with:
-1. DB schema + migrations (`shared/data-model.md`)
-2. Auth + RBAC endpoints (`admin/api.md`)
-3. Import endpoints (`admin/api.md`)
-4. Metrics endpoints (`executive-dashboard/api.md`)
-5. Customer 360 endpoint (`customer-workbench/api.md`)
-6. Invoice ledger endpoint (`transaction-workbench/api.md`)
+
+| Feature          | Status | Notes |
+|------------------|--------|-------|
+| DB Schema        | ✅ Done | 21 tabel, migration konsolidasi |
+| Import           | ✅ ~95% | CSV/Excel + Accurate API, streaming progress |
+| Settings High Margin | ✅ 100% | CRUD + active_only filter fix |
+| Config (business_configs) | ✅ 100% | GET + PUT, dipakai customers status logic |
+| Audit Log        | ✅ 100% | Read-only, paginated |
+| Users            | ✅ 100% | CRUD + password hash |
+| RBAC             | ✅ 100% | Roles + permissions |
+| Companies        | ✅ 100% | CRUD + branches |
+| Products         | ✅ 100% | Local + Accurate sync |
+| **Customers**    | ✅ **100%** | **GET / + GET /:id, status dari business_configs** |
+| Auth             | ❌ Todo | JWT + CSRF |
+| Metrics (M1-M10) | ❌ Todo | Kalkulasi + cache |
+| Transactions     | ❌ Todo | Invoice ledger |
 
 ## Docs v2 — Status (SELESAI 2026-06-18)
 | File | Status |
@@ -117,12 +126,12 @@ Nothing built. Start with:
 
 ## Current MSW Mock Domains (DEV)
 - `auth` — login, logout, refresh, /me
-- `page` — page ready flags
 - `dashboard` — metrics summary
 - `metrics` — per-metric endpoints
 - `products` — category performance, high margin detail, upsell targets, avg-category trend
 - `transactions` — invoice list, invoice detail
-- `audit` — audit log list (5 entries, pagination)
+
+**Disabled (real backend):** `page`, `customers`, `users`, `rbac`, `import`, `audit`, `accurate`
 
 ## Known Blockers / Decisions Pending
 | Blocker                              | Owner    | Status  | Detail |
@@ -138,15 +147,11 @@ Nothing built. Start with:
 | Audit log permission: roles:manage atau audit:read | PM | Pending | admin/decisions.md #2 |
 
 ## Next Actions (Priority Order)
-1. Konfirmasi keputusan terbuka di tabel blocker bersama PM/stakeholder
-2. Tambah `customers.business_unit` ke schema — unblock 2.1, 4.1, dan BU filter semua halaman
-3. Build DB schema + migrations (`shared/data-model.md`)
-4. Build Auth + RBAC backend
-5. Build Import backend (file + Accurate API)
-6. Build Import UI (5.1) — unblock pengisian data
-7. Build Metrics backend (M1-M10)
-8. Build Customer 360 page (2.1)
-9. Split CustomerMetrics → 2.2 Expansion + 3.2 High Margin
+1. Build Auth + RBAC backend (JWT + CSRF) — unblock semua protected route
+2. Build Metrics backend (M1-M10) — kalkulasi + metric_cache
+3. Build Transactions backend — invoice ledger endpoint
+4. Split CustomerMetrics → 2.2 Expansion + 3.2 High Margin
+5. Konfirmasi keputusan terbuka di tabel blocker bersama PM/stakeholder
 
 ## Page → New Structure Mapping
 | Current Page     | New Location              | Action          |
@@ -162,6 +167,58 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-26 (sesi 20): Backend Customers Feature + Customer Status dari business_configs
+
+**Backend customers — dibangun dari nol:**
+- `backend/src/features/customers/customers.schema.ts` — `customersQuerySchema` (company_id, search, status, business_unit, sort_by, sort_dir, page, per_page, as_of_date)
+- `backend/src/features/customers/customers.repository.ts` — `findCustomers()` + `findCustomerDetail()` dengan Drizzle GROUP BY + aggregate
+- `backend/src/features/customers/customers.handler.ts` — `handleGetCustomers`, `handleGetCustomerDetail`
+- `backend/src/features/customers/customers.route.ts` — `GET /`, `GET /:id`
+- `backend/src/router.ts` — uncomment + mount `app.route('/api/v1/customers', customersRoutes)`
+
+**Status customer — logika + sumber config:**
+- `new` = `last_invoice_date IS NULL` ATAU `first_invoice_date >= CURRENT_DATE - active_window_months * '1 month'`
+- `dormant` = `last_invoice_date < CURRENT_DATE - dormant_threshold_months.{bu} * '1 month'` (per BU, dari business_configs)
+- `active` = `last_invoice_date >= CURRENT_DATE - active_window_months * '1 month'` (dari business_configs)
+- `existing` = semua yang tidak masuk ketiganya
+- Status filter memakai WHERE condition langsung (bukan HAVING) — lebih efisien + konsisten
+- Fix bug Drizzle: parameter integer di CASE THEN perlu `::int` cast agar tidak dianggap text (`text * interval` error)
+
+**Config live:** ubah `active_window_months` di halaman Threshold → status customer berubah langsung tanpa deploy
+
+**Frontend — Rename Customer 360 → Customer:**
+- `frontend/src/types/customers.ts` — `CustomerRow`, `CustomerDetail`, `CustomerParams` (+ deprecated aliases Customer360*)
+- `frontend/src/api/customers.api.ts` — `getCustomers()`, `getCustomerDetail()`, endpoint `/customers` + `/customers/:id`
+- `frontend/src/hooks/useCustomers.ts` — `useCustomers`, `useCustomerDetail` (+ deprecated aliases)
+- `frontend/src/pages/Customers/index.tsx` — import baru, tambah status `existing` ke filter dropdown
+- `frontend/src/pages/Customers/components/StatusChip.tsx` — tambah `existing: 'warning'`
+- `frontend/src/i18n/locales/id.json` + `en.json` — `nav.customers = "Customer"`, tambah `statusLabels.existing`
+- `frontend/src/mocks/handlers.ts` — `customersHandlers` disabled (real backend)
+
+**Frontend — CustomerDetailModal (Drawer → Dialog responsif):**
+- `CustomerDetailDrawer.tsx` digantikan `CustomerDetailModal.tsx`
+- `useMediaQuery(theme.breakpoints.down('sm'))` → fullscreen di mobile, modal `maxWidth="md"` di desktop
+- Layout metrik: `grid` 2 kolom (lebih rapi dari flex)
+- Title modal = nama customer
+
+**Frontend — Filter UX Fix:**
+- Debounce search 300ms (`useEffect` + `debouncedSearch` state)
+- Reset ke halaman 1 otomatis setiap kali search/status/BU filter berubah (fix: user di halaman 2+ search → hasil kosong)
+
+**Perubahan file:**
+- `backend/src/features/customers/` — 4 file baru (schema, repository, handler, route)
+- `backend/src/router.ts` — UPDATED (customers route aktif)
+- `frontend/src/types/customers.ts` — UPDATED
+- `frontend/src/api/customers.api.ts` — UPDATED
+- `frontend/src/hooks/useCustomers.ts` — UPDATED
+- `frontend/src/pages/Customers/index.tsx` — UPDATED
+- `frontend/src/pages/Customers/components/StatusChip.tsx` — UPDATED
+- `frontend/src/pages/Customers/components/CustomerDetailModal.tsx` — NEW
+- `frontend/src/mocks/handlers.ts` — UPDATED (customers disabled)
+- `frontend/src/i18n/locales/id.json` + `en.json` — UPDATED
+
+---
 
 ### 2026-06-26 (sesi 18 & 19): UI Polish — ActionMenu, mobileIconOnly, StatusChip Enforcement, Responsif Mobile
 
