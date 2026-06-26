@@ -11,7 +11,7 @@ import { useCustomerDetail } from '@/hooks/useCustomers'
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
 import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
-import { BuChip } from '@/pages/Transactions/components/BuChip'
+import { DivisionChip } from './DivisionChip'
 
 function formatIDR(val: number) { return `Rp ${(val / 1_000_000).toFixed(1)}M` }
 
@@ -38,8 +38,11 @@ export function CustomerDetailDrawer({ customerId, onClose }: CustomerDetailDraw
             <Box><Typography variant="subtitle2" color="text.secondary">{t('customers.name')}</Typography><Typography variant="body1">{detail.name}</Typography></Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.status')}</Typography><StatusChip status={detail.status} /></Box>
-              <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.detail.businessUnit')}</Typography><BuChip bu={detail.business_unit} /></Box>
+              <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.detail.division')}</Typography><DivisionChip division={detail.division} /></Box>
             </Box>
+            {detail.channel && (
+              <Box><Typography variant="subtitle2" color="text.secondary">{t('customers.detail.channel')}</Typography><Typography variant="body2">{detail.channel}</Typography></Box>
+            )}
             <Divider />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Box sx={{ flex: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}><Typography variant="caption" color="text.secondary">{t('customers.detail.lifetimeValue')}</Typography><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{formatIDR(detail.lifetime_value)}</Typography></Box>

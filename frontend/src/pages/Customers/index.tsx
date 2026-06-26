@@ -8,9 +8,10 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
-import type { CustomerStatus, BusinessUnit, CustomerRow } from '@/types/customers';
+import { useCompanies } from '@/hooks/useCompanies';
+import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
-import { BuChip } from '@/pages/Transactions/components/BuChip';
+import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailModal } from './components/CustomerDetailModal';
 
 function formatIDR(val: number) {
@@ -20,10 +21,12 @@ function formatIDR(val: number) {
 export default function Customers() {
   const { t } = useTranslation();
 
+  const { data: companies = [] } = useCompanies();
+  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
-  const [buFilter, setBuFilter] = useState<NonNullable<BusinessUnit> | ''>('');
+  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -40,13 +43,13 @@ export default function Customers() {
   // Reset ke halaman 1 setiap kali filter berubah
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [debouncedSearch, statusFilter, buFilter]);
+  }, [debouncedSearch, statusFilter, divisionFilter, companyFilter]);
 
   const queryParams = {
-    company_id: 'all' as const,
+    company_id: companyFilter,
     search: debouncedSearch || undefined,
     status: (statusFilter || undefined) as CustomerStatus | undefined,
-    business_unit: (buFilter || undefined) as NonNullable<BusinessUnit> | undefined,
+    business_unit: divisionFilter || undefined,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: sortModel[0]?.field as
@@ -68,7 +71,7 @@ export default function Customers() {
     { field: 'customer_code', headerName: t('customers.code'), width: 130, sortable: false },
     { field: 'name', headerName: t('customers.name'), flex: 1, minWidth: 180, sortable: false },
     { field: 'company', headerName: t('customers.detail.company'), width: 160, sortable: false, valueGetter: (_value, row) => row.company.name },
-    { field: 'business_unit', headerName: t('customers.detail.businessUnit'), width: 140, sortable: false, renderCell: ({ row }) => <BuChip bu={row.business_unit} /> },
+    { field: 'division', headerName: t('customers.detail.division'), width: 140, sortable: false, renderCell: ({ row }) => <DivisionChip division={row.division} /> },
     { field: 'status', headerName: t('customers.status'), width: 110, sortable: false, renderCell: ({ row }) => <StatusChip status={row.status} /> },
     { field: 'category_count', headerName: t('customers.categories'), width: 110, type: 'number', sortable: true },
     { field: 'avg_monthly_revenue', headerName: t('customers.detail.avgMonthly'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatIDR(value as number) },
@@ -84,6 +87,12 @@ export default function Customers() {
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 240 }} />
+        <TextField select size="small" label={t('common.company')} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">{t('common.all')}</MenuItem>
+          {companies.map((c) => (
+            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+          ))}
+        </TextField>
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ minWidth: 140 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
           <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
@@ -91,12 +100,14 @@ export default function Customers() {
           <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
           <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
         </TextField>
-        <TextField select size="small" label={t('customers.detail.businessUnit')} value={buFilter} onChange={(e) => setBuFilter(e.target.value as NonNullable<BusinessUnit> | '')} sx={{ minWidth: 160 }}>
+        <TextField select size="small" label={t('customers.detail.division')} value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')} sx={{ minWidth: 160 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
-          <MenuItem value="b2b_dc">B2B DC</MenuItem>
-          <MenuItem value="b2b_project">B2B Project</MenuItem>
-          <MenuItem value="b2c">B2C</MenuItem>
-          <MenuItem value="manufacturing">Manufacturing</MenuItem>
+          <MenuItem value="distribution">Distribution</MenuItem>
+          <MenuItem value="project">Project</MenuItem>
+          <MenuItem value="e_commerce">E-Commerce</MenuItem>
+          <MenuItem value="intercompany">Intercompany</MenuItem>
+          <MenuItem value="freelancer">Freelancer</MenuItem>
+          <MenuItem value="support">Support</MenuItem>
         </TextField>
       </Box>
 

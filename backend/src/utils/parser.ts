@@ -7,7 +7,7 @@
  * Column mapping dari Accurate Online export (sesuai data-model.md):
  *   invoice_number   | invoice_date (DD/MM/YYYY) | customer_name
  *   product_category | item_name    | quantity    | unit_price
- *   revenue          | gross_profit | branch_name | salesperson
+ *   revenue          | gross_profit | branch_name | channel_name
  *
  * DILARANG: Mengubah nama kolom internal tanpa update data-model.md.
  *
@@ -36,7 +36,7 @@ export interface InvoiceRow {
   revenue: number
   gross_profit: number
   branch_name?: string       // Nama Cabang — dari kolom "Nama Cabang"
-  salesperson?: string       // Tenaga Penjual — dari kolom "Nama Tenaga Penjual"
+  channel_name?: string      // Channel penjualan — dari kolom "Nama Tenaga Penjual"
 }
 
 export interface ParseResult {
@@ -226,7 +226,7 @@ const REQUIRED_EXCEL_HEADERS = [
 
 const OPTIONAL_EXCEL_HEADERS = [
   { key: 'branch_name',  label: 'Nama Cabang' },
-  { key: 'salesperson',  label: 'Nama Tenaga Penjual' },
+  { key: 'channel_name', label: 'Nama Tenaga Penjual' },
 ] as const
 
 type ExcelColMap = Record<string, number>
@@ -402,7 +402,7 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
       const revRaw = str('revenue').replace(/,/g, '').replace(/\.$/, '')
       const gpRaw  = str('gross_profit').replace(/,/g, '').replace(/\.$/, '')
       const branchRaw     = colMap.branch_name !== undefined ? str('branch_name') : ''
-      const salespersonRaw = colMap.salesperson !== undefined ? str('salesperson') : ''
+      const channelNameRaw = colMap.channel_name !== undefined ? str('channel_name') : ''
 
       const invoiceDate = formatDateFromExport(dateRaw)
       const revenueNum  = parseFloat(revRaw)
@@ -430,7 +430,7 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
         revenue:          revenueNum,
         gross_profit:     gpNum,
         branch_name:      branchRaw.toUpperCase().trim() || undefined,
-        salesperson:      salespersonRaw.toUpperCase().trim() || undefined,
+        channel_name:     channelNameRaw.toUpperCase().trim() || undefined,
       }
 
       const validationError = validateRow(invoiceRow, rowNum)

@@ -336,7 +336,22 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 <ResponsiveListView rows={users} columns={userColumns} />
 
 // ❌ Jangan duplicate loading/error/empty state — semuanya built-in
+
+// ❌ JANGAN double-wrap ResponsiveListView dengan Card — ia sudah punya Card sendiri di desktop
+<Card>
+  <ResponsiveListView ... />  {/* ← nested Card merusak layout flex column DataGrid */}
+</Card>
+
+// ✅ Letakkan ResponsiveListView langsung di page container
+<Box sx={{ p: 3 }}>
+  <ResponsiveListView ... />
+</Box>
 ```
+
+**Catatan penting — flex column DataGrid:**
+- Kolom dengan `flex: 1/2` dapat collapse jadi 0-width jika container sempit (semua fixed-width kolom sudah habiskan space).
+- Selalu tambahkan `minWidth` pada flex column: `{ flex: 1, minWidth: 160 }`.
+- Jika hanya satu kolom flex, seluruh sisa ruang diserap. Dua kolom flex berbagi sisa ruang proporsional.
 
 **Lokasi:** `src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
 

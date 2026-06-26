@@ -18,6 +18,7 @@ import {
   AuditLog,
   Companies,
   HighMarginSettings,
+  DivisionsSettings,
   ClassificationSettings,
   ThresholdSettings,
   AppSettings,
@@ -127,6 +128,11 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'settings-high-margin': {
     path: '/settings/high-margin',
     element: withLayout(<HighMarginSettings />),
+    protected: true,
+  },
+  'settings-divisions': {
+    path: '/settings/divisions',
+    element: withLayout(<DivisionsSettings />),
     protected: true,
   },
   'settings-classification': {

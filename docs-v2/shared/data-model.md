@@ -12,6 +12,7 @@ user_companies
 product_categories
 products
 customers
+channel_divisions
 invoices
 invoice_items
 high_margin_products
@@ -177,7 +178,7 @@ customer_code       varchar
 
 customer_name       varchar
 
-business_unit       varchar nullable   -- B2B_DC | B2B_PROJECT | B2C | MANUFACTURING
+business_unit       varchar nullable   -- distribution|project|e_commerce|intercompany|freelancer|support (diisi saat import, mungkin null untuk data historis)
 
 first_invoice_date  date nullable
 
@@ -188,6 +189,8 @@ created_at          timestamp
 updated_at          timestamp
 
 UNIQUE (customer_code, company_id)
+
+Note: `division` runtime dihitung dari JOIN `channel_divisions` via `invoices.channel_name` — tidak tersimpan di tabel ini secara langsung. Filter division via `channel_divisions.division`, bukan `customers.business_unit`.
 
 ### invoices
 id               serial PK
@@ -204,9 +207,9 @@ total_revenue    numeric
 
 total_gp         numeric
 
-salesperson_name varchar nullable      -- nama sales (dari API Accurate / mapping manual)
+channel_name     varchar nullable      -- dari kolom "Nama Tenaga Penjual" Accurate export, disimpan UPPERCASE. Bukan nama orang — nama channel penjualan (DC WEST, TOKOPEDIA, dll)
 
-business_unit    varchar nullable      -- B2B_DC | B2B_PROJECT | B2C | MANUFACTURING (copy dari customers)
+branch_name      varchar nullable      -- dari kolom "Nama Cabang" Accurate export
 
 import_log_id    FK import_logs nullable
 
@@ -431,21 +434,42 @@ UNIQUE (branch_id)
 
 API Token adalah method yang direkomendasikan (stabil, tanpa refresh cycle). OAuth tersedia sebagai alternatif.
 
+### channel_divisions
+id           serial PK
+
+channel_name varchar NOT NULL    -- nama channel UPPERCASE (cocok dengan invoices.channel_name)
+
+division     varchar NOT NULL    -- distribution | project | e_commerce | intercompany | freelancer | support
+
+company_id   FK companies nullable  -- null = global rule (berlaku untuk semua company)
+
+created_at   timestamp
+
+SEEDED 21 baris mapping channel_name → division
+
+Mapping:
+- distribution  → DC WEST, DC EAST, DC WEST HEAD, DC EAST HEAD, DC EAST CARD
+- project       → SDR B2B WEST, B2B EAST, KAE WEST, NAS B2B EAST, NAS B2B WEST, B2B EAST CARD, SDR WEST CARD
+- e_commerce    → KASSEN OFFICIAL STORE, TOKOPEDIA, TIKTOKSHOP, LAZADA
+- intercompany  → KODE NIAGA TAMA, CODESHOP
+- freelancer    → SBY UDIN
+- support       → SALES SUPPORT, SALES SUPPORT JKT
+
+---
+
 ## Pending Schema Items (not yet added)
 
 projects table           -- B2B project milestone tracking (confirm if MVP)
 
-## Future Filter Fields (dokumentasi untuk pengembangan)
+## Filter Fields (aktif diimplementasi)
 
-### Filter yang direncanakan (belum implementasi):
-1. **Salesperson** — `invoices.salesperson_name` — filter metrik per sales
-2. **Business Unit** — `invoices.business_unit` (B2B_DC/B2B_PROJECT/B2C/MANUFACTURING) — filter metrik per divisi
-   - Nilai di-copy dari `customers.business_unit` saat insert invoice
-   - `customers.business_unit` diisi manual via UI Customer Workbench
-   - Data sumber dari Accurate: perlu konfirmasi apakah ada endpoint API yang menyediakan business_unit
+### Channel Division Filter (IMPLEMENTED):
+- `invoices.channel_name` (dari "Nama Tenaga Penjual" Accurate) → JOIN `channel_divisions.channel_name` → `channel_divisions.division`
+- Query param `business_unit` di `GET /customers` filter via `channel_divisions.division`
+- Nilai valid: `distribution | project | e_commerce | intercompany | freelancer | support`
 
 ### Cara filter dashboard ke depan:
 ```
-GET /api/metrics/m1?company_id=1&period_month=2024-03&salesperson=ANDI&business_unit=B2B_DC
+GET /api/metrics/m1?company_id=1&period_month=2024-03&business_unit=distribution
 ```
-Filter ini optional — jika tidak dikirim, hitung semua sales / semua business unit.
+Filter ini optional — jika tidak dikirim, hitung semua division.

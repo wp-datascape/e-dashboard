@@ -43,6 +43,7 @@ import { productsRoutes } from '@/features/products/products.route'
 import { configRoutes } from '@/features/config/config.route'
 import { auditRoutes } from '@/features/audit/audit.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
+import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ export function createRouter(app: Hono): void {
   app.route('/api/v1/import', importRoutes)
   app.route('/api/v1/classification-rules', classificationRoutes)
   app.route('/api/v1/settings/high-margin', highMarginRoutes)
+  app.route('/api/v1/settings/channel-divisions', channelDivisionsRoutes)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
   // Cek: aplikasi hidup + koneksi DB responsif
   app.get('/health', async (c) => {

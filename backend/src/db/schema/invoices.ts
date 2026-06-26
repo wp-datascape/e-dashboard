@@ -42,7 +42,7 @@ export const invoices = pgTable('invoices', {
   total_gp: numeric('total_gp', { precision: 15, scale: 2 }).notNull().default('0'),
   // Diisi dari SUM gross_profit invoice_items
 
-  salesperson_name: varchar('salesperson_name', { length: 255 }),
+  channel_name: varchar('channel_name', { length: 255 }),
 
   branch_name: varchar('branch_name', { length: 255 }),
 

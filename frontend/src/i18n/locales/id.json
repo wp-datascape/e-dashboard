@@ -43,7 +43,8 @@
     "optional": "Opsional",
     "refresh": "Muat Ulang",
     "logout": "Keluar",
-    "select": "Pilih"
+    "select": "Pilih",
+    "company": "Perusahaan"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -70,11 +71,25 @@
     "settings": "Pengaturan",
     "settingsHighMargin": "Produk",
     "settingsClassification": "Klasifikasi",
+    "settingsDivisions": "Channel Division",
     "settingsThreshold": "Threshold",
     "settingsApp": "Pengaturan Aplikasi",
     "configApp": "Pengaturan Aplikasi",
     "configIntegration": "Integrasi",
     "configFeatures": "Fitur"
+  },
+  "divisions": {
+    "title": "Channel Division",
+    "subtitle": "Petakan nama channel (dari Accurate) ke divisi penjualan",
+    "add": "Tambah Mapping",
+    "addMapping": "Tambah Mapping Channel",
+    "editMapping": "Edit Mapping Channel",
+    "channelName": "Nama Channel",
+    "channelNameHelp": "Harus sama persis seperti di Accurate (mis. DC WEST, TOKOPEDIA). Disimpan dalam huruf kapital.",
+    "division": "Divisi",
+    "scope": "Lingkup",
+    "scopeGlobal": "Global (semua perusahaan)",
+    "searchPlaceholder": "Cari nama channel..."
   },
   "settings": {
     "threshold": {
@@ -412,6 +427,8 @@
       "title": "Lihat Customer",
       "company": "Perusahaan",
       "businessUnit": "Unit Bisnis",
+      "division": "Divisi",
+      "channel": "Channel",
       "lifetimeValue": "Nilai Seumur Hidup",
       "avgMonthly": "Rata-rata Revenue Bulanan",
       "categoriesBought": "Kategori Dibeli",

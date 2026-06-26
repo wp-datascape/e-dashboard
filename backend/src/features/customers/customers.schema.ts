@@ -4,7 +4,7 @@ export const customersQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).default('all'),
   search: z.string().optional(),
   status: z.enum(['new', 'active', 'dormant', 'existing']).optional(),
-  business_unit: z.enum(['b2b_dc', 'b2b_project', 'b2c', 'manufacturing']).optional(),
+  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support']).optional(),
   sort_by: z
     .enum(['avg_monthly_revenue', 'lifetime_value', 'category_count', 'last_invoice_date'])
     .optional()

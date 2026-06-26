@@ -15,7 +15,7 @@
 | Config           | Done    | env.ts (Zod), db.ts (Drizzle)              |
 | Utils            | Done    | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
 | Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
-| DB Schema        | Done    | 19 tabel aktif, migrations applied, import data real sudah masuk |
+| DB Schema        | Done    | 21 tabel aktif (+ channel_divisions, products). Kolom `salesperson_name` direname → `channel_name` via migration 0004 (dieksekusi manual, bukan drizzle-kit). |
 | DB Migration     | Done    | Konsolidasi 3 file deskriptif: 0001_auth_system, 0002_branches_credentials, 0003_transactions_import |
 | DB Seed          | Done    | seed.ts dibuat                             |
 | Handler Pattern  | Done    | Semua fitur punya handler.ts terpisah dengan error handling |
@@ -31,7 +31,7 @@
 | Feature: Products | Done   | GET categories + products dari Accurate API + handler |
 | Feature: Import  | ~95%    | File upload + SSE streaming + template validation + branch_name. Sisa: auth guard, rollback endpoint |
 | Feature: Metrics | 0%      | Belum dibuat                               |
-| Feature: Customers | 0%    | Belum dibuat                               |
+| Feature: Customers | ✅ 100% | GET / + GET /:id, status logic, channel division filter aktif |
 | Feature: Transactions | 0%  | Belum dibuat                              |
 
 ---
@@ -210,7 +210,7 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 3. [HIGH]   Metrics Feature        — 10 KPI (M1-M10), query berat pakai window functions
 4. [MEDIUM] Import: Rollback       — DELETE /import/logs/:id (hapus invoice batch gagal)
 5. [MEDIUM] Import: Auth Guard     — pasang authMiddleware di import routes
-6. [MEDIUM] Customers Feature      — list + detail, auto dari import
+6. [DONE]   Customers Feature      — list + detail + channel division filter ✅
 7. [MEDIUM] Transactions Feature   — invoice list + detail
 8. [LOW]    Import Classification  — CRUD endpoint + seed rules
 ```
@@ -218,6 +218,40 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 ---
 
 ## Catatan Sesi
+
+### 2026-06-27 (sesi 9 — Channel Division + Rename salesperson_name → channel_name)
+
+**Rename DB column:**
+- `invoices.salesperson_name` → `channel_name` (varchar 255)
+- `channel_divisions.salesperson_name` → `channel_name` (varchar 255)
+- Migration file: `0004_rename_salesperson_to_channel_name.sql` — TIDAK dieksekusi drizzle-kit, dijalankan manual via postgres.js
+- **LESSON LEARNED**: `drizzle-kit migrate` tidak menjalankan hand-written SQL — lihat CRITICAL_RULES.md
+
+**Customers Repository — Division Filter Fix:**
+- Sebelumnya: `eq(customers.business_unit, business_unit)` → 0 results (semua null)
+- Fix: `eq(channel_divisions.division, business_unit)` via LEFT JOIN pada `channel_name`
+- JOIN `channel_divisions` ditambah ke COUNT query juga (tidak hanya main SELECT)
+- Subquery `latest_sp` menggunakan `selectDistinctOn([invoices.customer_id])` untuk ambil `channel_name` dari invoice terbaru per customer
+- Verified working: `distribution` → 225, `intercompany` → 2
+
+**Customers Detail — channel field:**
+- `findCustomerDetail()` returns `channel: invoices.channel_name` (nama asli) + `division: channel_divisions.division`
+
+**Import Service + Parser — channel_name:**
+- `parser.ts`: `InvoiceRow.channel_name`, header key `channel_name` (label "Nama Tenaga Penjual")
+- `import.service.ts`: `channel_name: row.channel_name` di 2 tempat
+- `import.repository.ts`: `upsertCustomer` lookup via `channel_name`
+
+**Perubahan file backend:**
+- `backend/src/db/schema/invoices.ts` — UPDATED (salesperson_name → channel_name)
+- `backend/src/db/schema/channel_divisions.ts` — UPDATED (salesperson_name → channel_name)
+- `backend/src/db/migrations/0004_rename_salesperson_to_channel_name.sql` — NEW (manual execution only)
+- `backend/src/features/customers/customers.repository.ts` — UPDATED (channel_name, division filter)
+- `backend/src/features/import/import.repository.ts` — UPDATED (channel_name)
+- `backend/src/features/import/import.service.ts` — UPDATED (channel_name)
+- `backend/src/utils/parser.ts` — UPDATED (channel_name)
+
+---
 
 ### 2026-06-26 (sesi 8 — Import SSE Streaming + Template Validation + Migration Konsolidasi)
 

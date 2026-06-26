@@ -31,6 +31,7 @@
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
 | High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API |
+| Channel Divisions    | `/settings/divisions`   | CRUD mapping channel_name → division, filter + search, backend real API |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -92,7 +93,7 @@
 | RBAC             | ✅ 100% | Roles + permissions |
 | Companies        | ✅ 100% | CRUD + branches |
 | Products         | ✅ 100% | Local + Accurate sync |
-| **Customers**    | ✅ **100%** | **GET / + GET /:id, status dari business_configs** |
+| **Customers**    | ✅ **100%** | **GET / + GET /:id, status dari business_configs, channel division filter via JOIN** |
 | Auth             | ❌ Todo | JWT + CSRF |
 | Metrics (M1-M10) | ❌ Todo | Kalkulasi + cache |
 | Transactions     | ❌ Todo | Invoice ledger |
@@ -136,7 +137,7 @@
 ## Known Blockers / Decisions Pending
 | Blocker                              | Owner    | Status  | Detail |
 |--------------------------------------|----------|---------|--------|
-| `business_unit` field di customers   | Dev      | Todo    | Blocker untuk 2.1, 4.1 BU filter |
+| `business_unit` di customers (historis) | Dev   | ✅ Resolved | Division filter pakai `channel_divisions.division` via JOIN — bukan `customers.business_unit` yang null. Tidak perlu backfill. |
 | `products` master table              | Dev      | ✅ Done | Diisi import parser dari kolom Nama Barang faktur. ID sistem, bukan Accurate. |
 | `projects` table (B2B Project BU)    | PM/Dev   | Pending | 4.2 masuk MVP atau v2? |
 | Split CustomerMetrics: alokasi kolom | Dev      | Todo    | customer-workbench/decisions.md #1 |
@@ -167,6 +168,80 @@
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-27 (sesi 22): BuChip Defensive + Mock Data Migration + Layout Fixes Channel Divisions
+
+**Bug Fix — `BuChip.tsx` crash pada nilai BU lama:**
+- Error: `Cannot destructure property 'label' of 'map[bu]' as it is undefined` — terjadi karena mock data Transactions & Products masih pakai nilai lama (`b2b_dc`, `b2b_project`, `b2c`, `manufacturing`) sementara map sudah update ke Division values
+- Fix 1: `BuChip` sekarang defensive — `const entry = map[bu]; if (!entry) return <StatusChip label={bu} color="default" />`
+- Fix 2: `mocks/handlers/transactions.handler.ts` — semua nilai lama diganti: `b2b_dc→distribution`, `b2b_project→project`, `b2c→e_commerce`, `manufacturing→intercompany`
+- Fix 3: `mocks/handlers/products.handler.ts` — idem: `b2c→e_commerce`, `b2b_dc→distribution`, `b2b_project→project`
+
+**Layout Fix — Channel Divisions Settings page (desktop):**
+- `DivisionMappingDialog`: `<DialogContent dividers>` — `dividers` prop tambah separator + proper padding, field Channel Name tidak tertutup DialogTitle
+- `Divisions/index.tsx`: hapus outer `<Card>` wrapper di sekitar `ResponsiveListView` — komponen sudah punya Card sendiri di desktop; double-wrap menyebabkan flex column collapse jadi 0-width
+- Kolom `channel_name`: `flex: 2` → `flex: 1, minWidth: 180` (mencegah collapse)
+- Kolom `company_name`: `width: 160` (fixed) → `flex: 1, minWidth: 140` (lebih proporsional)
+
+**Perubahan file:**
+- `frontend/src/pages/Transactions/components/BuChip.tsx` — UPDATED (defensive guard)
+- `frontend/src/mocks/handlers/transactions.handler.ts` — UPDATED (Division values)
+- `frontend/src/mocks/handlers/products.handler.ts` — UPDATED (Division values)
+- `frontend/src/pages/Settings/Divisions/index.tsx` — UPDATED (hapus outer Card, flex+minWidth kolom)
+- `frontend/src/pages/Settings/Divisions/components/DivisionMappingDialog.tsx` — UPDATED (dividers)
+- `docs-v2/shared/ui-patterns.md` — UPDATED (ResponsiveListView anti-pattern: jangan double-wrap Card + catatan flex column minWidth)
+
+---
+
+### 2026-06-27 (sesi 21): Channel Division Frontend + Rename salesperson_name → channel_name
+
+**Frontend — Channel Division Display:**
+- `frontend/src/types/customers.ts` — `Division` type (distribution|project|e_commerce|intercompany|freelancer|support|null), `CustomerRow.division`, `CustomerDetail.division + channel`
+- `frontend/src/pages/Customers/components/DivisionChip.tsx` — chip berwarna per divisi (NEW)
+- `frontend/src/pages/Customers/index.tsx` — kolom `division` dengan DivisionChip, filter divisionFilter, param `business_unit`
+- `frontend/src/pages/Customers/components/CustomerDetailModal.tsx` — tampilkan `division` (DivisionChip) + `channel` (text)
+- `frontend/src/pages/Customers/components/CustomerDetailDrawer.tsx` — sama dengan modal
+- `frontend/src/pages/Transactions/components/BuChip.tsx` — update label/color map ke Division values
+- `frontend/src/pages/Customers/components/BuLabel.tsx` — update label map ke Division values
+- `frontend/src/mocks/handlers/customers.handler.ts` — mock data: `division` + `channel` field, filter via `c.division`
+- `frontend/src/i18n/locales/en.json` + `id.json` — `customers.detail.division` + `customers.detail.channel`
+
+**Backend — Rename `salesperson_name` → `channel_name`:**
+- `backend/src/db/schema/invoices.ts` — kolom `channel_name` (was `salesperson_name`)
+- `backend/src/db/schema/channel_divisions.ts` — kolom `channel_name` (was `salesperson_name`)
+- `backend/src/db/migrations/0004_rename_salesperson_to_channel_name.sql` — ALTER TABLE statements (dieksekusi manual via postgres.js, bukan drizzle-kit)
+- `backend/src/features/customers/customers.repository.ts` — subquery + JOIN pakai `channel_name`
+- `backend/src/features/import/import.repository.ts` — `upsertCustomer` pakai `channel_name`
+- `backend/src/features/import/import.service.ts` — `channel_name: row.channel_name` (2 tempat)
+- `backend/src/utils/parser.ts` — `InvoiceRow.channel_name`, `OPTIONAL_EXCEL_HEADERS` key `channel_name`
+
+**Backend — Division Filter Fix:**
+- Filter `business_unit` sebelumnya pakai `customers.business_unit` (null semua) → sekarang `channel_divisions.division`
+- JOIN channel_divisions ditambah ke COUNT query (tidak hanya main query)
+- Verified: `intercompany` → 2 results, `distribution` → 225 results
+
+**Pelajaran Penting:**
+- `drizzle-kit migrate` hanya menjalankan file yang di-generate oleh `drizzle-kit generate` — TIDAK menjalankan file SQL manual di folder migrations
+- Fix kolom rename: jalankan `ALTER TABLE` langsung via postgres.js one-liner
+
+**Perubahan file:**
+- `frontend/src/types/customers.ts` — UPDATED (Division type, division + channel fields)
+- `frontend/src/pages/Customers/components/DivisionChip.tsx` — NEW
+- `frontend/src/pages/Customers/index.tsx` — UPDATED (DivisionChip, divisionFilter)
+- `frontend/src/pages/Customers/components/CustomerDetailModal.tsx` — UPDATED (division + channel)
+- `frontend/src/pages/Customers/components/CustomerDetailDrawer.tsx` — UPDATED (division + channel)
+- `frontend/src/pages/Transactions/components/BuChip.tsx` — UPDATED (Division values)
+- `frontend/src/pages/Customers/components/BuLabel.tsx` — UPDATED (Division values)
+- `frontend/src/mocks/handlers/customers.handler.ts` — UPDATED (division + channel mock data)
+- `frontend/src/i18n/locales/en.json` + `id.json` — UPDATED (division + channel keys)
+- `backend/src/db/schema/invoices.ts` — UPDATED (channel_name)
+- `backend/src/db/schema/channel_divisions.ts` — UPDATED (channel_name)
+- `backend/src/features/customers/customers.repository.ts` — UPDATED (division filter via JOIN)
+- `backend/src/features/import/import.repository.ts` — UPDATED (channel_name)
+- `backend/src/features/import/import.service.ts` — UPDATED (channel_name)
+- `backend/src/utils/parser.ts` — UPDATED (channel_name)
+
+---
 
 ### 2026-06-26 (sesi 20): Backend Customers Feature + Customer Status dari business_configs
 

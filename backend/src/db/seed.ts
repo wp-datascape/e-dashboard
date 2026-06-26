@@ -4,7 +4,7 @@ import { hashPassword } from '@/utils/hash'
 import { eq, and, isNull } from 'drizzle-orm'
 
 const defaultCompanies = [
-  { code: 'PT MKO', name: 'PT Mesin Kasri Online' },
+  { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
   { code: 'PT KNT', name: 'PT Kode Niaga Tama' },
   { code: 'PT SKI', name: 'PT Solusi Kartu Indonesia' },
 ]
@@ -114,6 +114,7 @@ const defaultPageSettings = [
   { page_key: 'rbac', ready: true },
   { page_key: 'audit-log', ready: true },
   { page_key: 'companies', ready: true },
+  { page_key: 'settings-divisions', ready: true },
   { page_key: 'settings-high-margin', ready: true },
   { page_key: 'settings-classification', ready: true },
   { page_key: 'settings-threshold', ready: true },

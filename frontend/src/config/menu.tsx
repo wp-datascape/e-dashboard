@@ -22,6 +22,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import ApiIcon from '@mui/icons-material/Api';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
 export interface NavItem {
   key: string;
@@ -137,6 +138,12 @@ export const NAV_ITEMS: NavItem[] = [
         path: '/companies',
         labelKey: 'nav.companies',
         icon: <BusinessIcon fontSize="small" />,
+      },
+      {
+        key: 'settings-divisions',
+        path: '/settings/divisions',
+        labelKey: 'nav.settingsDivisions',
+        icon: <AccountTreeIcon fontSize="small" />,
       },
       {
         key: 'settings-high-margin',

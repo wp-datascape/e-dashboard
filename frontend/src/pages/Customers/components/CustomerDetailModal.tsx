@@ -11,7 +11,7 @@ import { Dialog } from '@/components/ui/Dialog/Dialog'
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
 import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
-import { BuChip } from '@/pages/Transactions/components/BuChip'
+import { DivisionChip } from './DivisionChip'
 
 function formatIDR(val: number) {
   return `Rp ${(val / 1_000_000).toFixed(1)}M`
@@ -60,17 +60,24 @@ export function CustomerDetailModal({ customerId, onClose }: Props) {
             </Box>
           </Box>
 
-          {/* Status & BU */}
+          {/* Status & Division */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.status')}</Typography>
               <StatusChip status={detail.status} />
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.detail.businessUnit')}</Typography>
-              <BuChip bu={detail.business_unit} />
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.detail.division')}</Typography>
+              <DivisionChip division={detail.division} />
             </Box>
           </Box>
+
+          {detail.channel && (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.detail.channel')}</Typography>
+              <Typography variant="body2">{detail.channel}</Typography>
+            </Box>
+          )}
 
           <Divider />
 

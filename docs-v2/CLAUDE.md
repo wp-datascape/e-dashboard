@@ -32,6 +32,7 @@ Status   : Frontend ~96% | Backend ~72%
 | Transaction Workbench | `transaction-workbench/overview.md`    |
 | Admin pages           | `admin/overview.md`                    |
 | Companies feature     | `features/companies.md`                |
+| Customers feature     | `features/customers.md`                |
 | Roles feature         | `features/roles.md`                    |
 | Permissions feature   | `features/permissions.md`              |
 | Users feature         | `features/users.md`                    |

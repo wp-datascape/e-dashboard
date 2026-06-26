@@ -198,6 +198,20 @@ setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('aut
 - Soft delete via `deleted_at` — **never hard-delete invoice data**
 - Migrations: `drizzle-kit generate` → `drizzle-kit migrate`
 
+### ⚠️ Drizzle-kit Migration Limitation (CRITICAL)
+`drizzle-kit migrate` hanya menjalankan file yang **di-generate oleh `drizzle-kit generate`**.
+File SQL yang ditulis tangan di folder `migrations/` TIDAK akan dieksekusi oleh drizzle-kit.
+
+**Untuk DDL manual (RENAME COLUMN, dll):** jalankan langsung via script postgres.js:
+```bash
+bun -e "
+import postgres from 'postgres'
+const sql = postgres(process.env.DATABASE_URL!)
+await sql\`ALTER TABLE invoices RENAME COLUMN old_name TO new_name\`
+await sql.end()
+"
+```
+
 ## Security Rules
 | Aspect           | Rule                                              |
 |------------------|---------------------------------------------------|

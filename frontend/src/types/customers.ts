@@ -1,6 +1,6 @@
 // frontend/src/types/customers.ts
 
-export type BusinessUnit = 'b2b_dc' | 'b2b_project' | 'b2c' | 'manufacturing' | null;
+export type Division = 'distribution' | 'project' | 'e_commerce' | 'intercompany' | 'freelancer' | 'support' | null;
 export type CustomerStatus = 'active' | 'dormant' | 'new' | 'existing';
 
 export interface CustomerRow {
@@ -8,7 +8,8 @@ export interface CustomerRow {
   customer_code: string;
   name: string;
   company: { id: number; name: string };
-  business_unit: BusinessUnit;
+  business_unit: string | null;
+  division: Division;
   status: CustomerStatus;
   first_invoice_date: string | null;
   last_invoice_date: string | null;
@@ -23,7 +24,9 @@ export interface CustomerDetail {
   customer_code: string;
   name: string;
   company: { id: number; name: string };
-  business_unit: BusinessUnit;
+  business_unit: string | null;
+  division: Division;
+  channel: string | null;
   status: CustomerStatus;
   first_invoice_date: string | null;
   last_invoice_date: string | null;
@@ -42,7 +45,7 @@ export interface CustomerDetail {
 
 export interface CustomerParams {
   company_id?: number | 'all';
-  business_unit?: BusinessUnit;
+  business_unit?: string;
   status?: CustomerStatus;
   search?: string;
   sort_by?: 'avg_monthly_revenue' | 'lifetime_value' | 'category_count' | 'last_invoice_date';
@@ -59,3 +62,5 @@ export type Customer360Row = CustomerRow;
 export type Customer360Detail = CustomerDetail;
 /** @deprecated gunakan CustomerParams */
 export type Customer360Params = CustomerParams;
+/** @deprecated gunakan Division */
+export type BusinessUnit = Division;

@@ -193,6 +193,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
           company_id: companyId,
           customer_name: row.customer_name,
           invoice_date: invoiceDate,
+          channel_name: row.channel_name,
         })
 
         const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
@@ -202,7 +203,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
           await updateInvoice(existingInvoice.id, {
             customer_id: customer.id,
             invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
-            salesperson_name: row.salesperson ?? null,
+            channel_name: row.channel_name ?? null,
             branch_name: row.branch_name ?? null,
             import_log_id: importLog.id,
           })
@@ -216,7 +217,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
             invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
             total_revenue: '0',
             total_gp: '0',
-            salesperson_name: row.salesperson ?? null,
+            channel_name: row.channel_name ?? null,
             branch_name: row.branch_name ?? null,
             import_log_id: importLog.id,
           })

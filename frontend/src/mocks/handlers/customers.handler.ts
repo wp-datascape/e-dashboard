@@ -11,7 +11,8 @@ const mockCustomers: Customer360Row[] = [
     customer_code: 'CUST-001',
     name: 'PT Maju Bersama',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_dc',
+    business_unit: 'distribution',
+    division: 'distribution',
     status: 'active',
     first_invoice_date: '2022-03-15',
     last_invoice_date: '2024-01-20',
@@ -25,7 +26,8 @@ const mockCustomers: Customer360Row[] = [
     customer_code: 'CUST-002',
     name: 'CV Teknologi Nusantara',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_dc',
+    business_unit: 'distribution',
+    division: 'distribution',
     status: 'active',
     first_invoice_date: '2021-06-10',
     last_invoice_date: '2024-01-15',
@@ -39,7 +41,8 @@ const mockCustomers: Customer360Row[] = [
     customer_code: 'CUST-003',
     name: 'PT Solusi Digital',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2c',
+    business_unit: 'e_commerce',
+    division: 'e_commerce',
     status: 'dormant',
     first_invoice_date: '2021-01-05',
     last_invoice_date: '2023-09-12',
@@ -53,7 +56,8 @@ const mockCustomers: Customer360Row[] = [
     customer_code: 'CUST-004',
     name: 'PT Industri Mandiri',
     company: { id: 2, name: 'PT XYZ Mandiri' },
-    business_unit: 'manufacturing',
+    business_unit: 'distribution',
+    division: 'distribution',
     status: 'active',
     first_invoice_date: '2023-01-20',
     last_invoice_date: '2024-01-18',
@@ -67,7 +71,8 @@ const mockCustomers: Customer360Row[] = [
     customer_code: 'CUST-005',
     name: 'PT Proyek Infrastruktur',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_project',
+    business_unit: 'project',
+    division: 'project',
     status: 'new',
     first_invoice_date: '2024-01-05',
     last_invoice_date: '2024-01-05',
@@ -82,6 +87,7 @@ const mockCustomers: Customer360Row[] = [
     name: 'CV Mitra Usaha',
     company: { id: 1, name: 'PT ABC Sejahtera' },
     business_unit: null,
+    division: null,
     status: 'active',
     first_invoice_date: '2022-08-20',
     last_invoice_date: '2024-01-10',
@@ -98,7 +104,9 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     customer_code: 'CUST-001',
     name: 'PT Maju Bersama',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_dc',
+    business_unit: 'distribution',
+    division: 'distribution',
+    channel: 'DC WEST',
     status: 'active',
     first_invoice_date: '2022-03-15',
     last_invoice_date: '2024-01-20',
@@ -131,7 +139,9 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     customer_code: 'CUST-002',
     name: 'CV Teknologi Nusantara',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_dc',
+    business_unit: 'distribution',
+    division: 'distribution',
+    channel: 'DC EAST',
     status: 'active',
     first_invoice_date: '2021-06-10',
     last_invoice_date: '2024-01-15',
@@ -163,7 +173,9 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     customer_code: 'CUST-003',
     name: 'PT Solusi Digital',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2c',
+    business_unit: 'e_commerce',
+    division: 'e_commerce',
+    channel: 'TOKOPEDIA',
     status: 'dormant',
     first_invoice_date: '2021-01-05',
     last_invoice_date: '2023-09-12',
@@ -171,9 +183,6 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     avg_monthly_revenue: 3200000,
     category_count: 1,
     categories_bought: ['Ribbon'],
-    // monthly_revenue_trend: 12 bulan ke belakang dari period_month (2024-01)
-    // window: 2023-02 s/d 2024-01 — bulan yang ada transaksi saja (sparse)
-    // PT Solusi Digital terakhir transaksi Sep 2023 → data Feb-Sep 2023 saja
     monthly_revenue_trend: [
       { month: '2023-02', revenue: 3500000, gp: 1050000 },
       { month: '2023-03', revenue: 2800000, gp: 840000 },
@@ -194,7 +203,9 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     customer_code: 'CUST-004',
     name: 'PT Industri Mandiri',
     company: { id: 2, name: 'PT XYZ Mandiri' },
-    business_unit: 'manufacturing',
+    business_unit: 'distribution',
+    division: 'distribution',
+    channel: 'DC EAST HEAD',
     status: 'active',
     first_invoice_date: '2023-01-20',
     last_invoice_date: '2024-01-18',
@@ -227,7 +238,9 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     customer_code: 'CUST-005',
     name: 'PT Proyek Infrastruktur',
     company: { id: 1, name: 'PT ABC Sejahtera' },
-    business_unit: 'b2b_project',
+    business_unit: 'project',
+    division: 'project',
+    channel: 'SDR B2B WEST',
     status: 'new',
     first_invoice_date: '2024-01-05',
     last_invoice_date: '2024-01-05',
@@ -248,6 +261,8 @@ const mockCustomerDetails: Record<number, Customer360Detail> = {
     name: 'CV Mitra Usaha',
     company: { id: 1, name: 'PT ABC Sejahtera' },
     business_unit: null,
+    division: null,
+    channel: null,
     status: 'active',
     first_invoice_date: '2022-08-20',
     last_invoice_date: '2024-01-10',
@@ -282,7 +297,7 @@ export const customersHandlers = [
     const url = new URL(request.url);
     const search = url.searchParams.get('search')?.toLowerCase() ?? '';
     const statusFilter = url.searchParams.get('status');
-    const buFilter = url.searchParams.get('business_unit');
+    const divisionFilter = url.searchParams.get('business_unit');
     const page = parseInt(url.searchParams.get('page') ?? '1');
     const perPage = parseInt(url.searchParams.get('per_page') ?? '50');
 
@@ -295,8 +310,8 @@ export const customersHandlers = [
     if (statusFilter) {
       filtered = filtered.filter((c) => c.status === statusFilter);
     }
-    if (buFilter) {
-      filtered = filtered.filter((c) => c.business_unit === buFilter);
+    if (divisionFilter) {
+      filtered = filtered.filter((c) => c.division === divisionFilter);
     }
 
     const total = filtered.length;
@@ -316,10 +331,6 @@ export const customersHandlers = [
     const detail = mockCustomerDetails[id];
     if (detail) {
       return HttpResponse.json({ message: 'Success', data: detail });
-    }
-    const found = mockCustomers.find((c) => c.id === id);
-    if (!found) {
-      return HttpResponse.json({ error: 'NOT_FOUND', message: 'Customer tidak ditemukan' }, { status: 404 });
     }
     return HttpResponse.json({ error: 'NOT_FOUND', message: 'Customer tidak ditemukan' }, { status: 404 });
   }),

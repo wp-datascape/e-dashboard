@@ -43,7 +43,8 @@
     "optional": "Optional",
     "refresh": "Refresh",
     "logout": "Logout",
-    "select": "Select"
+    "select": "Select",
+    "company": "Company"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -70,11 +71,25 @@
     "settings": "Settings",
     "settingsHighMargin": "Product",
     "settingsClassification": "Classification",
+    "settingsDivisions": "Channel Divisions",
     "settingsThreshold": "Threshold",
     "settingsApp": "App Settings",
     "configApp": "App Settings",
     "configIntegration": "Integration",
     "configFeatures": "Features"
+  },
+  "divisions": {
+    "title": "Channel Divisions",
+    "subtitle": "Map channel names (from Accurate) to sales divisions",
+    "add": "Add Mapping",
+    "addMapping": "Add Channel Mapping",
+    "editMapping": "Edit Channel Mapping",
+    "channelName": "Channel Name",
+    "channelNameHelp": "Must match exactly as in Accurate (e.g. DC WEST, TOKOPEDIA). Saved as uppercase.",
+    "division": "Division",
+    "scope": "Scope",
+    "scopeGlobal": "Global (all companies)",
+    "searchPlaceholder": "Search channel name..."
   },
   "settings": {
     "threshold": {
@@ -412,6 +427,8 @@
       "title": "Customer View",
       "company": "Company",
       "businessUnit": "Business Unit",
+      "division": "Division",
+      "channel": "Channel",
       "lifetimeValue": "Lifetime Value",
       "avgMonthly": "Avg Monthly Revenue",
       "categoriesBought": "Categories Bought",

@@ -5,59 +5,24 @@
 
 ---
 
-## Endpoint yang Sudah Ada di API_SPEC.md
+## Endpoint yang Sudah Diimplementasi
 
-### `GET /customers` 🔒 `[customers:read]`
+### `GET /api/v1/customers` 🔒 `[customers:read]`
 
-Daftar customer dengan filter.
-
-**Query params:**
-| Param | Tipe | Keterangan |
-|-------|------|------------|
-| `company_id` | integer \| `"all"` | Filter per entitas |
-| `status` | `"active"` \| `"dormant"` | Filter status customer |
-| `search` | string | Cari nama atau kode customer |
-| `page` | integer | Default: 1 |
-| `per_page` | integer | Default: 50 |
-
-**Response 200:**
-```json
-{
-  "data": [...],
-  "meta": { "page": 1, "per_page": 50, "total": 320 }
-}
-```
-
----
-
-### `GET /customers/:id` 🔒 `[customers:read]`
-
-Detail customer — histori faktur dan ringkasan metrik.
-
----
-
-## Endpoint Baru — Perlu Didesain
-
-Halaman **2.1 Customer 360 & Segmentation** membutuhkan data yang tidak bisa dipenuhi oleh `GET /customers` yang sudah ada karena:
-- Tidak ada filter `business_unit`
-- Tidak ada field `avg_monthly_revenue`, `lifetime_value`, `category_count`
-- Tidak ada sorting per kolom analitik
-
-### `GET /customers/360` 🔒 `[customers:read]` _(Baru)_
-
-Master customer table untuk halaman 2.1 — satu baris per customer, data agregat dari invoice history.
+Daftar customer dengan filter dan agregat.
 
 **Query params:**
 | Param | Tipe | Keterangan |
 |-------|------|------------|
 | `company_id` | integer \| `"all"` | Filter per entitas |
-| `business_unit` | `"b2b_dc"` \| `"b2b_project"` \| `"b2c"` \| `"manufacturing"` | Filter BU — opsional |
-| `status` | `"active"` \| `"dormant"` \| `"new"` | Filter status customer |
-| `search` | string | Cari nama atau kode customer |
-| `sort_by` | string | `avg_monthly_revenue` \| `lifetime_value` \| `category_count` \| `last_invoice_date` |
+| `status` | `"new"` \| `"active"` \| `"dormant"` \| `"existing"` | Filter status customer |
+| `business_unit` | `"distribution"` \| `"project"` \| `"e_commerce"` \| `"intercompany"` \| `"freelancer"` \| `"support"` | Filter division — via JOIN `channel_divisions` |
+| `search` | string | Cari nama customer |
+| `sort_by` | `"last_invoice_date"` \| `"lifetime_value"` \| `"avg_monthly_revenue"` \| `"category_count"` | Sort field |
 | `sort_dir` | `"asc"` \| `"desc"` | Default: `"desc"` |
 | `page` | integer | Default: 1 |
 | `per_page` | integer | Default: 50 |
+| `as_of_date` | string (YYYY-MM-DD) | Tanggal referensi untuk status kalkulasi |
 
 **Response 200:**
 ```json
@@ -66,9 +31,10 @@ Master customer table untuk halaman 2.1 — satu baris per customer, data agrega
     {
       "id": 1,
       "customer_code": "CUST-001",
-      "name": "PT ABC Sejahtera",
-      "company": { "id": 1, "name": "PT ABC" },
-      "business_unit": "b2b_dc",
+      "name": "PT ABC SEJAHTERA",
+      "company": { "id": 1, "name": "PT MKO" },
+      "business_unit": "distribution",
+      "division": "distribution",
       "status": "active",
       "first_invoice_date": "2022-03-15",
       "last_invoice_date": "2024-01-20",
@@ -83,17 +49,18 @@ Master customer table untuk halaman 2.1 — satu baris per customer, data agrega
 ```
 
 **Catatan implementasi:**
-- `category_count` = `COUNT(DISTINCT product_category_id)` dari semua `invoice_items` customer ini, filter `is_service = false`
-- `avg_monthly_revenue` = `total_lifetime_revenue / bulan_aktif` — bulan aktif dihitung dari `first_invoice_date` sampai `last_invoice_date`
-- `lifetime_value` = `SUM(total_revenue)` dari semua `invoices` customer ini
-- `status` dihitung dari `last_invoice_date` vs `dormant_threshold_months` dari `app_configs`
-- `business_unit` berasal dari field `customers.business_unit` (field baru, lihat DATA_MODEL.md gap)
+- `division` = `channel_divisions.division` dari JOIN via `invoices.channel_name` terbaru per customer
+- `business_unit` = `customers.business_unit` (field di tabel customers — mungkin null untuk data historis)
+- Filter `business_unit` difilter via `channel_divisions.division` (bukan `customers.business_unit` yang null)
+- `status` dihitung runtime dari `business_configs` threshold (bukan disimpan di DB)
+- `category_count` = `COUNT(DISTINCT product_category_id)` dari invoice_items
+- `avg_monthly_revenue` = total revenue / jumlah bulan aktif
 
 ---
 
-### `GET /customers/:id/360` 🔒 `[customers:read]` _(Baru)_
+### `GET /api/v1/customers/:id` 🔒 `[customers:read]`
 
-Detail lengkap satu customer untuk Customer 360 view — dipakai sebagai drill-down dari tabel 2.1.
+Detail lengkap satu customer — histori faktur dan ringkasan metrik.
 
 **Response 200:**
 ```json
@@ -101,9 +68,11 @@ Detail lengkap satu customer untuk Customer 360 view — dipakai sebagai drill-d
   "data": {
     "id": 1,
     "customer_code": "CUST-001",
-    "name": "PT ABC Sejahtera",
-    "company": { "id": 1, "name": "PT ABC" },
-    "business_unit": "b2b_dc",
+    "name": "PT ABC SEJAHTERA",
+    "company": { "id": 1, "name": "PT MKO" },
+    "business_unit": "distribution",
+    "division": "distribution",
+    "channel": "DC WEST",
     "status": "active",
     "first_invoice_date": "2022-03-15",
     "last_invoice_date": "2024-01-20",
@@ -116,7 +85,7 @@ Detail lengkap satu customer untuk Customer 360 view — dipakai sebagai drill-d
     ],
     "recent_invoices": [
       {
-        "invoice_number": "INV-2024-001",
+        "invoice_number": "SI.2024.01.00001",
         "invoice_date": "2024-01-20",
         "total_revenue": 18000000,
         "total_gp": 5400000
@@ -126,13 +95,39 @@ Detail lengkap satu customer untuk Customer 360 view — dipakai sebagai drill-d
 }
 ```
 
+**Catatan implementasi:**
+- `channel` = `invoices.channel_name` dari invoice terbaru (nama channel Accurate, misal "DC WEST", "TOKOPEDIA")
+- `division` = lookup ke `channel_divisions.division` via `channel_name`
+- `monthly_revenue_trend` = 12 bulan terakhir via `generate_series` PostgreSQL (bulan tanpa transaksi = 0)
+
 ---
 
-### `GET /metrics/expansion-rate/detail` 🔒 `[metrics:read]` _(Baru)_
+## Channel Division Concept
 
-Detail per customer untuk halaman **2.2 Expansion & Upsell Targets** — customer mana yang spending-nya naik, datar, atau turun.
+Kolom "Nama Tenaga Penjual" di export Accurate Online BUKAN nama orang — melainkan nama channel penjualan.
 
-**Query params:** sama dengan query metrik standar + paginasi + filter `business_unit`
+**Naming di codebase:**
+- DB kolom: `invoices.channel_name` + `channel_divisions.channel_name`
+- Response field: `channel` (nama asli, e.g. "DC WEST") + `division` (kategori, e.g. "distribution")
+- Query param filter: `business_unit` (nama lama dipertahankan untuk API compatibility)
+
+**Mapping division:**
+| Division | Channel Examples |
+|----------|-----------------|
+| `distribution` | DC WEST, DC EAST, DC WEST HEAD, DC EAST HEAD, DC EAST CARD |
+| `project` | SDR B2B WEST, B2B EAST, KAE WEST, NAS B2B EAST, NAS B2B WEST |
+| `e_commerce` | KASSEN OFFICIAL STORE, TOKOPEDIA, TIKTOKSHOP, LAZADA |
+| `intercompany` | KODE NIAGA TAMA, CODESHOP |
+| `freelancer` | SBY UDIN |
+| `support` | SALES SUPPORT, SALES SUPPORT JKT |
+
+---
+
+## Endpoint yang Belum Diimplementasi
+
+### `GET /metrics/expansion-rate/detail` 🔒 `[metrics:read]` _(Pending)_
+
+Detail per customer untuk halaman **2.2 Expansion & Upsell Targets**.
 
 **Response 200:**
 ```json
@@ -140,8 +135,8 @@ Detail per customer untuk halaman **2.2 Expansion & Upsell Targets** — custome
   "data": [
     {
       "customer_code": "CUST-001",
-      "customer_name": "PT ABC Sejahtera",
-      "business_unit": "b2b_dc",
+      "customer_name": "PT ABC SEJAHTERA",
+      "division": "distribution",
       "revenue_current": 18000000,
       "revenue_previous": 12000000,
       "change_percent": 50.0,
@@ -153,8 +148,6 @@ Detail per customer untuk halaman **2.2 Expansion & Upsell Targets** — custome
 }
 ```
 
-**Catatan**: endpoint ini melengkapi `GET /metrics/expansion-rate` (summary + trend). Detail ini khusus untuk tabel drill-down di halaman 2.2.
-
 ---
 
 ## Endpoint yang Sudah Cukup (Tidak Perlu Endpoint Baru)
@@ -163,15 +156,3 @@ Detail per customer untuk halaman **2.2 Expansion & Upsell Targets** — custome
 |---------|----------------------|
 | 2.3 Churn Risk & Dormant | `GET /metrics/dormant-rate`, `GET /metrics/dormant-value`, `GET /metrics/reactivation-rate` |
 | 2.4 Cross-sell Matrix | `GET /metrics/cross-selling`, `GET /metrics/cross-selling/detail` |
-
-Halaman 2.3 dan 2.4 sudah selesai diimplementasi di frontend dan data endpoint-nya sudah didefinisikan di `API_SPEC.md`.
-
----
-
-## Field Baru yang Dibutuhkan di Schema
-
-`customers.business_unit` — field ini belum ada di schema saat ini. Perlu ditambahkan ke tabel `customers` sebelum endpoint `GET /customers/360` bisa diimplementasi.
-
-Nilai yang valid: `"b2b_dc"`, `"b2b_project"`, `"b2c"`, `"manufacturing"`, atau `NULL` jika belum diklasifikasikan.
-
-Cara pengisian `business_unit` belum diputuskan — kemungkinan: (a) manual dari halaman Customer 360, (b) diimport bersama data faktur jika Accurate punya field ini, atau (c) diinfer dari tipe transaksi. Ini perlu dikonfirmasi sebelum implementasi.

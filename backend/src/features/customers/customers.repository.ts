@@ -1,5 +1,5 @@
 import { db } from '@/config/db'
-import { customers, invoices, invoice_items, product_categories, companies } from '@/db/schema'
+import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
 import { and, eq, isNull, isNotNull, or, sql, desc, asc, ilike } from 'drizzle-orm'
 import { findAllConfigs } from '@/features/config/config.repository'
 import type { CustomersQuery } from './customers.schema'
@@ -31,11 +31,13 @@ function buildStatusExpr(
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
     CASE ${customers.business_unit}
-      WHEN 'b2b_dc'          THEN ${dormant.b2b_dc}::int
-      WHEN 'b2b_project'     THEN ${dormant.b2b_project}::int
-      WHEN 'b2c'             THEN ${dormant.b2c}::int
-      WHEN 'manufacturing'   THEN ${dormant.manufacturing}::int
-      ELSE                        ${dormant.b2b_dc}::int
+      WHEN 'distribution'  THEN ${dormant.b2b_dc}::int
+      WHEN 'project'       THEN ${dormant.b2b_project}::int
+      WHEN 'e_commerce'    THEN ${dormant.b2c}::int
+      WHEN 'intercompany'  THEN ${dormant.b2b_project}::int
+      WHEN 'freelancer'    THEN ${dormant.b2c}::int
+      WHEN 'support'       THEN ${dormant.b2b_dc}::int
+      ELSE                      ${dormant.b2b_dc}::int
     END * INTERVAL '1 month'
   )`
 
@@ -64,11 +66,13 @@ function buildStatusWhere(
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
     CASE ${customers.business_unit}
-      WHEN 'b2b_dc'          THEN ${dormant.b2b_dc}::int
-      WHEN 'b2b_project'     THEN ${dormant.b2b_project}::int
-      WHEN 'b2c'             THEN ${dormant.b2c}::int
-      WHEN 'manufacturing'   THEN ${dormant.manufacturing}::int
-      ELSE                        ${dormant.b2b_dc}::int
+      WHEN 'distribution'  THEN ${dormant.b2b_dc}::int
+      WHEN 'project'       THEN ${dormant.b2b_project}::int
+      WHEN 'e_commerce'    THEN ${dormant.b2c}::int
+      WHEN 'intercompany'  THEN ${dormant.b2b_project}::int
+      WHEN 'freelancer'    THEN ${dormant.b2c}::int
+      WHEN 'support'       THEN ${dormant.b2b_dc}::int
+      ELSE                      ${dormant.b2b_dc}::int
     END * INTERVAL '1 month'
   )`
 
@@ -125,15 +129,20 @@ export async function findCustomers(params: CustomersQuery) {
     COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoice_items.product_category_id} END)
   `
 
-  // WHERE conditions
+  // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
   if (company_id !== 'all') conditions.push(eq(customers.company_id, company_id))
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
-  if (business_unit) conditions.push(eq(customers.business_unit, business_unit))
   const statusCond = status ? buildStatusWhere(status, refDate, activeMonths, dormant) : undefined
   if (statusCond) conditions.push(statusCond)
 
   const whereClause = conditions.length ? and(...conditions) : undefined
+
+  // Division filter: diapply setelah JOIN channel_divisions
+  const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
+  const whereWithDivision = divisionCond
+    ? whereClause ? and(whereClause, divisionCond) : divisionCond
+    : whereClause
 
   // Sort
   const isAsc = sort_dir === 'asc'
@@ -148,11 +157,24 @@ export async function findCustomers(params: CustomersQuery) {
 
   const statusExpr = buildStatusExpr(refDate, activeMonths, dormant)
 
+  // Subquery: channel_name dari invoice terbaru per customer
+  const latestSalespersonSq = db
+    .selectDistinctOn([invoices.customer_id], {
+      customer_id: invoices.customer_id,
+      channel_name: invoices.channel_name,
+    })
+    .from(invoices)
+    .where(isNull(invoices.deleted_at))
+    .orderBy(invoices.customer_id, desc(invoices.invoice_date))
+    .as('latest_sp')
+
   const [{ total }, rows] = await Promise.all([
     db
       .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
       .from(customers)
-      .where(whereClause)
+      .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
+      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .where(whereWithDivision)
       .then(([r]) => r),
     db
       .select({
@@ -162,6 +184,7 @@ export async function findCustomers(params: CustomersQuery) {
         company_id: companies.id,
         company_name: companies.name,
         business_unit: customers.business_unit,
+        division: channel_divisions.division,
         first_invoice_date: customers.first_invoice_date,
         last_invoice_date: customers.last_invoice_date,
         total_invoices: invCountExpr,
@@ -177,8 +200,10 @@ export async function findCustomers(params: CustomersQuery) {
         invoice_items,
         and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
       )
-      .where(whereClause)
-      .groupBy(customers.id, companies.id)
+      .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
+      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .where(whereWithDivision)
+      .groupBy(customers.id, companies.id, channel_divisions.division)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -191,6 +216,7 @@ export async function findCustomers(params: CustomersQuery) {
       name: r.name,
       company: { id: r.company_id ?? 0, name: r.company_name ?? '' },
       business_unit: r.business_unit,
+      division: r.division ?? null,
       first_invoice_date: r.first_invoice_date,
       last_invoice_date: r.last_invoice_date,
       total_invoices: Number(r.total_invoices),
@@ -206,6 +232,22 @@ export async function findCustomers(params: CustomersQuery) {
 export async function findCustomerDetail(customerId: number) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = sql`CURRENT_DATE`
+
+  // Ambil channel_name dari invoice terbaru → lookup division
+  const [latestInv] = await db
+    .select({ channel_name: invoices.channel_name })
+    .from(invoices)
+    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
+    .orderBy(desc(invoices.invoice_date))
+    .limit(1)
+
+  const [divRow] = latestInv?.channel_name
+    ? await db
+        .select({ division: channel_divisions.division })
+        .from(channel_divisions)
+        .where(eq(channel_divisions.channel_name, latestInv.channel_name))
+        .limit(1)
+    : []
 
   const [row] = await db
     .select({
@@ -248,22 +290,31 @@ export async function findCustomerDetail(customerId: number) {
     .innerJoin(product_categories, eq(invoice_items.product_category_id, product_categories.id))
     .where(eq(invoices.customer_id, customerId))
 
-  const trendRows = await db
-    .select({
-      month: sql<string>`TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM')`,
-      revenue: sql<string>`COALESCE(SUM(${invoices.total_revenue}::numeric), 0)`,
-      gp: sql<string>`COALESCE(SUM(${invoices.total_gp}::numeric), 0)`,
-    })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.customer_id, customerId),
-        isNull(invoices.deleted_at),
-        sql`${invoices.invoice_date}::date >= CURRENT_DATE - INTERVAL '12 months'`,
-      ),
+  const trendRows = await db.execute<{ month: string; revenue: string; gp: string }>(sql`
+    WITH months AS (
+      SELECT TO_CHAR(m, 'YYYY-MM') AS month
+      FROM generate_series(
+        DATE_TRUNC('month', CURRENT_DATE - INTERVAL '11 months'),
+        DATE_TRUNC('month', CURRENT_DATE),
+        INTERVAL '1 month'
+      ) AS m
+    ),
+    actuals AS (
+      SELECT
+        TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM') AS month,
+        COALESCE(SUM(${invoices.total_revenue}::numeric), 0) AS revenue,
+        COALESCE(SUM(${invoices.total_gp}::numeric), 0) AS gp
+      FROM ${invoices}
+      WHERE ${invoices.customer_id} = ${customerId}
+        AND ${invoices.deleted_at} IS NULL
+        AND ${invoices.invoice_date}::date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '11 months')
+      GROUP BY 1
     )
-    .groupBy(sql`TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM')`)
-    .orderBy(sql`TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM')`)
+    SELECT m.month, COALESCE(a.revenue, 0)::text AS revenue, COALESCE(a.gp, 0)::text AS gp
+    FROM months m
+    LEFT JOIN actuals a ON a.month = m.month
+    ORDER BY m.month
+  `)
 
   const recentRows = await db
     .select({
@@ -283,6 +334,8 @@ export async function findCustomerDetail(customerId: number) {
     name: row.name,
     company: { id: row.company_id ?? 0, name: row.company_name ?? '' },
     business_unit: row.business_unit,
+    division: divRow?.division ?? null,
+    channel: latestInv?.channel_name ?? null,
     status: row.status as 'new' | 'active' | 'dormant' | 'existing',
     first_invoice_date: row.first_invoice_date,
     last_invoice_date: row.last_invoice_date,

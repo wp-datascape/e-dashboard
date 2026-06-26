@@ -22,6 +22,13 @@
       "when": 1782321025499,
       "tag": "0003_transactions_import",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782489557394,
+      "tag": "0003_tough_proemial_gods",
+      "breakpoints": true
     }
   ]
 }

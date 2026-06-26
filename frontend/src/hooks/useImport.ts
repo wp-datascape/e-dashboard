@@ -22,7 +22,10 @@ export const useImportFile = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: ImportFilePayload) => importFile(payload).then(r => r.data),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['import', 'logs'] }) },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['import', 'logs'] })
+      void qc.invalidateQueries({ queryKey: ['customers'] })
+    },
   })
 }
 
@@ -130,6 +133,7 @@ export function useImportFileProgress() {
               setProgress(p => ({ ...p, processed: p.total }))
               setPhase('done')
               void qc.invalidateQueries({ queryKey: ['import', 'logs'] })
+              void qc.invalidateQueries({ queryKey: ['customers'] })
             } else if (msg.event === 'error') {
               setErrorMessage(msg.message ?? 'Import gagal')
               setPhase('error')
@@ -167,6 +171,9 @@ export const useImportAccurate = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: ImportAccuratePayload) => importAccurate(payload).then(r => r.data),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['import', 'logs'] }) },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['import', 'logs'] })
+      void qc.invalidateQueries({ queryKey: ['customers'] })
+    },
   })
 }

@@ -14,6 +14,7 @@ import {
   import_logs,
   import_log_errors,
   item_classification_rules,
+  channel_divisions,
   companies,
   users,
 } from '@/db/schema'
@@ -98,9 +99,21 @@ export async function findImportErrors(logId: number) {
 
 // ─── Customers ───────────────────────────────────────────────────────────────
 
-export async function upsertCustomer(data: { company_id: number; customer_name: string; invoice_date: Date }) {
+export async function upsertCustomer(data: { company_id: number; customer_name: string; invoice_date: Date; channel_name?: string }) {
   const upperName = data.customer_name.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
+
+  // Lookup division dari channel_divisions berdasarkan channel_name
+  let division: string | null = null
+  if (data.channel_name) {
+    const upperCh = data.channel_name.trim().toUpperCase()
+    const [divRow] = await db
+      .select({ division: channel_divisions.division })
+      .from(channel_divisions)
+      .where(eq(channel_divisions.channel_name, upperCh))
+      .limit(1)
+    division = divRow?.division ?? null
+  }
 
   // Cari existing customer by company_id + UPPER(customer_name)
   const existing = await db
@@ -126,14 +139,20 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
     const newFirstDate = new Date(Math.min(existingFirstDate.getTime(), data.invoice_date.getTime()))
     const newLastDate = new Date(Math.max(existingLastDate.getTime(), data.invoice_date.getTime()))
 
+    const updateData: Record<string, unknown> = {
+      first_invoice_date: toDateString(newFirstDate),
+      last_invoice_date: toDateString(newLastDate),
+      customer_name: upperName,
+      updated_at: new Date(),
+    }
+    // Update business_unit hanya jika invoice ini lebih baru (pakai last_invoice_date baru)
+    if (division && newLastDate.getTime() === data.invoice_date.getTime()) {
+      updateData.business_unit = division
+    }
+
     const [updated] = await db
       .update(customers)
-      .set({
-        first_invoice_date: toDateString(newFirstDate),
-        last_invoice_date: toDateString(newLastDate),
-        customer_name: upperName,
-        updated_at: new Date(),
-      })
+      .set(updateData)
       .where(eq(customers.id, existingCustomer.id))
       .returning()
     return updated
@@ -146,6 +165,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
       customer_name: upperName,
       first_invoice_date: invoiceDateStr,
       last_invoice_date: invoiceDateStr,
+      business_unit: division ?? undefined,
     })
     .returning()
   return created
