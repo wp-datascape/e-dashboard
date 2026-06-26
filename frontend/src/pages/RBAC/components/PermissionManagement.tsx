@@ -109,6 +109,7 @@ export function PermissionManagement({
         <Button
           startIcon={<AddIcon />}
           onClick={onCreateClick}
+          mobileIconOnly
         >
           {t('rbac.addPermission')}
         </Button>

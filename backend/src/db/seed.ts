@@ -112,9 +112,14 @@ const defaultPageSettings = [
   { page_key: 'import', ready: true },
   { page_key: 'users', ready: true },
   { page_key: 'rbac', ready: true },
-  { page_key: 'config', ready: true },
   { page_key: 'audit-log', ready: true },
   { page_key: 'companies', ready: true },
+  { page_key: 'settings-high-margin', ready: true },
+  { page_key: 'settings-classification', ready: true },
+  { page_key: 'settings-threshold', ready: true },
+  { page_key: 'settings-app', ready: true },
+  { page_key: 'config-integration', ready: true },
+  { page_key: 'config-features', ready: true },
 ]
 
 async function seedCompanies() {

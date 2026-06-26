@@ -10,9 +10,11 @@ user_roles
 role_permissions
 user_companies
 product_categories
+products
 customers
 invoices
 invoice_items
+high_margin_products
 import_logs
 import_log_errors
 metric_cache
@@ -112,17 +114,59 @@ company_id          FK companies
 
 name                varchar
 
-item_type           varchar default 'unit'    -- unit | consumable | sparepart | service (BARU — gantikan is_service)
+item_type           varchar default 'unit'    -- unit | consumable | sparepart | service
 
-is_high_margin      boolean default false
-
-avg_margin_percent  numeric(5,2) default 0    -- rata-rata margin % dari transaksi (BARU)
+avg_margin_percent  numeric(5,2) default 0    -- rata-rata margin % dari transaksi
 
 is_service          boolean default false     -- deprecated (ganti ke item_type)
 
 created_at          timestamp
 
 updated_at          timestamp
+
+Note: `is_high_margin` dihapus — digantikan tabel `high_margin_products` (time-based, per period).
+
+### products
+id                  serial PK
+
+company_id          FK companies
+
+product_name        varchar                   -- UPPERCASE, dari nama item di faktur
+
+product_category_id FK product_categories nullable
+
+created_at          timestamp
+
+updated_at          timestamp
+
+UNIQUE (company_id, UPPER(product_name))
+
+Diisi oleh import parser — setiap item baris faktur upsert ke sini.
+ID di-generate sistem, bukan dari Accurate (data Accurate tidak clean).
+
+### high_margin_products
+id                   serial PK
+
+company_id           FK companies
+
+product_id           FK products nullable       -- target: produk spesifik
+product_category_id  FK product_categories nullable -- target: seluruh kategori
+
+effective_from       date NOT NULL
+effective_until      date nullable              -- null = masih aktif
+
+note                 text nullable
+
+created_by           FK users nullable
+
+created_at           timestamp
+updated_at           timestamp
+
+CHECK (product_id IS NOT NULL OR product_category_id IS NOT NULL)
+
+Satu row = satu periode "high margin" untuk satu produk atau kategori.
+History dipertahankan — tidak di-overwrite, effective_until diset saat deaktivasi.
+Dikelola via halaman `/settings/high-margin`.
 
 ### customers
 id                  serial PK
@@ -179,9 +223,9 @@ id                  serial PK
 
 invoice_id          FK invoices
 
-product_category_id FK product_categories nullable
+product_id          FK products NOT NULL        -- wajib setelah import parser upsert products
 
-product_name        varchar
+product_category_id FK product_categories nullable
 
 revenue             numeric
 
@@ -190,6 +234,8 @@ gross_profit        numeric
 created_at          timestamp
 
 updated_at          timestamp
+
+Note: `product_name` dihapus — redundan dengan JOIN ke tabel `products`.
 
 ### import_logs
 id                serial PK
@@ -386,8 +432,6 @@ UNIQUE (branch_id)
 API Token adalah method yang direkomendasikan (stabil, tanpa refresh cycle). OAuth tersedia sebagai alternatif.
 
 ## Pending Schema Items (not yet added)
-
-products table           -- product master with SKU, margin, qty_sold
 
 projects table           -- B2B project milestone tracking (confirm if MVP)
 

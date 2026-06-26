@@ -1,5 +1,5 @@
-import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
+import { StatusChip } from '@/components/ui'
 import type { BusinessUnit } from '@/types/customers'
 
 interface BuChipProps {
@@ -15,5 +15,5 @@ export function BuChip({ bu }: BuChipProps) {
     manufacturing: { label: 'Manufacturing', color: 'warning' },
   }
   const { label, color } = map[bu]
-  return <Chip label={label} color={color} size="small" />
+  return <StatusChip label={label} color={color} />
 }

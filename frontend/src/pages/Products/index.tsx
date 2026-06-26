@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import Chip from '@mui/material/Chip'
+import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useCategoryPerformance } from '@/hooks/useProducts'
@@ -14,15 +14,8 @@ function formatIDR(val: number) {
 }
 
 function MarginChip({ pct }: { pct: number }) {
-  const color = pct >= 35 ? 'success' : pct >= 20 ? 'warning' : 'default'
-  return (
-    <Chip
-      label={`${pct.toFixed(1)}%`}
-      color={color as 'success' | 'warning' | 'default'}
-      size="small"
-      variant="outlined"
-    />
-  )
+  const color: 'success' | 'warning' | 'default' = pct >= 35 ? 'success' : pct >= 20 ? 'warning' : 'default'
+  return <StatusChip label={`${pct.toFixed(1)}%`} color={color} />
 }
 
 export default function Products() {
@@ -59,12 +52,7 @@ export default function Products() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2">{row.category_name}</Typography>
           {row.is_high_margin && (
-            <Chip
-              label={t('products.highMarginBadge')}
-              size="small"
-              color="warning"
-              sx={{ height: 18, fontSize: '0.65rem' }}
-            />
+            <StatusChip label={t('products.highMarginBadge')} color="warning" />
           )}
         </Box>
       ),

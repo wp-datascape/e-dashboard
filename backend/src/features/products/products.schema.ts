@@ -16,5 +16,11 @@ export const fetchProductsQuerySchema = z.object({
   keywords: z.string().optional(),
 })
 
+export const localProductsQuerySchema = z.object({
+  company_id: z.coerce.number().int().positive(),
+  category_id: z.coerce.number().int().positive().optional(),
+})
+
 export type BranchQuery = z.infer<typeof branchQuerySchema>
 export type FetchProductsQuery = z.infer<typeof fetchProductsQuerySchema>
+export type LocalProductsQuery = z.infer<typeof localProductsQuerySchema>

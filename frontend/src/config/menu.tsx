@@ -17,6 +17,11 @@ import SecurityIcon from '@mui/icons-material/Security';
 import TuneIcon from '@mui/icons-material/Tune';
 import HistoryIcon from '@mui/icons-material/History';
 import BusinessIcon from '@mui/icons-material/Business';
+import AutoGraphIcon from '@mui/icons-material/AutoGraph';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import ApiIcon from '@mui/icons-material/Api';
+import ExtensionIcon from '@mui/icons-material/Extension';
+import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 
 export interface NavItem {
   key: string;
@@ -25,6 +30,8 @@ export interface NavItem {
   icon: ReactNode;
   /** Tampilkan label grup di atas item ini (hanya saat sidebar expanded) */
   groupLabel?: string;
+  /** Sub-menu items — render sebagai collapsible nested list */
+  children?: Omit<NavItem, 'groupLabel' | 'children'>[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -113,40 +120,86 @@ export const NAV_ITEMS: NavItem[] = [
   // GROUP 5: ADMIN
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'import',
-    path: '/import',
-    labelKey: 'nav.import',
-    icon: <UploadFileIcon fontSize="small" />,
+    key: 'settings',
+    path: '/settings/app',
+    labelKey: 'nav.settings',
+    icon: <TuneIcon fontSize="small" />,
     groupLabel: 'Admin',
-  },
-  {
-    key: 'users',
-    path: '/users',
-    labelKey: 'nav.users',
-    icon: <ManageAccountsIcon fontSize="small" />,
-  },
-  {
-    key: 'rbac',
-    path: '/rbac',
-    labelKey: 'nav.rbac',
-    icon: <SecurityIcon fontSize="small" />,
+    children: [
+      {
+        key: 'settings-app',
+        path: '/settings/app',
+        labelKey: 'nav.settingsApp',
+        icon: <DisplaySettingsIcon fontSize="small" />,
+      },
+      {
+        key: 'companies',
+        path: '/companies',
+        labelKey: 'nav.companies',
+        icon: <BusinessIcon fontSize="small" />,
+      },
+      {
+        key: 'settings-high-margin',
+        path: '/settings/high-margin',
+        labelKey: 'nav.settingsHighMargin',
+        icon: <AutoGraphIcon fontSize="small" />,
+      },
+      {
+        key: 'settings-threshold',
+        path: '/settings/threshold',
+        labelKey: 'nav.settingsThreshold',
+        icon: <TuneIcon fontSize="small" />,
+      },
+    ],
   },
   {
     key: 'config',
-    path: '/config',
+    path: '/settings/classification',
     labelKey: 'nav.config',
-    icon: <TuneIcon fontSize="small" />,
+    icon: <AdminPanelSettingsIcon fontSize="small" />,
+    children: [
+      {
+        key: 'settings-classification',
+        path: '/settings/classification',
+        labelKey: 'nav.settingsClassification',
+        icon: <EngineeringIcon fontSize="small" />,
+      },
+      {
+        key: 'import',
+        path: '/import',
+        labelKey: 'nav.import',
+        icon: <UploadFileIcon fontSize="small" />,
+      },
+      {
+        key: 'config-integration',
+        path: '/config/integration',
+        labelKey: 'nav.configIntegration',
+        icon: <ApiIcon fontSize="small" />,
+      },
+      {
+        key: 'config-features',
+        path: '/config/features',
+        labelKey: 'nav.configFeatures',
+        icon: <ExtensionIcon fontSize="small" />,
+      },
+      {
+        key: 'users',
+        path: '/users',
+        labelKey: 'nav.users',
+        icon: <ManageAccountsIcon fontSize="small" />,
+      },
+      {
+        key: 'rbac',
+        path: '/rbac',
+        labelKey: 'nav.rbac',
+        icon: <SecurityIcon fontSize="small" />,
+      },
+    ],
   },
   {
     key: 'audit-log',
     path: '/audit-log',
     labelKey: 'nav.auditLog',
     icon: <HistoryIcon fontSize="small" />,
-  },
-  {
-    key: 'companies',
-    path: '/companies',
-    labelKey: 'nav.companies',
-    icon: <BusinessIcon fontSize="small" />,
   },
 ];

@@ -28,8 +28,11 @@ import {
   findImportErrors,
   upsertCustomer,
   upsertProductCategory,
+  upsertProduct,
   findInvoiceByNumber,
   createInvoice,
+  updateInvoice,
+  deleteInvoiceItemsByInvoiceId,
   updateInvoiceTotals,
   createInvoiceItem,
   createImportErrors,
@@ -142,10 +145,10 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   let totalItems = 0
   let totalItemRows = 0
 
-  // Cache invoice_id per invoice_number dalam batch ini.
-  // Satu invoice bisa punya banyak baris produk — baris ke-2, ke-3 dst
-  // cukup tambah invoice_item ke invoice yang sudah dibuat, bukan buat invoice baru.
-  const batchInvoiceCache = new Map<string, number>() // invoice_number → invoice_id
+  // invoice_number → invoice_id: reuse dalam satu batch (multi-item per SI)
+  const batchInvoiceCache = new Map<string, number>()
+  // Set invoice_id yang sudah di-reset items-nya saat re-import
+  const resetItemsCache = new Set<number>()
 
   for (const row of parseResult.rows) {
     const rowNum = parseResult.rows.indexOf(row) + 2
@@ -173,52 +176,67 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
         item_type: classification.itemType,
       })
 
-      // ── Resolve invoice: reuse dari batch ini, atau buat baru ───────────
+      // ── Upsert product ──────────────────────────────────────────────────
+      const product = await upsertProduct({
+        company_id: companyId,
+        product_name: (row.item_name ?? row.product_category).trim(),
+        product_category_id: category.id,
+      })
+
+      // ── Resolve invoice: reuse dari batch ini, atau insert/update ───────
       const invoiceKey = row.invoice_number.toUpperCase().trim()
       let invoiceId = batchInvoiceCache.get(invoiceKey)
 
       if (!invoiceId) {
-        // Cek duplikat dari import SEBELUMNYA (beda batch)
-        const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
-        if (existingInvoice) {
-          errors.push({
-            import_log_id: importLog.id,
-            row_number: rowNum,
-            raw_data: JSON.stringify(row),
-            error_message: `Invoice ${row.invoice_number} sudah ada dari import sebelumnya`,
-          })
-          continue
-        }
-
-        // ── Customer upsert (hanya saat pertama kali invoice ini muncul) ──
+        // ── Customer upsert ───────────────────────────────────────────────
         const customer = await upsertCustomer({
           company_id: companyId,
           customer_name: row.customer_name,
           invoice_date: invoiceDate,
         })
 
-        // ── Create invoice ────────────────────────────────────────────────
-        const invoice = await createInvoice({
-          company_id: companyId,
-          customer_id: customer.id,
-          invoice_number: invoiceKey,
-          invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
-          total_revenue: '0',
-          total_gp: '0',
-          salesperson_name: row.salesperson ?? null,
-          branch_name: row.branch_name ?? null,
-          import_log_id: importLog.id,
-        })
+        const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
 
-        invoiceId = invoice.id
+        if (existingInvoice) {
+          // Re-import: update header invoice, hapus items lama
+          await updateInvoice(existingInvoice.id, {
+            customer_id: customer.id,
+            invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
+            salesperson_name: row.salesperson ?? null,
+            branch_name: row.branch_name ?? null,
+            import_log_id: importLog.id,
+          })
+          invoiceId = existingInvoice.id
+        } else {
+          // Invoice baru
+          const invoice = await createInvoice({
+            company_id: companyId,
+            customer_id: customer.id,
+            invoice_number: invoiceKey,
+            invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
+            total_revenue: '0',
+            total_gp: '0',
+            salesperson_name: row.salesperson ?? null,
+            branch_name: row.branch_name ?? null,
+            import_log_id: importLog.id,
+          })
+          invoiceId = invoice.id
+        }
+
         batchInvoiceCache.set(invoiceKey, invoiceId)
+      }
+
+      // Hapus items lama sekali saja saat pertama kali SI ini muncul di batch
+      if (!resetItemsCache.has(invoiceId)) {
+        await deleteInvoiceItemsByInvoiceId(invoiceId)
+        resetItemsCache.add(invoiceId)
       }
 
       // ── Create invoice item ─────────────────────────────────────────────
       await createInvoiceItem({
         invoice_id: invoiceId,
+        product_id: product.id,
         product_category_id: category.id,
-        product_name: (row.item_name ?? row.product_category).toUpperCase().trim(),
         quantity: row.quantity ?? 1,
         unit_price: String(row.unit_price ?? row.revenue),
         revenue: String(row.revenue),

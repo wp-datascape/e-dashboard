@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useCustomers360 } from '@/hooks/useCustomers';
 import type { CustomerStatus, BusinessUnit, Customer360Row } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
-import { BuLabel } from './components/BuLabel';
+import { BuChip } from '@/pages/Transactions/components/BuChip';
 import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
 
 // ─── Format currency IDR ──────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ export default function Customers() {
     { field: 'customer_code', headerName: t('customers.code'), width: 130, sortable: false },
     { field: 'name', headerName: t('customers.name'), flex: 1, minWidth: 180, sortable: false },
     { field: 'company', headerName: t('customers.detail.company'), width: 160, sortable: false, valueGetter: (_value, row) => row.company.name },
-    { field: 'business_unit', headerName: t('customers.detail.businessUnit'), width: 140, sortable: false, renderCell: ({ row }) => <BuLabel bu={row.business_unit} /> },
+    { field: 'business_unit', headerName: t('customers.detail.businessUnit'), width: 140, sortable: false, renderCell: ({ row }) => <BuChip bu={row.business_unit} /> },
     { field: 'status', headerName: t('customers.status'), width: 110, sortable: false, renderCell: ({ row }) => <StatusChip status={row.status} /> },
     { field: 'category_count', headerName: t('customers.categories'), width: 110, type: 'number', sortable: true },
     { field: 'avg_monthly_revenue', headerName: t('customers.detail.avgMonthly'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatIDR(value as number) },

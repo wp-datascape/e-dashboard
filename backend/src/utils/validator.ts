@@ -28,7 +28,7 @@ import { AppError, ErrorCode } from '@/utils/error'
  * Throws AppError(VALIDATION_ERROR) jika validation gagal.
  * Returns typed parsed data jika berhasil.
  */
-export function validateDto<T>(schema: z.ZodSchema<T>, data: unknown): T {
+export function validateDto<T>(schema: z.ZodType<T, any, any>, data: unknown): T {
   const result = schema.safeParse(data)
   if (!result.success) {
     const messages = result.error.errors
@@ -45,7 +45,7 @@ export function validateDto<T>(schema: z.ZodSchema<T>, data: unknown): T {
  * Validate request body (JSON).
  * Throws AppError(VALIDATION_ERROR) dengan detail field errors jika gagal.
  */
-export async function validateBody<T>(c: Context, schema: z.ZodSchema<T>): Promise<T> {
+export async function validateBody<T>(c: Context, schema: z.ZodType<T, any, any>): Promise<T> {
   let body: unknown
   try {
     body = await c.req.json()
@@ -58,7 +58,7 @@ export async function validateBody<T>(c: Context, schema: z.ZodSchema<T>): Promi
 /**
  * Validate request query parameters.
  */
-export function validateQuery<T>(c: Context, schema: z.ZodSchema<T>): T {
+export function validateQuery<T>(c: Context, schema: z.ZodType<T, any, any>): T {
   const raw = c.req.query()
   return validateDto(schema, raw)
 }
@@ -66,7 +66,7 @@ export function validateQuery<T>(c: Context, schema: z.ZodSchema<T>): T {
 /**
  * Validate route path parameters.
  */
-export function validateParam<T>(c: Context, schema: z.ZodSchema<T>): T {
+export function validateParam<T>(c: Context, schema: z.ZodType<T, any, any>): T {
   const raw = c.req.param()
   return validateDto(schema, raw)
 }

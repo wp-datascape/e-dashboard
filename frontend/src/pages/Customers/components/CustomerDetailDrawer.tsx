@@ -5,13 +5,13 @@ import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Skeleton from '@mui/material/Skeleton'
-import Chip from '@mui/material/Chip'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
 import { useCustomer360Detail } from '@/hooks/useCustomers'
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
+import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
-import { BuLabel } from './BuLabel'
+import { BuChip } from '@/pages/Transactions/components/BuChip'
 
 function formatIDR(val: number) { return `Rp ${(val / 1_000_000).toFixed(1)}M` }
 
@@ -38,7 +38,7 @@ export function CustomerDetailDrawer({ customerId, onClose }: CustomerDetailDraw
             <Box><Typography variant="subtitle2" color="text.secondary">{t('customers.name')}</Typography><Typography variant="body1">{detail.name}</Typography></Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.status')}</Typography><StatusChip status={detail.status} /></Box>
-              <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.detail.businessUnit')}</Typography><BuLabel bu={detail.business_unit} /></Box>
+              <Box sx={{ flex: 1 }}><Typography variant="subtitle2" color="text.secondary">{t('customers.detail.businessUnit')}</Typography><BuChip bu={detail.business_unit} /></Box>
             </Box>
             <Divider />
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -51,7 +51,7 @@ export function CustomerDetailDrawer({ customerId, onClose }: CustomerDetailDraw
             </Box>
             {detail.categories_bought.length > 0 && (
               <Box><Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{t('customers.detail.categoriesBought')}</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{detail.categories_bought.map((cat: string) => <Chip key={cat} label={cat} size="small" variant="outlined" />)}</Box>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{detail.categories_bought.map((cat: string) => <GlobalStatusChip key={cat} label={cat} />)}</Box>
               </Box>
             )}
             <Box><Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{t('customers.detail.revenueTrend')}</Typography>

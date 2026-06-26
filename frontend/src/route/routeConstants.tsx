@@ -17,6 +17,12 @@ import {
   Config,
   AuditLog,
   Companies,
+  HighMarginSettings,
+  ClassificationSettings,
+  ThresholdSettings,
+  AppSettings,
+  IntegrationPage,
+  FeaturesPage,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -103,19 +109,49 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
     element: withLayout(<RBAC />), 
     protected: true 
   },
-  'config': { 
-    path: '/config', 
-    element: withLayout(<Config />), 
-    protected: true 
+  'config': {
+    path: '/config',
+    element: withLayout(<Config />),
+    protected: true
   },
   'audit-log': { 
     path: '/audit-log', 
     element: withLayout(<AuditLog />), 
     protected: true 
   },
-  'companies': { 
-    path: '/companies', 
-    element: withLayout(<Companies />), 
-    protected: true 
+  'companies': {
+    path: '/companies',
+    element: withLayout(<Companies />),
+    protected: true
+  },
+  'settings-high-margin': {
+    path: '/settings/high-margin',
+    element: withLayout(<HighMarginSettings />),
+    protected: true,
+  },
+  'settings-classification': {
+    path: '/settings/classification',
+    element: withLayout(<ClassificationSettings />),
+    protected: true,
+  },
+  'settings-threshold': {
+    path: '/settings/threshold',
+    element: withLayout(<ThresholdSettings />),
+    protected: true,
+  },
+  'settings-app': {
+    path: '/settings/app',
+    element: withLayout(<AppSettings />),
+    protected: true,
+  },
+  'config-integration': {
+    path: '/config/integration',
+    element: withLayout(<IntegrationPage />),
+    protected: true,
+  },
+  'config-features': {
+    path: '/config/features',
+    element: withLayout(<FeaturesPage />),
+    protected: true,
   },
 }

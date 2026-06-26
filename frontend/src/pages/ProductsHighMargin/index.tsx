@@ -4,7 +4,6 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
-import Chip from '@mui/material/Chip'
 import Stack from '@mui/material/Stack'
 import LinearProgress from '@mui/material/LinearProgress'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
@@ -17,6 +16,8 @@ import type {
   UpsellTargetParams,
 } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { StatusChip } from '@/components/ui'
+import { BuChip } from '@/pages/Transactions/components/BuChip'
 
 function formatIDR(val: number) {
   return `Rp ${(val / 1_000_000).toFixed(1)}M`
@@ -105,12 +106,7 @@ function HighMarginCategoryTab() {
       width: 120,
       sortable: false,
       renderCell: ({ row }) => (
-        <Chip
-          label={`${row.gp_margin_percent.toFixed(1)}%`}
-          size="small"
-          color="success"
-          variant="outlined"
-        />
+        <StatusChip label={`${row.gp_margin_percent.toFixed(1)}%`} color="success" />
       ),
     },
   ]
@@ -165,19 +161,7 @@ function UpsellTargetsTab() {
       headerName: t('customers.detail.businessUnit'),
       width: 130,
       sortable: false,
-      renderCell: ({ row }) => {
-        const labelMap: Record<string, string> = {
-          b2b_dc: 'B2B DC',
-          b2b_project: 'B2B Project',
-          b2c: 'B2C',
-          manufacturing: 'Manufacturing',
-        }
-        return (
-          <Typography variant="body2">
-            {row.business_unit ? labelMap[row.business_unit] ?? row.business_unit : '-'}
-          </Typography>
-        )
-      },
+      renderCell: ({ row }) => <BuChip bu={row.business_unit as import('@/types/customers').BusinessUnit} />,
     },
     {
       field: 'avg_monthly_revenue',
@@ -196,7 +180,7 @@ function UpsellTargetsTab() {
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.categories_bought.map((cat) => (
-            <Chip key={cat} label={cat} size="small" variant="outlined" />
+            <StatusChip key={cat} label={cat} />
           ))}
         </Box>
       ),
@@ -210,7 +194,7 @@ function UpsellTargetsTab() {
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.missing_high_margin_categories.map((cat) => (
-            <Chip key={cat} label={cat} size="small" color="warning" />
+            <StatusChip key={cat} label={cat} color="warning" />
           ))}
         </Box>
       ),
@@ -256,16 +240,8 @@ export default function ProductsHighMargin() {
 
       {/* Summary chips */}
       <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        <Chip
-          label={t('productsHighMargin.summaryCategories', { count: 3 })}
-          color="warning"
-          variant="outlined"
-        />
-        <Chip
-          label={t('productsHighMargin.summaryAvgPenetration', { pct: '29.8' })}
-          color="info"
-          variant="outlined"
-        />
+        <StatusChip label={t('productsHighMargin.summaryCategories', { count: 3 })} color="warning" />
+        <StatusChip label={t('productsHighMargin.summaryAvgPenetration', { pct: '29.8' })} color="info" />
       </Stack>
 
       {/* Tabs */}

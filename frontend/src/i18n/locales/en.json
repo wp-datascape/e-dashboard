@@ -65,7 +65,27 @@
     "crossSelling": "Cross Selling",
     "customerMetrics": "Customer Metrics",
     "dormantCustomer": "Dormant Customers",
-    "companies": "Companies"
+    "companies": "Companies",
+    "highMarginSettings": "High Margin Settings",
+    "settings": "Settings",
+    "settingsHighMargin": "Product",
+    "settingsClassification": "Classification",
+    "settingsThreshold": "Threshold",
+    "settingsApp": "App Settings",
+    "configApp": "App Settings",
+    "configIntegration": "Integration",
+    "configFeatures": "Features"
+  },
+  "settings": {
+    "threshold": {
+      "subtitle": "Configure dormant threshold per business unit"
+    },
+    "classification": {
+      "subtitle": "Manage item classification rules for import parsing"
+    },
+    "app": {
+      "subtitle": "Language, theme, and display preferences"
+    }
   },
   "auth": {
     "login": "Sign In",
@@ -307,6 +327,9 @@
       "colKey": "Key",
       "colStatus": "Status",
       "colToggle": "Visible"
+    },
+    "features": {
+      "subtitle": "Enable or disable pages and features per environment"
     },
     "globalConfig": "Global Configuration",
     "companyConfig": "Per-Company Configuration",
@@ -551,5 +574,29 @@
     "colPriority": "Priority",
     "colActive": "Active",
     "colActions": "Actions"
+  },
+  "highMargin": {
+    "title": "High Margin Settings",
+    "subtitle": "Define which products or categories are considered high margin per period",
+    "add": "Add Mapping",
+    "addTitle": "Add High Margin Mapping",
+    "editTitle": "Edit Mapping",
+    "company": "Company",
+    "target": "Product / Category",
+    "targetType": "Target Type",
+    "targetProduct": "Product",
+    "targetCategory": "Category",
+    "targetPlaceholder": "Search product or category...",
+    "product": "Product",
+    "category": "Category",
+    "type": "Type",
+    "effectiveFrom": "Effective From",
+    "effectiveUntil": "Effective Until",
+    "effectiveUntilHint": "Leave empty if still active",
+    "note": "Note",
+    "ongoing": "Ongoing",
+    "filterPeriod": "Filter Period",
+    "activeOnly": "Active only",
+    "deactivate": "Deactivate"
   }
 }

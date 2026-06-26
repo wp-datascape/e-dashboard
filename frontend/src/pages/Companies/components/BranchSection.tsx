@@ -5,16 +5,17 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
-import Switch from '@mui/material/Switch';
+
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import BlockIcon from '@mui/icons-material/Block';
 import { useTranslation } from 'react-i18next';
 
 import { Dialog } from '@/components/ui/Dialog';
-import { Button } from '@/components/ui/Button';
+import { Button, ActionMenu, StatusChip } from '@/components/ui';
 import {
   useBranchesByCompany,
   useCreateBranch,
@@ -92,13 +93,7 @@ export function BranchSection({ open, onClose, company }: Props) {
 
   const handleToggleActive = (branch: EditableBranch) => {
     if (!companyId) return;
-    updateBranch(
-      {
-        branchId: branch.id,
-        companyId,
-        payload: { is_active: !branch.is_active },
-      },
-    );
+    updateBranch({ branchId: branch.id, companyId, payload: { is_active: !branch.is_active } });
   };
 
   const handleDeleteBranch = (branchId: number) => {
@@ -111,6 +106,55 @@ export function BranchSection({ open, onClose, company }: Props) {
   if (!company) return null;
 
   const isPending = isCreating || isUpdating || isDeleting;
+
+  // Shared card style
+  const cardSx = {
+    p: 1.5,
+    border: '1px solid',
+    borderColor: 'divider',
+    borderRadius: 1,
+  }
+
+  // Edit/Add form — stacks vertically on mobile
+  const EditForm = ({
+    name, code,
+    onNameChange, onCodeChange,
+    onSave, onCancel,
+  }: {
+    name: string; code: string;
+    onNameChange: (v: string) => void; onCodeChange: (v: string) => void;
+    onSave: () => void; onCancel: () => void;
+  }) => (
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+      <TextField
+        size="small"
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder={t('companies.branchManagement.namePlaceholder')}
+        sx={{ flex: 1 }}
+      />
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          value={code}
+          onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
+          placeholder={t('companies.branchManagement.codePlaceholder')}
+          slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
+          sx={{ flex: { xs: 1, sm: 'none' }, width: { xs: 'auto', sm: 100 } }}
+        />
+        <Tooltip title={t('common.save')}>
+          <IconButton size="small" color="primary" onClick={onSave} disabled={isPending}>
+            <CheckIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('common.cancel')}>
+          <IconButton size="small" onClick={onCancel} disabled={isPending}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    </Box>
+  )
 
   return (
     <Dialog
@@ -132,79 +176,42 @@ export function BranchSection({ open, onClose, company }: Props) {
           {branches.map((branch) => {
             const isEditing = editingId === branch.id;
             return (
-              <Box
-                key={branch.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  p: 1.5,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                }}
-              >
+              <Box key={branch.id} sx={cardSx}>
                 {isEditing ? (
-                  <>
-                    <TextField
-                      size="small"
-                      value={editValues.name}
-                      onChange={(e) => setEditValues((prev) => ({ ...prev, name: e.target.value }))}
-                      sx={{ flex: 1 }}
-                      placeholder={t('companies.branchManagement.namePlaceholder')}
-                    />
-                    <TextField
-                      size="small"
-                      value={editValues.code}
-                      onChange={(e) => setEditValues((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                      sx={{ width: 100 }}
-                      placeholder={t('companies.branchManagement.codePlaceholder')}
-                      slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
-                    />
-                    <Tooltip title={t('common.save')}>
-                      <IconButton size="small" color="primary" onClick={() => handleSaveEdit(branch.id)} disabled={isPending}>
-                        <CheckIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('common.cancel')}>
-                      <IconButton size="small" onClick={handleCancelEdit} disabled={isPending}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </>
+                  <EditForm
+                    name={editValues.name}
+                    code={editValues.code}
+                    onNameChange={(v) => setEditValues((p) => ({ ...p, name: v }))}
+                    onCodeChange={(v) => setEditValues((p) => ({ ...p, code: v }))}
+                    onSave={() => handleSaveEdit(branch.id)}
+                    onCancel={handleCancelEdit}
+                  />
                 ) : (
-                  <>
-                    <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 100 }}>
-                      {branch.code}
-                    </Typography>
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      {branch.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Typography variant="caption" color={branch.is_active ? 'success.main' : 'text.disabled'}>
-                        {t('common.inactive')}
+                  <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 }, alignItems: { sm: 'center' } }}>
+                    {/* Code + Name */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 60 }}>
+                        {branch.code}
                       </Typography>
-                      <Switch
-                        size="small"
-                        checked={branch.is_active}
-                        onChange={() => handleToggleActive(branch)}
-                        disabled={isPending}
-                      />
-                      <Typography variant="caption" color={branch.is_active ? 'success.main' : 'text.disabled'}>
-                        {t('common.active')}
+                      <Typography variant="body2" sx={{ flex: 1 }}>
+                        {branch.name}
                       </Typography>
                     </Box>
-                    <Tooltip title={t('common.edit')}>
-                      <IconButton size="small" onClick={() => handleStartEdit(branch)} disabled={isPending}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('common.delete')}>
-                      <IconButton size="small" color="error" onClick={() => handleDeleteBranch(branch.id)} disabled={isPending}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </>
+                    {/* Status badge + Actions */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
+                      <StatusChip
+                        label={branch.is_active ? t('common.active') : t('common.inactive')}
+                        color={branch.is_active ? 'success' : 'default'}
+                      />
+                      <ActionMenu
+                        items={[
+                          { label: t('common.edit'), icon: <EditIcon />, onClick: () => handleStartEdit(branch) },
+                          { label: branch.is_active ? t('common.deactivate') : t('common.activate'), icon: <BlockIcon />, onClick: () => handleToggleActive(branch) },
+                          { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDeleteBranch(branch.id), color: 'error', dividerBefore: true },
+                        ]}
+                      />
+                    </Box>
+                  </Box>
                 )}
               </Box>
             );
@@ -213,9 +220,6 @@ export function BranchSection({ open, onClose, company }: Props) {
           {/* Add New Branch Row */}
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
               p: 1.5,
               border: '1px dashed',
               borderColor: 'primary.main',
@@ -223,35 +227,16 @@ export function BranchSection({ open, onClose, company }: Props) {
             }}
           >
             {newBranch ? (
-              <>
-                <TextField
-                  size="small"
-                  value={newBranch.name}
-                  onChange={(e) => setNewBranch((prev) => ({ ...prev!, name: e.target.value }))}
-                  sx={{ flex: 1 }}
-                  placeholder={t('companies.branchManagement.namePlaceholder')}
-                />
-                <TextField
-                  size="small"
-                  value={newBranch.code}
-                  onChange={(e) => setNewBranch((prev) => ({ ...prev!, code: e.target.value.toUpperCase() }))}
-                  sx={{ width: 100 }}
-                  placeholder={t('companies.branchManagement.codePlaceholder')}
-                  slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
-                />
-                <Tooltip title={t('common.save')}>
-                  <IconButton size="small" color="primary" onClick={handleCreateBranch} disabled={isPending}>
-                    <CheckIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={t('common.cancel')}>
-                  <IconButton size="small" onClick={() => setNewBranch(null)} disabled={isPending}>
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
+              <EditForm
+                name={newBranch.name}
+                code={newBranch.code}
+                onNameChange={(v) => setNewBranch((p) => ({ ...p!, name: v }))}
+                onCodeChange={(v) => setNewBranch((p) => ({ ...p!, code: v }))}
+                onSave={handleCreateBranch}
+                onCancel={() => setNewBranch(null)}
+              />
             ) : (
-              <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
                   {t('companies.branchManagement.addNew')}
                 </Typography>
@@ -262,7 +247,7 @@ export function BranchSection({ open, onClose, company }: Props) {
                 >
                   {t('companies.branchManagement.add')}
                 </Button>
-              </>
+              </Box>
             )}
           </Box>
         </Box>

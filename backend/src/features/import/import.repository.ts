@@ -10,6 +10,7 @@ import {
   invoice_items,
   customers,
   product_categories,
+  products,
   import_logs,
   import_log_errors,
   item_classification_rules,
@@ -184,6 +185,50 @@ export async function upsertProductCategory(data: {
   return created
 }
 
+// ─── Products ────────────────────────────────────────────────────────────────
+
+export async function upsertProduct(data: {
+  company_id: number
+  product_name: string
+  product_category_id?: number | null
+}) {
+  const upperName = data.product_name.trim().toUpperCase()
+
+  const existing = await db
+    .select()
+    .from(products)
+    .where(
+      and(
+        eq(products.company_id, data.company_id),
+        eq(sql`UPPER(${products.product_name})`, upperName),
+      ),
+    )
+    .limit(1)
+
+  if (existing.length > 0) {
+    const current = existing[0]
+    if (data.product_category_id && current.product_category_id !== data.product_category_id) {
+      const [updated] = await db
+        .update(products)
+        .set({ product_category_id: data.product_category_id, updated_at: new Date() })
+        .where(eq(products.id, current.id))
+        .returning()
+      return updated
+    }
+    return current
+  }
+
+  const [created] = await db
+    .insert(products)
+    .values({
+      company_id: data.company_id,
+      product_name: upperName,
+      product_category_id: data.product_category_id ?? null,
+    })
+    .returning()
+  return created
+}
+
 // ─── Invoices ────────────────────────────────────────────────────────────────
 
 export async function findInvoiceByNumber(companyId: number, invoiceNumber: string) {
@@ -203,6 +248,19 @@ export async function findInvoiceByNumber(companyId: number, invoiceNumber: stri
 export async function createInvoice(data: NewInvoice) {
   const [result] = await db.insert(invoices).values(data).returning()
   return result
+}
+
+export async function updateInvoice(id: number, data: Partial<NewInvoice>) {
+  const [result] = await db
+    .update(invoices)
+    .set({ ...data, updated_at: new Date() })
+    .where(eq(invoices.id, id))
+    .returning()
+  return result
+}
+
+export async function deleteInvoiceItemsByInvoiceId(invoiceId: number) {
+  await db.delete(invoice_items).where(eq(invoice_items.invoice_id, invoiceId))
 }
 
 export async function updateInvoiceTotals(invoiceId: number) {

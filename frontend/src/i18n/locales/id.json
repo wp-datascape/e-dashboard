@@ -65,7 +65,27 @@
     "crossSelling": "Cross Selling",
     "customerMetrics": "Metrik Pelanggan",
     "dormantCustomer": "Pelanggan Dorman",
-    "companies": "Perusahaan"
+    "companies": "Perusahaan",
+    "highMarginSettings": "Setting High Margin",
+    "settings": "Pengaturan",
+    "settingsHighMargin": "Produk",
+    "settingsClassification": "Klasifikasi",
+    "settingsThreshold": "Threshold",
+    "settingsApp": "Pengaturan Aplikasi",
+    "configApp": "Pengaturan Aplikasi",
+    "configIntegration": "Integrasi",
+    "configFeatures": "Fitur"
+  },
+  "settings": {
+    "threshold": {
+      "subtitle": "Konfigurasi threshold dorman per unit bisnis"
+    },
+    "classification": {
+      "subtitle": "Kelola aturan klasifikasi item untuk parsing import"
+    },
+    "app": {
+      "subtitle": "Preferensi bahasa, tema, dan tampilan"
+    }
   },
   "auth": {
     "login": "Masuk",
@@ -307,6 +327,9 @@
       "colKey": "Key",
       "colStatus": "Status",
       "colToggle": "Tampil"
+    },
+    "features": {
+      "subtitle": "Aktifkan atau nonaktifkan halaman dan fitur per environment"
     },
     "globalConfig": "Konfigurasi Global",
     "companyConfig": "Konfigurasi Per Perusahaan",
@@ -551,5 +574,29 @@
     "colPriority": "Prioritas",
     "colActive": "Aktif",
     "colActions": "Aksi"
+  },
+  "highMargin": {
+    "title": "Setting High Margin",
+    "subtitle": "Tentukan produk atau kategori mana yang dianggap high margin per periode",
+    "add": "Tambah Mapping",
+    "addTitle": "Tambah High Margin Mapping",
+    "editTitle": "Edit Mapping",
+    "company": "Perusahaan",
+    "target": "Produk / Kategori",
+    "targetType": "Tipe Target",
+    "targetProduct": "Produk",
+    "targetCategory": "Kategori",
+    "targetPlaceholder": "Cari produk atau kategori...",
+    "product": "Produk",
+    "category": "Kategori",
+    "type": "Tipe",
+    "effectiveFrom": "Berlaku Dari",
+    "effectiveUntil": "Berlaku Sampai",
+    "effectiveUntilHint": "Kosongkan jika masih aktif",
+    "note": "Catatan",
+    "ongoing": "Masih Aktif",
+    "filterPeriod": "Filter Periode",
+    "activeOnly": "Aktif saja",
+    "deactivate": "Nonaktifkan"
   }
 }

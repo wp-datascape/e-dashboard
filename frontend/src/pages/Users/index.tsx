@@ -2,13 +2,6 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import Divider from '@mui/material/Divider';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -18,8 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
-import { Button } from '@/components/ui/Button';
-import { StatusChip } from '@/components/ui/StatusChip';
+import { Button, StatusChip, ActionMenu } from '@/components/ui';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import {
   useUsers,
@@ -31,7 +23,6 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useRoles } from '@/hooks/useRoles';
 import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
-// Components
 import { ViewUserDialog } from './components/ViewUserDialog';
 import { CreateUserDialog } from './components/CreateUserDialog';
 import { EditUserDialog } from './components/EditUserDialog';
@@ -55,7 +46,7 @@ const getRoleColor = (roleName: string): StatusChipColor => {
 };
 
 const isSystemUser = (user: User): boolean =>
-  user.roles?.some(r => r.is_system) ?? false
+  user.roles?.some(r => r.is_system) ?? false;
 
 const fmtDate = (iso: string | null, fallback: string): string => {
   if (!iso) return fallback;
@@ -71,22 +62,17 @@ const fmtDate = (iso: string | null, fallback: string): string => {
 export default function Users() {
   const { t } = useTranslation();
 
-  // ── State ──
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
-  // ── Data ──
   const { data: users = [], isLoading } = useUsers();
   const { data: companies = [] } = useCompanies();
   const { data: roles = [] } = useRoles();
 
-  // ── Mutations ──
   const { mutate: createUser, isPending: isCreating, error: createError, reset: resetCreate } = useCreateUser();
   const { mutate: updateUser, isPending: isUpdating, error: updateError, reset: resetUpdate } = useUpdateUser();
   const { mutate: deleteUser, isPending: isDeleting, error: deleteError, reset: resetDelete } = useDeleteUser();
 
-  // ── Dialog handlers ──
   const closeDialog = () => {
     setDialogMode(null);
     resetCreate();
@@ -94,40 +80,20 @@ export default function Users() {
     resetDelete();
   };
 
-  const openCreate = () => {
-    resetCreate();
-    setDialogMode('create');
-  };
-
-  const openMenuAction = (mode: DialogMode) => {
-    setDialogMode(mode);
-    setMenuAnchor(null);
-  };
-
-  // ── Submit handlers ──
   const onCreateSubmit = (payload: CreateUserPayload) => {
     createUser(payload, { onSuccess: closeDialog });
   };
 
   const onEditSubmit = (payload: UpdateUserPayload) => {
     if (!selectedUser) return;
-    updateUser(
-      { id: selectedUser.id, payload },
-      { onSuccess: closeDialog },
-    );
+    updateUser({ id: selectedUser.id, payload }, { onSuccess: closeDialog });
   };
 
   const onDeleteConfirm = () => {
     if (!selectedUser) return;
-    deleteUser(selectedUser.id, {
-      onSuccess: () => {
-        closeDialog();
-        setSelectedUser(null);
-      },
-    });
+    deleteUser(selectedUser.id, { onSuccess: () => { closeDialog(); setSelectedUser(null); } });
   };
 
-  // ── DataGrid columns ──
   const columns: GridColDef[] = [
     { field: 'name', headerName: t('users.name'), flex: 1, minWidth: 160 },
     { field: 'email', headerName: t('users.email'), flex: 1, minWidth: 200 },
@@ -178,34 +144,28 @@ export default function Users() {
       renderCell: (params) => (
         <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-              {fmtDate(params.row.last_login_at as string | null, t('users.noLastLogin'))}
-            </Typography>
+            {fmtDate(params.row.last_login_at as string | null, t('users.noLastLogin'))}
+          </Typography>
         </Box>
       ),
     },
     {
       field: '_actions',
       headerName: '',
-      width: 56,
+      width: 110,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => {
         const user = params.row as User;
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuAnchor(e.currentTarget);
-                setSelectedUser(user);
-              }}
-              aria-label={t('common.actions')}
-            >
-              <MoreVertIcon fontSize="small" />
-            </IconButton>
-          </Box>
+          <ActionMenu
+            items={[
+              { label: t('users.viewUser'), icon: <VisibilityIcon />, onClick: () => { setSelectedUser(user); setDialogMode('view'); } },
+              { label: t('users.editUser'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedUser(user); setDialogMode('edit'); } },
+              { label: t('users.deleteUser'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedUser(user); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: isSystemUser(user) },
+            ]}
+          />
         );
       },
     },
@@ -213,92 +173,21 @@ export default function Users() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* ── Page Header ── */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('users.title')}
         </Typography>
-        <Button startIcon={<PersonAddIcon />} onClick={openCreate}>
+        <Button startIcon={<PersonAddIcon />} onClick={() => { resetCreate(); setDialogMode('create'); }} mobileIconOnly>
           {t('users.addUser')}
         </Button>
       </Box>
 
-      {/* ── Table ── */}
-      <ResponsiveListView
-        rows={users}
-        columns={columns}
-        loading={isLoading}
-        height={560}
-      />
+      <ResponsiveListView rows={users} columns={columns} loading={isLoading} height={560} />
 
-      {/* ── Action Menu ── */}
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={() => setMenuAnchor(null)}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-        slotProps={{ paper: { elevation: 2, sx: { minWidth: 180 } } }}
-      >
-        <MenuItem onClick={() => openMenuAction('view')} dense>
-          <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('users.viewUser')} />
-        </MenuItem>
-        <MenuItem onClick={() => { resetUpdate(); openMenuAction('edit'); }} dense>
-          <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('users.editUser')} />
-        </MenuItem>
-        {selectedUser && !isSystemUser(selectedUser) && (
-          <>
-            <Divider />
-            <MenuItem
-              onClick={() => { resetDelete(); openMenuAction('delete'); }}
-              dense
-              sx={{ color: 'error.main' }}
-            >
-              <ListItemIcon sx={{ color: 'error.main' }}><DeleteIcon fontSize="small" /></ListItemIcon>
-              <ListItemText primary={t('users.deleteUser')} />
-            </MenuItem>
-          </>
-        )}
-      </Menu>
-
-      {/* ── Dialogs ── */}
-      <ViewUserDialog
-        open={dialogMode === 'view'}
-        onClose={closeDialog}
-        user={selectedUser}
-      />
-
-      <CreateUserDialog
-        open={dialogMode === 'create'}
-        onClose={closeDialog}
-        onSubmit={onCreateSubmit}
-        isPending={isCreating}
-        error={createError}
-        roles={roles}
-        companies={companies}
-      />
-
-      <EditUserDialog
-        open={dialogMode === 'edit'}
-        onClose={closeDialog}
-        onSubmit={onEditSubmit}
-        isPending={isUpdating}
-        error={updateError}
-        user={selectedUser}
-        roles={roles}
-        companies={companies}
-      />
-
-      <DeleteUserDialog
-        open={dialogMode === 'delete'}
-        onClose={closeDialog}
-        onConfirm={onDeleteConfirm}
-        isPending={isDeleting}
-        error={deleteError}
-        user={selectedUser}
-      />
+      <ViewUserDialog open={dialogMode === 'view'} onClose={closeDialog} user={selectedUser} />
+      <CreateUserDialog open={dialogMode === 'create'} onClose={closeDialog} onSubmit={onCreateSubmit} isPending={isCreating} error={createError} roles={roles} companies={companies} />
+      <EditUserDialog open={dialogMode === 'edit'} onClose={closeDialog} onSubmit={onEditSubmit} isPending={isUpdating} error={updateError} user={selectedUser} roles={roles} companies={companies} />
+      <DeleteUserDialog open={dialogMode === 'delete'} onClose={closeDialog} onConfirm={onDeleteConfirm} isPending={isDeleting} error={deleteError} user={selectedUser} />
     </Box>
   );
 }

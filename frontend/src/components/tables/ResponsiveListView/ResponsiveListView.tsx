@@ -93,6 +93,19 @@ function AutoCard({
   const fields = columns.filter(
     (col) => col.field && mobileFields.includes(col.field),
   );
+  const actionsCol = columns.find((col) => col.field === '_actions');
+
+  const makeCellParams = (col: GridColDef) =>
+    ({
+      row,
+      value: row[col.field],
+      field: col.field,
+      colDef: col,
+      cellMode: 'view',
+      hasFocus: false,
+      tabIndex: -1,
+      formattedValue: formatColumnValue(row, col),
+    }) as unknown as GridRenderCellParams<Record<string, unknown>, Record<string, unknown>>;
 
   return (
     <Card
@@ -104,41 +117,34 @@ function AutoCard({
       onClick={() => onRowClick?.(row)}
     >
       <Box sx={{ p: 2 }}>
-        {fields.map((col, idx) => {
-          const value = row[col.field];
-          return (
-            <Box key={col.field}>
-              {idx > 0 && <Divider sx={{ my: 1 }} />}
-              <Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ display: 'block', mb: 0.25 }}
-                >
-                  {col.headerName ?? col.field}
+        {actionsCol?.renderCell && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+            {actionsCol.renderCell(makeCellParams(actionsCol))}
+          </Box>
+        )}
+        {fields.map((col, idx) => (
+          <Box key={col.field}>
+            {idx > 0 && <Divider sx={{ my: 1 }} />}
+            <Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 0.25 }}
+              >
+                {col.headerName ?? col.field}
+              </Typography>
+              {col.renderCell ? (
+                <Box sx={{ height: 32, display: 'flex', alignItems: 'center' }}>
+                  {col.renderCell(makeCellParams(col))}
+                </Box>
+              ) : (
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatColumnValue(row, col)}
                 </Typography>
-                {col.renderCell ? (
-                  <Box sx={{ height: 32, display: 'flex', alignItems: 'center' }}>
-                    {col.renderCell({
-                      row,
-                      value,
-                      field: col.field,
-                      colDef: col,
-                      cellMode: 'view',
-                      hasFocus: false,
-                      tabIndex: -1,
-                      formattedValue: formatColumnValue(row, col),
-                    } as unknown as GridRenderCellParams<Record<string, unknown>, Record<string, unknown>>)}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {formatColumnValue(row, col)}
-                  </Typography>
-                )}
-              </Box>
+              )}
             </Box>
-          );
-        })}
+          </Box>
+        ))}
       </Box>
     </Card>
   );

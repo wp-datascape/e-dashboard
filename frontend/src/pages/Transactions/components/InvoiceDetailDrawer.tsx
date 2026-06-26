@@ -5,7 +5,7 @@ import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Skeleton from '@mui/material/Skeleton'
-import Chip from '@mui/material/Chip'
+import { StatusChip } from '@/components/ui'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
@@ -46,7 +46,7 @@ export function InvoiceDetailDrawer({ invoiceId, onClose }: InvoiceDetailDrawerP
               <Box key={item.id} sx={{ p: 1.5, border: 1, borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{i + 1}. {item.product_name}</Typography>
-                  {item.category.is_high_margin && <Chip label="High Margin" size="small" color="warning" variant="outlined" />}
+                  {item.category.is_high_margin && <StatusChip label="High Margin" color="warning" />}
                 </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{item.category.name}</Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>

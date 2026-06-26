@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~92%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 done. Import streaming progress done. |
-| Backend  | ~60%   | Import feature ~95% (SSE streaming + template validation + branch_name). Auth, Metrics, Customers, Transactions belum. |
-| Database | ~75%   | 19 tabel aktif, migrasi konsolidasi 3-file, branch_name di invoices |
-| Docs     | ~95%   | Updated sesi ini |
+| Frontend | ~95%   | Group 1 + 2 + 3 + 4.1 + 5.2-5.5 + settings-high-margin done. UI polish: ActionMenu, mobileIconOnly, StatusChip enforcement selesai. |
+| Backend  | ~67%   | Import ~95%, Settings High Margin 100%. Bug fix z.coerce.boolean + active_only filter. Auth, Metrics, Customers, Transactions belum. |
+| Database | ~80%   | 21 tabel aktif (+ products, high_margin_products). Migrasi konsolidasi 3-file. |
+| Docs     | ~98%   | Updated sesi ini |
 
 ## Frontend — Page Status
 
@@ -30,6 +30,7 @@
 | Order Ledger     | `/orders`           | DataGrid invoice + BU filter + detail drawer, mock API |
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
+| High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API |
 
 ### Partial / Needs Refactor
 | Page             | Issue                                           |
@@ -61,6 +62,10 @@
 | Component          | Type                        | Used in              |
 |--------------------|-----------------------------|----------------------|
 | `Card`             | Atomic flat card (Paper wrapper) | Semua halaman — single source of truth styling card |
+| `Button`           | MUI Button + `isLoading` + `mobileIconOnly` props | Semua halaman — header action buttons |
+| `StatusChip`       | Oval outlined chip (6 warna) | Semua halaman — satu-satunya chip yang boleh dipakai |
+| `ActionMenu`       | Dropdown menu (StyledMenu + KeyboardArrowDownIcon) | Semua tabel — action column |
+| `ComboInput`       | MUI Autocomplete searchable grouped | HighMargin dialog — target picker |
 | `StatCard`         | Simple line (no axes)       | Dashboard M1-M10     |
 | `AreaChartWidget`  | Multi-series area           | M2                   |
 | `BarChartWidget`   | Grouped/stacked/horizontal  | M1 M4 M7 M9          |
@@ -71,7 +76,7 @@
 | `LineAlertWidget`  | Line + ReferenceArea        | M8                   |
 | `BulletChartWidget`| Custom CSS bullet           | M10                  |
 | `ProgressBar`      | Segmented progress bar (success/error/loading shimmer) | Import page |
-| `ResponsiveListView` | Responsive table (desktop DataGrid / mobile card list) | Customers, Users, RBAC, CrossSelling |
+| `ResponsiveListView` | Responsive table (desktop DataGrid / mobile card list) | Semua halaman tabel |
 | `DataTable` (removed) | — | Digantikan oleh `ResponsiveListView` |
 
 ## Backend — Status
@@ -123,7 +128,7 @@ Nothing built. Start with:
 | Blocker                              | Owner    | Status  | Detail |
 |--------------------------------------|----------|---------|--------|
 | `business_unit` field di customers   | Dev      | Todo    | Blocker untuk 2.1, 4.1 BU filter |
-| `products` master table              | PM/Dev   | Pending | Konfirmasi Accurate punya SKU/qty? |
+| `products` master table              | Dev      | ✅ Done | Diisi import parser dari kolom Nama Barang faktur. ID sistem, bukan Accurate. |
 | `projects` table (B2B Project BU)    | PM/Dev   | Pending | 4.2 masuk MVP atau v2? |
 | Split CustomerMetrics: alokasi kolom | Dev      | Todo    | customer-workbench/decisions.md #1 |
 | Scope 3.3: M2 saja atau agregasi baru| Dev      | Todo    | product-workbench/decisions.md #2 |
@@ -157,6 +162,156 @@ Nothing built. Start with:
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-26 (sesi 18 & 19): UI Polish — ActionMenu, mobileIconOnly, StatusChip Enforcement, Responsif Mobile
+
+**ActionMenu — Atomic Component Baru:**
+- Lokasi: `src/components/ui/ActionMenu/index.tsx`
+- Wrap MUI `StyledMenu` + `KeyboardArrowDownIcon` button menjadi satu komponen reusable
+- Props: `items: ActionMenuItemDef[]` — setiap item support `label`, `icon`, `onClick`, `color`, `dividerBefore`, `hidden`, `disabled`
+- Self-contained `anchorEl` state
+- Diterapkan ke semua tabel action column: Users, Companies, HighMargin, Classification, BranchSection
+
+**Button — `mobileIconOnly` Prop:**
+- CSS-only responsive: `.btn-label { display: { xs: 'none', sm: 'inline' } }`
+- Pada mobile: button menjadi icon-only (padding dikecilkan, label tersembunyi)
+- Diterapkan ke semua header action button: Users, Companies, HighMargin, Classification, RBAC, PermissionManagement
+
+**ResponsiveListView — `_actions` Column AutoCard:**
+- Kolom `field: '_actions'` dideteksi otomatis dan dirender di pojok kanan atas mobile card
+- Semua halaman tabel menggunakan field name `'_actions'` untuk action column
+
+**StatusChip — Enforcement (tidak ada MUI Chip langsung):**
+- Semua `import Chip from '@mui/material/Chip'` dihapus dan diganti `StatusChip` dari `@/components/ui`
+- File yang dimigrasikan:
+  - `pages/Settings/HighMargin/index.tsx` — kolom type + status
+  - `pages/Transactions/components/BuChip.tsx` — BU chip
+  - `pages/Transactions/components/InvoiceDetailDrawer.tsx` — High Margin badge
+  - `pages/ProductsHighMargin/index.tsx` — summary chips, GP margin %, BuChip untuk business unit, categories
+  - `pages/Products/index.tsx` — MarginChip, is_high_margin badge
+  - `pages/Customers/components/StatusChip.tsx` — local StatusChip → global
+  - `pages/Customers/components/CustomerDetailDrawer.tsx` — categories_bought chips
+  - `pages/Customers/index.tsx` — BuLabel (Typography) → BuChip
+  - `pages/Companies/components/BranchSection.tsx` — Switch → StatusChip + ActionMenu
+
+**BranchSection — Responsive Mobile + ActionMenu:**
+- Layout cabang: `flexDirection: { xs: 'column', sm: 'row' }` — mobile stack vertikal
+- Edit/Add form: TextField nama (full width) + row bawah (kode + save/cancel)
+- Switch toggle aktif/nonaktif diganti: StatusChip sebagai indikator + ActionMenu (Edit / Aktifkan/Nonaktifkan / Hapus)
+- Label deactivate/activate dinamis sesuai `branch.is_active`
+
+**App Settings — Hapus Emoji:**
+- Dihapus: `🌐`, `🎨` (×2), `🌙/☀️`, flag emoji di dropdown bahasa
+
+**High Margin Filter — Responsive Mobile:**
+- `flexDirection: { xs: 'column', sm: 'row' }`, `alignItems: { xs: 'stretch', sm: 'center' }`
+- Select + TextField: `width/minWidth: { xs: '100%', sm: ... }`
+
+**Classification Page — Migrasi ke ResponsiveListView:**
+- Dari manual MUI `Table` → `ResponsiveListView` dengan `GridColDef`
+- Columns: match_type, match_pattern (monospace), item_type (StatusChip), priority, is_active (Switch), _actions (ActionMenu)
+
+**Bug Fix Backend:**
+- `z.coerce.boolean()` salah untuk query string: `Boolean("false") === true` → semua `active_only=false` diproses sebagai `true`
+- Fix: `z.string().optional().default('false').transform(v => v === 'true')` di `high-margin.schema.ts`
+- `active_only` filter di repository: dari `isNull(effective_until)` saja → full date range: `effective_from <= CURRENT_DATE AND (effective_until IS NULL OR effective_until >= CURRENT_DATE)`
+- `validateQuery/validateDto/validateBody/validateParam` di `validator.ts`: `z.ZodSchema<T>` → `z.ZodType<T, any, any>` agar support schema dengan `.transform()`
+
+**Perubahan file:**
+- `backend/src/features/settings/high-margin.schema.ts` — UPDATED (z.coerce.boolean fix)
+- `backend/src/features/settings/high-margin.repository.ts` — UPDATED (active_only date range)
+- `backend/src/utils/validator.ts` — UPDATED (ZodSchema → ZodType<T,any,any>)
+- `frontend/src/components/ui/ActionMenu/index.tsx` — NEW
+- `frontend/src/components/ui/index.ts` — UPDATED (+ActionMenu)
+- `frontend/src/components/ui/Button/Button.tsx` — UPDATED (+mobileIconOnly)
+- `frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx` — UPDATED (_actions AutoCard)
+- `frontend/src/pages/Users/index.tsx` — UPDATED (ActionMenu + mobileIconOnly)
+- `frontend/src/pages/Companies/index.tsx` — UPDATED (ActionMenu + mobileIconOnly)
+- `frontend/src/pages/Companies/components/BranchSection.tsx` — UPDATED (responsive + ActionMenu + StatusChip)
+- `frontend/src/pages/Settings/HighMargin/index.tsx` — UPDATED (ActionMenu + StatusChip + responsive filter)
+- `frontend/src/pages/Settings/AppSettings/index.tsx` — UPDATED (hapus emoji)
+- `frontend/src/pages/Config/Classification/index.tsx` — REWRITTEN (ResponsiveListView + ActionMenu)
+- `frontend/src/pages/RBAC/index.tsx` — UPDATED (mobileIconOnly)
+- `frontend/src/pages/RBAC/components/PermissionManagement.tsx` — UPDATED (mobileIconOnly)
+- `frontend/src/pages/Transactions/components/BuChip.tsx` — UPDATED (StatusChip)
+- `frontend/src/pages/Transactions/components/InvoiceDetailDrawer.tsx` — UPDATED (StatusChip)
+- `frontend/src/pages/ProductsHighMargin/index.tsx` — UPDATED (StatusChip + BuChip)
+- `frontend/src/pages/Products/index.tsx` — UPDATED (StatusChip)
+- `frontend/src/pages/Customers/index.tsx` — UPDATED (BuChip)
+- `frontend/src/pages/Customers/components/StatusChip.tsx` — UPDATED (global StatusChip)
+- `frontend/src/pages/Customers/components/CustomerDetailDrawer.tsx` — UPDATED (StatusChip + BuChip)
+
+---
+
+### 2026-06-26 (sesi 17): Product High Margin — Schema + Backend + Frontend Settings Page
+
+**Arsitektur High Margin (Dynamic, Time-Based):**
+- `is_high_margin` boolean di `product_categories` **dihapus** — digantikan tabel `high_margin_products`
+- Tabel `products` baru — diisi import parser dari kolom "Nama Barang" tiap baris faktur
+- `invoice_items.product_name` dihapus (redundan), diganti `product_id FK NOT NULL`
+- Re-import SI yang sama → UPDATE invoice + hapus items lama (via `resetItemsCache`), bukan error
+
+**Backend — Schema baru:**
+- `products`: id (sistem), company_id, product_name, product_category_id, UNIQUE (company_id, UPPER(product_name))
+- `high_margin_products`: id, company_id, product_id|product_category_id (CHECK minimal satu), effective_from, effective_until nullable, note, created_by
+
+**Backend — Import Service updates:**
+- `upsertProduct()` di import.repository.ts — upsert by UPPER(product_name) + company_id
+- `updateInvoice()` + `deleteInvoiceItemsByInvoiceId()` — handle re-import same SI
+- `batchInvoiceCache` (multi-item per batch) + `resetItemsCache` (delete items sekali per invoiceId)
+
+**Backend — Settings High Margin (new feature):**
+- `GET/POST/PATCH/:id/PATCH/:id/deactivate/DELETE /api/v1/settings/high-margin`
+- `GET /api/v1/products` + `GET /api/v1/products/categories` — list lokal dari DB (untuk dropdown)
+- Seeded ke `page_settings`: `settings-high-margin` → `ready: true`
+
+**Frontend — Settings High Margin page:**
+- `types/highMargin.ts`, `api/highMargin.api.ts`, `hooks/useHighMargin.ts`
+- `pages/Settings/HighMargin/index.tsx` — filter company/period/activeOnly, tabel mapping, action menu
+- `pages/Settings/HighMargin/components/HighMarginDialog.tsx` — form create/edit
+- Combobox target: MUI `Autocomplete` dengan `disablePortal`, grouped (Kategori / Produk), searchable, max height 220px
+- Route `/settings/high-margin`, menu item group Admin, i18n en+id lengkap
+
+**Insight data Accurate:**
+- Kategori di Accurate sangat granular — satu kategori = satu model perangkat (contoh: `Z. SPARE PART RECEIPT PRINTER THERMAL MATRIX POINT TM P3250` adalah kategori, bukan produk)
+- Produk individual = item baris faktur di dalam kategori tersebut
+
+**Perubahan file:**
+- `backend/src/db/schema/products.ts` — NEW
+- `backend/src/db/schema/high_margin_products.ts` — NEW
+- `backend/src/db/schema/invoice_items.ts` — UPDATED (product_id NOT NULL, hapus product_name)
+- `backend/src/db/schema/product_categories.ts` — UPDATED (hapus is_high_margin)
+- `backend/src/db/schema/index.ts` — UPDATED (export products + high_margin_products)
+- `backend/src/db/migrations/0003_transactions_import.sql` — UPDATED (schema baru embed)
+- `backend/src/db/seed.ts` — UPDATED (+settings-high-margin page)
+- `backend/src/features/import/import.repository.ts` — UPDATED (upsertProduct, updateInvoice, deleteInvoiceItemsByInvoiceId)
+- `backend/src/features/import/import.service.ts` — UPDATED (resetItemsCache, re-import flow, upsertProduct)
+- `backend/src/features/settings/high-margin.schema.ts` — NEW
+- `backend/src/features/settings/high-margin.repository.ts` — NEW
+- `backend/src/features/settings/high-margin.service.ts` — NEW
+- `backend/src/features/settings/high-margin.handler.ts` — NEW
+- `backend/src/features/settings/high-margin.route.ts` — NEW
+- `backend/src/features/products/products.schema.ts` — UPDATED (+localProductsQuerySchema)
+- `backend/src/features/products/products.handler.ts` — UPDATED (+handleGetLocalProducts, +handleGetLocalCategories)
+- `backend/src/features/products/products.route.ts` — UPDATED (GET / + GET /categories)
+- `backend/src/router.ts` — UPDATED (mount /api/v1/settings/high-margin)
+- `frontend/src/types/highMargin.ts` — NEW
+- `frontend/src/api/highMargin.api.ts` — NEW
+- `frontend/src/hooks/useHighMargin.ts` — NEW
+- `frontend/src/pages/Settings/HighMargin/index.tsx` — NEW
+- `frontend/src/pages/Settings/HighMargin/components/HighMarginDialog.tsx` — NEW
+- `frontend/src/components/ui/ComboInput/ComboInput.tsx` — NEW (reusable)
+- `frontend/src/route/routeConstants.tsx` — UPDATED
+- `frontend/src/route/routeLazyComponents.tsx` — UPDATED
+- `frontend/src/config/menu.tsx` — UPDATED
+- `frontend/src/i18n/locales/en.json` — UPDATED (+highMargin.*, +targetPlaceholder)
+- `frontend/src/i18n/locales/id.json` — UPDATED (+highMargin.*, +targetPlaceholder)
+- `docs-v2/shared/data-model.md` — UPDATED (products, high_margin_products, invoice_items, product_categories)
+- `docs-v2/product-workbench/decisions.md` — UPDATED (3.2 dynamic high margin, 3.1 products resolved)
+- `docs-v2/admin/overview.md` — UPDATED (5.7 High Margin Settings, import status)
+- `.clinerules` — UPDATED (definisi High Margin Product)
+
+---
 
 ### 2026-06-26 (sesi 16): Import Streaming Progress + ProgressBar Component + Template Validation
 

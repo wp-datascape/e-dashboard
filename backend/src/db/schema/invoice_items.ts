@@ -10,13 +10,13 @@
 import {
   pgTable,
   serial,
-  varchar,
   integer,
   numeric,
   timestamp,
 } from 'drizzle-orm/pg-core'
 import { invoices } from './invoices'
 import { product_categories } from './product_categories'
+import { products } from './products'
 
 export const invoice_items = pgTable('invoice_items', {
   id: serial('id').primaryKey(),
@@ -25,10 +25,12 @@ export const invoice_items = pgTable('invoice_items', {
     .notNull()
     .references(() => invoices.id, { onDelete: 'cascade' }),
 
+  product_id: integer('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'restrict' }),
+
   product_category_id: integer('product_category_id')
     .references(() => product_categories.id, { onDelete: 'set null' }),
-
-  product_name: varchar('product_name', { length: 255 }).notNull(),
 
   quantity: integer('quantity').notNull().default(1),
 

@@ -5,11 +5,19 @@
 
 ## Keputusan yang Sudah Diambil
 
-### 3.2 High Margin Push List tidak terhambat gap SKU/quantity
+### 3.2 High Margin — Dynamic, Time-Based (2026-06-26)
 
-Halaman 3.2 bekerja di level kategori (`product_categories`), bukan level produk individual. Field `is_high_margin` sudah ada di schema. Data cukup dari `invoice_items JOIN product_categories`. Tidak perlu tabel `products` baru.
+High margin tidak lagi boolean statis di `product_categories.is_high_margin`. Digantikan tabel `high_margin_products` yang menyimpan pemetaan per periode (`effective_from`, `effective_until`).
 
-Status: bisa dikerjakan setelah split CustomerMetrics difinalisasi (lihat Keputusan Terbuka #1).
+Alasan: Produk A bisa high margin di Juni, Produk B di Agustus. History harus dipertahankan. `is_high_margin` boolean tidak bisa merepresentasikan ini.
+
+Implementasi:
+- Tabel `high_margin_products`: target bisa produk (`product_id`) ATAU kategori (`product_category_id`), bukan keduanya
+- Halaman settings `/settings/high-margin` — admin set periode aktif per produk/kategori
+- Endpoint: `GET/POST/PATCH/DELETE /api/v1/settings/high-margin`
+- Query "apakah X high margin bulan ini": `effective_from <= lastDay AND (effective_until IS NULL OR effective_until >= firstDay)`
+
+Implikasi untuk metrik M5: query harus JOIN ke `high_margin_products` dengan filter periode, bukan `WHERE is_high_margin = true`.
 
 ### 3.3 menggunakan M2 yang sudah ada, bukan metrik baru
 
@@ -46,15 +54,15 @@ Dua interpretasi berbeda:
 
 Rekomendasi: gunakan terminologi "Kategori Tidak Aktif" atau "Kategori Dormant" untuk menghindari ekspektasi yang salah. Konfirmasi dengan tim apakah definisi "Kategori tidak terjual" sudah cukup memenuhi kebutuhan bisnis.
 
-### 4. Apakah halaman 3.1 masuk MVP
+### 4. Tabel `products` — RESOLVED (2026-06-26)
 
-Halaman 3.1 Product Performance Ledger butuh tabel `products` dengan kolom SKU, quantity, margin per produk — tidak ada di schema saat ini. Sumber data (Accurate API/export) belum dikonfirmasi punya field ini.
+Tabel `products` sekarang sudah ada dan diisi oleh import parser, bukan dari Accurate sync.
 
-Opsi:
-- **Tunda ke v2**: fokus MVP pada level kategori saja (sudah cukup untuk M1-M10)
-- **Masuk MVP**: konfirmasi dulu format kolom Accurate, baru desain tabel dan endpoint
+Setiap baris item di faktur (kolom "Nama Barang") di-upsert ke tabel `products` saat import. ID di-generate sistem. `product_id` FK wajib ada di `invoice_items`.
 
-Blocker utama sama dengan yang tercatat di `product-workbench/overview.md`. Jangan mulai desain schema `products` sebelum konfirmasi dari tim tentang ketersediaan data sumber.
+Data kategori dari Accurate sangat granular (contoh: `Z. SPARE PART RECEIPT PRINTER THERMAL MATRIX POINT TM P3250` adalah satu kategori, bukan nama produk). Produk individual adalah item di dalam kategori tersebut.
+
+Halaman 3.1 Product Performance Ledger kini bisa dibangun di level produk jika dibutuhkan.
 
 ---
 

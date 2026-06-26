@@ -144,7 +144,7 @@ Jangan buat chart component baru jika sudah ada yang sesuai.
 | New Customer | `first_invoice_date` jatuh di dalam `period_month` |
 | Dormant Customer | `last_invoice_date < (period_start - dormant_threshold_months)` |
 | Kategori Produk | Hanya kategori `is_service = false` — jasa tidak dihitung di metrik produk |
-| High Margin Product | `product_categories.is_high_margin = true` |
+| High Margin Product | Row aktif di `high_margin_products` untuk period tertentu — `effective_from <= lastDay AND (effective_until IS NULL OR effective_until >= firstDay)`. Target bisa produk (`product_id`) atau kategori (`product_category_id`). |
 
 ---
 

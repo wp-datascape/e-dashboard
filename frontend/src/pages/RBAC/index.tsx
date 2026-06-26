@@ -166,10 +166,7 @@ export default function RBAC() {
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('rbac.title')}
         </Typography>
-        <Button
-          startIcon={<AddIcon />}
-          onClick={() => setAddDialogOpen(true)}
-        >
+        <Button startIcon={<AddIcon />} onClick={() => setAddDialogOpen(true)} mobileIconOnly>
           {t('rbac.addRole')}
         </Button>
       </Box>

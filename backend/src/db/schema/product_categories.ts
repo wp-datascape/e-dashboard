@@ -34,8 +34,6 @@ export const product_categories = pgTable('product_categories', {
   item_type: varchar('item_type', { length: 20 }).notNull().default('unit'),
   // unit | consumable | sparepart | service
 
-  is_high_margin: boolean('is_high_margin').notNull().default(false),
-
   avg_margin_percent: numeric('avg_margin_percent', { precision: 5, scale: 2 }).notNull().default('0'),
 
   // Deprecated — pakai item_type

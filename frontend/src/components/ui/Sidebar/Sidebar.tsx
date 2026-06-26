@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Drawer from '@mui/material/Drawer';
@@ -5,13 +6,16 @@ import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Collapse from '@mui/material/Collapse';
 import Toolbar from '@mui/material/Toolbar';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { NAV_ITEMS } from '@/config/menu';
+import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
 export const SIDEBAR_WIDTH = 220;
 export const SIDEBAR_COLLAPSED_WIDTH = 56;
@@ -22,18 +26,138 @@ interface SidebarProps {
   variant?: 'permanent' | 'temporary';
 }
 
-export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
-  const { t } = useTranslation();
-  const location = useLocation();
-  const navigate = useNavigate();
+const NAV_ITEM_SX = {
+  minHeight: 40,
+  px: 2,
+  borderRadius: 0,
+  '&.Mui-selected': {
+    bgcolor: 'action.selected',
+    borderLeft: '3px solid',
+    borderColor: 'primary.main',
+    '& .MuiListItemIcon-root': { color: 'primary.main' },
+  },
+  '&:hover': { bgcolor: 'action.hover' },
+}
 
-  const collapsed = !open;
-  const drawerWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
+function NavButton({
+  item,
+  collapsed,
+  indented = false,
+  onNav,
+}: {
+  item: Omit<NavItem, 'groupLabel' | 'children'>
+  collapsed: boolean
+  indented?: boolean
+  onNav: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const active = location.pathname === item.path ||
+    (item.path !== '/dashboard' && location.pathname.startsWith(item.path))
+
+  return (
+    <Tooltip title={collapsed ? t(item.labelKey) : ''} placement="right" arrow>
+      <ListItemButton
+        onClick={() => onNav(item.path)}
+        selected={active}
+        sx={{
+          ...NAV_ITEM_SX,
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          pl: indented && !collapsed ? 4 : 2,
+          '&.Mui-selected': {
+            ...NAV_ITEM_SX['&.Mui-selected'],
+            pl: collapsed ? 2 : (indented ? '29px' : '13px'),
+          },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+          {item.icon}
+        </ListItemIcon>
+        {!collapsed && (
+          <ListItemText
+            primary={t(item.labelKey)}
+            slotProps={{
+              primary: {
+                variant: 'body2',
+                noWrap: true,
+                sx: { fontWeight: active ? 600 : 400, color: active ? 'primary.main' : 'text.primary', fontSize: '0.82rem' },
+              },
+            }}
+          />
+        )}
+      </ListItemButton>
+    </Tooltip>
+  )
+}
+
+function NavGroup({ item, collapsed, onNav }: { item: NavItem; collapsed: boolean; onNav: (path: string) => void }) {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const anyChildActive = item.children?.some(
+    (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
+  ) ?? false
+  const [expanded, setExpanded] = useState(anyChildActive)
+
+  if (collapsed) {
+    // In icon mode: show parent icon, click navigates to first child
+    const firstChild = item.children?.[0]
+    return (
+      <Tooltip title={t(item.labelKey)} placement="right" arrow>
+        <ListItemButton
+          onClick={() => firstChild && onNav(firstChild.path)}
+          selected={anyChildActive}
+          sx={{ ...NAV_ITEM_SX, justifyContent: 'center' }}
+        >
+          <ListItemIcon sx={{ minWidth: 0, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+            {item.icon}
+          </ListItemIcon>
+        </ListItemButton>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <>
+      <ListItemButton
+        onClick={() => setExpanded((p) => !p)}
+        selected={anyChildActive && !expanded}
+        sx={{ ...NAV_ITEM_SX, justifyContent: 'flex-start' }}
+      >
+        <ListItemIcon sx={{ minWidth: 0, mr: 1.5, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+          {item.icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={t(item.labelKey)}
+          slotProps={{
+            primary: {
+              variant: 'body2',
+              noWrap: true,
+              sx: { fontWeight: anyChildActive ? 600 : 400, color: anyChildActive ? 'primary.main' : 'text.primary', fontSize: '0.82rem' },
+            },
+          }}
+        />
+        {expanded ? <ExpandLessIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <ExpandMoreIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
+      </ListItemButton>
+      <Collapse in={expanded} timeout="auto" unmountOnExit>
+        <List dense disablePadding>
+          {item.children?.map((child) => (
+            <NavButton key={child.key} item={child} collapsed={false} indented onNav={onNav} />
+          ))}
+        </List>
+      </Collapse>
+    </>
+  )
+}
+
+export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
+  const navigate = useNavigate()
+  const collapsed = !open
+  const drawerWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH
 
   const handleNav = (path: string) => {
-    navigate(path);
-    if (variant === 'temporary') onClose();
-  };
+    navigate(path)
+    if (variant === 'temporary') onClose()
+  }
 
   return (
     <Drawer
@@ -62,97 +186,32 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
         },
       }}
     >
-      {/* Spacer for AppBar height */}
       <Toolbar />
       <Divider />
 
       <List dense disablePadding sx={{ pt: 0.5 }}>
-        {NAV_ITEMS.map((item) => {
-          const active = location.pathname === item.path ||
-            (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+        {NAV_ITEMS.map((item) => (
+          <span key={item.key}>
+            {item.groupLabel && (
+              <>
+                <Divider sx={{ mt: 0.5, mb: 0 }} />
+                {!collapsed && (
+                  <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
+                      {item.groupLabel}
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
 
-          return (
-            <span key={item.key}>
-              {/* Group label — shown only when sidebar is expanded */}
-              {item.groupLabel && (
-                <>
-                  <Divider sx={{ mt: 0.5, mb: 0 }} />
-                  {!collapsed && (
-                    <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontSize: '0.62rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'text.disabled',
-                          display: 'block',
-                        }}
-                      >
-                        {item.groupLabel}
-                      </Typography>
-                    </Box>
-                  )}
-                </>
-              )}
-
-              <Tooltip
-                title={collapsed ? t(item.labelKey) : ''}
-                placement="right"
-                arrow
-              >
-                <ListItemButton
-                  onClick={() => handleNav(item.path)}
-                  selected={active}
-                  sx={{
-                    minHeight: 40,
-                    px: 2,
-                    borderRadius: 0,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    '&.Mui-selected': {
-                      bgcolor: 'action.selected',
-                      borderLeft: '3px solid',
-                      borderColor: 'primary.main',
-                      pl: collapsed ? 2 : '13px',
-                      '& .MuiListItemIcon-root': { color: 'primary.main' },
-                    },
-                    '&:hover': { bgcolor: 'action.hover' },
-                  }}
-                >
-                  <ListItemIcon
-                    sx={{
-                      minWidth: 0,
-                      mr: collapsed ? 0 : 1.5,
-                      color: active ? 'primary.main' : 'text.secondary',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
-
-                  {!collapsed && (
-                    <ListItemText
-                      primary={t(item.labelKey)}
-                      slotProps={{
-                        primary: {
-                          variant: 'body2',
-                          noWrap: true,
-                          sx: {
-                            fontWeight: active ? 600 : 400,
-                            color: active ? 'primary.main' : 'text.primary',
-                            fontSize: '0.82rem',
-                          },
-                        },
-                      }}
-                    />
-                  )}
-                </ListItemButton>
-              </Tooltip>
-            </span>
-          );
-        })}
+            {item.children
+              ? <NavGroup item={item} collapsed={collapsed} onNav={handleNav} />
+              : <NavButton item={item} collapsed={collapsed} onNav={handleNav} />
+            }
+          </span>
+        ))}
       </List>
     </Drawer>
-  );
-};
+  )
+}

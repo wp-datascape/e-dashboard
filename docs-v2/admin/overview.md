@@ -12,7 +12,7 @@ Operasional sistem — import data faktur, manajemen user dan akses, konfigurasi
 
 ## 5.1 Import
 
-Status: UI selesai (mock API aktif, backend belum)
+Status: UI selesai + Backend selesai (~95%)
 
 Upload file CSV/Excel atau trigger fetch dari Accurate Online API. Dua mode:
 - **File upload**: drag-and-drop `.csv` atau `.xlsx`, max 10MB
@@ -90,10 +90,32 @@ Components: DataGrid (server-side pagination + filter), StatusChip untuk action 
 
 ---
 
+## 5.7 High Margin Settings
+
+Status: UI selesai + Backend selesai
+
+Kelola daftar produk/kategori yang dikategorikan sebagai "high margin" per periode waktu.
+Dynamic — admin tentukan sendiri produk/kategori mana yang high margin dan kapan berlakunya.
+
+Fitur:
+- Filter: company, period (YYYY-MM), active only toggle
+- Tabel mapping: target (produk/kategori), tipe, periode efektif, status aktif/tidak, catatan
+- CRUD: tambah mapping baru (pilih target dari combobox searchable), edit tanggal akhir + catatan, deactivate (set effective_until = hari ini), delete
+- ComboInput searchable — dropdown anchored di bawah input, grouped by Kategori/Produk
+
+Data dipakai oleh metrik M5 (query JOIN ke `high_margin_products` dengan filter periode).
+
+Permission: `config:write`
+
+Route: `/settings/high-margin`
+
+---
+
 ## Urutan Implementasi Admin (Prioritas)
 
-1. **5.1 Import** — paling kritikal, tanpa ini tidak ada data yang bisa dianalisis
+1. **5.1 Import** — paling kritikal, tanpa ini tidak ada data yang bisa dianalisis ✅ Done
 2. **5.2 Users** — dibutuhkan untuk onboarding tim
 3. **5.4 Config** — diperlukan untuk set accurate_api_key dan dormant threshold
 4. **5.3 RBAC** — butuh user + permission seeding dulu sebelum UI bermanfaat
 5. **5.5 Audit Log** — bisa belakangan, data sudah dicatat di DB sejak mutasi pertama
+6. **5.7 High Margin Settings** — set sebelum analisis metrik M5 ✅ Done

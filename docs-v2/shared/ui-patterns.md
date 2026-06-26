@@ -50,7 +50,104 @@ import { Card } from '@/components/ui'
 
 ---
 
-### StatusChip — Color Props Terbatas
+## ActionMenu — Dropdown Action Column
+
+**Wajib** — semua action column di tabel harus menggunakan `ActionMenu` dari `@/components/ui`. Jangan pakai IconButton, MoreVert, atau inline Menu.
+
+```typescript
+import { ActionMenu } from '@/components/ui'
+
+<ActionMenu
+  items={[
+    { label: t('common.edit'), icon: <EditIcon />, onClick: () => handleEdit(row) },
+    { label: t('common.deactivate'), icon: <BlockIcon />, onClick: () => handleDeactivate(row.id), hidden: !row.is_active },
+    { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDelete(row.id), color: 'error', dividerBefore: true },
+  ]}
+/>
+```
+
+**ActionMenuItemDef props:**
+
+| Prop | Type | Keterangan |
+|------|------|-----------|
+| `label` | `string` | Teks item menu |
+| `icon` | `ReactNode` | Icon di kiri label |
+| `onClick` | `() => void` | Handler klik |
+| `color` | `'error'|'warning'|'success'|'info'` | Warna teks (opsional) |
+| `dividerBefore` | `boolean` | Garis pemisah di atas item |
+| `hidden` | `boolean` | Sembunyikan item secara kondisional |
+| `disabled` | `boolean` | Disable item |
+
+**Column definition:**
+```typescript
+{
+  field: '_actions',   // selalu pakai field name '_actions' — dideteksi AutoCard mobile
+  headerName: '',
+  width: 110,
+  sortable: false,
+  align: 'center',
+  headerAlign: 'center',
+  renderCell: ({ row }) => <ActionMenu items={[...]} />,
+}
+```
+
+**Lokasi:** `src/components/ui/ActionMenu/index.tsx`
+
+Anti-pattern:
+```typescript
+// ❌ Jangan pakai IconButton manual
+<IconButton onClick={handleEdit}><EditIcon /></IconButton>
+<IconButton onClick={handleDelete}><DeleteIcon /></IconButton>
+
+// ❌ Jangan pakai MoreVert + inline Menu state
+const [anchor, setAnchor] = useState(null)
+<IconButton onClick={(e) => setAnchor(e.currentTarget)}><MoreVertIcon /></IconButton>
+<Menu anchorEl={anchor} ...>
+
+// ✅ Cukup satu komponen
+<ActionMenu items={[...]} />
+```
+
+---
+
+## Button — `mobileIconOnly` Prop
+
+Untuk header action button yang perlu icon-only di mobile, gunakan prop `mobileIconOnly`:
+
+```typescript
+import { Button } from '@/components/ui'
+
+<Button
+  variant="contained"
+  startIcon={<AddIcon />}
+  onClick={handleAdd}
+  mobileIconOnly
+>
+  {t('common.add')}
+</Button>
+```
+
+**Behavior:** di mobile (`xs`) label tersembunyi via CSS, padding dikecilkan → tampil seperti icon button. Di desktop (`sm+`) tampil normal dengan label.
+
+**Aturan:** Semua tombol di page header yang punya `startIcon` WAJIB pakai `mobileIconOnly`.
+
+Anti-pattern:
+```typescript
+// ❌ Jangan buat dua elemen terpisah
+<Box sx={{ display: { xs: 'none', sm: 'flex' } }}>
+  <Button startIcon={<AddIcon />}>{t('add')}</Button>
+</Box>
+<IconButton sx={{ display: { xs: 'flex', sm: 'none' } }}>
+  <AddIcon />
+</IconButton>
+
+// ✅ Cukup satu komponen dengan prop
+<Button startIcon={<AddIcon />} mobileIconOnly>{t('add')}</Button>
+```
+
+---
+
+### StatusChip — Color Props Terbatas (Satu-satunya Chip yang Boleh Dipakai)
 
 `StatusChip` hanya menerima 6 nilai color, **tidak ada `'secondary'`**:
 
@@ -70,6 +167,20 @@ import { Card } from '@/components/ui'
 // ❌ Salah — 'secondary' tidak ada di StatusChipColor
 <StatusChip label="Accurate" color="secondary" />
 ```
+
+**Wajib** — jangan pernah import `Chip` langsung dari MUI. Selalu gunakan `StatusChip` dari `@/components/ui`.
+
+```typescript
+// ❌ Dilarang
+import Chip from '@mui/material/Chip'
+<Chip label="Active" color="success" size="small" />
+
+// ✅ Wajib
+import { StatusChip } from '@/components/ui'
+<StatusChip label="Active" color="success" />
+```
+
+`StatusChip` sudah include: `variant="outlined"`, `size="small"`, `borderRadius: 999px` (oval), `fontWeight: 600`. Tidak perlu set ulang props ini.
 
 ---
 
