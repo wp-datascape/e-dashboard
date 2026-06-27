@@ -1,4 +1,5 @@
 import { AppError, ErrorCode } from '@/errors'
+import { isDuplicateError } from '@/utils/response'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import type { Context } from 'hono'
@@ -23,33 +24,36 @@ export async function getPermissions() {
 }
 
 export async function createPermissionService(dto: CreatePermissionDto, ctx: Context) {
-  // Check if permission already exists
-  const existingPerms = await findAllPermissions()
-  if (existingPerms?.some(p => p.name === dto.name)) {
-    throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Permission name already exists', 409)
-  }
+  try {
+    const existingPerms = await findAllPermissions()
+    if (existingPerms?.some(p => p.name === dto.name)) {
+      throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Permission name already exists', 409)
+    }
 
-  const permission = await createPermission({
-    name: dto.name,
-    description: dto.description || null,
-    category: dto.category || null,
-  })
+    const permission = await createPermission({
+      name: dto.name,
+      description: dto.description || null,
+      category: dto.category || null,
+    })
 
-  if (!permission) {
+    if (!permission) throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to create permission', 500)
+
+    logger.info('[permission] Permission created', { permissionId: permission.id, name: permission.name })
+
+    await logAudit(ctx, {
+      action: 'permission.assign',
+      entity: 'permissions',
+      entityId: permission.id,
+      companyId: null,
+      newValue: { name: permission.name, category: permission.category },
+    })
+
+    return permission
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Permission name already exists', 409)
+    if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to create permission', 500)
   }
-
-  logger.info('[permission] Permission created', { permissionId: permission.id, name: permission.name })
-
-  await logAudit(ctx, {
-    action: 'permission.assign',
-    entity: 'permissions',
-    entityId: permission.id,
-    companyId: null,
-    newValue: { name: permission.name, category: permission.category },
-  })
-
-  return permission
 }
 
 export async function updatePermissionService(id: number, dto: UpdatePermissionDto, ctx: Context) {

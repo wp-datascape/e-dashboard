@@ -1,4 +1,5 @@
 import { AppError, ErrorCode } from '@/utils/error'
+import { isDuplicateError } from '@/utils/response'
 import {
   createHighMargin,
   findHighMarginById,
@@ -18,15 +19,21 @@ export async function listHighMargins(query: ListHighMarginQuery) {
 }
 
 export async function addHighMargin(dto: CreateHighMarginDto, userId: number) {
-  return createHighMargin({
-    company_id: dto.company_id,
-    product_id: dto.product_id ?? null,
-    product_category_id: dto.product_category_id ?? null,
-    effective_from: dto.effective_from,
-    effective_until: dto.effective_until ?? null,
-    note: dto.note ?? null,
-    created_by: userId,
-  })
+  try {
+    return await createHighMargin({
+      company_id: dto.company_id,
+      product_id: dto.product_id ?? null,
+      product_category_id: dto.product_category_id ?? null,
+      effective_from: dto.effective_from,
+      effective_until: dto.effective_until ?? null,
+      note: dto.note ?? null,
+      created_by: userId,
+    })
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'High margin mapping sudah ada', 409)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal membuat high margin mapping', 500)
+  }
 }
 
 export async function editHighMargin(id: number, dto: UpdateHighMarginDto) {

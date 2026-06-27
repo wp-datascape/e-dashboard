@@ -83,6 +83,24 @@ export function paginated<T>(
 }
 
 /**
+ * Deteksi apakah error berasal dari kondisi data tidak ditemukan (ORM / DB level)
+ */
+export function isNotFoundError(err: unknown): boolean {
+  if (err === null || typeof err !== 'object') return false
+  const e = err as Record<string, unknown>
+  return e.name === 'NotFoundError' || e.code === 'RECORD_NOT_FOUND' || e.status === 404
+}
+
+/**
+ * Deteksi apakah error berasal dari pelanggaran unique constraint DB (PostgreSQL code 23505)
+ */
+export function isDuplicateError(err: unknown): boolean {
+  if (err === null || typeof err !== 'object') return false
+  const e = err as Record<string, unknown>
+  return e.code === '23505' || e.name === 'UniqueConstraintError'
+}
+
+/**
  * Error response
  * Never expose stack trace — only code + message
  */

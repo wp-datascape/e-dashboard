@@ -14,9 +14,10 @@ export interface User {
 export interface AuthContextType {
   user: User | null
   token: string | null
+  permissions: string[]
   isAuthenticated: boolean
   isLoading: boolean
-  login: (token: string, user: User) => void
+  login: (token: string, user: User, permissions: string[]) => void
   logout: () => void
 }
 

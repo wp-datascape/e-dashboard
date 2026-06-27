@@ -1,4 +1,5 @@
 import { AppError, ErrorCode } from '@/errors'
+import { isDuplicateError } from '@/utils/response'
 import { hashPassword } from '@/utils/hash'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
@@ -27,23 +28,29 @@ export async function getUserById(id: number) {
 }
 
 export async function createUserService(dto: CreateUserDto, ctx: Context) {
-  const existing = await findUserByEmail(dto.email)
-  if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
+  try {
+    const existing = await findUserByEmail(dto.email)
+    if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
 
-  const hashed = await hashPassword(dto.password)
-  const user = await createUser({ ...dto, password: hashed })
+    const hashed = await hashPassword(dto.password)
+    const user = await createUser({ ...dto, password: hashed })
 
-  logger.info('[user] User created', { id: user!.id, email: dto.email })
+    logger.info('[user] User created', { id: user!.id, email: dto.email })
 
-  await logAudit(ctx, {
-    action: 'user.create',
-    entity: 'users',
-    entityId: user!.id,
-    companyId: null,
-    newValue: { id: user!.id, email: user!.email, name: user!.name },
-  })
+    await logAudit(ctx, {
+      action: 'user.create',
+      entity: 'users',
+      entityId: user!.id,
+      companyId: null,
+      newValue: { id: user!.id, email: user!.email, name: user!.name },
+    })
 
-  return user
+    return user
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to create user', 500)
+  }
 }
 
 export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Context) {

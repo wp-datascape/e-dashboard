@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/errors'
+import { isDuplicateError } from '@/utils/response'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import {
@@ -24,21 +25,27 @@ export async function getRoleById(id: number) {
 }
 
 export async function createRoleService(dto: CreateRoleDto, ctx: Context) {
-  const existing = await findRoleByName(dto.name)
-  if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Role name already in use', 409)
+  try {
+    const existing = await findRoleByName(dto.name)
+    if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Role name already in use', 409)
 
-  const role = await createRole({ name: dto.name, description: dto.description, is_system: false })
-  logger.info('[role] Role created', { id: role!.id, name: dto.name })
+    const role = await createRole({ name: dto.name, description: dto.description, is_system: false })
+    logger.info('[role] Role created', { id: role!.id, name: dto.name })
 
-  await logAudit(ctx, {
-    action: 'role.create',
-    entity: 'roles',
-    entityId: role!.id,
-    companyId: null,
-    newValue: { id: role!.id, name: dto.name },
-  })
+    await logAudit(ctx, {
+      action: 'role.create',
+      entity: 'roles',
+      entityId: role!.id,
+      companyId: null,
+      newValue: { id: role!.id, name: dto.name },
+    })
 
-  return role
+    return role
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Role name already in use', 409)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to create role', 500)
+  }
 }
 
 export async function updateRoleService(id: number, dto: UpdateRoleDto, ctx: Context) {

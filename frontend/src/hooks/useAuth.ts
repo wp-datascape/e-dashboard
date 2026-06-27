@@ -19,12 +19,8 @@ export function useLoginMutation() {
   return useMutation<LoginResponse, ApiError, LoginInput>({
     mutationFn: authApi.login,
     onSuccess: (responseData) => {
-      // 1. Ekstrak data dari struktur LoginResponse Anda
-      const { token, user } = responseData.data;
-
-      // 2. Simpan ke AuthContext (dan otomatis ke localStorage)
-      login(token, user);
-      // 4. TRIGGER REDIRECT: Pindah ke rute yang dituju dengan 'replace' agar tidak bisa back ke login
+      const { token, user, permissions } = responseData.data;
+      login(token, user, permissions ?? []);
       navigate(from, { replace: true });
     },
     onError: (error: ApiError) => {

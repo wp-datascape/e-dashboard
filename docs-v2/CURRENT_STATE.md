@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~96%   | Customer page real API (bukan mock). Modal detail responsive. Debounce + page reset filter. |
-| Backend  | ~72%   | Customers feature selesai. Threshold dari business_configs (per-BU dormant + active_window). Auth, Metrics, Transactions belum. |
+| Frontend | ~97%   | Sidebar filter menu by permissions. Auth context simpan `permissions[]`. |
+| Backend  | ~74%   | Semua handler sekarang tipis (no try-catch). 4 service baru dibuat. Services handle isDuplicateError. Auth, Metrics, Transactions belum. |
 | Database | ~80%   | 21 tabel aktif. business_configs dipakai live oleh customers status logic. |
-| Docs     | ~98%   | Updated sesi ini |
+| Docs     | ~99%   | Updated sesi ini — arsitektur thin handler + service error layer terdokumentasi |
 
 ## Frontend — Page Status
 
@@ -875,6 +875,36 @@
 **Dokumentasi:**
 - `docs-v2/shared/ui-patterns.md` — diupdate: "Single Component: ResponsiveListView (replaces DataTable)"
 - `docs-v2/CURRENT_STATE.md` — tabel komponen diupdate
+
+---
+
+### 2026-06-27: Backend Architecture Refactor + Menu Permission via RBAC
+
+**Backend — Thin Handler Pattern (semua handler direfactor):**
+- Handler sekarang tipis: hanya validate input → call service → return response. TIDAK ADA try-catch di handler.
+- Error handling & translation pindah ke service layer (isNotFoundError → 404, isDuplicateError → 409, unknown → 500)
+- 4 service baru dibuat:
+  - `customers/customers.service.ts` — wrap findCustomers + findCustomerDetail
+  - `settings/channel-divisions.service.ts` — CRUD channel divisions + isDuplicateError
+  - `products/products.service.ts` — wrap findProducts + getLocalCategories
+  - `import/classification.service.ts` — wrap CRUD classification rules
+- 6 service yang ada diupdate: tambah `isDuplicateError` import + try-catch di fungsi create/update: companies, branch, roles, users, permissions, high-margin
+- Bug fix: `config.service.ts` — `AppError(NOT_FOUND)` tanpa status code diperbaiki ke `404`
+- Rules terdokumentasi di `docs-v2/CLAUDE.md`, `.clinerules`, dan `docs-v2/shared/backend.md`
+
+**Frontend — Menu Visibility via Permissions:**
+- `auth.context.ts` + `AuthContext.tsx`: tambah `permissions: string[]` ke context; simpan di localStorage sebagai `auth_permissions`
+- `hooks/useAuth.ts`: ekstrak `permissions` dari login response, pass ke `login()`
+- `config/menu.tsx`: tambah `permissionKey` ke setiap `NavItem` (contoh: `customers:menu`, `audit:menu`)
+- `Sidebar.tsx`: filter items dengan `canSee(permissionKey)` — group otomatis hilang jika semua child tersembunyi
+- `mocks/handlers/auth.handler.ts`: update mock permissions ke format yang benar (`metrics:menu` dll)
+- Cara pakai: Admin atur permission `customers:menu` per role di halaman RBAC → Set Permission → toggle kolom "Menu"
+
+**Aturan baru:**
+- Handler wajib tipis — no try-catch, no AppError
+- Service wajib catch raw DB errors dan translate ke AppError dengan status code eksplisit
+- `isNotFoundError()` dan `isDuplicateError()` dari `utils/response` adalah standard helper
+- `AppError` selalu harus punya arg ke-3 (status code) — tidak boleh andalkan default
 
 ---
 

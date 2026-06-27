@@ -16,6 +16,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
+import { useAuth } from '@/context/auth.context';
 
 export const SIDEBAR_WIDTH = 220;
 export const SIDEBAR_COLLAPSED_WIDTH = 56;
@@ -90,17 +91,31 @@ function NavButton({
   )
 }
 
-function NavGroup({ item, collapsed, onNav }: { item: NavItem; collapsed: boolean; onNav: (path: string) => void }) {
+function NavGroup({
+  item,
+  collapsed,
+  onNav,
+  canSee,
+}: {
+  item: NavItem
+  collapsed: boolean
+  onNav: (path: string) => void
+  canSee: (permissionKey?: string) => boolean
+}) {
   const { t } = useTranslation()
   const location = useLocation()
-  const anyChildActive = item.children?.some(
+
+  const visibleChildren = (item.children ?? []).filter((c) => canSee(c.permissionKey))
+
+  const anyChildActive = visibleChildren.some(
     (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
-  ) ?? false
+  )
   const [expanded, setExpanded] = useState(anyChildActive)
 
+  if (visibleChildren.length === 0) return null
+
   if (collapsed) {
-    // In icon mode: show parent icon, click navigates to first child
-    const firstChild = item.children?.[0]
+    const firstChild = visibleChildren[0]
     return (
       <Tooltip title={t(item.labelKey)} placement="right" arrow>
         <ListItemButton
@@ -140,7 +155,7 @@ function NavGroup({ item, collapsed, onNav }: { item: NavItem; collapsed: boolea
       </ListItemButton>
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <List dense disablePadding>
-          {item.children?.map((child) => (
+          {visibleChildren.map((child) => (
             <NavButton key={child.key} item={child} collapsed={false} indented onNav={onNav} />
           ))}
         </List>
@@ -151,8 +166,14 @@ function NavGroup({ item, collapsed, onNav }: { item: NavItem; collapsed: boolea
 
 export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
   const navigate = useNavigate()
+  const { permissions } = useAuth()
   const collapsed = !open
   const drawerWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH
+
+  const canSee = (permissionKey?: string) => {
+    if (!permissionKey) return true
+    return permissions.includes(permissionKey)
+  }
 
   const handleNav = (path: string) => {
     navigate(path)
@@ -190,27 +211,31 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
       <Divider />
 
       <List dense disablePadding sx={{ pt: 0.5 }}>
-        {NAV_ITEMS.map((item) => (
-          <span key={item.key}>
-            {item.groupLabel && (
-              <>
-                <Divider sx={{ mt: 0.5, mb: 0 }} />
-                {!collapsed && (
-                  <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
-                    <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
-                      {item.groupLabel}
-                    </Typography>
-                  </Box>
-                )}
-              </>
-            )}
+        {NAV_ITEMS.map((item) => {
+          if (!canSee(item.permissionKey) && !item.children) return null
 
-            {item.children
-              ? <NavGroup item={item} collapsed={collapsed} onNav={handleNav} />
-              : <NavButton item={item} collapsed={collapsed} onNav={handleNav} />
-            }
-          </span>
-        ))}
+          return (
+            <span key={item.key}>
+              {item.groupLabel && (
+                <>
+                  <Divider sx={{ mt: 0.5, mb: 0 }} />
+                  {!collapsed && (
+                    <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
+                        {item.groupLabel}
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
+
+              {item.children
+                ? <NavGroup item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
+                : <NavButton item={item} collapsed={collapsed} onNav={handleNav} />
+              }
+            </span>
+          )
+        })}
       </List>
     </Drawer>
   )

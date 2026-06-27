@@ -240,3 +240,31 @@ Login/refresh response:
 ### Trade-off yang Diterima
 - 1 DB query per request → diterima karena query ringan dan tidak ada Redis di MVP scope
 - Permission revoke langsung efektif → lebih aman untuk RBAC dinamis
+
+### Menu Visibility via `{feature}:menu` Permission
+
+Setiap menu item di sidebar punya `permissionKey` (contoh: `customers:menu`, `audit:menu`).
+
+- Sidebar filter `NAV_ITEMS` menggunakan `permissions[]` dari `AuthContext`
+- Jika user TIDAK punya `customers:menu` → item "Customers" dan sub-items-nya disembunyikan
+- Group menu (Settings, Config) otomatis hilang jika semua child-nya tersembunyi
+- Admin atur di halaman RBAC → Set Permission → toggle kolom "Menu"
+
+**Permission seed (dari `db/seed.ts`):**
+| Permission         | Kontrol                          |
+|--------------------|----------------------------------|
+| `metrics:menu`     | Executive Dashboard              |
+| `customers:menu`   | Customer Workbench (semua item)  |
+| `products:menu`    | Product & Portfolio (semua item) |
+| `transactions:menu`| Transaction & Revenue (semua)    |
+| `import:menu`      | Menu Import di group Config      |
+| `users:menu`       | Menu Users                       |
+| `rbac:menu`        | Menu Roles                       |
+| `config:menu`      | Settings & Config items          |
+| `audit:menu`       | Audit Log                        |
+| `companies:manage` | Menu Companies                   |
+
+**Frontend auth context** (`src/context/AuthContext.tsx`):
+- Simpan `permissions: string[]` di state + localStorage (`auth_permissions`)
+- Di-load saat app init, diupdate saat login/logout
+- Akses via `const { permissions } = useAuth()`

@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS "invoices" (
 	"invoice_date" date NOT NULL,
 	"total_revenue" numeric(15, 2) DEFAULT '0' NOT NULL,
 	"total_gp" numeric(15, 2) DEFAULT '0' NOT NULL,
-	"salesperson_name" varchar(255),
+	"channel_name" varchar(255),
 	"branch_name" varchar(255),
 	"business_unit" varchar(50),
 	"import_log_id" integer,

@@ -154,18 +154,60 @@ No Raw SQL: Use Drizzle query builder unless there is a clear performance reason
 Soft Delete Only: Never hard-delete invoice data.
 Idempotency: Dedup key for imports = invoice_number + company_id.
 
-## 6. Core Utilities (NEVER REWRITE)
-Always import and use these existing utilities:
-## Utilities Package
+## 6. Layer Responsibilities (MANDATORY ARCHITECTURE)
 
-| Package          | Exports                               | Usage                                                                                                    |
-| ---------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `utils/response` | `success()`, `error()`, `paginated()` | Wrap **all handler responses** in a standardized API response format.                                    |
-| `utils/error`    | `AppError`, standard error constants  | Throw application errors. **Never expose stack traces** to clients.                                      |
-| `utils/logger`   | Winston wrapper                       | `info` → console only; `warn` → file + console; `error` → file + console.                                |
-| `utils/audit`    | `logAudit(ctx, opts)`                 | Call in the **Service layer** after every successful data mutation (`create`, `update`, `delete`, etc.). |
-| `utils/parser`   | `parseCsv()`, `parseExcel()`          | Parse and validate uploaded CSV and Excel files.                                                         |
-| `utils/accurate` | `fetchInvoices(companyId, params)`    | Fetch invoice data from Accurate Online using company context and query parameters.                      |
+```
+Repository  → raw DB query only. Boleh lempar PostgresError mentah.
+     ↓
+Service     → business logic + tangkap raw DB error → terjemahkan ke AppError
+               isNotFoundError(err)  → AppError(NOT_FOUND, '...', 404)
+               isDuplicateError(err) → AppError(DUPLICATE_ENTRY, '...', 409)
+               err instanceof AppError → re-throw
+               else → AppError(INTERNAL_ERROR, '...', 500)
+     ↓
+Handler     → validate input → call service → return response
+               TIDAK ADA try-catch, TIDAK ADA AppError, TIDAK ADA error logic
+     ↓
+Global Error Handler → tangkap semua AppError → kirim HTTP response
+```
+
+**Handler wajib tipis (thin):**
+```ts
+export async function handleGetX(c: Context) {
+  const query = validateQuery(c, schema)   // validate saja
+  const result = await serviceFn(query)    // delegasi ke service
+  return paginated(c, result.data, {...})  // kembalikan response
+}
+```
+
+**Service wajib tangkap raw DB error:**
+```ts
+export async function getX(params) {
+  try {
+    return await repositoryFn(params)
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, '...', 409)
+    if (isNotFoundError(err)) throw new AppError(ErrorCode.NOT_FOUND, '...', 404)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, '...', 500)
+  }
+}
+```
+
+Setiap fitur WAJIB punya 4 layer: Route → Handler → Service → Repository. Jika belum ada service, buat dulu sebelum handler disentuh.
+
+## 7. Core Utilities (NEVER REWRITE)
+Always import and use these existing utilities:
+
+| Package          | Exports                                                  | Usage                                                                                                    |
+| ---------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `utils/response` | `success()`, `error()`, `paginated()`                    | Wrap **all handler responses** in a standardized API response format.                                    |
+| `utils/response` | `isNotFoundError(err)`, `isDuplicateError(err)`          | Helper deteksi jenis raw DB error di **service layer**. Import dari sini, bukan buat sendiri.            |
+| `utils/error`    | `AppError`, `ErrorCode`                                  | Throw application errors. **Selalu pass status code** sebagai arg ke-3 — default 500 salah untuk NOT_FOUND/DUPLICATE. |
+| `utils/logger`   | Winston wrapper                                          | `info` → console only; `warn` → file + console; `error` → file + console.                               |
+| `utils/audit`    | `logAudit(ctx, opts)`                                    | Call in the **Service layer** after every successful data mutation (`create`, `update`, `delete`, etc.). |
+| `utils/parser`   | `parseCsv()`, `parseExcel()`                             | Parse and validate uploaded CSV and Excel files.                                                         |
+| `utils/accurate` | `fetchInvoices(companyId, params)`                       | Fetch invoice data from Accurate Online using company context and query parameters.                      |
 
 ## 7. API Design, i18n & Developer Experience (DX)
 Backend i18n: Use i18next for translating backend error messages, email templates, and dynamic content. Never hardcode user-facing strings in the backend response if it's meant to be localized.
@@ -190,6 +232,9 @@ When generating backend code, you MUST:
 NEVER use Node.js, Prisma, Express, or Pino. The stack is strictly locked to Bun, Drizzle, Hono, and Winston.
 NEVER return raw Drizzle objects or raw arrays directly from a handler. Always wrap in success(), error(), or paginated() from utils/response.
 NEVER put database query logic inside a Handler. Handlers only validate (Zod) and call Services. Services call Repositories.
+NEVER put try-catch or AppError in a Handler. Error logic belongs in the Service layer.
+NEVER create an AppError without explicit status code (3rd argument) — `new AppError(NOT_FOUND, '...', 404)`. Default is 500 which is wrong for NOT_FOUND/DUPLICATE.
+NEVER call repository functions directly from a handler. Always go through a service.
 NEVER write a query without filtering by company_id (unless explicitly bypassed for superadmin holding view).
 NEVER hardcode business thresholds (e.g., dormant months). Fetch them from app_configs table.
 NEVER import winston directly. Always use the utils/logger wrapper.

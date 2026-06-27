@@ -13,7 +13,19 @@ const MOCK_USER: User = {
   role: 'superadmin',
 };
 
-const MOCK_PERMISSIONS = ['metrics:read', 'users:manage', 'import:execute', 'rbac:manage'];
+// Full superadmin permissions — semua menu:* aktif
+const MOCK_PERMISSIONS = [
+  'metrics:menu', 'metrics:view',
+  'customers:menu', 'customers:view', 'customers:input', 'customers:update', 'customers:delete',
+  'products:menu', 'products:view', 'products:input', 'products:update', 'products:delete',
+  'transactions:menu', 'transactions:view', 'transactions:input', 'transactions:update', 'transactions:delete',
+  'import:menu', 'import:view', 'import:input',
+  'users:menu', 'users:view', 'users:input', 'users:update', 'users:delete',
+  'rbac:menu', 'rbac:view', 'rbac:input', 'rbac:update', 'rbac:delete',
+  'config:menu', 'config:view', 'config:update',
+  'audit:menu', 'audit:view',
+  'companies:manage',
+];
 
 export const authHandlers = [
   /**

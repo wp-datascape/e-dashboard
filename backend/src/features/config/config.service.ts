@@ -10,7 +10,7 @@ export async function getConfigs() {
 
 export async function updateConfig(key: string, body: { value: string }, c: Context) {
   const existing = await findConfigByKey(key)
-  if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Config "${key}" not found`)
+  if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Config "${key}" not found`, 404)
 
   const updated = await updateConfigValue(key, body.value)
 

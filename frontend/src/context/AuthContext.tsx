@@ -7,32 +7,36 @@ import { AuthContext, useAuth, type User } from './auth.context'
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user] = useState<User | null>(() => {
-    const saved = localStorage.getItem('auth_user')
-    try {
-      return saved ? JSON.parse(saved) : null
-    } catch {
-      return null
-    }
-  })
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'))
-  const [userState, setUserState] = useState<User | null>(user)
 
-  // Use state instead of raw user for reactivity if needed, but since it's init-only:
+  const [userState, setUserState] = useState<User | null>(() => {
+    const saved = localStorage.getItem('auth_user')
+    try { return saved ? JSON.parse(saved) : null } catch { return null }
+  })
+
+  const [permissions, setPermissions] = useState<string[]>(() => {
+    const saved = localStorage.getItem('auth_permissions')
+    try { return saved ? JSON.parse(saved) : [] } catch { return [] }
+  })
+
   const [isLoading] = useState(false)
 
-  const login = (newToken: string, newUser: User) => {
+  const login = (newToken: string, newUser: User, newPermissions: string[]) => {
     setToken(newToken)
     setUserState(newUser)
+    setPermissions(newPermissions)
     localStorage.setItem('auth_token', newToken)
     localStorage.setItem('auth_user', JSON.stringify(newUser))
+    localStorage.setItem('auth_permissions', JSON.stringify(newPermissions))
   }
 
   const logout = () => {
     setToken(null)
     setUserState(null)
+    setPermissions([])
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    localStorage.removeItem('auth_permissions')
   }
 
   return (
@@ -40,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user: userState,
         token,
+        permissions,
         isAuthenticated: !!token,
         isLoading,
         login,

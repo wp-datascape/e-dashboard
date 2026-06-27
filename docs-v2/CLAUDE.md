@@ -31,12 +31,19 @@ Status   : Frontend ~96% | Backend ~72%
 | Product Workbench     | `product-workbench/overview.md`        |
 | Transaction Workbench | `transaction-workbench/overview.md`    |
 | Admin pages           | `admin/overview.md`                    |
-| Companies feature     | `features/companies.md`                |
-| Customers feature     | `features/customers.md`                |
-| Roles feature         | `features/roles.md`                    |
-| Permissions feature   | `features/permissions.md`              |
-| Users feature         | `features/users.md`                    |
-| Page Settings feature | `features/page-settings.md`            |
+| Companies feature          | `features/companies.md`                |
+| Customers feature          | `features/customers.md`                |
+| Roles feature              | `features/roles.md`                    |
+| Permissions feature        | `features/permissions.md`              |
+| Users feature              | `features/users.md`                    |
+| Page Settings feature      | `features/page-settings.md`            |
+| Products feature           | `features/products.md`                 |
+| Import (file upload)       | `features/import.md`                   |
+| Classification Rules       | `features/classification.md`           |
+| Channel Divisions          | `features/channel-divisions.md`        |
+| High Margin Products       | `features/high-margin-products.md`     |
+| Audit Log                  | `features/audit.md`                    |
+| Accurate Integration       | `features/accurate.md`                 |
 
 ## Core Business Flow
 Admin imports invoices (CSV/Excel upload OR Accurate API fetch)
@@ -68,3 +75,31 @@ Group 5: Admin                ← System operations
 - Every query MUST filter `company_id`
 - CSRF token required on all mutations
 - No hard-delete on invoice data (soft delete only)
+
+## Backend Layer Responsibilities (MANDATORY)
+
+```
+Repository  → raw DB query only, may throw PostgresError
+     ↓
+Service     → business logic + catch raw errors → translate to AppError
+               isNotFoundError(err)  → AppError(NOT_FOUND, ..., 404)
+               isDuplicateError(err) → AppError(DUPLICATE_ENTRY, ..., 409)
+               err instanceof AppError → re-throw
+               else → AppError(INTERNAL_ERROR, ..., 500)
+     ↓
+Handler     → validate input → call service → return response
+               NO try-catch, NO AppError, NO error logic in handler
+     ↓
+Global Error Handler → catches AppError → sends HTTP response
+```
+
+**Handler must be thin:**
+```ts
+export async function handleGetX(c: Context) {
+  const query = validateQuery(c, schema)   // validate only
+  const result = await serviceFn(query)    // delegate to service
+  return paginated(c, result.data, {...})  // return response
+}
+```
+
+Every feature MUST have all 4 layers: Route → Handler → Service → Repository

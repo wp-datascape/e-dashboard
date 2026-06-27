@@ -71,6 +71,46 @@ Kemudian baca file domain sesuai task:
 - Tidak ada `catch (e) {}` kosong
 - Tidak ada stack trace di response error ke client
 
+### Arsitektur Tanggung Jawab Tiap Layer (WAJIB)
+
+**Handler** — hanya input/output, tidak boleh ada logika error:
+```ts
+// BENAR
+export async function handleGetCustomers(c: Context) {
+  const query = validateQuery(c, customersQuerySchema)
+  const result = await getCustomers(query)          // panggil service
+  return paginated(c, result.data, { ... })          // return response
+}
+// SALAH — handler tidak boleh try-catch atau AppError
+```
+
+**Service** — business logic + terjemahkan raw DB error ke AppError:
+```ts
+export async function getCustomers(params: CustomersQuery) {
+  try {
+    return await findCustomers(params)               // panggil repository
+  } catch (err) {
+    if (isNotFoundError(err)) return { data: [], total: 0 }
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, '...', 409)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, '...', 500)
+  }
+}
+```
+
+**Repository** — hanya query DB, boleh lempar raw PostgresError:
+```ts
+export async function findCustomers(params) {
+  return db.select(...).from(customers)...           // query saja, tidak ada error handling
+}
+```
+
+**Global Error Handler** — tangkap semua AppError dari service, kirim HTTP response.
+
+Helper error detection (`utils/response.ts`):
+- `isNotFoundError(err)` — deteksi data tidak ditemukan
+- `isDuplicateError(err)` — deteksi unique constraint violation (PG code `23505`)
+
 ---
 
 ## Cara Meminta Fitur Baru (Alur Wajib untuk AI)

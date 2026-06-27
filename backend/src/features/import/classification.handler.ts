@@ -1,58 +1,39 @@
-/**
- * features/import/classification.handler.ts
- *
- * Hono handlers for CRUD operations on item_classification_rules table.
- */
 import type { Context } from 'hono'
-import { success, noContent, error } from '@/utils/response'
-import { ErrorCode } from '@/utils/error'
-import { classificationRuleSchema, classificationRuleUpdateSchema, MATCH_TYPE_PRIORITY } from './import.schema'
+import { success, noContent } from '@/utils/response'
+import { validateBody, validateParam, validateQuery } from '@/utils/validator'
+import { z } from 'zod'
+import { classificationRuleSchema, classificationRuleUpdateSchema } from './import.schema'
 import {
-  findClassificationRules,
-  createClassificationRule,
-  updateClassificationRule,
-  deleteClassificationRule,
-} from './import.repository'
+  listClassificationRules,
+  createClassificationRuleService,
+  updateClassificationRuleService,
+  deleteClassificationRuleService,
+} from './classification.service'
+
+const ruleIdParamSchema = z.object({ id: z.coerce.number().int().positive() })
+const companyIdQuerySchema = z.object({ company_id: z.coerce.number().int().positive().optional() })
 
 export async function handleListRules(c: Context) {
-  const rawCompanyId = c.req.query('company_id')
-  const companyId = rawCompanyId ? Number(rawCompanyId) : undefined
-  const rules = await findClassificationRules(companyId)
+  const { company_id } = validateQuery(c, companyIdQuerySchema)
+  const rules = await listClassificationRules(company_id)
   return success(c, rules)
 }
 
 export async function handleCreateRule(c: Context) {
-  const body = await c.req.json()
-  const parsed = classificationRuleSchema.safeParse(body)
-  if (!parsed.success) {
-    return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.errors.map(e => e.message).join(', '), 400)
-  }
-
-  // Auto-assign priority based on match_type — user tidak perlu mikir angka
-  const priority = MATCH_TYPE_PRIORITY[parsed.data.match_type] ?? 50
-
-  const rule = await createClassificationRule({ ...parsed.data, priority })
+  const body = await validateBody(c, classificationRuleSchema)
+  const rule = await createClassificationRuleService(body)
   return success(c, rule, 'Rule created', 201)
 }
 
 export async function handleUpdateRule(c: Context) {
-  const id = Number(c.req.param('id'))
-  if (isNaN(id)) return error(c, ErrorCode.VALIDATION_ERROR, 'Invalid ID', 400)
-
-  const body = await c.req.json()
-  const parsed = classificationRuleUpdateSchema.safeParse(body)
-  if (!parsed.success) {
-    return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.errors.map(e => e.message).join(', '), 400)
-  }
-  const rule = await updateClassificationRule(id, parsed.data)
-  if (!rule) return error(c, ErrorCode.NOT_FOUND, 'Rule not found', 404)
+  const { id } = validateParam(c, ruleIdParamSchema)
+  const body = await validateBody(c, classificationRuleUpdateSchema)
+  const rule = await updateClassificationRuleService(id, body)
   return success(c, rule)
 }
 
 export async function handleDeleteRule(c: Context) {
-  const id = Number(c.req.param('id'))
-  if (isNaN(id)) return error(c, ErrorCode.VALIDATION_ERROR, 'Invalid ID', 400)
-
-  await deleteClassificationRule(id)
+  const { id } = validateParam(c, ruleIdParamSchema)
+  await deleteClassificationRuleService(id)
   return noContent(c)
 }

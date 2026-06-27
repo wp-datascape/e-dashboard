@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/errors'
+import { isDuplicateError } from '@/utils/response'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import { getCompanyById } from './companies.service'
@@ -28,28 +29,33 @@ export async function getBranchById(companyId: number, branchId: number) {
 }
 
 export async function createBranchService(companyId: number, dto: CreateBranchDto, ctx: Context) {
-  // Verify company exists
-  await getCompanyById(companyId)
+  try {
+    await getCompanyById(companyId)
 
-  const isActive: boolean = dto.is_active ?? true
-  const branch = await createBranch({
-    company_id: companyId,
-    name: dto.name,
-    code: dto.code,
-    is_active: isActive,
-  })
+    const isActive: boolean = dto.is_active ?? true
+    const branch = await createBranch({
+      company_id: companyId,
+      name: dto.name,
+      code: dto.code,
+      is_active: isActive,
+    })
 
-  logger.info('[branch] Branch created', { id: branch!.id, company_id: companyId, code: dto.code })
+    logger.info('[branch] Branch created', { id: branch!.id, company_id: companyId, code: dto.code })
 
-  await logAudit(ctx, {
-    action: 'branch.create',
-    entity: 'company_branches',
-    entityId: branch!.id,
-    companyId,
-    newValue: { id: branch!.id, company_id: companyId, name: dto.name, code: dto.code, is_active: true },
-  })
+    await logAudit(ctx, {
+      action: 'branch.create',
+      entity: 'company_branches',
+      entityId: branch!.id,
+      companyId,
+      newValue: { id: branch!.id, company_id: companyId, name: dto.name, code: dto.code, is_active: true },
+    })
 
-  return branch
+    return branch
+  } catch (err) {
+    if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Branch already exists', 409)
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to create branch', 500)
+  }
 }
 
 export async function updateBranchService(companyId: number, branchId: number, dto: UpdateBranchDto, ctx: Context) {

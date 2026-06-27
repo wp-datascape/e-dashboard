@@ -29,6 +29,8 @@ export interface NavItem {
   path: string;
   labelKey: string;
   icon: ReactNode;
+  /** Permission key to check, e.g. 'customers:menu'. Undefined = always visible */
+  permissionKey?: string;
   /** Tampilkan label grup di atas item ini (hanya saat sidebar expanded) */
   groupLabel?: string;
   /** Sub-menu items — render sebagai collapsible nested list */
@@ -45,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/dashboard',
     labelKey: 'nav.dashboard',
     icon: <DashboardIcon fontSize="small" />,
+    permissionKey: 'metrics:menu',
     groupLabel: 'Executive Dashboard',
   },
 
@@ -56,6 +59,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/customers',
     labelKey: 'nav.customers',
     icon: <PeopleIcon fontSize="small" />,
+    permissionKey: 'customers:menu',
     groupLabel: 'Customer Workbench',
   },
   {
@@ -63,18 +67,21 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/customer-metrics',
     labelKey: 'nav.expansionTargets',
     icon: <TrendingUpIcon fontSize="small" />,
+    permissionKey: 'customers:menu',
   },
   {
     key: 'dormant-customer',
     path: '/dormant-customer',
     labelKey: 'nav.churnRisk',
     icon: <PersonOffIcon fontSize="small" />,
+    permissionKey: 'customers:menu',
   },
   {
     key: 'cross-selling',
     path: '/cross-selling',
     labelKey: 'nav.crossSellMatrix',
     icon: <SwapHorizIcon fontSize="small" />,
+    permissionKey: 'customers:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -85,6 +92,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/products',
     labelKey: 'nav.productLedger',
     icon: <InventoryIcon fontSize="small" />,
+    permissionKey: 'products:menu',
     groupLabel: 'Product & Portfolio',
   },
   {
@@ -92,12 +100,14 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/products/high-margin',
     labelKey: 'nav.highMarginPush',
     icon: <StarIcon fontSize="small" />,
+    permissionKey: 'products:menu',
   },
   {
     key: 'products-trend',
     path: '/products/trend',
     labelKey: 'nav.productTrend',
     icon: <ShowChartIcon fontSize="small" />,
+    permissionKey: 'products:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -108,6 +118,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/transactions',
     labelKey: 'nav.orderLedger',
     icon: <ReceiptLongIcon fontSize="small" />,
+    permissionKey: 'transactions:menu',
     groupLabel: 'Transaction & Revenue',
   },
   {
@@ -115,6 +126,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/projects',
     labelKey: 'nav.projectMilestone',
     icon: <EngineeringIcon fontSize="small" />,
+    permissionKey: 'transactions:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -132,30 +144,35 @@ export const NAV_ITEMS: NavItem[] = [
         path: '/settings/app',
         labelKey: 'nav.settingsApp',
         icon: <DisplaySettingsIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'companies',
         path: '/companies',
         labelKey: 'nav.companies',
         icon: <BusinessIcon fontSize="small" />,
+        permissionKey: 'companies:manage',
       },
       {
         key: 'settings-divisions',
         path: '/settings/divisions',
         labelKey: 'nav.settingsDivisions',
         icon: <AccountTreeIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'settings-high-margin',
         path: '/settings/high-margin',
         labelKey: 'nav.settingsHighMargin',
         icon: <AutoGraphIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'settings-threshold',
         path: '/settings/threshold',
         labelKey: 'nav.settingsThreshold',
         icon: <TuneIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
     ],
   },
@@ -170,36 +187,42 @@ export const NAV_ITEMS: NavItem[] = [
         path: '/settings/classification',
         labelKey: 'nav.settingsClassification',
         icon: <EngineeringIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'import',
         path: '/import',
         labelKey: 'nav.import',
         icon: <UploadFileIcon fontSize="small" />,
+        permissionKey: 'import:menu',
       },
       {
         key: 'config-integration',
         path: '/config/integration',
         labelKey: 'nav.configIntegration',
         icon: <ApiIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'config-features',
         path: '/config/features',
         labelKey: 'nav.configFeatures',
         icon: <ExtensionIcon fontSize="small" />,
+        permissionKey: 'config:menu',
       },
       {
         key: 'users',
         path: '/users',
         labelKey: 'nav.users',
         icon: <ManageAccountsIcon fontSize="small" />,
+        permissionKey: 'users:menu',
       },
       {
         key: 'rbac',
         path: '/rbac',
         labelKey: 'nav.rbac',
         icon: <SecurityIcon fontSize="small" />,
+        permissionKey: 'rbac:menu',
       },
     ],
   },
@@ -208,5 +231,6 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/audit-log',
     labelKey: 'nav.auditLog',
     icon: <HistoryIcon fontSize="small" />,
+    permissionKey: 'audit:menu',
   },
 ];
