@@ -42,6 +42,7 @@ Status   : Frontend ~96% | Backend ~72%
 | Classification Rules       | `features/classification.md`           |
 | Channel Divisions          | `features/channel-divisions.md`        |
 | High Margin Products       | `features/high-margin-products.md`     |
+| Metrics / KPI (M1–M10)    | `features/metrics.md`                  |
 | Audit Log                  | `features/audit.md`                    |
 | Accurate Integration       | `features/accurate.md`                 |
 

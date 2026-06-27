@@ -29,7 +29,7 @@ import { requestLogger } from '@/middleware/requestLogger'
 
 // TODO: Import feature routes saat sudah dibuat
 // import { authRoutes } from '@/features/auth/auth.route'
-// import { metricsRoutes } from '@/features/metrics/metrics.route'
+import { metricsRoutes } from '@/features/metrics/metrics.route'
 import { importRoutes } from '@/features/import/import.route'
 import { classificationRoutes } from '@/features/import/classification.route'
 import { usersRoutes } from '@/features/users/user.route'
@@ -107,6 +107,7 @@ export function createRouter(app: Hono): void {
   app.route('/api/v1/classification-rules', classificationRoutes)
   app.route('/api/v1/settings/high-margin', highMarginRoutes)
   app.route('/api/v1/settings/channel-divisions', channelDivisionsRoutes)
+  app.route('/api/v1/metrics', metricsRoutes)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
   // Cek: aplikasi hidup + koneksi DB responsif
   app.get('/health', async (c) => {

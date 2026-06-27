@@ -47,47 +47,8 @@ const heatmapData = Array.from({ length: 15 }, (_, i) => ({
   },
 }));
 
-// ─── Customer Metrics (M2–M7) ─────────────────────────────────────────────────
-const customerMetricsTrend = months12().map((month, i) => ({
-  month,
-  existing_customers:   120 + i * 3,
-  total_revenue_existing: (120 + i * 3) * (5_000_000 + i * 200_000),
-  avg_revenue:          5_000_000 + i * 200_000,
-  avg_gross_profit:     1_500_000 + i * 60_000,
-  // Stacked gross profit segments (tier1 + tier2 + tier3 = avg_gross_profit)
-  gp_tier1:  Math.round((1_500_000 + i * 60_000) * 0.45), // top customers
-  gp_tier2:  Math.round((1_500_000 + i * 60_000) * 0.35), // mid customers
-  gp_tier3:  Math.round((1_500_000 + i * 60_000) * 0.20), // long tail
-  high_margin_ratio:    parseFloat((22 + i * 1.1).toFixed(1)),
-  repeat_order_rate:    parseFloat((58 + i * 0.9).toFixed(1)),
-  expansion_rate:       parseFloat((35 + i * 0.5 - (i > 8 ? 2 : 0)).toFixed(1)),
-  // For M7: 100% stacked horizontal bar
-  up_rate:              parseFloat((35 + i * 0.5 - (i > 8 ? 2 : 0)).toFixed(1)),
-  flat_down_rate:       parseFloat((65 - i * 0.5 + (i > 8 ? 2 : 0)).toFixed(1)),
-}));
-
-const customerMetricsDetail = Array.from({ length: 20 }, (_, i) => ({
-  id: i + 1,
-  customer_code: `CUST-${String(i + 1).padStart(4, '0')}`,
-  customer_name: `PT. Customer ${i + 1}`,
-  revenue_current:   (i + 1) * 2_000_000 + 500_000,
-  revenue_previous:  (i + 1) * 1_800_000 + 300_000,
-  gross_profit:      (i + 1) * 600_000 + 100_000,
-  has_high_margin:   i % 3 === 0,
-  has_repeat_order:  i % 4 !== 0,
-  spending_trend:    i % 5 === 0 ? 'down' : 'up',
-}));
-
-// M5: High Margin Donut — current month snapshot
-const highMarginCurrent = {
-  bought_pct:     65.4,
-  not_bought_pct: 34.6,
-};
-
-// M6: Repeat Order Rate — current month single value
-const repeatOrderCurrent = {
-  value: parseFloat(customerMetricsTrend.at(-1)!.repeat_order_rate.toFixed(1)),
-};
+// Customer Metrics (M3–M7) tidak di-mock lagi — gunakan real backend API
+// GET /api/v1/metrics/customer-metrics
 
 // ─── Dormant Customer (M8–M10) ────────────────────────────────────────────────
 const dormantTrend = months12().map((month, i) => ({
@@ -130,8 +91,9 @@ const reactivationCurrent = {
 };
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
-export const metricsHandlers = [
-  // M1 + M1.1 + M2: Cross Selling
+
+// M1 + M1.1 + M2: Cross Selling (still mock)
+export const crossSellingHandlers = [
   http.get(`${BASE_URL}/metrics/cross-selling`, () =>
     HttpResponse.json<ApiResponse<unknown>>({
       message: 'OK',
@@ -143,21 +105,13 @@ export const metricsHandlers = [
       },
     })
   ),
+];
 
-  // M2–M7: Customer Metrics
-  http.get(`${BASE_URL}/metrics/customer-metrics`, () =>
-    HttpResponse.json<ApiResponse<unknown>>({
-      message: 'OK',
-      data: {
-        trend:                customerMetricsTrend,
-        detail:               customerMetricsDetail,
-        high_margin_current:  highMarginCurrent,
-        repeat_order_current: repeatOrderCurrent,
-      },
-    })
-  ),
+// M3–M7: Customer Metrics — DISABLED, uses real backend API
+// export const customerMetricsHandlers = [ ... ]
 
-  // M8–M10: Dormant Customer
+// M8–M10: Dormant Customer (still mock)
+export const dormantHandlers = [
   http.get(`${BASE_URL}/metrics/dormant-customer`, () =>
     HttpResponse.json<ApiResponse<unknown>>({
       message: 'OK',
@@ -169,4 +123,10 @@ export const metricsHandlers = [
       },
     })
   ),
+];
+
+export const metricsHandlers = [
+  ...crossSellingHandlers,
+  // customerMetricsHandlers — DISABLED: real backend at GET /api/v1/metrics/customer-metrics
+  ...dormantHandlers,
 ];

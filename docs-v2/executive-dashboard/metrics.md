@@ -1,136 +1,308 @@
-# executive-dashboard/metrics.md — Definisi Bisnis 10 Metrik
+# executive-dashboard/metrics.md — Definisi Bisnis KPI 1–8
 
-> WAJIB dibaca sebelum mengerjakan fitur kalkulasi metrik apapun. Sumber kebenaran tunggal untuk definisi bisnis.
+> WAJIB dibaca sebelum mengerjakan fitur kalkulasi metrik apapun.
+> Sumber kebenaran tunggal untuk definisi bisnis.
+> Last updated: 2026-06-27 (direvisi dari klarifikasi owner)
 
-## Parameter Global (semua metrik)
-| Param | Tipe | Ket |
-|---|---|---|
-| company_id | integer \| "all" | "all" = holding view |
-| period_month | string YYYY-MM | bulan referensi |
-| active_window | 3 \| 6 \| 12 | window klasifikasi customer aktif (bulan) |
+---
 
-## Definisi Kunci (global)
-Customer Aktif: last_transaction_date >= (awal period_month - active_window bulan)
+## Sumber Data
 
-Existing Customer: first_transaction_date < awal period_month
+Semua KPI diturunkan dari **data faktur penjualan** yang diimport ke DB.
+Tidak ada kalkulasi dari sumber lain.
 
-New Customer: first_transaction_date jatuh di dalam period_month
-
-Dormant Customer: last_transaction_date < (awal period_month - dormant_threshold_months). Threshold dari app_configs.dormant_threshold_months, default 3
-
-Kategori Produk: hanya hardware + consumable, jasa/service tidak dihitung
-
-High Margin Product: product_categories.is_high_margin = true, diset dari app_configs.high_margin_category_ids
-
-Periode Sebelumnya: period_month - 1 bulan
-
-## M1 — Cross Selling Ratio
-Rumus: Customer beli >1 kategori di period / Total Customer Aktif
-
-Customer beli >1 kategori: minimal 2 product_category_id berbeda dalam period_month, kategori service dikecualikan
-
-Chart: BarChartWidget (grouped) di /cross-selling. Detail per-customer (1.1): HeatmapWidget, kolom = kategori, nilai = Ya/Tidak
-
-```sql
-SELECT customer_id, COUNT(DISTINCT product_category_id) as cat_count
-FROM transactions
-WHERE company_id = :company_id
-  AND invoice_date BETWEEN :period_start AND :period_end
-  AND product_category_id IN (SELECT id FROM product_categories WHERE is_service = false)
-GROUP BY customer_id
-HAVING COUNT(DISTINCT product_category_id) > 1
+```
+Faktur Accurate / File CSV
+  → Import ke DB (invoices + invoice_items)
+  → KPI dihitung on-demand dari tabel invoices
 ```
 
-## M2 — Average Product Category per Customer
-Rumus: Total kategori unik terjual di period / Total Customer Aktif
+---
 
-Kategori unik: COUNT(DISTINCT product_category_id) dari semua transaksi di period_month, service dikecualikan. Semakin tinggi semakin baik.
+## Parameter Global (semua KPI)
 
-Chart: AreaChartWidget (color hijau #16a34a) di /cross-selling
+| Param | Tipe | Keterangan |
+|---|---|---|
+| `company_id` | integer \| `"all"` | Filter per entitas; "all" = holding view |
+| `period_month` | string `YYYY-MM` | Bulan referensi periode berjalan |
 
-## M3 — Average Revenue per Existing Customer
-Rumus: Total revenue existing customer di period / Jumlah existing customer yang transaksi di period
+> **Dihapus**: `active_window` tidak lagi jadi query param.
+> Threshold diambil dari `business_configs` (aktif = 30 hari, dormant = 90 hari).
 
-Scope: semua produk + jasa, tidak difilter kategori. Semakin tinggi semakin baik.
+---
 
-Chart: ComboChartWidget di /customer-metrics
+## Definisi Status Customer (REVISED)
 
-## M4 — Average Gross Profit per Existing Customer
-Rumus: Total gross_profit existing customer di period / Jumlah existing customer (sama dengan M3, kolom beda)
+Semua status dihitung relatif terhadap **tanggal akhir periode berjalan** (`period_end = akhir bulan dari period_month`).
 
-Chart: BarChartWidget (stacked, 3 tier) di /customer-metrics
+| Status | Kondisi | Threshold |
+|---|---|---|
+| **Aktif** | Punya invoice di periode berjalan (bulan = period_month) | 30 hari / 1 bulan kalender |
+| **Existing** | `first_invoice_date < period_start` AND `last_invoice_date >= period_end - 90 hari` | Pernah beli sebelumnya + belum dormant |
+| **Dormant** | `last_invoice_date < period_end - 90 hari` | 90 hari tanpa transaksi |
+| **New** | `first_invoice_date` jatuh dalam period_month | Pertama kali beli di bulan ini |
 
-## M5 — High Margin Product Penetration
-Rumus: Existing customer aktif yang beli produk high margin di period / Total existing customer aktif
+> **Catatan perbedaan dari versi lama:**
+> - "Aktif" bukan lagi rolling window (3/6/12 bln) — cukup ada invoice di bulan berjalan
+> - "Existing" = pernah beli sebelum periode + belum masuk dormant
+> - Threshold dormant = **90 hari** (bukan bulan kalender)
+> - `active_window_months` di `business_configs` tidak lagi relevan untuk definisi status ini
 
-Minimal 1 transaksi produk high margin di period_month. Semakin tinggi semakin baik.
+---
 
-Chart: DonutChartWidget (snapshot bulan ini) di /customer-metrics
+## KPI 1 — Cross Selling (Multi Product)
 
-## M6 — Repeat Order Rate
-Rumus: Existing customer aktif yang transaksi di period / Total existing customer aktif
+**Definisi:** Customer aktif yang dalam 1 atau lebih invoice-nya memiliki > 1 produk/kategori berbeda.
 
-Chart: RadialBarWidget — hijau jika >= 80%, kuning/merah jika < 80% — di /customer-metrics
+**Sumber:** `invoices` + `invoice_items`
 
-## M7 — Customer Expansion Rate
-Rumus: Existing customer aktif dengan total spending naik vs period sebelumnya / Total existing customer aktif
+**Scope:** Customer aktif = yang punya invoice di period_month
 
-Spending naik: SUM(revenue) period_month > SUM(revenue) period_month-1. Hanya hitung customer yang transaksi di KEDUA periode.
+**Cara hitung:**
+1. Ambil semua invoice di period_month
+2. Per customer, deteksi apakah ada ≥ 2 `product_category_id` berbeda dalam invoice-nya
+3. Multi kategori **tidak akumulasi lintas bulan** — dilihat dari invoice dalam periode berjalan saja
+4. Hasil = COUNT customer yang lolos / COUNT total customer aktif
 
-Edge case: customer yang hanya transaksi di period ini saja (tidak ada di period sebelumnya) tidak dihitung. Customer baru tidak masuk hitungan.
+**Matrix window (konfirmasi pending — lihat open questions):**
+Ditampilkan untuk 4 window: **30 / 90 / 180 / 360 hari**
 
-Chart: BarChartWidget (100% stacked horizontal) di /customer-metrics
+```
+Numerator   : COUNT DISTINCT customer_id yang punya ≥ 2 kategori dalam invoice periode
+Denominator : COUNT DISTINCT customer_id yang ada di invoice periode
+```
 
-## M8 — Dormant Customer Rate
-Rumus: Jumlah existing customer dormant / Total existing customer (tanpa filter active_window)
+**Chart:** BarChartWidget di `/cross-selling`
+**Detail (KPI 1.1):** HeatmapWidget — Customer × Kategori
 
-Dormant: last_transaction_date < (awal period_month - dormant_threshold_months). Semakin rendah semakin baik, ideal < 10%.
+---
 
-Chart: LineAlertWidget (threshold 10%) di /dormant-customer
+## KPI 2 — Average Category per Customer
 
-## M9 — Dormant Customer Value
-Rumus per customer: AVG monthly revenue (histori sebelum dormant) x Jumlah bulan dormant
+**Definisi:** Rata-rata jumlah jenis kategori produk yang dibeli per customer aktif.
 
-Jumlah bulan dormant: selisih bulan antara last_transaction_date dan period_month referensi. Output: daftar customer dormant + estimasi value hilang. Catatan: ini estimasi potensi, bukan kerugian aktual.
+**Sumber:** `invoices` + `invoice_items` + `product_categories`
 
-Chart: BarChartWidget (horizontal ranking, sorted desc) di /dormant-customer
+**Cara hitung:**
+```
+Total jenis item (kategori unik) yang terjual di period
+÷ Jumlah customer aktif di period (yang ada di faktur bulan berjalan)
+```
 
-## M10 — Customer Reactivation Rate
-Rumus: Customer dormant (period sebelumnya) yang kembali transaksi di period ini / Total customer dormant period sebelumnya
+**Catatan:** "Total jenis item terjual" = COUNT DISTINCT product_category_id dari semua invoice di period, bukan per customer.
 
-Target tahunan minimum: 15-20%
+**Chart:** AreaChartWidget di `/cross-selling`
 
-Chart: BulletChartWidget (target band 15-20%) di /dormant-customer
+---
 
-## Format Response API (semua metrik dengan tren bulanan)
+## KPI 3 — Existing Customer Active (Revenue)
+
+**Definisi:** Jumlah existing customer yang melakukan transaksi di periode berjalan + rata-rata revenue mereka.
+
+**Existing customer** = `first_invoice_date < period_start` AND `last_invoice_date >= period_end - 90 hari`
+
+**Cara hitung:**
+```
+Count   : COUNT existing customer yang punya invoice di period_month
+Avg Rev : SUM(total_revenue) existing di period ÷ COUNT existing yang transaksi di period
+```
+
+**Yang ditampilkan di chart:**
+- Jumlah existing customer yang transaksi (count)
+- Rata-rata revenue per existing customer yang transaksi
+
+**Scope:** Semua produk + jasa, tidak difilter kategori.
+
+**Chart:** ComboChartWidget di `/customer-metrics`
+(Batang = total revenue existing, Garis = avg revenue per customer)
+
+---
+
+## KPI 4 — Existing Customer Active (Gross Profit)
+
+**Definisi:** Sama persis dengan KPI 3, tapi kolom yang dihitung adalah **gross profit**.
+
+```
+Avg GP : SUM(total_gp) existing di period ÷ COUNT existing yang transaksi di period
+```
+
+**Chart:** BarChartWidget stacked (3 tier: top/mid/long-tail) di `/customer-metrics`
+
+---
+
+## KPI 5 — High Margin Product Penetration
+
+**Definisi:** Proporsi existing customer yang membeli produk high margin di periode berjalan.
+
+**High Margin Product:** Ditentukan via **memo entitas** — admin input produk/kategori mana yang dianggap high margin untuk periode tertentu. Tersimpan di tabel `high_margin_products` (dengan `effective_from` / `effective_until`).
+
+**Cara hitung:**
+```
+Numerator   : COUNT existing customer yang punya ≥ 1 invoice_item dari produk high margin di period
+Denominator : COUNT TOTAL existing customer (bukan hanya yang transaksi di period ini)
+```
+
+**Chart:** DonutChartWidget snapshot bulan ini di `/customer-metrics`
+
+---
+
+## KPI 6 — Repeat Order Rate
+
+**Definisi:** Proporsi existing customer yang melakukan transaksi di periode 30 hari berjalan.
+
+**Cara hitung:**
+```
+Numerator   : COUNT existing customer yang punya invoice di period_month
+Denominator : COUNT TOTAL existing customer
+```
+
+> **Perbedaan dari versi lama:** Denominator = **total existing** (bukan "active existing").
+> Ini berarti customer existing yang sedang tidak beli di bulan ini tetap masuk denominator.
+
+**Chart:** RadialBarWidget — hijau ≥ 80%, kuning 60–79%, merah < 60% di `/customer-metrics`
+
+---
+
+## KPI 7 — Customer Expansion Rate
+
+**Definisi:** Proporsi existing customer yang spend-nya naik vs periode 30 hari sebelumnya.
+
+**Cara hitung:**
+```
+Window saat ini  : SUM(revenue) existing customer di period_month
+Window sebelumnya: SUM(revenue) existing customer di period_month - 1 bulan
+
+Numerator   : COUNT existing yang rev_current > rev_previous
+              (hanya customer yang transaksi di KEDUA periode)
+Denominator : COUNT TOTAL existing customer
+```
+
+> **Perbedaan dari versi lama:** Denominator = **total existing** (bukan hanya yang transaksi di kedua periode).
+
+**Edge case:** Customer baru (not existing) tidak dihitung. Customer existing yang hanya ada di satu periode tidak masuk numerator (tapi tetap masuk denominator).
+
+**Chart:** BarChartWidget 100% stacked horizontal di `/customer-metrics`
+
+---
+
+## KPI 8 — Dormant Customer Rate
+
+**Definisi:** Proporsi customer yang tidak bertransaksi selama 90 hari dari **seluruh customer** (bukan hanya existing).
+
+**Dormant:** `last_invoice_date < period_end - 90 hari`
+
+**Cara hitung:**
+```
+Numerator   : COUNT customer dengan last_invoice_date < period_end - 90 hari
+Denominator : COUNT ALL customer (seluruh data customer di DB, bukan hanya existing)
+```
+
+> **Perbedaan dari versi lama:** Denominator = **ALL customer**, bukan hanya existing customer.
+
+**Butuh data:** Seluruh tabel `customers` + tanggal transaksi terakhir dari `invoices`.
+
+**Chart:** LineAlertWidget (threshold 10%) di `/dormant-customer`
+
+---
+
+## KPI 9 — Dormant Customer Value (tidak berubah)
+
+Estimasi value yang hilang per customer dormant:
+```
+AVG monthly revenue (histori sebelum dormant) × Jumlah bulan dormant
+```
+
+**Chart:** BarChartWidget horizontal ranking di `/dormant-customer`
+
+---
+
+## KPI 10 — Customer Reactivation Rate (tidak berubah)
+
+```
+Customer dormant (period sebelumnya) yang kembali transaksi di period ini
+÷ Total customer dormant period sebelumnya
+```
+
+Target minimum: 15–20%
+
+**Chart:** BulletChartWidget di `/dormant-customer`
+
+---
+
+## Perbandingan: Definisi Lama vs Baru
+
+| Aspek | Versi Lama | Versi Baru (Revised) |
+|---|---|---|
+| Threshold aktif | Rolling 3/6/12 bulan (configurable) | 30 hari = 1 bulan kalender |
+| Threshold dormant | `dormant_threshold_months` dari config | Fixed 90 hari |
+| `active_window` param | Ada di query param | Dihapus |
+| KPI 1 window | 12 bulan rolling trend | 30/90/180/360 hari (multi-window) |
+| KPI 5,6,7 denominator | Active existing | Total existing |
+| KPI 8 denominator | Total existing | **All customer** |
+| Definisi "existing" | first_invoice_date < period_start | + syarat belum dormant (< 90 hari) |
+
+---
+
+## ⚠️ Open Questions — Perlu Konfirmasi Owner
+
+Pertanyaan ini muncul dari sesi klarifikasi 2026-06-27 dan **belum terjawab**. Harus dikonfirmasi sebelum implementasi KPI 1, 3, 6, 7.
+
+**Q1 — "Periode berjalan" = 30 hari rolling atau bulan kalender?**
+User menyebut "threshold per 30 hari" dan "bulan berjalan" bergantian.
+- Opsi A: Bulan kalender (Jan 1–31, Feb 1–28) — filter tetap `period_month` YYYY-MM
+- Opsi B: 30 hari rolling dari tanggal hari ini ke belakang
+- Implikasi: jika rolling, filter di halaman harus date-range picker, bukan month picker
+
+**Q2 — KPI 1 "matrix per 30/90/180/360 hari":**
+Apakah ini berarti:
+- Opsi A: User bisa **pilih** salah satu window (dropdown filter)?
+- Opsi B: **4 angka ditampilkan sekaligus** dalam satu tabel/chart?
+
+**Q3 — KPI 3: yang ditampilkan COUNT saja atau COUNT + avg revenue?**
+"Data yang ditampilkan jumlah customer existing yang melakukan transaksi" — apakah cukup jumlahnya saja, atau juga rata-rata revenue per customer seperti chart ComboWidget saat ini?
+
+**Q4 — KPI 6 "repeat order":**
+Artinya:
+- Opsi A: Customer existing yang beli **lebih dari 1 kali** dalam 30 hari (frekuensi)?
+- Opsi B: Customer existing yang **pernah beli sebelumnya** dan beli lagi di 30 hari ini (returning)?
+
+---
+
+## Format Response API
+
 ```json
 {
-  "metric": "cross_selling_ratio",
   "company_id": 1,
-  "period_month": "2024-03",
-  "active_window": 6,
-  "summary": {
-    "current_value": 22.5,
-    "previous_value": 20.0,
-    "change_percent": 12.5,
-    "trend": "up"
-  },
-  "monthly_trend": [
-    { "month": "2023-04", "value": 18.0, "total_active": 95, "multi_product": 17 }
-  ]
+  "period_month": "2026-06",
+  "trend": [
+    {
+      "month": "2026-06",
+      "existing_customers": 928,
+      "total_revenue_existing": 287149564,
+      "avg_revenue": 8445575,
+      "avg_gross_profit": 2242628,
+      "high_margin_ratio": 0,
+      "repeat_order_rate": 37.3,
+      "expansion_rate": 56.1
+    }
+  ],
+  "high_margin_current": { "bought_pct": 0, "not_bought_pct": 100 },
+  "repeat_order_current": { "value": 37.3 }
 }
 ```
-trend: "up" | "down" | "stable". monthly_trend: 12 bulan ke belakang dari period_month.
+
+---
 
 ## Format Kolom CSV/Excel Sumber (Accurate Online)
-| Kolom | Tipe | Ket |
+
+| Kolom | Tipe | Keterangan |
 |---|---|---|
-| invoice_number | string | unik |
+| invoice_number | string | Dedup key |
 | invoice_date | date DD/MM/YYYY | |
 | customer_code | string | |
 | customer_name | string | |
-| product_category | string | |
-| revenue | number | tanpa titik, koma desimal |
+| product_category | string | Nama kategori produk |
+| revenue | number | Tanpa titik, koma desimal |
 | gross_profit | number | |
 
-Jika format Accurate berubah, mapping dilakukan di utils/parser.ts — jangan ubah nama kolom internal.
+Jika format Accurate berubah, mapping dilakukan di `utils/parser.ts` — jangan ubah nama kolom internal.

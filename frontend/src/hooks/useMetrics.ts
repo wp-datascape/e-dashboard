@@ -15,10 +15,13 @@ export function useCrossSelling() {
 }
 
 // ── M3–M7 — Customer Metrics ──────────────────────────────────────────────────
-export function useCustomerMetrics() {
+export function useCustomerMetrics(params?: {
+  company_id?: number | 'all';
+  period_month?: string;
+}) {
   return useQuery<CustomerMetricsData>({
-    queryKey: ['metrics', 'customer-metrics'],
-    queryFn: metricsApi.getCustomerMetrics,
+    queryKey: ['metrics', 'customer-metrics', params],
+    queryFn: () => metricsApi.getCustomerMetrics(params),
     staleTime: STALE_TIME,
   });
 }

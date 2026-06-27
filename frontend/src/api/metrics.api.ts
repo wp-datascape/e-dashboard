@@ -9,8 +9,11 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getCustomerMetrics: async (): Promise<CustomerMetricsData> => {
-    const res = await api.get<ApiResponse<CustomerMetricsData>>('/metrics/customer-metrics');
+  getCustomerMetrics: async (params?: {
+    company_id?: number | 'all';
+    period_month?: string;
+  }): Promise<CustomerMetricsData> => {
+    const res = await api.get<ApiResponse<CustomerMetricsData>>('/metrics/customer-metrics', { params });
     return res.data.data;
   },
 

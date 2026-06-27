@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
@@ -9,6 +12,7 @@ import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
 import { useCustomerMetrics } from '@/hooks/useMetrics';
+import { useCompanies } from '@/hooks/useCompanies';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtRp(v: number): string {
@@ -35,10 +39,24 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function currentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CustomerMetrics() {
   const theme = useTheme();
-  const { data, isLoading } = useCustomerMetrics();
+
+  const [companyId, setCompanyId] = useState<number | 'all'>('all');
+  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
+
+  const { data: companies = [] } = useCompanies();
+  const { data, isLoading } = useCustomerMetrics({
+    company_id: companyId,
+    period_month: periodMonth,
+  });
 
   const latestTrend = data?.trend.at(-1);
   const hm = data?.high_margin_current;
@@ -46,14 +64,43 @@ export default function CustomerMetrics() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Header */}
-      <Box>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Customer Metrics
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Metrik 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion
-        </Typography>
+      {/* Header + Filter */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            Customer Metrics
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Metrik 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion
+          </Typography>
+        </Box>
+
+        {/* Filter: Company + Period */}
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <TextField
+            select
+            size="small"
+            label="Entitas"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            sx={{ minWidth: 160 }}
+          >
+            <MenuItem value="all">Semua Entitas</MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            type="month"
+            size="small"
+            label="Periode"
+            value={periodMonth}
+            onChange={(e) => setPeriodMonth(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ minWidth: 160 }}
+          />
+        </Box>
       </Box>
 
       {/* ── M3: Combo Chart — Avg Revenue per Existing Customer ── */}
