@@ -51,6 +51,14 @@ Query params:
 
 Response: `CustomerMetricsData` — lihat `metrics.types.ts`
 
+### Endpoint Pendukung (Juga Live)
+
+| Endpoint | Fungsi |
+|---|---|
+| `GET /api/v1/metrics/gp-breakdown` | Gross Profit breakdown detail |
+| `GET /api/v1/metrics/hm-breakdown` | High Margin breakdown detail |
+| `GET /api/v1/metrics/ror-breakdown` | Repeat Order Rate breakdown detail |
+
 ---
 
 ## Endpoint Masih Mock (MSW)

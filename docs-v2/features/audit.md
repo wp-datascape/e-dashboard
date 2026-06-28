@@ -1,7 +1,7 @@
 # Feature: Audit Logs
 
-> Status: Done — 2 endpoints aktif, di-mount di `/api/v1/audit-logs`
-> Last updated: 2026-06-23
+> Status: ✅ Complete — 2 endpoints aktif, di-mount di `/api/v1/audit-logs`
+> Last updated: 2026-06-29
 
 ---
 

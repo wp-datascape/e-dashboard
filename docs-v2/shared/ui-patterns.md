@@ -259,11 +259,43 @@ permissions[] didapat dari response /auth/login dan /auth/refresh -- tidak perlu
 | HeatmapWidget | Custom CSS grid (bukan Recharts) | Matrix: entity x category |
 | ComboChartWidget | ComposedChart Bar+Line dual-Y | Value + average pada chart yang sama |
 | DonutChartWidget | PieChart innerRadius | Snapshot penetration / share |
-| RadialBarWidget | RadialBarChart ring progress | Rate vs 100%, warna berdasarkan threshold |
+| RadialBarWidget | RadialBarChart ring progress | Rate vs target (configurable), warna proporsional |
 | LineAlertWidget | ComposedChart + ReferenceArea | Trend dengan shading danger-zone |
 | BulletChartWidget | Custom CSS bullet | Value vs target band |
 
 Mapping per metrik (M1-M10) -> executive-dashboard/metrics.md, bukan di sini.
+
+### RadialBarWidget — Props Penting
+
+```typescript
+<RadialBarWidget
+  title="Repeat Order Rate"
+  value={39}          // nilai aktual (0–∞, capped di domain)
+  thresholdGreen={80} // target — lingkaran penuh = thresholdGreen, bukan 100
+  onChartClick={() => openModal()} // opsional: klik area chart
+/>
+```
+
+- **Domain**: `[0, thresholdGreen]` — bar penuh ketika `value === thresholdGreen`
+- **Warna**: `pct = value / thresholdGreen * 100`
+  - Hijau: `pct ≥ 100`
+  - Kuning: `pct ≥ 75`
+  - Merah: `pct < 75`
+- **Jangan** pakai domain `[0, 100]` dan threshold hardcoded — selalu pakai `thresholdGreen` dari config
+
+### BarChartWidget — Props Label
+
+```typescript
+<BarChartWidget
+  showLabels           // tampilkan label nilai di dalam bar
+  labelFormatter={(v) => `${v.toFixed(1)}%`}  // format label (default: nilai apa adanya)
+  // ...props lainnya
+/>
+```
+
+- `showLabels` menggunakan `LabelList` Recharts di setiap bar
+- Label di-skip otomatis jika nilai bar < 5 (bar terlalu kecil)
+- Teks label berwarna putih — cocok untuk bar dengan background gelap
 
 Props convention: setiap widget terima data, loading, colorScheme override -- jangan hardcode warna di dalam component chart.
 

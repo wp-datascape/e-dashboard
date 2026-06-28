@@ -96,6 +96,7 @@ const defaultBusinessConfigs = [
   { key: 'dormant_threshold_months.b2b_project', value: '12', description: 'Threshold dormant untuk B2B Project (bulan) — cycle project lebih panjang' },
   { key: 'dormant_threshold_months.b2c', value: '6', description: 'Threshold dormant untuk B2C (bulan)' },
   { key: 'dormant_threshold_months.manufacturing', value: '6', description: 'Threshold dormant untuk Manufacturing (bulan)' },
+  { key: 'repeat_order_target_pct', value: '80', description: 'Target Repeat Order Rate M6 (%) — persentase minimum existing customer yang harus repeat order dalam 30 hari' },
 ]
 
 const defaultPageSettings = [

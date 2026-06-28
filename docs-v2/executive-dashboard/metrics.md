@@ -148,38 +148,48 @@ Denominator : COUNT TOTAL existing customer (bukan hanya yang transaksi di perio
 
 ## KPI 6 — Repeat Order Rate
 
-**Definisi:** Proporsi existing customer yang melakukan transaksi di periode 30 hari berjalan.
+**Definisi:** Proporsi existing customer yang melakukan lebih dari 1 transaksi di **active window 30 hari** periode berjalan.
 
 **Cara hitung:**
 ```
-Numerator   : COUNT existing customer yang punya invoice di period_month
+Numerator   : COUNT existing customer dengan COUNT(DISTINCT invoice) > 1 dalam 30 hari terakhir
 Denominator : COUNT TOTAL existing customer
 ```
 
-> **Perbedaan dari versi lama:** Denominator = **total existing** (bukan "active existing").
-> Ini berarti customer existing yang sedang tidak beli di bulan ini tetap masuk denominator.
+> **Perbedaan dari versi lama:**
+> - Denominator = **total existing** (bukan "active existing")
+> - Numerator = customer yang order **lebih dari 1x** (bukan sekadar punya invoice)
+> - "Repeat order" berarti minimal 2 transaksi berbeda dalam 30 hari aktif
 
-**Chart:** RadialBarWidget — hijau ≥ 80%, kuning 60–79%, merah < 60% di `/customer-metrics`
+**Threshold target:** Dikonfigurasi via `business_configs.repeat_order_target_pct` (default 80%). Dapat diubah di halaman Settings → Threshold → Target KPI.
+
+**Chart:** RadialBarWidget di `/customer-metrics`
+- Lingkaran penuh = target `repeat_order_target_pct` (bukan 100%)
+- Hijau: nilai ≥ target (pct ≥ 100% dari target)
+- Kuning: ≥ 75% dari target
+- Merah: < 75% dari target
+- Klik chart → modal drill-down daftar customer repeat order bulan itu
 
 ---
 
 ## KPI 7 — Customer Expansion Rate
 
-**Definisi:** Proporsi existing customer yang spend-nya naik vs periode 30 hari sebelumnya.
+**Definisi:** Proporsi existing customer yang spend-nya naik dibanding **30 hari sebelum active window**.
 
 **Cara hitung:**
 ```
-Window saat ini  : SUM(revenue) existing customer di period_month
-Window sebelumnya: SUM(revenue) existing customer di period_month - 1 bulan
+Window aktif (cur) : SUM(revenue) existing customer dalam 30 hari terakhir periode
+Window sebelumnya (prev): SUM(revenue) existing customer dalam 30 hari SEBELUM window aktif
+  (yaitu: [period_end - 60 hari, period_end - 30 hari])
 
-Numerator   : COUNT existing yang rev_current > rev_previous
-              (hanya customer yang transaksi di KEDUA periode)
+Numerator   : COUNT existing dimana COALESCE(cur.rev, 0) > COALESCE(prev.rev, 0)
 Denominator : COUNT TOTAL existing customer
 ```
 
-> **Perbedaan dari versi lama:** Denominator = **total existing** (bukan hanya yang transaksi di kedua periode).
-
-**Edge case:** Customer baru (not existing) tidak dihitung. Customer existing yang hanya ada di satu periode tidak masuk numerator (tapi tetap masuk denominator).
+> **Perbedaan dari versi lama:**
+> - Window sebelumnya = **30 hari sebelum window aktif** (bukan bulan kalender sebelumnya)
+> - Customer yang tidak order di periode sebelumnya (prev.rev = 0) tapi order sekarang **dihitung** sebagai "spending naik"
+> - Denominator = **semua existing**, termasuk yang tidak aktif sama sekali
 
 **Chart:** BarChartWidget 100% stacked horizontal di `/customer-metrics`
 

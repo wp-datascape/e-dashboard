@@ -3,7 +3,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { PieLabelRenderProps } from 'recharts';
 
 export interface DonutSlice {
   name: string;
@@ -18,41 +17,8 @@ export interface DonutChartWidgetProps {
   height?: number;
   centerLabel?: string;
   centerValue?: string;
+  onChartClick?: () => void;
 }
-
-const RADIAN = Math.PI / 180;
-
-const renderCustomLabel = ({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-}: PieLabelRenderProps) => {
-  if ((percent ?? 0) < 0.05) return null;
-  const _cx = cx as number;
-  const _cy = cy as number;
-  const _mid = midAngle as number;
-  const _ir = innerRadius as number;
-  const _or = outerRadius as number;
-  const radius = _ir + (_or - _ir) * 0.5;
-  const x = _cx + radius * Math.cos(-_mid * RADIAN);
-  const y = _cy + radius * Math.sin(-_mid * RADIAN);
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="white"
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontSize={12}
-      fontWeight={700}
-    >
-      {`${((percent ?? 0) * 100).toFixed(1)}%`}
-    </text>
-  );
-};
 
 export const DonutChartWidget = ({
   title,
@@ -61,10 +27,11 @@ export const DonutChartWidget = ({
   height = 240,
   centerLabel,
   centerValue,
+  onChartClick,
 }: DonutChartWidgetProps) => {
   const theme = useTheme();
   return (
-    <Card sx={{ p: 2, height: '100%' }}>
+    <Card sx={{ p: 2, height: '100%', border: 'none' }}>
       <Box sx={{ mb: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
           {title}
@@ -78,7 +45,7 @@ export const DonutChartWidget = ({
 
       <Box sx={{ position: 'relative' }}>
         <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
+          <PieChart onClick={onChartClick} style={onChartClick ? { cursor: 'pointer' } : undefined}>
             <Pie
               data={data}
               cx="50%"
@@ -87,7 +54,7 @@ export const DonutChartWidget = ({
               outerRadius="72%"
               dataKey="value"
               labelLine={false}
-              label={renderCustomLabel}
+              stroke="none"
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -100,9 +67,24 @@ export const DonutChartWidget = ({
                 border: `1px solid ${theme.palette.divider}`,
                 borderRadius: 0,
                 fontSize: 12,
+                color: theme.palette.text.primary,
               }}
             />
-            <Legend wrapperStyle={{ fontSize: 12, color: theme.palette.text.secondary }} />
+            <Legend content={(props) => {
+              const entries = (props as { payload?: { color?: string; value?: string }[] }).payload ?? [];
+              return (
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                  {entries.map((entry, i) => (
+                    <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Box sx={{ width: 12, height: 12, bgcolor: entry.color, flexShrink: 0 }} />
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 12 }}>
+                        {entry.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              );
+            }} />
           </PieChart>
         </ResponsiveContainer>
 

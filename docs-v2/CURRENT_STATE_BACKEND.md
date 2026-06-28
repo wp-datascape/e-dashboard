@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-25
+> Last updated: 2026-06-29
 
 ---
 
@@ -30,7 +30,7 @@
 | Feature: Audit   | Done    | list + detail + handler — docs: `features/audit.md` |
 | Feature: Products | Done   | GET categories + products dari Accurate API + handler |
 | Feature: Import  | ~95%    | File upload + SSE streaming + template validation + branch_name. Sisa: auth guard, rollback endpoint |
-| Feature: Metrics | 0%      | Belum dibuat                               |
+| Feature: Metrics | ~70%    | M3–M7 LIVE dari real DB (customer metrics: Revenue, GP, High Margin, Repeat Order, Expansion). M1–M2 & M8–M10 masih MSW. Threshold config + segment helper baru. |
 | Feature: Customers | ✅ 100% | GET / + GET /:id, status logic, channel division filter aktif |
 | Feature: Transactions | 0%  | Belum dibuat                              |
 
@@ -174,21 +174,51 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 | `src/features/config/config.service.ts` | Not Started |
 | `src/features/config/config.repository.ts` | Not Started |
 
-### Feature: Metrics (Priority: HIGH — core business value)
+### Feature: Metrics (Priority: HIGH — core business value) — ✅ ~70% LIVE
+| File | Status | Notes |
+|------|--------|-------|
+| `src/features/metrics/metrics.route.ts` | ✅ Done | 4 endpoints: customer-metrics, gp-breakdown, hm-breakdown, ror-breakdown |
+| `src/features/metrics/metrics.handler.ts` | ✅ Done | Thin handler pattern — validasi + service call |
+| `src/features/metrics/metrics.service.ts` | ✅ Done | M3 (Revenue), M4 (Gross Profit), M5 (High Margin), M6 (Repeat Order), M7 (Expansion) |
+| `src/features/metrics/metrics.repository.ts` | ✅ Done | 567 lines — query kompleks dari invoices + invoice_items + customers |
+| `src/features/metrics/metrics.schema.ts` | ✅ Done | Zod schemas untuk query params |
+| `src/features/metrics/metrics.types.ts` | ✅ Done | Type definitions untuk metrics results |
+| `src/features/metrics/segment.helper.ts` | ✅ Done | Helper untuk segmentasi data metrik |
+| `src/features/config/threshold.ts` | ✅ Done | Threshold business_configs untuk metrik |
+
+**M1–M2 & M8–M10:** masih via MSW mock di frontend.
+
+### Feature: Customers (Priority: MEDIUM) — ✅ 100% LIVE
 | File | Status |
 |------|--------|
-| `src/features/metrics/metrics.route.ts` | Not Started |
-| `src/features/metrics/metrics.handler.ts` | Not Started |
-| `src/features/metrics/metrics.service.ts` | Not Started — 10 KPI logic |
-| `src/features/metrics/metrics.repository.ts` | Not Started |
+| `src/features/customers/customers.route.ts` | ✅ Done |
+| `src/features/customers/customers.handler.ts` | ✅ Done |
+| `src/features/customers/customers.service.ts` | ✅ Done |
+| `src/features/customers/customers.repository.ts` | ✅ Done (329 lines — full CRUD + status logic + division filter) |
+| `src/features/customers/customers.schema.ts` | ✅ Done |
 
-### Feature: Customers (Priority: MEDIUM)
-### Feature: Products (Priority: MEDIUM)
-### Feature: Transactions (Priority: MEDIUM)
-### Feature: Audit (Priority: LOW)
+### Feature: Products (Priority: MEDIUM) — ✅ Done
+| File | Status |
+|------|--------|
+| `src/features/products/products.route.ts` | ✅ Done |
+| `src/features/products/products.handler.ts` | ✅ Done |
+| `src/features/products/products.service.ts` | ✅ Done |
+| `src/features/products/products.repository.ts` | ✅ Done |
+| `src/features/products/accurate-products.service.ts` | ✅ Done (498 lines — Accurate API sync) |
+
+### Feature: Settings (Priority: MEDIUM) — ✅ All Done
+- High Margin: CRUD mapping produk/kategori per periode ✅
+- Channel Divisions: CRUD mapping channel_name → division ✅
+- Classification: CRUD classification rules ✅
+- Threshold: Config threshold metrik ✅
+
+### Feature: Transactions (Priority: MEDIUM) — ❌ Not Started
+Belum dibuat — masih commented out di router.ts
+
+### Feature: Audit (Priority: LOW) — ✅ Done
+Read-only, paginated, filter by action/date
 
 ---
-
 ## Known Decisions (Architecture)
 
 | Keputusan | Status | Detail |

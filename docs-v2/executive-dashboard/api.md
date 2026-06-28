@@ -78,6 +78,66 @@ Query tambahan: ?page=1&per_page=50&search=PT+ABC
 
 Semua 🔒 [metrics:read]
 
+## GET /metrics/customer-metrics
+🔒 [metrics:read] — M3–M7 sekaligus (live, real DB)
+
+Query: `?company_id=1|"all"&period_month=YYYY-MM&division=distribution|...`
+
+```json
+{
+  "data": {
+    "trend": [
+      {
+        "month": "2026-06",
+        "existing_customers": 346,
+        "active_count": 160,
+        "avg_revenue": 5200000,
+        "avg_gp": 1100000,
+        "repeat_order_rate": 39.0,
+        "expansion_rate": 39.0,
+        "up_rate": 39.0,
+        "flat_down_rate": 61.0,
+        "hm_pct": 22.0,
+        "gp_tier1": 450000000, "gp_tier2": 200000000, "gp_tier3": 80000000,
+        "top_customer_id": 12, "top_customer_name": "PT ABC",
+        "top_customer_revenue": 95000000, "top_customer_pct": 18.2,
+        "top_gp_customer_id": 7, "top_gp_customer_name": "CV XYZ",
+        "top_gp_revenue": 30000000, "top_gp_pct": 15.1,
+        "median_revenue": 3200000
+      }
+    ],
+    "repeat_order_current": {
+      "value": 39.0,
+      "target_pct": 80
+    }
+  }
+}
+```
+
+## GET /metrics/ror-breakdown
+🔒 [metrics:read] — M6 drill-down: daftar existing customer dengan >1 order dalam active window
+
+Query: `?company_id=1|"all"&month=YYYY-MM&division=...`
+
+```json
+{
+  "data": {
+    "month": "2026-06",
+    "repeat_count": 62,
+    "total_existing": 346,
+    "rows": [
+      {
+        "ranking": 1,
+        "customer_name": "PT SUMBER MAKMUR",
+        "customer_code": "SM-001",
+        "invoice_count": 15,
+        "total_revenue": 95000000
+      }
+    ]
+  }
+}
+```
+
 ## GET /metrics/dormant-value
 🔒 [metrics:read] -- M9, shape beda karena output per-customer bukan trend bulanan
 

@@ -1,7 +1,7 @@
 # Feature: Users CRUD
 
-> Status: ~60% — CRUD selesai, menunggu authMiddleware + RBAC
-> Last updated: 2026-06-21
+> Status: ✅ 100% — CRUD selesai (tanpa auth sementara). Menunggu authMiddleware + RBAC.
+> Last updated: 2026-06-29
 > Baca juga: `shared/api-conventions.md`, `admin/api.md`
 
 ---

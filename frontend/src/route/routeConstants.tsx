@@ -60,11 +60,6 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
     element: withLayout(<CrossSelling />), 
     protected: true 
   },
-  'customer-metrics': { 
-    path: '/customer-metrics', 
-    element: withLayout(<CustomerMetrics />), 
-    protected: true 
-  },
   'dormant-customer': { 
     path: '/dormant-customer', 
     element: withLayout(<DormantCustomer />), 

@@ -39,6 +39,8 @@ export function useUpdateConfig() {
       pageApi.updateConfig(key, value),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['config'] });
+      // Threshold KPI berdampak ke response metrics — invalidate semua metrics cache
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
     },
   });
 }

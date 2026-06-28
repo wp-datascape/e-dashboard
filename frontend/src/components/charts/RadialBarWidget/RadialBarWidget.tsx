@@ -15,6 +15,7 @@ export interface RadialBarWidgetProps {
   value: number; // 0–100
   thresholdGreen?: number; // default 80
   height?: number;
+  onChartClick?: () => void;
 }
 
 export const RadialBarWidget = ({
@@ -23,19 +24,24 @@ export const RadialBarWidget = ({
   value,
   thresholdGreen = 80,
   height = 220,
+  onChartClick,
 }: RadialBarWidgetProps) => {
   const theme = useTheme();
+  // Proporsi nilai terhadap target (0–100+%)
+  const pct = thresholdGreen > 0 ? (value / thresholdGreen) * 100 : 0;
   const color =
-    value >= thresholdGreen ? theme.palette.success.main : value >= 60 ? theme.palette.warning.main : theme.palette.error.main;
+    pct >= 100 ? theme.palette.success.main
+    : pct >= 75 ? theme.palette.warning.main
+    : theme.palette.error.main;
 
   const statusLabel =
-    value >= thresholdGreen
-      ? '✓ Sesuai Target'
-      : value >= 60
-        ? '⚠ Mendekati Target'
-        : '✗ Di Bawah Target';
+    pct >= 100 ? '✓ Sesuai Target'
+    : pct >= 75 ? '⚠ Mendekati Target'
+    : '✗ Di Bawah Target';
 
-  const chartData = [{ value, fill: color }];
+  // Domain [0, thresholdGreen] — lingkaran penuh = target
+  const fillValue = Math.min(value, thresholdGreen);
+  const chartData = [{ value: fillValue, fill: color }];
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
@@ -50,7 +56,10 @@ export const RadialBarWidget = ({
         )}
       </Box>
 
-      <Box sx={{ position: 'relative' }}>
+      <Box
+        sx={{ position: 'relative', cursor: onChartClick ? 'pointer' : 'default' }}
+        onClick={onChartClick}
+      >
         <ResponsiveContainer width="100%" height={height}>
           <RadialBarChart
             cx="50%"
@@ -63,7 +72,7 @@ export const RadialBarWidget = ({
           >
             <PolarAngleAxis
               type="number"
-              domain={[0, 100]}
+              domain={[0, thresholdGreen]}
               angleAxisId={0}
               tick={false}
             />

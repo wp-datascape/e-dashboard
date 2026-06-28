@@ -12,7 +12,10 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  Cell,
+  LabelList,
 } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 
 export interface ComboChartWidgetProps {
   title: string;
@@ -28,6 +31,16 @@ export interface ComboChartWidgetProps {
   height?: number;
   formatBar?: (v: number) => string;
   formatLine?: (v: number) => string;
+  // Garis kedua (misal median) — dashed
+  line2Key?: string;
+  line2Label?: string;
+  line2Color?: string;
+  // Custom tooltip — menggantikan tooltip default
+  renderTooltip?: (props: TooltipContentProps<number, string>) => React.ReactElement | null;
+  // Highlight bar saat nilai field tertentu melebihi threshold
+  concentrationKey?: string;
+  concentrationThreshold?: number;
+  concentrationColor?: string;
 }
 
 export const ComboChartWidget = ({
@@ -44,8 +57,16 @@ export const ComboChartWidget = ({
   height = 220,
   formatBar,
   formatLine,
+  line2Key,
+  line2Label,
+  line2Color,
+  renderTooltip,
+  concentrationKey,
+  concentrationThreshold = 25,
+  concentrationColor,
 }: ComboChartWidgetProps) => {
   const theme = useTheme();
+  const warnColor = concentrationColor ?? theme.palette.warning.light;
 
   const tooltipFormatter = (value: unknown, name: unknown) => {
     const v = value as number;
@@ -69,7 +90,7 @@ export const ComboChartWidget = ({
       </Box>
 
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 16, right: 28, left: -20, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
             stroke={theme.palette.divider}
@@ -96,23 +117,46 @@ export const ComboChartWidget = ({
             tickLine={false}
             tickFormatter={(v) => (formatLine ? formatLine(v) : v)}
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: theme.palette.background.paper,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 0,
-              fontSize: 12,
-            }}
-            formatter={tooltipFormatter}
-          />
+          {renderTooltip ? (
+            <Tooltip content={(props) => renderTooltip(props as TooltipContentProps<number, string>)} />
+          ) : (
+            <Tooltip
+              contentStyle={{
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 0,
+                fontSize: 12,
+              }}
+              formatter={tooltipFormatter}
+            />
+          )}
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar
-            yAxisId="left"
-            dataKey={barKey}
-            name={barLabel}
-            fill={barColor}
-            radius={0}
-          />
+
+          <Bar yAxisId="left" dataKey={barKey} name={barLabel} fill={barColor} radius={0}>
+            {concentrationKey && (data as Record<string, number>[]).map((entry, i) => (
+              <Cell
+                key={i}
+                fill={(entry[concentrationKey] ?? 0) > concentrationThreshold ? warnColor : barColor}
+              />
+            ))}
+            {concentrationKey && (
+              <LabelList
+                dataKey={concentrationKey}
+                content={(props) => {
+                  const val = Number(props.value ?? 0);
+                  if (val <= concentrationThreshold) return null;
+                  const cx = Number(props.x ?? 0) + Number(props.width ?? 0) / 2;
+                  const cy = Number(props.y ?? 0) - 6;
+                  return (
+                    <text x={cx} y={cy} textAnchor="middle" fontSize={11} fill={theme.palette.warning.dark}>
+                      ⚠
+                    </text>
+                  );
+                }}
+              />
+            )}
+          </Bar>
+
           <Line
             yAxisId="right"
             dataKey={lineKey}
@@ -122,6 +166,19 @@ export const ComboChartWidget = ({
             dot={{ r: 3, fill: lineColor }}
             type="monotone"
           />
+
+          {line2Key && (
+            <Line
+              yAxisId="right"
+              dataKey={line2Key}
+              name={line2Label ?? line2Key}
+              stroke={line2Color ?? theme.palette.success.main}
+              strokeWidth={1.5}
+              strokeDasharray="5 5"
+              dot={false}
+              type="monotone"
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </Card>

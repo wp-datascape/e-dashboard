@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~97%   | Sidebar filter menu by permissions. Auth context simpan `permissions[]`. |
-| Backend  | ~74%   | Semua handler sekarang tipis (no try-catch). 4 service baru dibuat. Services handle isDuplicateError. Auth, Metrics, Transactions belum. |
-| Database | ~80%   | 21 tabel aktif. business_configs dipakai live oleh customers status logic. |
-| Docs     | ~99%   | Updated sesi ini — arsitektur thin handler + service error layer terdokumentasi |
+| Frontend | ~97%   | Sidebar filter menu by permissions. Auth context simpan `permissions[]`. Customer Metrics M3-M7 sub-pages live. |
+| Backend  | ~80%   | M3–M7 live from real DB. Handler tipis (no try-catch), service layer handle error. Metrics threshold config + segment helper added. Auth, M1-M2 & M8-M10, Transactions masih belum. Middleware: hanya requestId + requestLogger. |
+| Database | ~80%   | 21 tabel aktif + 2 migration baru (0004 customer placeholder, 0005 repeat_order_config). business_configs dipakai live. |
+| Docs     | ~99%   | metrics_docs.md (formula detail M3-M5) + ui-patterns updated. |
 
 ## Frontend — Page Status
 
@@ -17,7 +17,12 @@
 |------------------|---------------------|------------------------------|
 | Dashboard        | `/dashboard`        | 10 MetricCards + 9 charts    |
 | Cross Selling    | `/cross-selling`    | M1 ratio + M1.1 heatmap + M2 |
-| Customer Metrics | `/customer-metrics` | M3 M4 M5 M6 M7               |
+| Customer Metrics | `/customer-metrics` | M3 Revenue, M4 Gross Profit, M5 High Margin, M6 Repeat Order, M7 Expansion — **real API from DB** |
+| Classification Rules | `/settings/classification` | CRUD classification rules, backend real API |
+| Threshold Settings | `/settings/threshold` | Konfigurasi threshold metrik, backend real API |
+| App Settings | `/settings/app` | Theme + language settings |
+| Integration | `/config/integration` | Accurate integration config |
+| Features | `/config/features` | Feature flags management |
 | Dormant Customer | `/dormant-customer` | M8 M9 M10                    |
 | Config           | `/config`           | 3 tabs: Business Rules, Integration, App Settings (theme + lang) |
 | Users            | `/users`            | List + create + edit user, mock API |
@@ -94,8 +99,8 @@
 | Companies        | ✅ 100% | CRUD + branches |
 | Products         | ✅ 100% | Local + Accurate sync |
 | **Customers**    | ✅ **100%** | **GET / + GET /:id, status dari business_configs, channel division filter via JOIN** |
+| **Metrics M3–M7**| ✅ **Live** | **GET /metrics/customer-metrics LIVE. M6 (>1 invoice, threshold dari config), M7 (prev window 30 hari, denominator total existing) sudah benar. M1–M2 & M8–M10 masih MSW.** |
 | Auth             | ❌ Todo | JWT + CSRF |
-| Metrics (M1-M10) | ❌ Todo | Kalkulasi + cache |
 | Transactions     | ❌ Todo | Invoice ledger |
 
 ## Docs v2 — Status (SELESAI 2026-06-18)
@@ -149,7 +154,10 @@
 
 ## Next Actions (Priority Order)
 1. Build Auth + RBAC backend (JWT + CSRF) — unblock semua protected route
-2. Build Metrics backend (M1-M10) — kalkulasi + metric_cache
+2. **Lanjutkan Metrics backend:**
+   - ~~Fix denominator M5/M6/M7~~ ✅ Selesai
+   - Build `GET /metrics/cross-selling` — M1, M1.1, M2 (gantikan MSW)
+   - Build `GET /metrics/dormant-customer` — M8, M9, M10 (gantikan MSW)
 3. Build Transactions backend — invoice ledger endpoint
 4. Split CustomerMetrics → 2.2 Expansion + 3.2 High Margin
 5. Konfirmasi keputusan terbuka di tabel blocker bersama PM/stakeholder
@@ -168,6 +176,71 @@
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-28/29 (sesi 23): M6 Repeat Order Rate + M7 Expansion Rate — Formula & UI Fix
+
+**M6 — Repeat Order Rate (formula direvisi):**
+- Numerator: existing dengan `COUNT(DISTINCT invoice_id) > 1` dalam 30 hari aktif (sebelumnya: ≥1 invoice)
+- CTE `repeat_orders` di `fetchCustomerMetricsTrend` — `HAVING COUNT(DISTINCT ri.invoice_id) > 1`
+- Threshold configurable via `business_configs.repeat_order_target_pct` (default 80)
+- `loadThresholds()` dijalankan paralel di `getCustomerMetrics()` untuk ambil `repeatOrderTargetPct`
+- Response `repeat_order_current: { value, target_pct }` (bukan angka scalar)
+
+**M6 — RadialBarWidget Fix:**
+- Domain `[0, thresholdGreen]` (bukan `[0, 100]`) — lingkaran penuh = target
+- Warna proporsional: `pct = value / thresholdGreen × 100`, hijau ≥ 100%, kuning ≥ 75%, merah < 75%
+- Prop baru: `onChartClick` — klik area chart membuka modal
+
+**M6 — ROR Breakdown Modal:**
+- Endpoint baru: `GET /metrics/ror-breakdown?month=&company_id=&division=`
+- `fetchRorBreakdown()` di repository — `HAVING COUNT(DISTINCT i.id) > 1`, return `repeat_count + total_existing + rows`
+- Modal `ResponsiveListView` dengan `StatusChip` untuk kolom `invoice_count`
+- `useRorBreakdown()` hook di `useMetrics.ts`
+
+**M6 — Settings Threshold (Target KPI):**
+- DB migration `0005_repeat_order_config.sql` — insert `repeat_order_target_pct = 80`
+- `ThresholdConfig.repeatOrderTargetPct` di `threshold.ts`
+- Settings/Threshold page: section "Target KPI" dengan `EditablePctCell`
+- `useUpdateConfig` invalidate `['metrics']` cache setelah update agar dashboard refresh otomatis
+
+**M7 — Expansion Rate (formula direvisi):**
+- Window sebelumnya: `(period_end - 60 hari, period_end - 30 hari]` — bukan bulan kalender sebelumnya
+- CTE baru `prev_inv_agg` menggantikan `LEFT JOIN active_inv_agg prev ON prev.ms = m.ms - 1 month`
+- Numerator: `COALESCE(cur.rev, 0) > COALESCE(prv.rev, 0)` — customer 0→sesuatu dihitung sebagai "naik"
+- Denominator: `COUNT(DISTINCT e.id)` — semua existing
+
+**M7 — BarChartWidget Labels:**
+- Prop baru `showLabels` + `labelFormatter` di `BarChartWidget`
+- Menggunakan `LabelList` Recharts, skip jika nilai < 5
+- M7 aktifkan `showLabels`, `labelFormatter={(v) => '${v.toFixed(1)}%'}`
+- Subtitle: "Hijau = % spending naik vs 30 hari sebelumnya · Abu-abu = % flat/turun"
+
+**File yang diubah:**
+- `backend/src/features/metrics/metrics.repository.ts` — CTE `prev_inv_agg`, `repeat_orders`, formula M6/M7, `fetchRorBreakdown()`
+- `backend/src/features/metrics/metrics.types.ts` — `RorBreakdownRow`, `RorBreakdownData`, `RepeatOrderCurrent`
+- `backend/src/features/metrics/metrics.schema.ts` — `rorBreakdownQuerySchema`
+- `backend/src/features/metrics/metrics.service.ts` — `getRorBreakdown()`, parallel `loadThresholds()`, `repeat_order_current.target_pct`
+- `backend/src/features/metrics/metrics.handler.ts` — `handleGetRorBreakdown`
+- `backend/src/features/metrics/metrics.route.ts` — `GET /ror-breakdown`
+- `backend/src/features/config/threshold.ts` — `ThresholdConfig.repeatOrderTargetPct`, `DEFAULTS`, `parseThresholdConfigs`
+- `backend/src/db/migrations/0005_repeat_order_config.sql` — NEW (DB seed config)
+- `backend/src/db/seed.ts` — `repeat_order_target_pct`
+- `frontend/src/types/metrics.ts` — `RorBreakdownRow`, `RorBreakdownData`, `RepeatOrderCurrent`
+- `frontend/src/api/metrics.api.ts` — `getRorBreakdown()`
+- `frontend/src/hooks/useMetrics.ts` — `useRorBreakdown()`
+- `frontend/src/hooks/usePageSettings.ts` — `useUpdateConfig` invalidate `['metrics']`
+- `frontend/src/pages/CustomerMetrics/M6RepeatOrder.tsx` — REWRITTEN (RadialBarWidget + ROR modal)
+- `frontend/src/pages/CustomerMetrics/M7Expansion.tsx` — UPDATED (showLabels + subtitle fix)
+- `frontend/src/pages/CustomerMetrics/index.tsx` — UPDATED (`thresholdPct` prop)
+- `frontend/src/pages/Settings/Threshold/index.tsx` — UPDATED (Target KPI section + EditablePctCell)
+- `frontend/src/components/charts/RadialBarWidget/RadialBarWidget.tsx` — UPDATED (domain, color, onChartClick)
+- `frontend/src/components/charts/BarChartWidget/BarChartWidget.tsx` — UPDATED (showLabels, labelFormatter)
+- `docs-v2/executive-dashboard/metrics.md` — UPDATED (M6, M7 definisi direvisi)
+- `docs-v2/executive-dashboard/api.md` — UPDATED (+/metrics/customer-metrics, +/metrics/ror-breakdown)
+- `docs-v2/shared/metrics_docs.md` — UPDATED (+M6, +M7 full documentation)
+- `docs-v2/shared/ui-patterns.md` — UPDATED (RadialBarWidget domain/color, BarChartWidget showLabels)
+
+---
 
 ### 2026-06-27 (sesi 22): BuChip Defensive + Mock Data Migration + Layout Fixes Channel Divisions
 
@@ -944,24 +1017,28 @@
 
 ---
 
-### 2026-06-19 (sesi 1): UI Admin + Refactor Card System
+### 2026-06-29: Sinkronisasi dokumentasi dengan kondisi aktual project (audit kode menyeluruh)
 
-**Config page (5.4) diperbaiki:**
-- Bug: `useTheme` tidak ada di `@/theme/theme.context` (nama benar: `useThemeMode`)
-- Fix: hapus duplikat inline `AppSettingsTab` & `IntegrationTab`, impor dari `Config/components/` yang sudah benar
-- Struktur tab: Business Rules (dormant threshold per BU, editable inline), Integration (OAuth / API Token), App Settings (dark mode toggle + language)
+**Verifikasi backend — semua file dibaca isinya:**
+- ✅ Semua route files (17 file) — endpoint terdaftar
+- ✅ Semua handler files — thin handler pattern
+- ✅ Semua service files — business logic
+- ✅ Semua repository files — DB queries
+- ✅ Schema files (21 tabel) — lengkap
+- ✅ Seed data — companies, branches, roles, permissions, users, configs, classification rules
+- ✅ Middleware — hanya requestId + requestLogger
+- ✅ Router.ts — semua route terdaftar (kecuali auth + transactions)
+- ✅ Tidak ada: `backend/src/features/auth/` atau `backend/src/features/transactions/`
 
-**Flat design — hapus semua rounded corner pada card:**
-- Tambah override `borderRadius: 0` ke `MuiCard` dan `MuiPaper` di kedua tema (light + dark) di `src/theme/index.ts`
-- Hapus semua inline `borderRadius` yang ada di `DetailCard`, `RoleCard`, `AppSettingsTab`, `Card`
+**Frontend — verifikasi halaman & API:**
+- ✅ Semua halaman di routeConstants.tsx (25+ entries) sudah ada komponennya
+- ✅ Semua API modules (17 file) — dipanggil via TanStack Query hooks
+- ✅ MSW handlers (14 file) — mock untuk dev
 
-**Atomic `Card` component (`src/components/ui/Card/Card.tsx`):**
-- Tulis ulang menjadi single source of truth untuk semua card styling di aplikasi
-- Wrap `MuiPaper` dengan default: `elevation=0`, `square=true`, `border: 1px solid divider`, `bgcolor: background.paper`
-- Caller hanya pass `sx` untuk override spesifik (padding, height, dll)
-- 15 file dimigrasikan: semua chart widget (8), DataTable, StatCard, Dashboard, Config, Login, RoleCard, DetailCard, DeleteRoleDialog
-
-**Aturan ke depan:** Jangan pernah import `Paper` atau `MuiCard` langsung untuk container halaman — selalu gunakan `import { Card } from '@/components/ui'`.
+**Dokumentasi diupdate:**
+- `CLAUDE.md` — progress Frontend ~97%, Backend ~80%
+- `CURRENT_STATE.md` — status per fitur akurat, tabel halaman diperbarui
+- `CURRENT_STATE_BACKEND.md` — Metrics dari 0% → ~70%, fitur lain diverifikasi
 
 ---
 

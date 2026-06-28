@@ -11,7 +11,7 @@ Frontend : React 19 + Vite 8 + TypeScript 6 + MUI v9 (SPA)
 
 Auth     : JWT httpOnly Cookie + CSRF (dev: localStorage + MSW)
 
-Status   : Frontend ~96% | Backend ~72%
+Status   : Frontend ~97% | Backend ~80%
 
 ## Read Order
 1. `CRITICAL_RULES.md` — hard constraints, tech stack, conventions
@@ -43,6 +43,7 @@ Status   : Frontend ~96% | Backend ~72%
 | Channel Divisions          | `features/channel-divisions.md`        |
 | High Margin Products       | `features/high-margin-products.md`     |
 | Metrics / KPI (M1–M10)    | `features/metrics.md`                  |
+| Formula detail M3–M5      | `shared/metrics_docs.md`               |
 | Audit Log                  | `features/audit.md`                    |
 | Accurate Integration       | `features/accurate.md`                 |
 

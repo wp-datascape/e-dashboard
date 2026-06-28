@@ -1,44 +1,23 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
 import { and, eq, isNull, isNotNull, or, sql, desc, asc, ilike } from 'drizzle-orm'
-import { findAllConfigs } from '@/features/config/config.repository'
+import { loadThresholds, buildDormantCaseSql } from '@/features/config/threshold'
+import type { ThresholdConfig } from '@/features/config/threshold'
 import type { CustomersQuery } from './customers.schema'
 
 // ─── Load threshold config dari business_configs ───────────────────────────────
-// active_window_months              → new + active threshold (default 1)
-// dormant_threshold_months.{bu}     → dormant threshold per BU
-async function loadThresholds() {
-  const configs = await findAllConfigs()
-  const get = (key: string, fallback: string) =>
-    configs.find((c) => c.key === key)?.value ?? fallback
-  return {
-    activeMonths: parseInt(get('active_window_months', '1')),
-    dormant: {
-      b2b_dc: parseInt(get('dormant_threshold_months.b2b_dc', '3')),
-      b2b_project: parseInt(get('dormant_threshold_months.b2b_project', '12')),
-      b2c: parseInt(get('dormant_threshold_months.b2c', '6')),
-      manufacturing: parseInt(get('dormant_threshold_months.manufacturing', '6')),
-    },
-  }
-}
+// Gunakan shared utility di features/config/threshold.ts.
+// Mapping business_unit → dormant key ada di BU_DORMANT_KEY_MAP (sumber tunggal).
 
 // ─── Ekspresi CASE SQL untuk kolom status ─────────────────────────────────────
 function buildStatusExpr(
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
-  dormant: Record<string, number>,
+  dormant: ThresholdConfig['dormant'],
 ) {
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
-    CASE ${customers.business_unit}
-      WHEN 'distribution'  THEN ${dormant.b2b_dc}::int
-      WHEN 'project'       THEN ${dormant.b2b_project}::int
-      WHEN 'e_commerce'    THEN ${dormant.b2c}::int
-      WHEN 'intercompany'  THEN ${dormant.b2b_project}::int
-      WHEN 'freelancer'    THEN ${dormant.b2c}::int
-      WHEN 'support'       THEN ${dormant.b2b_dc}::int
-      ELSE                      ${dormant.b2b_dc}::int
-    END * INTERVAL '1 month'
+    ${buildDormantCaseSql(customers.business_unit, dormant)} * INTERVAL '1 month'
   )`
 
   return sql<string>`
@@ -61,19 +40,11 @@ function buildStatusWhere(
   status: string,
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
-  dormant: Record<string, number>,
+  dormant: ThresholdConfig['dormant'],
 ) {
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
-    CASE ${customers.business_unit}
-      WHEN 'distribution'  THEN ${dormant.b2b_dc}::int
-      WHEN 'project'       THEN ${dormant.b2b_project}::int
-      WHEN 'e_commerce'    THEN ${dormant.b2c}::int
-      WHEN 'intercompany'  THEN ${dormant.b2b_project}::int
-      WHEN 'freelancer'    THEN ${dormant.b2c}::int
-      WHEN 'support'       THEN ${dormant.b2b_dc}::int
-      ELSE                      ${dormant.b2b_dc}::int
-    END * INTERVAL '1 month'
+    ${buildDormantCaseSql(customers.business_unit, dormant)} * INTERVAL '1 month'
   )`
 
   const isNew = or(

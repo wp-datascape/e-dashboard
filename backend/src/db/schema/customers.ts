@@ -19,6 +19,7 @@ import {
   varchar,
   integer,
   date,
+  boolean,
   timestamp,
 } from 'drizzle-orm/pg-core'
 import { companies } from './companies'
@@ -37,6 +38,9 @@ export const customers = pgTable('customers', {
 
   business_unit: varchar('business_unit', { length: 50 }),
   // B2B_DC | B2B_PROJECT | B2C | MANUFACTURING
+
+  is_placeholder: boolean('is_placeholder').notNull().default(false),
+  // true untuk customer dummy Accurate (PELANGGAN UMUM, dll) — dikecualikan dari semua metrik
 
   first_invoice_date: date('first_invoice_date'),
   // MIN(invoice_date) dari transaksi customer ini

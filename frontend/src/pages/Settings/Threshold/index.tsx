@@ -31,6 +31,37 @@ const BU_LABELS: Record<string, string> = {
   manufacturing: 'Manufacturing',
 }
 const DORMANT_PREFIX = 'dormant_threshold_months.'
+const KPI_TARGET_KEYS = ['repeat_order_target_pct']
+const KPI_TARGET_LABELS: Record<string, string> = {
+  repeat_order_target_pct: 'M6 · Target Repeat Order Rate',
+}
+const KPI_TARGET_DESC: Record<string, string> = {
+  repeat_order_target_pct: 'Persentase minimum existing customer yang harus repeat order dalam 30 hari',
+}
+
+function EditablePctCell({ item }: { item: ConfigItem }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item.value)
+  const { mutate, isPending } = useUpdateConfig()
+  const handleSave = () => mutate({ key: item.key, value: draft }, { onSuccess: () => setEditing(false), onError: () => setDraft(item.value) })
+  const handleCancel = () => { setDraft(item.value); setEditing(false) }
+  if (editing) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus sx={{ width: 110 }}
+          slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment>, inputProps: { min: 0, max: 100 } } }} />
+        <IconButton size="small" onClick={handleSave} disabled={isPending} color="primary">{isPending ? <CircularProgress size={16} /> : <CheckIcon fontSize="small" />}</IconButton>
+        <IconButton size="small" onClick={handleCancel}><CloseIcon fontSize="small" /></IconButton>
+      </Box>
+    )
+  }
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Chip label={`${item.value}%`} size="small" color="success" variant="outlined" />
+      <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
+    </Box>
+  )
+}
 
 function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: string, value: string) => void }) {
   const [editing, setEditing] = useState(false)
@@ -91,7 +122,8 @@ export default function ThresholdSettings() {
   const { mutate } = useUpdateConfig()
   const allItems: ConfigItem[] = configs ?? []
   const buDormantItems = allItems.filter((c) => c.key.startsWith(DORMANT_PREFIX))
-  const otherItems = allItems.filter((c) => !c.key.startsWith(DORMANT_PREFIX))
+  const kpiTargetItems = allItems.filter((c) => KPI_TARGET_KEYS.includes(c.key))
+  const otherItems = allItems.filter((c) => !c.key.startsWith(DORMANT_PREFIX) && !KPI_TARGET_KEYS.includes(c.key))
   const handleSave = (key: string, value: string) => mutate({ key, value })
 
   return (
@@ -160,6 +192,38 @@ export default function ThresholdSettings() {
               <Typography variant="body2" color="text.secondary">{t('config.buThreshold.empty')}</Typography>
             )}
           </Card>
+
+          {kpiTargetItems.length > 0 && (
+            <Card sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Target KPI</Typography>
+                <Tooltip title="Target persentase minimum untuk setiap KPI. Dipakai sebagai acuan warna indikator di dashboard." placement="right" arrow>
+                  <InfoOutlinedIcon fontSize="small" color="action" sx={{ cursor: 'help' }} />
+                </Tooltip>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Nilai target yang digunakan sebagai threshold warna hijau / kuning / merah pada indikator KPI.
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700, width: '40%' }}>KPI</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: '25%' }}>Target</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Keterangan</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {kpiTargetItems.map((item) => (
+                    <TableRow key={item.key} hover>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography></TableCell>
+                      <TableCell><EditablePctCell item={item} /></TableCell>
+                      <TableCell><Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
 
           {otherItems.length > 0 && (
             <Card sx={{ p: 3 }}>

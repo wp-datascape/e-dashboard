@@ -99,6 +99,18 @@ export async function findImportErrors(logId: number) {
 
 // ─── Customers ───────────────────────────────────────────────────────────────
 
+const PLACEHOLDER_NAMES = new Set([
+  'PELANGGAN UMUM',
+  'PELANGGAN ECERAN',
+  'WALK IN',
+  'WALK-IN',
+  'WALK-IN CUSTOMER',
+  'RETAIL',
+  'RETAIL CUSTOMER',
+  'CASH CUSTOMER',
+  'GENERAL CUSTOMER',
+])
+
 export async function upsertCustomer(data: { company_id: number; customer_name: string; invoice_date: Date; channel_name?: string }) {
   const upperName = data.customer_name.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
@@ -143,6 +155,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
       first_invoice_date: toDateString(newFirstDate),
       last_invoice_date: toDateString(newLastDate),
       customer_name: upperName,
+      is_placeholder: PLACEHOLDER_NAMES.has(upperName),
       updated_at: new Date(),
     }
     // Update business_unit hanya jika invoice ini lebih baru (pakai last_invoice_date baru)
@@ -163,6 +176,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
     .values({
       company_id: data.company_id,
       customer_name: upperName,
+      is_placeholder: PLACEHOLDER_NAMES.has(upperName),
       first_invoice_date: invoiceDateStr,
       last_invoice_date: invoiceDateStr,
       business_unit: division ?? undefined,
