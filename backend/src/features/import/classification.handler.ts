@@ -21,19 +21,19 @@ export async function handleListRules(c: Context) {
 
 export async function handleCreateRule(c: Context) {
   const body = await validateBody(c, classificationRuleSchema)
-  const rule = await createClassificationRuleService(body)
+  const rule = await createClassificationRuleService(body, c)
   return success(c, rule, 'Rule created', 201)
 }
 
 export async function handleUpdateRule(c: Context) {
   const { id } = validateParam(c, ruleIdParamSchema)
   const body = await validateBody(c, classificationRuleUpdateSchema)
-  const rule = await updateClassificationRuleService(id, body)
+  const rule = await updateClassificationRuleService(id, body, c)
   return success(c, rule)
 }
 
 export async function handleDeleteRule(c: Context) {
   const { id } = validateParam(c, ruleIdParamSchema)
-  await deleteClassificationRuleService(id)
+  await deleteClassificationRuleService(id, c)
   return noContent(c)
 }

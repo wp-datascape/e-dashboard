@@ -24,25 +24,25 @@ export async function handleListHighMargins(c: Context) {
 export async function handleCreateHighMargin(c: Context) {
   const body = await validateBody(c, createHighMarginSchema)
   const userId = Number(c.req.header('x-user-id') ?? 1)
-  const result = await addHighMargin(body, userId)
+  const result = await addHighMargin(body, userId, c)
   return success(c, result, 'Created', 201)
 }
 
 export async function handleUpdateHighMargin(c: Context) {
   const { id } = validateParam(c, highMarginIdParamSchema)
   const body = await validateBody(c, updateHighMarginSchema)
-  const result = await editHighMargin(id, body)
+  const result = await editHighMargin(id, body, c)
   return success(c, result)
 }
 
 export async function handleDeactivateHighMargin(c: Context) {
   const { id } = validateParam(c, highMarginIdParamSchema)
-  const result = await deactivateHighMargin(id)
+  const result = await deactivateHighMargin(id, c)
   return success(c, result)
 }
 
 export async function handleDeleteHighMargin(c: Context) {
   const { id } = validateParam(c, highMarginIdParamSchema)
-  await removeHighMargin(id)
+  await removeHighMargin(id, c)
   return success(c, { id })
 }

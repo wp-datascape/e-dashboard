@@ -22,19 +22,19 @@ export async function handleListChannelDivisions(c: Context) {
 
 export async function handleCreateChannelDivision(c: Context) {
   const body = await validateBody(c, createChannelDivisionSchema)
-  const result = await createChannelDivisionService(body)
+  const result = await createChannelDivisionService(body, c)
   return success(c, result, 'Created', 201)
 }
 
 export async function handleUpdateChannelDivision(c: Context) {
   const { id } = validateParam(c, channelDivisionIdParamSchema)
   const body = await validateBody(c, updateChannelDivisionSchema)
-  const result = await updateChannelDivisionService(id, body)
+  const result = await updateChannelDivisionService(id, body, c)
   return success(c, result)
 }
 
 export async function handleDeleteChannelDivision(c: Context) {
   const { id } = validateParam(c, channelDivisionIdParamSchema)
-  await deleteChannelDivisionService(id)
+  await deleteChannelDivisionService(id, c)
   return success(c, { id })
 }
