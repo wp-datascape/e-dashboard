@@ -4,8 +4,12 @@ import type { ApiResponse } from '@/types/api';
 import type { CrossSellingData, CustomerMetricsData, DormantData, GpBreakdownData, HmBreakdownData, RorBreakdownData } from '@/types/metrics';
 
 export const metricsApi = {
-  getCrossSelling: async (): Promise<CrossSellingData> => {
-    const res = await api.get<ApiResponse<CrossSellingData>>('/metrics/cross-selling');
+  getCrossSelling: async (params?: {
+    company_id?: number | 'all';
+    period_end?: string;
+    division?: string;
+  }): Promise<CrossSellingData> => {
+    const res = await api.get<ApiResponse<CrossSellingData>>('/metrics/cross-selling', { params });
     return res.data.data;
   },
 
@@ -18,8 +22,12 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getDormantCustomer: async (): Promise<DormantData> => {
-    const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer');
+  getDormantCustomer: async (params?: {
+    company_id?: number | 'all';
+    period_month?: string;
+    division?: string;
+  }): Promise<DormantData> => {
+    const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer', { params });
     return res.data.data;
   },
 

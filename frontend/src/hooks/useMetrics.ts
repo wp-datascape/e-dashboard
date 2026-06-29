@@ -6,10 +6,14 @@ import type { CrossSellingData, CustomerMetricsData, DormantData, GpBreakdownDat
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
 
 // ── M1, M1.1, M2 — Cross Selling ─────────────────────────────────────────────
-export function useCrossSelling() {
+export function useCrossSelling(params?: {
+  company_id?: number | 'all';
+  period_end?: string;
+  division?: string;
+}) {
   return useQuery<CrossSellingData>({
-    queryKey: ['metrics', 'cross-selling'],
-    queryFn: metricsApi.getCrossSelling,
+    queryKey: ['metrics', 'cross-selling', params],
+    queryFn: () => metricsApi.getCrossSelling(params),
     staleTime: STALE_TIME,
   });
 }
@@ -58,10 +62,14 @@ export function useRorBreakdown(params: { month: string | null; company_id?: num
 }
 
 // ── M8–M10 — Dormant Customer ─────────────────────────────────────────────────
-export function useDormantCustomer() {
+export function useDormantCustomer(params?: {
+  company_id?: number | 'all';
+  period_month?: string;
+  division?: string;
+}) {
   return useQuery<DormantData>({
-    queryKey: ['metrics', 'dormant-customer'],
-    queryFn: metricsApi.getDormantCustomer,
+    queryKey: ['metrics', 'dormant-customer', params],
+    queryFn: () => metricsApi.getDormantCustomer(params),
     staleTime: STALE_TIME,
   });
 }

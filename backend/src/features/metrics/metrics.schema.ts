@@ -4,6 +4,16 @@ const divisionEnum = z
   .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support'])
   .optional()
 
+export const crossSellingQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  division: divisionEnum,
+})
+export type CrossSellingQuery = z.infer<typeof crossSellingQuerySchema>
+
 export const customerMetricsQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
@@ -47,3 +57,14 @@ export const rorBreakdownQuerySchema = z.object({
 })
 
 export type RorBreakdownQuery = z.infer<typeof rorBreakdownQuerySchema>
+
+export const dormantCustomerQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM').optional(),
+  division: divisionEnum,
+})
+
+export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>

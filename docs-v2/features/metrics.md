@@ -1,8 +1,8 @@
-# Feature: Metrics (KPI 1–8)
+# Feature: Metrics (KPI 1–10)
 
-> Status: 🟡 In Progress — M3–M7 backend live (perlu revisi denominator); M1–M2 & M8–M10 masih MSW mock
-> Last updated: 2026-06-27
-> Baca juga: `executive-dashboard/metrics.md` ⚠️ (definisi bisnis lengkap), `shared/backend.md`, `features/high-margin-products.md`
+> Status: 🟢 M1–M2 & M8–M10 backend live · M3–M7 backend live
+> Last updated: 2026-06-30
+> Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`
 
 ---
 
@@ -11,7 +11,7 @@
 Fitur metrics menghitung 10 KPI bisnis dari data faktur penjualan yang sudah diimport ke DB.
 Semua kalkulasi dilakukan **backend-only**, tidak ada kalkulasi di frontend.
 
-Sumber data tunggal: tabel `invoices` + `invoice_items` + `customers` + `high_margin_products`.
+Sumber data: `invoices` + `invoice_items` + `customers` + `product_categories` + `high_margin_products`.
 
 ---
 
@@ -19,135 +19,215 @@ Sumber data tunggal: tabel `invoices` + `invoice_items` + `customers` + `high_ma
 
 ```
 backend/src/features/metrics/
-  metrics.schema.ts     ← Zod validation: company_id, period_month
-  metrics.repository.ts ← Raw SQL (CTE) untuk tren M3–M7
-  metrics.service.ts    ← Business logic, baca active_window dari DB config
+  metrics.schema.ts     ← Zod schemas: semua query params (company_id, period_end, division, dll)
+  metrics.repository.ts ← Raw SQL (CTE): fetchCrossSellingKPI/Trend/Detail/Heatmap,
+                           fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown,
+                           fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking
+  metrics.service.ts    ← Business logic + catch → AppError
   metrics.types.ts      ← TypeScript interfaces response
-  metrics.handler.ts    ← Thin handler
-  metrics.route.ts      ← GET /api/v1/metrics/customer-metrics
+  metrics.handler.ts    ← Thin handlers (validate → service → success)
+  metrics.route.ts      ← GET /api/v1/metrics/*
+  segment.helper.ts     ← SegmentParams interface, CTE builder (sqlExistingCustomers,
+                           sqlDormantCustomers), monthEndDate()
 
 frontend/src/
-  api/metrics.api.ts          ← axios calls
-  hooks/useMetrics.ts         ← React Query hooks
-  pages/CustomerMetrics/      ← Halaman M3–M7
-  pages/CrossSelling/         ← Halaman M1–M2 (masih MSW)
-  pages/DormantCustomer/      ← Halaman M8–M10 (masih MSW)
-  mocks/handlers/metrics.handler.ts ← MSW: cross-selling + dormant masih mock
+  api/metrics.api.ts              ← axios calls (semua params sudah dikirim)
+  hooks/useMetrics.ts             ← React Query hooks (params → queryKey reaktif)
+  types/metrics.ts                ← Frontend interface types
+  pages/CrossSelling/             ← Halaman M1–M2 (real backend)
+  pages/CustomerMetrics/          ← Halaman M3–M7 (real backend)
+  pages/DormantCustomer/          ← Halaman M8–M10 (real backend)
+  mocks/handlers/metrics.handler.ts ← Semua handler DISABLED (komentar)
 ```
 
 ---
 
-## Endpoint yang Sudah Live (Real DB)
+## Semua Endpoint Sudah Live (Real DB)
 
-### `GET /api/v1/metrics/customer-metrics`
+### `GET /api/v1/metrics/cross-selling` — M1, M1.1, M2
+
+Query params:
+| Param | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `company_id` | integer \| `"all"` | `"all"` | Filter per entitas |
+| `period_end` | `YYYY-MM-DD` | Hari ini | Tanggal akhir window 30 hari |
+| `division` | enum | — | Filter channel division |
+
+Window selalu **30 hari mundur** dari `period_end`. Bukan per-bulan kalender.
+
+Response shape:
+```ts
+{
+  period:     { start: string; end: string }
+  kpi1:       { multi_cat_count: number; active_count: number; rate: number }
+  kpi2:       { avg_categories: number; total_distinct_cats: number }
+  trend:      CrossSellingTrendRow[]      // 12 bulan × 30-day rolling window
+  detail:     CrossSellingDetailRow[]     // semua customer aktif, no LIMIT
+  heatmap:    CrossSellingHeatmapRow[]    // top 30 customer × item_type
+  categories: string[]                    // ['unit','sparepart','consumable'] urut frekuensi
+}
+```
+
+**KPI 1** = customers beli >1 `product_category_id` / total customer aktif (%)
+**KPI 2** = SUM(distinct categories per customer) / active customers = avg
+
+Heatmap kolom = **item_type** (`unit` / `consumable` / `sparepart`), bukan nama kategori.
+Hal ini memberikan 3 kolom bersih yang langsung menunjukkan cross-sell per tipe produk.
+
+---
+
+### `GET /api/v1/metrics/customer-metrics` — M3–M7
 
 Query params:
 | Param | Tipe | Default | Keterangan |
 |---|---|---|---|
 | `company_id` | integer \| `"all"` | `"all"` | Filter per entitas |
 | `period_month` | `YYYY-MM` | Bulan berjalan | Bulan referensi |
-
-> **Tidak ada** param `active_window` — dibaca otomatis dari `business_configs.active_window_months`.
+| `division` | enum | — | Filter channel division |
 
 Response: `CustomerMetricsData` — lihat `metrics.types.ts`
 
-### Endpoint Pendukung (Juga Live)
+### Endpoint Pendukung Customer Metrics
 
-| Endpoint | Fungsi |
-|---|---|
-| `GET /api/v1/metrics/gp-breakdown` | Gross Profit breakdown detail |
-| `GET /api/v1/metrics/hm-breakdown` | High Margin breakdown detail |
-| `GET /api/v1/metrics/ror-breakdown` | Repeat Order Rate breakdown detail |
+| Endpoint | Fungsi | Params tambahan |
+|---|---|---|
+| `GET /api/v1/metrics/gp-breakdown` | M4 Gross Profit detail per customer | `month` (YYYY-MM) |
+| `GET /api/v1/metrics/hm-breakdown` | M5 High Margin detail per customer | `month` (YYYY-MM) |
+| `GET /api/v1/metrics/ror-breakdown` | M6 Repeat Order Rate detail | `month` (YYYY-MM) |
 
 ---
 
-## Endpoint Masih Mock (MSW)
+### `GET /api/v1/metrics/dormant-customer` — M8, M9, M10
 
-| Endpoint | KPI | File |
+Query params:
+| Param | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `company_id` | integer \| `"all"` | `"all"` | Filter per entitas |
+| `period_month` | `YYYY-MM` | Bulan berjalan | Bulan referensi (→ end-of-month) |
+| `division` | enum | — | Filter channel division |
+
+Response shape:
+```ts
+{
+  trend:         DormantTrendRow[]      // 12 bulan tren dormant + reactivation
+  value_ranking: DormantValueRow[]      // top 20 customer dormant, urut estimated_lost_value
+  dormant_rate_current: {
+    value: number; dormant_count: number; total_customers: number;
+    alert_pct: number   // dari business_configs.dormant_rate_alert_pct
+  }
+  reactivation_current: {
+    value: number;
+    target_low: number;   // dari business_configs.reactivation_target_low_pct
+    target_high: number;  // dari business_configs.reactivation_target_high_pct
+  }
+}
+```
+
+**M8** = dormant_rate_current.value (% dormant bulan terakhir)
+**M9** = value_ranking → estimated_lost_value = avg_monthly_revenue × months_dormant (pakai `::bigint`)
+**M10** = reactivation_current.value (% reactivation bulan terakhir)
+
+Dormant threshold (dormantDays) dibaca dari `business_configs.dormant_threshold_months.*` via `resolveSegmentParams()`.
+
+---
+
+## Konfigurasi Threshold (business_configs)
+
+| Key | Default | Dipakai di |
 |---|---|---|
-| `GET /api/v1/metrics/cross-selling` | M1, M1.1, M2 | `mocks/handlers/metrics.handler.ts` → `crossSellingHandlers` |
-| `GET /api/v1/metrics/dormant-customer` | M8, M9, M10 | `mocks/handlers/metrics.handler.ts` → `dormantHandlers` |
+| `active_window_months` | 6 | M3–M7: window customer aktif |
+| `dormant_threshold_months.b2b_dc` | 3 | M8–M10: threshold dormant B2B DC |
+| `dormant_threshold_months.b2b_project` | 6 | M8–M10: threshold dormant B2B Project |
+| `dormant_threshold_months.b2c` | 1 | M8–M10: threshold dormant B2C |
+| `dormant_threshold_months.manufacturing` | 3 | M8–M10: threshold dormant Manufacturing |
+| `repeat_order_target_pct` | 40 | M6: target repeat order rate |
+| `dormant_rate_alert_pct` | 10 | M8: ambang zona merah di grafik |
+| `reactivation_target_low_pct` | 15 | M10: batas bawah target (zona kuning) |
+| `reactivation_target_high_pct` | 20 | M10: batas atas target (zona hijau) |
 
-Untuk mengaktifkan real backend, buat route di `metrics.route.ts` dan hapus handler dari MSW.
+Semua threshold dapat diedit dari **Settings → Threshold** (`/settings/threshold`).
+Tiga threshold baru (dormant alert + reactivation target) muncul di section "Target KPI".
+
+---
+
+## Division Filter — Pola JOIN
+
+Division **bukan** kolom di `invoices`. Join dilakukan via `channel_divisions`:
+
+```sql
+LEFT JOIN channel_divisions cd
+  ON  cd.channel_name  = i.channel_name
+  AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+WHERE (${division}::text IS NULL OR cd.division = ${division}::text)
+```
+
+Pattern ini konsisten di seluruh repository metrics.
+
+---
+
+## Dormant Trend — Metode Perhitungan (M8 & M10)
+
+Menggunakan CROSS JOIN customers × months (12 bulan) dengan `MAX(invoice_date) FILTER` per titik waktu:
+
+- `last_at_me` = last invoice customer as-of akhir bulan M (bukan current last_invoice_date)
+- `last_at_prev_me` = last invoice as-of akhir bulan M-1
+- `active_in_month` = BOOL_OR invoice dalam bulan M
+- **Dormant di M** = `last_at_me < me - dormantDays`
+- **Reactivated di M** = dormant di M-1 AND active_in_month
+
+Ini memberikan histori yang akurat — customer yang sekarang aktif bisa saja terhitung dormant di bulan lalu.
 
 ---
 
 ## Status Customer (Definisi Berlaku)
 
-> Sumber kebenaran: `executive-dashboard/metrics.md`
-
 | Status | Kondisi |
 |---|---|
-| **Aktif** | Ada invoice di bulan berjalan (`period_month`) |
+| **Aktif (cross-selling)** | Ada invoice dalam window 30 hari sebelum `period_end` |
 | **Existing** | `first_invoice_date < period_start` AND tidak dormant |
-| **Dormant** | `last_invoice_date < period_end - 90 hari` |
-| **New** | `first_invoice_date` dalam `period_month` |
-
-Threshold dormant = **90 hari tetap** — tidak dari config.
-
----
-
-## Implementasi Saat Ini vs Definisi Bisnis (Gap)
-
-> ⚠️ Backend M3–M7 yang sudah live BELUM sesuai definisi bisnis terbaru.
-> Jangan dianggap final sampai 4 open questions di `executive-dashboard/metrics.md` terjawab.
-
-| Gap | Kode Sekarang | Definisi Baru |
-|---|---|---|
-| M5/M6/M7 denominator | `active_existing` (punya transaksi dalam `active_window_months`) | **Total existing** customer |
-| KPI 8 denominator | — (belum live) | **All customer** (bukan hanya existing) |
-| Period window | Bulan kalender via `period_month` | Perlu konfirmasi: 30 hari rolling atau tetap kalender? |
-
----
-
-## Cara Baca `active_window_months` dari DB
-
-Service membaca threshold dari `business_configs` — konsisten dengan customers feature:
-
-```ts
-const configs = await findAllConfigs()
-const activeWindow = parseInt(
-  configs.find(c => c.key === 'active_window_months')?.value ?? '6'
-)
-```
-
-> Catatan: `active_window_months` di DB saat ini masih dipakai untuk CTE `active_existing`.
-> Setelah revisi (M5/M6/M7 denominator → total existing), parameter ini tidak lagi dibutuhkan di metrics.
-
----
-
-## High Margin Products
-
-M5 bergantung pada tabel `high_margin_products`. Kalkulasi high_margin_ratio = 0% selama tabel ini kosong.
-
-Admin mengisi data via **Settings → High Margin Products** (`features/high-margin-products.md`).
-
-Join di repository menggunakan:
-```sql
-JOIN high_margin_products hmp ON (
-  hmp.product_category_id = ii.product_category_id
-  OR hmp.product_id = ii.product_id
-)
-WHERE hmp.effective_from <= i.invoice_date
-  AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
-```
+| **Dormant** | `last_invoice_date < period_end - dormantDays` (per division config) |
+| **Reactivated** | Dormant bulan lalu + ada invoice bulan ini |
 
 ---
 
 ## Halaman Frontend
 
+### `/cross-selling` — M1, M1.1, M2
+
+Filter: **Entitas** + **Divisi** + **Tanggal Akhir** (date picker, default hari ini)
+
+| Section | Widget | Data |
+|---|---|---|
+| KPI 1 — Cross-Sell Rate | KpiCard | `kpi1.rate` (%) |
+| KPI 2 — Avg Kategori | KpiCard | `kpi2.avg_categories` |
+| Customer Aktif | KpiCard | `kpi1.active_count` |
+| Cross-Sell Rate bulan ini | KpiCard | `trend[-1].ratio` |
+| M1 Trend bar + ratio | BarChartWidget × 2 | `trend[].total_active`, `multi_product`, `ratio` |
+| M1.1 Heatmap | HeatmapWidget | `heatmap` × `categories` (item_type) |
+| M2 Trend area (full width) | AreaChartWidget | `trend[].avg_category` |
+| Detail Table | ResponsiveListView / DetailCard | `detail[]` — all customers, DataGrid paginated |
+
 ### `/customer-metrics` — M3–M7
 
-Filter tersedia: **Entitas** (company selector) + **Periode** (month picker).
+Filter: **Entitas** + **Divisi** + **Periode** (month picker)
 
-Charts:
-| Widget | KPI | Data key |
+### `/dormant-customer` — M8–M10
+
+Filter: **Entitas** + **Divisi** + **Periode** (month picker)
+
+| Section | Widget | Data |
 |---|---|---|
-| ComboChartWidget | M3 avg revenue | `trend[].avg_revenue` |
-| BarChartWidget (stacked) | M4 avg GP tier | `trend[].gp_tier1/2/3` |
-| DonutChartWidget | M5 snapshot | `high_margin_current` |
-| RadialBarWidget | M6 snapshot | `repeat_order_current` |
-| BarChartWidget (horizontal) | M7 trend | `trend[].expansion_rate` |
+| M8 Line Chart + stat card | LineAlertWidget | `trend[].dormant_rate`, threshold = `alert_pct` |
+| M9 Horizontal Bar | BarChartWidget | `value_ranking[].estimated_lost_value` |
+| M10 Bullet + Line | BulletChartWidget + LineAlertWidget | `reactivation_current`, `trend[].reactivation_rate` |
 
-### `/cross-selling` — M1–M2 (MSW)
-### `/dormant-customer` — M8–M10 (MSW)
+Semua threshold (alert_pct, target_low, target_high) dibaca dari response backend — bukan hardcode.
+
+---
+
+## MSW Mock Status
+
+Semua handler dinonaktifkan (komentar `// DISABLED`):
+- `crossSellingHandlers` — real backend aktif
+- `customerMetricsHandlers` — real backend aktif
+- `dormantHandlers` — real backend aktif

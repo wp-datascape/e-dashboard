@@ -1,11 +1,11 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
 import type { ThresholdConfig } from '@/features/config/threshold'
-import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap } from './metrics.repository'
 import { buildSegmentParams, monthEndDate } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery } from './metrics.schema'
-import type { CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData } from './metrics.types'
+import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery } from './metrics.schema'
+import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData } from './metrics.types'
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 
@@ -58,6 +58,46 @@ async function resolveSegmentParams(
     dormantDays = await resolveDormantDays(cid, dormant)
   }
   return buildSegmentParams(companyId, filterDate, activeMonths * 30, dormantDays, division)
+}
+
+export async function getCrossSellingMetrics(params: CrossSellingQuery): Promise<CrossSellingMetricsData> {
+  try {
+    const periodEnd = params.period_end ?? todayDate()
+    const cid       = params.company_id === 'all' ? 0 : params.company_id
+    const division  = params.division ?? null
+    const p = { cid, periodEnd, division }
+
+    const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
+      fetchCrossSellingKPI(p),
+      fetchCrossSellingTrend(p),
+      fetchCrossSellingDetail(p),
+      fetchCrossSellingHeatmap(p),
+    ])
+
+    const periodStart = new Date(periodEnd)
+    periodStart.setDate(periodStart.getDate() - 30)
+    const startStr = periodStart.toISOString().slice(0, 10)
+
+    return {
+      period: { start: startStr, end: periodEnd },
+      kpi1: {
+        multi_cat_count: kpiRaw.multi_cat_count,
+        active_count:    kpiRaw.active_count,
+        rate:            kpiRaw.multi_cat_rate,
+      },
+      kpi2: {
+        avg_categories:      kpiRaw.avg_categories,
+        total_distinct_cats: kpiRaw.total_distinct_cats,
+      },
+      trend,
+      detail,
+      heatmap:    heatmapResult.heatmap,
+      categories: heatmapResult.categories,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data cross-selling metrics', 500)
+  }
 }
 
 export async function getCustomerMetrics(params: CustomerMetricsQuery): Promise<CustomerMetricsData> {
@@ -151,6 +191,42 @@ export async function getHmBreakdown(params: HmBreakdownQuery): Promise<HmBreakd
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil HM breakdown', 500)
+  }
+}
+
+export async function getDormantCustomerMetrics(params: DormantCustomerQuery): Promise<DormantMetricsData> {
+  try {
+    const filterDate = params.period_month ? monthEndDate(params.period_month) : todayDate()
+    const [segParams, thresholds] = await Promise.all([
+      resolveSegmentParams(params.company_id, filterDate, params.division),
+      loadThresholds(),
+    ])
+
+    const [trend, valueRanking] = await Promise.all([
+      fetchDormantTrend(segParams),
+      fetchDormantValueRanking(segParams),
+    ])
+
+    const last = trend.at(-1)
+
+    return {
+      trend,
+      value_ranking: valueRanking,
+      dormant_rate_current: {
+        value:           last?.dormant_rate ?? 0,
+        dormant_count:   last?.dormant_count ?? 0,
+        total_customers: last?.total_customers ?? 0,
+        alert_pct:       thresholds.dormantRateAlertPct,
+      },
+      reactivation_current: {
+        value:       last?.reactivation_rate ?? 0,
+        target_low:  thresholds.reactivationTargetLow,
+        target_high: thresholds.reactivationTargetHigh,
+      },
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data dormant customer metrics', 500)
   }
 }
 

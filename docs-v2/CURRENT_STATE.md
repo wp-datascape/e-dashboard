@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. staleTime: 0 global (always fresh). |
-| Backend  | ~88%   | Auth selesai (login/logout/refresh/me + middleware). requirePermission di semua route. M1-M2 & M8-M10, Transactions masih belum. |
-| Database | ~80%   | 21 tabel aktif + **88 permissions** (24 kategori granular, dot-notation keys). DB di-drop + re-seed 2026-06-29. |
-| Docs     | ✅ ~100%   | permissions.md diupdate (88 perms, 24 cat, dot-notation format, useCan pattern). |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. |
+| Backend  | ~95%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10 sekarang live (real backend)**. Transactions masih belum. |
+| Database | ~80%   | 21 tabel aktif + 88 permissions. `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
+| Docs     | ✅ ~100%   | metrics.md diupdate total — semua endpoint live, threshold config, pattern division filter. |
 
 ## Frontend — Page Status
 
@@ -16,14 +16,14 @@
 | Page             | Route               | Notes                        |
 |------------------|---------------------|------------------------------|
 | Dashboard        | `/dashboard`        | 10 MetricCards + 9 charts    |
-| Cross Selling    | `/cross-selling`    | M1 ratio + M1.1 heatmap + M2 |
+| Cross Selling    | `/cross-selling`    | M1 ratio + M1.1 heatmap (item_type) + M2 — **real backend, filter Entitas+Divisi+Tanggal** |
 | Customer Metrics | `/customer-metrics` | M3 Revenue, M4 Gross Profit, M5 High Margin, M6 Repeat Order, M7 Expansion — **real API from DB** |
 | Classification Rules | `/settings/classification` | CRUD classification rules, backend real API |
 | Threshold Settings | `/settings/threshold` | Konfigurasi threshold metrik, backend real API |
 | App Settings | `/settings/app` | Theme + language settings |
 | Integration | `/config/integration` | Accurate integration config |
 | Features | `/config/features` | Feature flags management |
-| Dormant Customer | `/dormant-customer` | M8 M9 M10                    |
+| Dormant Customer | `/dormant-customer` | M8 M9 M10 — **real backend, threshold dinamis dari DB, filter Entitas+Divisi+Periode** |
 | Config           | `/config`           | 3 tabs: Business Rules, Integration, App Settings (theme + lang) |
 | Users            | `/users`            | List + create + edit user, mock API |
 | RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, **57 permissions seeded** |
@@ -99,8 +99,10 @@
 | Companies        | ✅ 100% | CRUD + branches |
 | Products         | ✅ 100% | Local + Accurate sync |
 | **Customers**    | ✅ **100%** | **GET / + GET /:id, status dari business_configs, channel division filter via JOIN** |
-| **Metrics M3–M7**| ✅ **Live** | **GET /metrics/customer-metrics LIVE. M6 (>1 invoice, threshold dari config), M7 (prev window 30 hari, denominator total existing) sudah benar. M1–M2 & M8–M10 masih MSW.** |
-| Auth             | ❌ Todo | JWT + CSRF |
+| **Metrics M3–M7**| ✅ **Live** | GET /metrics/customer-metrics + gp/hm/ror-breakdown. Filter company+division+period. |
+| **Metrics M8–M10**| ✅ **Live** | GET /metrics/dormant-customer. Trend 12 bulan (CTE last_at_me/last_at_prev_me), value ranking, threshold dari business_configs. Fix `::bigint` untuk revenue >2.1M. |
+| **Metrics M1–M2**| ✅ **Live** | GET /metrics/cross-selling. KPI1 (multi-cat rate), KPI2 (avg kategori), trend 30d rolling, heatmap per item_type, detail semua customer (no LIMIT). |
+| Auth             | ✅ Done | JWT httpOnly cookie + CSRF token |
 | Transactions     | ❌ Todo | Invoice ledger |
 
 ## Docs v2 — Status (SELESAI 2026-06-18)
@@ -131,11 +133,43 @@
 | admin/decisions.md | Done |
 
 ## Current MSW Mock Domains (DEV)
-- `auth` — login, logout, refresh, /me
-- `dashboard` — metrics summary
-- `metrics` — per-metric endpoints
+- `auth` — login, logout, refresh, /me (dipakai di dev sebelum backend auth live)
+- `dashboard` — metrics summary cards
+- `metrics` — **crossSellingHandlers, customerMetricsHandlers, dormantHandlers semua DISABLED** (real backend)
 - `products` — category performance, high margin detail, upsell targets, avg-category trend
 - `transactions` — invoice list, invoice detail
+
+## Sesi 26 — Perubahan (2026-06-30)
+
+### Backend
+- `GET /metrics/cross-selling` — endpoint baru, 4 repository functions (KPI, Trend, Detail, Heatmap)
+  - KPI 1: customer >1 product_category / active (%)
+  - KPI 2: avg distinct categories per active customer
+  - Trend: 12 bulan rolling 30-day window
+  - Heatmap: top 30 customer × item_type (unit/sparepart/consumable)
+  - Detail: semua customer aktif tanpa LIMIT, DataGrid yang paginate
+- `GET /metrics/dormant-customer` — endpoint baru, M8/M9/M10
+  - Trend 12 bulan via CTE `last_at_me`/`last_at_prev_me` (historically accurate)
+  - M9 value ranking: fix `::bigint` (mengganti `::int` yang overflow untuk revenue > 2.1M)
+  - Threshold `dormant_rate_alert_pct`, `reactivation_target_low_pct`, `reactivation_target_high_pct` dari business_configs
+- `business_configs` — seed 3 key baru: dormant_rate_alert_pct (10), reactivation_target_low_pct (15), reactivation_target_high_pct (20)
+- `threshold.ts` — ThresholdConfig + DEFAULTS + parseThresholdConfigs untuk 3 field baru
+
+### Frontend
+- `CrossSelling/index.tsx` — tulis ulang total:
+  - Filter bar: Entitas + Divisi + Tanggal Akhir (date picker)
+  - 4 KPI cards summary
+  - Bar chart trend 12 bulan (aktif vs multi-kategori + ratio chart)
+  - M1.1 Heatmap kolom item_type (Unit/Sparepart/Consumable)
+  - M2 Area chart full width (hapus Grid wrapper)
+  - Detail table semua customer, DataGrid paginated
+- `DormantCustomer/index.tsx` — baru:
+  - Filter bar: Entitas + Divisi + Periode
+  - Threshold dinamis dari response backend (bukan hardcode)
+  - M8 LineAlertWidget + stat card, M9 BarChartWidget horizontal, M10 BulletChart + Line
+- `Settings/Threshold/index.tsx` — tambah 3 KPI rows baru di section "Target KPI"
+- `hooks/useMetrics.ts` — `useCrossSelling` + `useDormantCustomer` terima params (queryKey reaktif)
+- `mocks/handlers/metrics.handler.ts` — semua crossSelling + dormant handler dinonaktifkan
 
 **Disabled (real backend):** `page`, `customers`, `users`, `rbac`, `import`, `audit`, `accurate`
 

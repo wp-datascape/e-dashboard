@@ -29,6 +29,9 @@ export interface ThresholdConfig {
     manufacturing: number
   }
   repeatOrderTargetPct: number
+  dormantRateAlertPct: number
+  reactivationTargetLow: number
+  reactivationTargetHigh: number
 }
 
 // ─── Mapping business_unit / division → dormant config key ────────────────────
@@ -70,6 +73,9 @@ const DEFAULTS: ThresholdConfig = {
     manufacturing: 6,
   },
   repeatOrderTargetPct: 80,
+  dormantRateAlertPct: 10,
+  reactivationTargetLow: 15,
+  reactivationTargetHigh: 20,
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -122,6 +128,18 @@ export function parseThresholdConfigs(
     repeatOrderTargetPct: safeParseInt(
       getValue(configs, 'repeat_order_target_pct', String(DEFAULTS.repeatOrderTargetPct)),
       DEFAULTS.repeatOrderTargetPct,
+    ),
+    dormantRateAlertPct: safeParseInt(
+      getValue(configs, 'dormant_rate_alert_pct', String(DEFAULTS.dormantRateAlertPct)),
+      DEFAULTS.dormantRateAlertPct,
+    ),
+    reactivationTargetLow: safeParseInt(
+      getValue(configs, 'reactivation_target_low_pct', String(DEFAULTS.reactivationTargetLow)),
+      DEFAULTS.reactivationTargetLow,
+    ),
+    reactivationTargetHigh: safeParseInt(
+      getValue(configs, 'reactivation_target_high_pct', String(DEFAULTS.reactivationTargetHigh)),
+      DEFAULTS.reactivationTargetHigh,
     ),
   }
 }

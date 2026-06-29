@@ -93,6 +93,8 @@ const reactivationCurrent = {
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 // M1 + M1.1 + M2: Cross Selling (still mock)
+// M1–M2: Cross Selling — DISABLED: real backend at GET /api/v1/metrics/cross-selling
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const crossSellingHandlers = [
   http.get(`${BASE_URL}/metrics/cross-selling`, () =>
     HttpResponse.json<ApiResponse<unknown>>({
@@ -110,7 +112,8 @@ export const crossSellingHandlers = [
 // M3–M7: Customer Metrics — DISABLED, uses real backend API
 // export const customerMetricsHandlers = [ ... ]
 
-// M8–M10: Dormant Customer (still mock)
+// M8–M10: Dormant Customer — DISABLED: real backend at GET /api/v1/metrics/dormant-customer
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const dormantHandlers = [
   http.get(`${BASE_URL}/metrics/dormant-customer`, () =>
     HttpResponse.json<ApiResponse<unknown>>({
@@ -126,7 +129,7 @@ export const dormantHandlers = [
 ];
 
 export const metricsHandlers = [
-  ...crossSellingHandlers,
+  // crossSellingHandlers — DISABLED: real backend at GET /api/v1/metrics/cross-selling
   // customerMetricsHandlers — DISABLED: real backend at GET /api/v1/metrics/customer-metrics
-  ...dormantHandlers,
+  // dormantHandlers — DISABLED: real backend at GET /api/v1/metrics/dormant-customer
 ];

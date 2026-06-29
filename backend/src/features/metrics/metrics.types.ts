@@ -81,6 +81,44 @@ export interface RorBreakdownData {
   rows: RorBreakdownRow[]
 }
 
+// ── M8–M10 Dormant Customer ───────────────────────────────────────────────────
+
+export interface DormantTrendRow {
+  month: string
+  total_customers: number
+  dormant_count: number
+  dormant_rate: number
+  prev_dormant_count: number
+  reactivated_count: number
+  reactivation_rate: number
+}
+
+export interface DormantValueRow {
+  customer_id: number
+  customer_name: string
+  customer_code: string | null
+  last_invoice_date: string
+  months_dormant: number
+  avg_monthly_revenue: number
+  estimated_lost_value: number
+}
+
+export interface DormantMetricsData {
+  trend: DormantTrendRow[]
+  value_ranking: DormantValueRow[]
+  dormant_rate_current: {
+    value: number
+    dormant_count: number
+    total_customers: number
+    alert_pct: number
+  }
+  reactivation_current: {
+    value: number
+    target_low: number
+    target_high: number
+  }
+}
+
 export interface CustomerMetricsData {
   trend: CustomerMetricsTrendPoint[]
   detail: unknown[]
@@ -92,4 +130,40 @@ export interface CustomerMetricsData {
     value: number
     target_pct: number
   }
+}
+
+// ── M1, M1.1, M2 — Cross Selling ──────────────────────────────────────────────
+
+export interface CrossSellingTrendRow {
+  month: string
+  total_active: number
+  multi_product: number
+  ratio: number
+  avg_category: number
+}
+
+export interface CrossSellingDetailRow {
+  customer_id: number
+  customer_code: string | null
+  customer_name: string
+  category_count: number
+  has_unit: boolean
+  has_consumable: boolean
+  has_sparepart: boolean
+  total_revenue: number
+}
+
+export interface CrossSellingHeatmapRow {
+  customer: string
+  values: Record<string, number>
+}
+
+export interface CrossSellingMetricsData {
+  period: { start: string; end: string }
+  kpi1: { multi_cat_count: number; active_count: number; rate: number }
+  kpi2: { avg_categories: number; total_distinct_cats: number }
+  trend: CrossSellingTrendRow[]
+  detail: CrossSellingDetailRow[]
+  heatmap: CrossSellingHeatmapRow[]
+  categories: string[]
 }

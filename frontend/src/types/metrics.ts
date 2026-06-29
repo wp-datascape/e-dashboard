@@ -12,13 +12,13 @@ export interface CrossSellingTrendPoint {
 }
 
 export interface CrossSellingDetailRow {
-  id: number;
-  customer_code: string;
+  customer_id: number;
+  customer_code: string | null;
   customer_name: string;
-  hardware: boolean;
-  consumable: boolean;
-  service: boolean;
   category_count: number;
+  has_unit: boolean;
+  has_consumable: boolean;
+  has_sparepart: boolean;
   total_revenue: number;
 }
 
@@ -28,6 +28,9 @@ export interface HeatmapRow {
 }
 
 export interface CrossSellingData {
+  period: { start: string; end: string };
+  kpi1: { multi_cat_count: number; active_count: number; rate: number };
+  kpi2: { avg_categories: number; total_distinct_cats: number };
   trend: CrossSellingTrendPoint[];
   detail: CrossSellingDetailRow[];
   heatmap: HeatmapRow[];
@@ -140,17 +143,29 @@ export interface CustomerMetricsData {
 
 export interface DormantTrendPoint {
   month: string;
-  total_existing: number;
+  total_customers: number;
   dormant_count: number;
   dormant_rate: number;
-  reactivated: number;
+  prev_dormant_count: number;
+  reactivated_count: number;
   reactivation_rate: number;
 }
 
 export interface DormantValueRankingRow {
+  customer_id: number;
   customer_name: string;
-  estimated_lost_value: number;
+  customer_code: string | null;
+  last_invoice_date: string;
   months_dormant: number;
+  avg_monthly_revenue: number;
+  estimated_lost_value: number;
+}
+
+export interface DormantRateCurrent {
+  value: number;
+  dormant_count: number;
+  total_customers: number;
+  alert_pct: number;
 }
 
 export interface ReactivationCurrent {
@@ -161,7 +176,7 @@ export interface ReactivationCurrent {
 
 export interface DormantData {
   trend: DormantTrendPoint[];
-  detail: unknown[];
   value_ranking: DormantValueRankingRow[];
+  dormant_rate_current: DormantRateCurrent;
   reactivation_current: ReactivationCurrent;
 }

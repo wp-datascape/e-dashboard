@@ -32,12 +32,23 @@ const BU_LABELS: Record<string, string> = {
   manufacturing: 'Manufacturing',
 }
 const DORMANT_PREFIX = 'dormant_threshold_months.'
-const KPI_TARGET_KEYS = ['repeat_order_target_pct']
+const KPI_TARGET_KEYS = [
+  'repeat_order_target_pct',
+  'dormant_rate_alert_pct',
+  'reactivation_target_low_pct',
+  'reactivation_target_high_pct',
+]
 const KPI_TARGET_LABELS: Record<string, string> = {
-  repeat_order_target_pct: 'M6 · Target Repeat Order Rate',
+  repeat_order_target_pct:      'M6 · Target Repeat Order Rate',
+  dormant_rate_alert_pct:       'M8 · Ambang Batas Dormant Rate',
+  reactivation_target_low_pct:  'M10 · Target Reactivation Rate (Min)',
+  reactivation_target_high_pct: 'M10 · Target Reactivation Rate (Ideal)',
 }
 const KPI_TARGET_DESC: Record<string, string> = {
-  repeat_order_target_pct: 'Persentase minimum existing customer yang harus repeat order dalam 30 hari',
+  repeat_order_target_pct:      'Persentase minimum existing customer yang harus repeat order dalam 30 hari',
+  dormant_rate_alert_pct:       'Jika Dormant Rate di atas nilai ini, grafik M8 tampil dalam zona merah (peringatan)',
+  reactivation_target_low_pct:  'Batas bawah target M10 — BulletChart zona kuning mulai dari nilai ini',
+  reactivation_target_high_pct: 'Batas atas target M10 — BulletChart zona hijau mulai dari nilai ini',
 }
 
 function EditablePctCell({ item }: { item: ConfigItem }) {

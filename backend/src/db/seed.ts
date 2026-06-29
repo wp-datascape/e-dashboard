@@ -179,6 +179,9 @@ const defaultBusinessConfigs = [
   { key: 'dormant_threshold_months.b2c', value: '6', description: 'Threshold dormant untuk B2C (bulan)' },
   { key: 'dormant_threshold_months.manufacturing', value: '6', description: 'Threshold dormant untuk Manufacturing (bulan)' },
   { key: 'repeat_order_target_pct', value: '80', description: 'Target Repeat Order Rate M6 (%) — persentase minimum existing customer yang harus repeat order dalam 30 hari' },
+  { key: 'dormant_rate_alert_pct', value: '10', description: 'Ambang batas M8 Dormant Rate (%) — di atas nilai ini grafik tampil peringatan merah' },
+  { key: 'reactivation_target_low_pct', value: '15', description: 'Target minimum M10 Customer Reactivation Rate (%) — batas bawah zona hijau' },
+  { key: 'reactivation_target_high_pct', value: '20', description: 'Target ideal M10 Customer Reactivation Rate (%) — batas atas zona hijau' },
 ]
 
 const defaultPageSettings = [
