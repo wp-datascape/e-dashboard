@@ -5,10 +5,11 @@ import {
   handleUpdateChannelDivision,
   handleDeleteChannelDivision,
 } from './channel-divisions.handler'
+import { requirePermission } from '@/middleware/permission'
 
 export const channelDivisionsRoutes = new Hono()
 
-channelDivisionsRoutes.get('/', handleListChannelDivisions)
-channelDivisionsRoutes.post('/', handleCreateChannelDivision)
-channelDivisionsRoutes.patch('/:id', handleUpdateChannelDivision)
-channelDivisionsRoutes.delete('/:id', handleDeleteChannelDivision)
+channelDivisionsRoutes.get('/', requirePermission('settings.channel.division:view'), handleListChannelDivisions)
+channelDivisionsRoutes.post('/', requirePermission('settings.channel.division:create'), handleCreateChannelDivision)
+channelDivisionsRoutes.patch('/:id', requirePermission('settings.channel.division:update'), handleUpdateChannelDivision)
+channelDivisionsRoutes.delete('/:id', requirePermission('settings.channel.division:delete'), handleDeleteChannelDivision)

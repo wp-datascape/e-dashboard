@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-29 (sesi 24)
+> Last updated: 2026-06-29 (sesi 25)
 
 ---
 
@@ -14,12 +14,12 @@
 | Folder Structure | Done    | Feature-based + Router Orchestrator        |
 | Config           | Done    | env.ts (Zod), db.ts (Drizzle)              |
 | Utils            | Done    | 10 utils siap pakai (logger: Winston + PII redaction fixed) |
-| Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
+| Middleware       | ✅ Done | requestId, requestLogger, auth (JWT+CSRF), rate-limit, **permission** (requirePermission) |
 | DB Schema        | Done    | 21 tabel aktif (+ channel_divisions, products). Kolom `salesperson_name` direname → `channel_name` via migration 0004 (dieksekusi manual, bukan drizzle-kit). |
 | DB Migration     | Done    | Konsolidasi 3 file deskriptif: 0001_auth_system, 0002_branches_credentials, 0003_transactions_import |
 | DB Seed          | Done    | 88 permissions (24 kategori, dot-notation), 3 companies, 5 branches, 3 roles. DB di-drop + re-seed 2026-06-29. |
 | Handler Pattern  | Done    | Semua fitur punya handler.ts terpisah dengan error handling |
-| Feature: Auth    | 0%      | Belum dibuat, router.ts masih commented    |
+| Feature: Auth    | ✅ Done | login/logout/refresh/me + authMiddleware + rate-limit. Pending: refresh token revocation, audit log auth events |
 | Feature: RBAC    | Done    | roles + permissions mounted                |
 | Feature: Users   | Done    | CRUD + handler — docs: `features/users.md`   |
 | Feature: Companies | Done  | CRUD + branches + handler — docs: `features/companies.md` |
@@ -248,6 +248,48 @@ Read-only, paginated, filter by action/date
 ---
 
 ## Catatan Sesi
+
+### 2026-06-29 (sesi 25 — requirePermission Middleware)
+
+**`backend/src/middleware/permission.ts` — baru:**
+```typescript
+export function requirePermission(...keys: string[])
+```
+- OR logic: user harus punya setidaknya satu dari `keys`
+- Superadmin (`isSuperAdmin=true`) selalu bypass — tidak cek permissions
+- Throw `AppError(FORBIDDEN, 403)` jika permission tidak mencukupi
+- Dipasang SETELAH `authMiddleware` — butuh `c.var.user` + `c.var.permissions`
+
+**Pemetaan permission per route (13 file diupdate):**
+
+| Route | Permission yang dipasang |
+|-------|--------------------------|
+| `users.route.ts` | `access.user:view/create/update/delete` |
+| `companies.route.ts` | `settings.company:view/create/update/delete`, `settings.branch:view/create/update/delete` |
+| `roles.route.ts` | `access.role:view/create/update/delete`, `access.permission:view` |
+| `permissions.route.ts` | `access.permission:view/update` |
+| `audit.route.ts` | `audit.log:view` |
+| `customers.route.ts` | `customer:view` |
+| `metrics.route.ts` | `metrics:view` |
+| `import.route.ts` | `config.import:import` (POST), `config.import:view` (GET) |
+| `classification.route.ts` | `config.classification:view/create/update/delete` |
+| `config.route.ts` | `settings.threshold:view/update`, `config.integration:view/create/update/test` |
+| `high-margin.route.ts` | `settings.product:view/create/update/delete` |
+| `channel-divisions.route.ts` | `settings.channel.division:view/create/update/delete` |
+| `products.route.ts` | `settings.product:view` (local), `config.integration:view` (Accurate) |
+
+`page.route.ts` tidak dipasang permission — dipakai app sendiri untuk routing internal.
+
+**Verified (manual test):**
+- Tanpa token → `401 UNAUTHORIZED` ✅
+- User tanpa permission → `403 FORBIDDEN` ✅
+- Superadmin → 200 bypass ✅
+
+**File yang berubah:**
+- `backend/src/middleware/permission.ts` — NEW
+- 13 route files — ditambah `requirePermission` per endpoint
+
+---
 
 ### 2026-06-29 (sesi 24 — inArray Empty Guard + Permission Seed Overhaul + DB Drop/Re-seed)
 

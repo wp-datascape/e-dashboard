@@ -4,11 +4,15 @@ import {
   handleGetAccurateCredentials, handleSaveAccurateCredentials,
   handleTestAccurateConnection,
 } from './config.handler'
+import { requirePermission } from '@/middleware/permission'
 
 export const configRoutes = new Hono()
 
-configRoutes.get('/', handleGetConfigs)
-configRoutes.put('/:key', handleUpdateConfig)
-configRoutes.get('/accurate/credentials/:branchId', handleGetAccurateCredentials)
-configRoutes.put('/accurate/credentials/:branchId', handleSaveAccurateCredentials)
-configRoutes.post('/accurate/test-connection', handleTestAccurateConnection)
+// Business configs (threshold settings)
+configRoutes.get('/', requirePermission('settings.threshold:view'), handleGetConfigs)
+configRoutes.put('/:key', requirePermission('settings.threshold:update'), handleUpdateConfig)
+
+// Accurate integration credentials
+configRoutes.get('/accurate/credentials/:branchId', requirePermission('config.integration:view'), handleGetAccurateCredentials)
+configRoutes.put('/accurate/credentials/:branchId', requirePermission('config.integration:create', 'config.integration:update'), handleSaveAccurateCredentials)
+configRoutes.post('/accurate/test-connection', requirePermission('config.integration:test'), handleTestAccurateConnection)

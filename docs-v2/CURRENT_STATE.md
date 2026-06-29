@@ -6,7 +6,7 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. staleTime: 0 global (always fresh). |
-| Backend  | ~80%   | M3–M7 live from real DB. inArray empty-array guard di 4 repository. Auth, M1-M2 & M8-M10, Transactions masih belum. |
+| Backend  | ~88%   | Auth selesai (login/logout/refresh/me + middleware). requirePermission di semua route. M1-M2 & M8-M10, Transactions masih belum. |
 | Database | ~80%   | 21 tabel aktif + **88 permissions** (24 kategori granular, dot-notation keys). DB di-drop + re-seed 2026-06-29. |
 | Docs     | ✅ ~100%   | permissions.md diupdate (88 perms, 24 cat, dot-notation format, useCan pattern). |
 

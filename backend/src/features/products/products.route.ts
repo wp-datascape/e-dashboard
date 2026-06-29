@@ -14,12 +14,14 @@ import {
   handleGetLocalCategories,
 } from './products.handler'
 
+import { requirePermission } from '@/middleware/permission'
+
 export const productsRoutes = new Hono()
 
-// Local DB
-productsRoutes.get('/', handleGetLocalProducts)
-productsRoutes.get('/categories', handleGetLocalCategories)
+// Local DB — dipakai dropdown di HighMargin settings
+productsRoutes.get('/', requirePermission('settings.product:view'), handleGetLocalProducts)
+productsRoutes.get('/categories', requirePermission('settings.product:view'), handleGetLocalCategories)
 
-// Accurate API proxy
-productsRoutes.get('/accurate/categories', handleGetAccurateCategories)
-productsRoutes.get('/accurate', handleGetAccurateProducts)
+// Accurate API proxy — dipakai di Integration settings
+productsRoutes.get('/accurate/categories', requirePermission('config.integration:view'), handleGetAccurateCategories)
+productsRoutes.get('/accurate', requirePermission('config.integration:view'), handleGetAccurateProducts)

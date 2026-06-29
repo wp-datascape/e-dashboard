@@ -11,10 +11,11 @@
  */
 import { Hono } from 'hono'
 import { handleListRules, handleCreateRule, handleUpdateRule, handleDeleteRule } from './classification.handler'
+import { requirePermission } from '@/middleware/permission'
 
 export const classificationRoutes = new Hono()
 
-classificationRoutes.get('/', handleListRules)
-classificationRoutes.post('/', handleCreateRule)
-classificationRoutes.put('/:id', handleUpdateRule)
-classificationRoutes.delete('/:id', handleDeleteRule)
+classificationRoutes.get('/', requirePermission('config.classification:view'), handleListRules)
+classificationRoutes.post('/', requirePermission('config.classification:create'), handleCreateRule)
+classificationRoutes.put('/:id', requirePermission('config.classification:update'), handleUpdateRule)
+classificationRoutes.delete('/:id', requirePermission('config.classification:delete'), handleDeleteRule)

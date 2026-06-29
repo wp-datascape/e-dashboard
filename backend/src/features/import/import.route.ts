@@ -10,17 +10,11 @@
  */
 import { Hono } from 'hono'
 import { handleImportFile, handleImportFileStream, handleGetImportLogs, handleGetImportLogDetail } from './import.handler'
+import { requirePermission } from '@/middleware/permission'
 
 export const importRoutes = new Hono()
 
-// POST /import/csv — Upload & process file (one-shot response)
-importRoutes.post('/csv', handleImportFile)
-
-// POST /import/csv/stream — Upload & process file (SSE streaming progress)
-importRoutes.post('/csv/stream', handleImportFileStream)
-
-// GET /import/logs — Riwayat import
-importRoutes.get('/logs', handleGetImportLogs)
-
-// GET /import/logs/:id — Detail import log
-importRoutes.get('/logs/:id', handleGetImportLogDetail)
+importRoutes.post('/csv', requirePermission('config.import:import'), handleImportFile)
+importRoutes.post('/csv/stream', requirePermission('config.import:import'), handleImportFileStream)
+importRoutes.get('/logs', requirePermission('config.import:view'), handleGetImportLogs)
+importRoutes.get('/logs/:id', requirePermission('config.import:view'), handleGetImportLogDetail)
