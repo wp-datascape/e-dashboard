@@ -46,7 +46,7 @@ function AppRouter() {
   const [synced, setSynced] = useState(!token)
 
   // Sync user & permissions dari server setiap page load — agar perubahan RBAC langsung berlaku
-  const { data: meData, isLoading: isMeLoading } = useQuery({
+  const { data: meData, isLoading: isMeLoading, isError: isMeError } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.get('/auth/me').then((r) => r.data.data),
     enabled: !!token,
@@ -60,6 +60,12 @@ function AppRouter() {
       setSynced(true)
     }
   }, [meData])
+
+  // Jika /auth/me gagal (network error, 500, dll) dan bukan ditangani forceLogout,
+  // unblock synced agar app tidak stuck di PageLoader selamanya
+  useEffect(() => {
+    if (isMeError) setSynced(true)
+  }, [isMeError])
 
   if (isLoading || (!!token && (isMeLoading || !synced))) {
     return <PageLoader />

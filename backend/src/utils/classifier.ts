@@ -1,21 +1,14 @@
 /**
  * utils/classifier.ts
  *
- * Item Classification Engine — 4 Layer untuk mengklasifikasi item type
- * dari data Accurate Online.
+ * Item Classification Engine — full DB-driven.
+ * Rules dikonfigurasi via import template CSV di halaman Settings → Classification.
  *
  * Flow:
- *   Layer 1: Keyword matching (nama item → nama kategori)
- *   Layer 2: Price range heuristic
- *   Layer 3: DB lookup table override
- *   Layer 4: Fallback ke 'unit' + needs_review
- *
- * Semua teks dinormalisasi ke UPPERCASE sebelum diproses.
- *
- * Layer 1 & 2 bersifat stateless (tidak perlu DB query).
- * Layer 3 membutuhkan DB query ke tabel `item_classification_rules`.
+ *   1. DB lookup dari item_classification_rules (company-specific dulu, lalu global)
+ *   2. Fallback ke 'unit' + needsReview = true jika tidak ada rule yang match
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or, isNull, desc } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { item_classification_rules } from '@/db/schema/item_classification_rules'
 import { logger } from '@/utils/logger'
@@ -32,71 +25,7 @@ export interface ClassificationResult {
 
 type DbRule = typeof item_classification_rules.$inferSelect
 
-// ─── Default Keywords (Layer 1 — Hardcoded) ──────────────────────────────────
-
-interface KeywordEntry {
-  keyword: string
-  itemType: ItemType
-}
-
-const DEFAULT_KEYWORD_RULES: KeywordEntry[] = [
-  { keyword: 'CARTRIDGE', itemType: 'consumable' },
-  { keyword: 'INK ', itemType: 'consumable' },
-  { keyword: 'RIBBON', itemType: 'consumable' },
-  { keyword: 'TONER', itemType: 'consumable' },
-  { keyword: 'PAPER', itemType: 'consumable' },
-  { keyword: 'LABEL', itemType: 'consumable' },
-  { keyword: 'STICKER', itemType: 'consumable' },
-  { keyword: 'THERMAL PAPER', itemType: 'consumable' },
-  { keyword: 'SPARE PART', itemType: 'sparepart' },
-  { keyword: 'PART ', itemType: 'sparepart' },
-  { keyword: 'CABLE', itemType: 'sparepart' },
-  { keyword: 'ADAPTOR', itemType: 'sparepart' },
-  { keyword: 'POWER SUPPLY', itemType: 'sparepart' },
-  { keyword: 'PRINTER', itemType: 'unit' },
-  { keyword: 'SCANNER', itemType: 'unit' },
-  { keyword: 'MONEY COUNTER', itemType: 'unit' },
-  { keyword: 'DISPLAY', itemType: 'unit' },
-  { keyword: 'MONITOR', itemType: 'unit' },
-  { keyword: 'SERVICE', itemType: 'service' },
-  { keyword: 'INSTALASI', itemType: 'service' },
-  { keyword: 'MAINTENANCE', itemType: 'service' },
-  { keyword: 'JASA', itemType: 'service' },
-  { keyword: 'LABOR', itemType: 'service' },
-]
-
-// ─── Price Thresholds (Layer 2) ──────────────────────────────────────────────
-
-function classifyByPrice(unitPrice: number): ItemType | null {
-  if (unitPrice >= 500000) return 'unit'
-  if (unitPrice >= 50000) return 'consumable'
-  if (unitPrice > 0) return 'sparepart'
-  return null
-}
-
-// ─── Layer 1: Keyword Classification ─────────────────────────────────────────
-
-// Non-unit types outrank unit — "SPARE PART MONEY COUNTER" → sparepart, not unit
-const TYPE_PRIORITY: Record<ItemType, number> = {
-  service:    3,
-  consumable: 2,
-  sparepart:  2,
-  unit:       1,
-}
-
-function matchKeyword(text: string): KeywordEntry | null {
-  const upper = text.toUpperCase()
-  const matches = DEFAULT_KEYWORD_RULES.filter(e => upper.includes(e.keyword))
-  if (matches.length === 0) return null
-  // Sort: higher type priority first, then longer keyword (more specific) first
-  return matches.sort((a, b) => {
-    const pd = TYPE_PRIORITY[b.itemType] - TYPE_PRIORITY[a.itemType]
-    if (pd !== 0) return pd
-    return b.keyword.length - a.keyword.length
-  })[0]
-}
-
-// ─── Layer 3: DB Lookup ──────────────────────────────────────────────────────
+// ─── DB Lookup ───────────────────────────────────────────────────────────────
 
 async function lookupFromDb(
   itemName: string,
@@ -108,8 +37,16 @@ async function lookupFromDb(
     const rules = await db
       .select()
       .from(item_classification_rules)
-      .where(and(eq(item_classification_rules.is_active, true)))
-      .orderBy(item_classification_rules.priority)
+      .where(
+        and(
+          eq(item_classification_rules.is_active, true),
+          or(
+            eq(item_classification_rules.company_id, companyId),
+            isNull(item_classification_rules.company_id),
+          ),
+        ),
+      )
+      .orderBy(desc(item_classification_rules.priority))
 
     if (rules.length === 0) return null
 
@@ -118,8 +55,6 @@ async function lookupFromDb(
     let bestMatch: DbRule | null = null
 
     for (const rule of rules) {
-      if (rule.company_id !== null && rule.company_id !== companyId) continue
-
       const pattern = rule.match_pattern.toUpperCase()
       let matched = false
 
@@ -175,27 +110,6 @@ export interface ClassifyOptions {
 export async function classifyItemType(options: ClassifyOptions): Promise<ClassificationResult> {
   const { itemName, categoryName, unitPrice, companyId } = options
 
-  // Layer 1: Keyword di Nama Item
-  const itemMatch = matchKeyword(itemName)
-  if (itemMatch) {
-    return { itemType: itemMatch.itemType, needsReview: false, matchedRule: `keyword_item_name:${itemMatch.keyword}` }
-  }
-
-  // Layer 1: Keyword di Nama Kategori
-  const catMatch = matchKeyword(categoryName)
-  if (catMatch) {
-    return { itemType: catMatch.itemType, needsReview: false, matchedRule: `keyword_category:${catMatch.keyword}` }
-  }
-
-  // Layer 2: Price Range
-  if (unitPrice > 0) {
-    const priceType = classifyByPrice(unitPrice)
-    if (priceType) {
-      return { itemType: priceType, needsReview: true, matchedRule: `price_range:${unitPrice}` }
-    }
-  }
-
-  // Layer 3: DB Lookup
   const dbRule = await lookupFromDb(itemName, categoryName, unitPrice, companyId)
   if (dbRule) {
     return {
@@ -205,28 +119,5 @@ export async function classifyItemType(options: ClassifyOptions): Promise<Classi
     }
   }
 
-  // Layer 4: Fallback
   return { itemType: 'unit', needsReview: true, matchedRule: 'fallback:unit' }
-}
-
-/**
- * Synchronous classification (Layer 1+2 only) — no DB call.
- */
-export function classifyItemTypeSync(
-  itemName: string,
-  categoryName: string,
-  unitPrice: number,
-): { itemType: ItemType; needsReview: boolean } {
-  const itemMatch = matchKeyword(itemName)
-  if (itemMatch) return { itemType: itemMatch.itemType, needsReview: false }
-
-  const catMatch = matchKeyword(categoryName)
-  if (catMatch) return { itemType: catMatch.itemType, needsReview: false }
-
-  if (unitPrice > 0) {
-    const priceType = classifyByPrice(unitPrice)
-    if (priceType) return { itemType: priceType, needsReview: true }
-  }
-
-  return { itemType: 'unit', needsReview: true }
 }

@@ -185,14 +185,12 @@ export default function DivisionsSettings() {
         </Box>
       </Card>
 
-      {/* Table — ResponsiveListView sudah wrap Card sendiri di desktop */}
       <ResponsiveListView
         rows={rows}
         columns={columns}
         loading={isLoading}
       />
 
-      {/* Dialog */}
       <DivisionMappingDialog
         open={dialogMode !== null}
         mode={dialogMode ?? 'create'}

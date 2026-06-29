@@ -195,7 +195,7 @@ export default function ClassificationSettings() {
   return (
     <Box sx={{ p: 3 }}>
       {/* Page Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, gap: 1, flexWrap: 'wrap' }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('nav.settingsClassification')}</Typography>

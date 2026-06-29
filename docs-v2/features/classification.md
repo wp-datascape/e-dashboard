@@ -1,7 +1,7 @@
 # Feature: Item Classification Rules
 
-> Status: ✅ Complete — Full CRUD, priority auto-assign, global + per-company rules
-> Last updated: 2026-06-27
+> Status: ✅ Complete — Full CRUD, priority auto-assign, company-scoped import via XLSX template
+> Last updated: 2026-06-30
 > Baca juga: `features/import.md`, `shared/data-model.md`
 
 ---
@@ -46,6 +46,8 @@ Priority bisa di-override manual (0–1000) saat create.
 | `NULL` | Semua company (global rule) |
 | `integer` | Hanya company tersebut |
 
+> **Import via UI selalu company-scoped**: saat import dari halaman Import, `company_id` wajib dipilih — rule dimasukkan dengan `company_id` tersebut, bukan NULL.
+
 ---
 
 ## File Structure
@@ -54,9 +56,9 @@ Priority bisa di-override manual (0–1000) saat create.
 src/features/import/
 ├── import.schema.ts              — classificationRuleSchema + classificationRuleUpdateSchema + MATCH_TYPE_PRIORITY map
 ├── import.repository.ts          — findClassificationRules, createClassificationRule, update, delete
-├── classification.service.ts     — wrap CRUD + auto-priority inject + NOT_FOUND check
-├── classification.handler.ts     — thin handler (validateBody/Param/Query)
-└── classification.route.ts       — GET / POST / PUT /:id / DELETE /:id
+├── classification.service.ts     — CRUD + auto-priority + importClassificationRulesService + getClassificationRulesTemplate
+├── classification.handler.ts     — thin handler: CRUD + handleImportClassificationRules + handleDownloadClassificationTemplate
+└── classification.route.ts       — GET / POST / PUT /:id / DELETE /:id / POST /import / GET /template
 ```
 
 **Tabel DB:** `item_classification_rules`
@@ -168,6 +170,48 @@ Hapus rule.
 
 ---
 
+### `GET /classification-rules/template`
+
+Download template XLSX untuk import massal.
+
+**Response:** File `.xlsx` attachment `classification_rules_template.xlsx`
+
+Template terdiri dari:
+- Row 1: Judul
+- Row 2: Deskripsi tiap kolom (tinggi 80pt, multi-line — jelaskan semua match_type + price_range JSON format + item_type options)
+- Row 3: Header: `match_type`, `match_pattern`, `item_type`
+- Row 4–19: 16 baris contoh (keyword_item_name, keyword_category, price_range)
+
+---
+
+### `POST /classification-rules/import`
+
+Import massal classification rules dari file CSV atau XLSX.
+
+**Content-Type:** `multipart/form-data`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|------------|
+| `file` | File | `.csv` atau `.xlsx` |
+| `company_id` | integer | ID company — wajib, rules dimasukkan per company ini |
+
+**Behavior:**
+- Parser mendeteksi header row secara dinamis (scan kolom yang mengandung `match_type`)
+- Dedup: skip baris yang `match_type + match_pattern + company_id` sudah ada
+- `priority` auto-assign dari `MATCH_TYPE_PRIORITY` (tidak perlu di file)
+- `match_pattern` di-uppercase otomatis kecuali `price_range`
+
+**Response 200:**
+```json
+{
+  "message": "Import selesai",
+  "data": { "added": 10, "skipped": 3, "errors": [] }
+}
+```
+
+---
+
 ## Error Codes
 
 | HTTP | Code | Kondisi |
@@ -181,9 +225,10 @@ Hapus rule.
 ## Implementation Notes
 
 - **Priority auto-assign di service**: `MATCH_TYPE_PRIORITY[data.match_type] ?? 50` — inject sebelum passing ke repository
-- **Tidak ada unique constraint**: Dua rule dengan `match_pattern` sama bisa ada — engine pakai `priority` untuk tie-break
+- **Tidak ada unique constraint**: Dua rule dengan `match_pattern` sama bisa ada — engine pakai `priority` untuk tie-break; dedup saat import hanya cek `match_type + match_pattern + company_id`
 - **`price_range` match_pattern**: Disimpan sebagai JSON string, contoh `{"min": 500000}` atau `{"min": 100000, "max": 499999}` — parsing dilakukan oleh classification engine di import service
 - **`is_active = false`**: Rule tidak dihapus tapi diabaikan saat klasifikasi — berguna untuk debug / A-B testing rule
+- **Template XLSX format**: `getClassificationRulesTemplate()` di `classification.service.ts` — return `ArrayBuffer` (bukan `Buffer` / `Uint8Array`), agar langsung diterima `new Response()`
 
 ---
 
@@ -192,9 +237,11 @@ Hapus rule.
 - **Backend**: `backend/src/features/import/classification.*`
 - **DB Schema**: `backend/src/db/schema/item_classification_rules.ts`
 - **Schema + Priority Map**: `backend/src/features/import/import.schema.ts`
-- **Frontend Page**: `frontend/src/pages/Settings/Classification/`
+- **Frontend Page (CRUD)**: `frontend/src/pages/Config/Classification/`
+- **Frontend Import**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `klasifikasi`)
+- **Frontend API**: `frontend/src/api/classification.api.ts`
 
 ---
 
-**Last Updated**: 2026-06-27
+**Last Updated**: 2026-06-30
 **Status**: ✅ Production Ready

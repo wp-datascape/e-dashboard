@@ -9,9 +9,7 @@ export const importFile = (payload: ImportFilePayload) => {
   form.append('file', payload.file)
   form.append('company_id', String(payload.company_id))
   form.append('period_month', payload.period_month)
-  return axiosInstance.post<ApiResponse<ImportResult>>('/import/csv', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  return axiosInstance.post<ApiResponse<ImportResult>>('/import/csv', form)
 }
 
 export const importAccurate = (payload: ImportAccuratePayload) =>
@@ -25,3 +23,13 @@ export const getImportErrors = (logId: number) =>
 
 export const getCompanies = () =>
   axiosInstance.get<ApiResponse<Company[]>>('/companies')
+
+export const downloadFakturTemplate = async (): Promise<void> => {
+  const res = await axiosInstance.get('/import/template', { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'template_faktur_penjualan.xlsx'
+  a.click()
+  URL.revokeObjectURL(url)
+}

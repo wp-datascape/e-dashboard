@@ -1,8 +1,8 @@
 # Feature: Channel Divisions
 
-> Status: ✅ Complete — Full CRUD, global + per-company rules, division filter
-> Last updated: 2026-06-27
-> Baca juga: `features/customers.md`, `shared/data-model.md`
+> Status: ✅ Complete — Full CRUD, company-scoped import via XLSX template, division filter
+> Last updated: 2026-06-30
+> Baca juga: `features/customers.md`, `features/import.md`, `shared/data-model.md`
 
 ---
 
@@ -35,6 +35,8 @@ Saat query dengan `company_id` tertentu, endpoint mengembalikan:
 - Semua rule global (`company_id IS NULL`) **+**
 - Rule khusus company itu
 
+> **Import via UI selalu company-scoped**: saat import dari halaman Import, `company_id` wajib dipilih — entri dimasukkan dengan `company_id` tersebut, dedup juga per `channel_name + company_id`.
+
 ---
 
 ## File Structure
@@ -42,10 +44,10 @@ Saat query dengan `company_id` tertentu, endpoint mengembalikan:
 ```
 src/features/settings/
 ├── channel-divisions.schema.ts      — Zod DTOs + DIVISION_VALUES constant
-├── channel-divisions.repository.ts  — findChannelDivisions, findByName, CRUD
-├── channel-divisions.service.ts     — isDuplicateError + pre-check, NOT_FOUND
-├── channel-divisions.handler.ts     — thin handler (no try-catch)
-└── channel-divisions.route.ts       — GET / POST / PATCH /:id / DELETE /:id
+├── channel-divisions.repository.ts  — findChannelDivisions, findByName, findByNameAndCompany, CRUD
+├── channel-divisions.service.ts     — CRUD + importChannelDivisionsService + getChannelDivisionsTemplate
+├── channel-divisions.handler.ts     — thin handler: CRUD + handleImportChannelDivisions + handleDownloadChannelDivisionsTemplate
+└── channel-divisions.route.ts       — GET / POST / PATCH /:id / DELETE /:id / POST /import / GET /template
 ```
 
 **Tabel DB:** `channel_divisions`
@@ -157,6 +159,47 @@ Hapus satu mapping.
 
 ---
 
+### `GET /settings/channel-divisions/template`
+
+Download template XLSX untuk import massal.
+
+**Response:** File `.xlsx` attachment `channel_divisions_template.xlsx`
+
+Template terdiri dari:
+- Row 1: Judul
+- Row 2: Deskripsi tiap kolom (termasuk semua nilai division yang valid)
+- Row 3: Header: `channel_name`, `division`
+- Row 4–13: 10 baris contoh
+
+---
+
+### `POST /settings/channel-divisions/import`
+
+Import massal channel divisions dari file CSV atau XLSX.
+
+**Content-Type:** `multipart/form-data`
+
+**Form fields:**
+| Field | Tipe | Keterangan |
+|-------|------|------------|
+| `file` | File | `.csv` atau `.xlsx` |
+| `company_id` | integer | ID company — wajib, entri dimasukkan per company ini |
+
+**Behavior:**
+- Parser mendeteksi header row secara dinamis (scan kolom yang mengandung `channel_name`)
+- Dedup: skip baris yang `channel_name + company_id` sudah ada
+- `channel_name` di-uppercase + trim otomatis
+
+**Response 200:**
+```json
+{
+  "message": "Import selesai",
+  "data": { "added": 5, "skipped": 1, "errors": [] }
+}
+```
+
+---
+
 ## Error Codes
 
 | HTTP | Code | Kondisi |
@@ -168,7 +211,7 @@ Hapus satu mapping.
 
 ---
 
-## Seed Data (21 entries)
+## Seed Data (21 entries, company_id = NULL / global)
 
 ```
 DC WEST, DC EAST, DC WEST HEAD, DC EAST HEAD, DC EAST CARD → distribution
@@ -180,16 +223,18 @@ SALES SUPPORT, SALES SUPPORT JKT → support
 SAMPLE ORDER → distribution
 ```
 
-Semua seed data: `company_id = NULL` (global rule).
+Seed data di-load via `bun run db:seed` → `backend/src/db/seed.ts`. Data ini bersifat global (company_id = NULL) dan dapat dioverride dengan import per-company dari halaman Import.
 
 ---
 
 ## Implementation Notes
 
-- **Pre-check duplikat di service**: Service memanggil `findChannelDivisionByName()` sebelum INSERT — lebih user-friendly daripada mengandalkan unique constraint DB yang menghasilkan pesan error generik
-- **`channel_name` UPPERCASE**: Normalisasi dilakukan di Zod schema via `.transform((v) => v.toUpperCase().trim())` — tidak perlu manual di service/repository
-- **Soft delete tidak dipakai**: Channel division bisa dihapus hard (tidak ada relasi yang broken karena `invoices.channel_name` adalah varchar, bukan FK)
-- **Impor baru**: Jika ada channel baru dari Accurate yang belum di-map, customer akan muncul dengan `division = null` — admin perlu tambahkan mapping baru di halaman ini
+- **Pre-check duplikat di service (CRUD)**: Service memanggil `findChannelDivisionByName()` sebelum INSERT — lebih user-friendly daripada mengandalkan unique constraint DB
+- **Pre-check duplikat saat import**: `findChannelDivisionByNameAndCompany(name, companyId)` — dedup per `channel_name + company_id` (bukan global)
+- **`channel_name` UPPERCASE**: Normalisasi di Zod schema via `.transform((v) => v.toUpperCase().trim())`; saat import, di-uppercase manual di service
+- **Soft delete tidak dipakai**: Channel division bisa dihapus hard (tidak ada FK dari invoices — `invoices.channel_name` adalah varchar)
+- **Template XLSX format**: `getChannelDivisionsTemplate()` di service — return `ArrayBuffer` langsung diterima `new Response()`
+- **Channel baru dari Accurate**: Jika ada channel_name baru di file import yang belum di-map, customer akan tampil dengan `division = null` — admin perlu tambah mapping di halaman Settings/Divisions atau import via template
 
 ---
 
@@ -198,10 +243,12 @@ Semua seed data: `company_id = NULL` (global rule).
 - **Backend**: `backend/src/features/settings/channel-divisions.*`
 - **DB Schema**: `backend/src/db/schema/channel_divisions.ts`
 - **Digunakan oleh**: `features/customers.md` (status logic + division filter)
-- **Frontend Page**: `frontend/src/pages/Settings/Divisions/`
+- **Frontend Page (CRUD)**: `frontend/src/pages/Settings/Divisions/`
+- **Frontend Import**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `divisi`)
+- **Frontend API**: `frontend/src/api/channelDivisions.api.ts`
 - **Seed**: `backend/src/db/seed.ts`
 
 ---
 
-**Last Updated**: 2026-06-27
+**Last Updated**: 2026-06-30
 **Status**: ✅ Production Ready

@@ -5,6 +5,7 @@
  */
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import * as XLSX from 'xlsx'
 import { success, paginated, error } from '@/utils/response'
 import { AppError, ErrorCode } from '@/utils/error'
 import { resolveCompanyScope } from '@/middleware/auth'
@@ -152,4 +153,75 @@ export async function handleGetImportLogDetail(c: Context) {
   }
 
   return success(c, { log: result.log, errors: result.errors })
+}
+
+export async function handleGetFakturTemplate(_c: Context) {
+  // Baris 1: judul
+  // Baris 2: keterangan tiap kolom
+  // Baris 3: header (label persis seperti yang dipakai Accurate Online & parser)
+  // Baris 4-6: contoh data
+
+  const title = [
+    'Template Import Faktur Penjualan', '', '', '', '', '', '', '', '', '', '',
+  ]
+
+  const descriptions = [
+    'Tanggal faktur\n(DD/MM/YYYY atau DD MMM YYYY)',
+    'Nomor faktur\n(awali dengan SI. atau INV-)',
+    'Nama pelanggan / customer',
+    'Nama kategori barang\n(dari Accurate: Kategori Barang & Jasa)',
+    'Nama barang / item detail',
+    'Jumlah unit terjual',
+    'Harga satuan per unit',
+    'Total nilai penjualan\n(qty × harga)',
+    'Laba kotor\n(Total Harga dikurangi HPP)',
+    'Nama cabang\n(opsional)',
+    'Nama tenaga penjual / channel\n(opsional, untuk mapping divisi)',
+  ]
+
+  const headers = [
+    'Tanggal',
+    'Sales Invoice',
+    'Pelanggan',
+    'Nama Kategori Barang Barang & Jasa',
+    'Nama Barang',
+    'Kuantitas',
+    '@Harga',
+    'Total Harga',
+    'Laba',
+    'Nama Cabang',
+    'Nama Tenaga Penjual',
+  ]
+
+  const examples = [
+    ['01/01/2025', 'SI.00001', 'TOKO MAJU JAYA', 'PRINTER', 'CANON PIXMA G2010', 2, 1500000, 3000000, 600000, 'PUSAT', 'DC WEST'],
+    ['15/01/2025', 'SI.00002', 'CV BERKAH MAKMUR', 'SCANNER', 'FUJITSU SP-1130N', 1, 4500000, 4500000, 900000, 'SURABAYA', 'B2B EAST'],
+    ['20/01/2025', 'SI.00003', 'PT SINAR ABADI', 'CARTRIDGE', 'CANON PG-745', 10, 85000, 850000, 170000, '', 'TOKOPEDIA'],
+  ]
+
+  const ws = XLSX.utils.aoa_to_sheet([title, descriptions, headers, ...examples])
+
+  // Lebar kolom
+  ws['!cols'] = [
+    { wch: 22 }, { wch: 18 }, { wch: 28 },
+    { wch: 38 }, { wch: 28 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 }, { wch: 14 },
+    { wch: 18 }, { wch: 24 },
+  ]
+
+  // Tinggi baris deskripsi supaya teks multi-baris terbaca
+  ws['!rows'] = [{ hpt: 20 }, { hpt: 42 }, { hpt: 20 }]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Faktur Penjualan')
+
+  const buf: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+
+  return new Response(ab, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="template_faktur_penjualan.xlsx"',
+    },
+  })
 }

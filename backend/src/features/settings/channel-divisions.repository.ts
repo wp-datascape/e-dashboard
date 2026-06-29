@@ -57,6 +57,17 @@ export async function findChannelDivisionByName(channel_name: string, excludeId?
   return excludeId ? rows.filter((r) => r.id !== excludeId) : rows
 }
 
+export async function findChannelDivisionByNameAndCompany(channel_name: string, companyId: number) {
+  const [row] = await db
+    .select({ id: channel_divisions.id })
+    .from(channel_divisions)
+    .where(and(
+      eq(channel_divisions.channel_name, channel_name),
+      eq(channel_divisions.company_id, companyId),
+    ))
+  return row ?? null
+}
+
 export async function createChannelDivision(data: CreateChannelDivisionDto) {
   const [result] = await db
     .insert(channel_divisions)

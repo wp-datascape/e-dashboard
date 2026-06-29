@@ -177,6 +177,59 @@
 
 ## Catatan Sesi Terakhir
 
+### 2026-06-29–30 (sesi 25): Import Terpusat + Template XLSX + Auth Fix
+
+**Import Page — Sentralisasi Semua Tipe Import:**
+- `UploadFileCard` di-rewrite total: satu halaman untuk faktur, channel divisions, dan klasifikasi
+- Dropdown "Tipe Import" menentukan field, endpoint, dan template yang diunduh
+- Tombol **Download Template** selalu tampil, download XLSX sesuai tipe terpilih
+- `Settings/Divisions` dan `Config/Classification` dibersihkan dari tombol import — hanya tombol Add yang tersisa
+
+**Template XLSX — 3 tipe:**
+- **Faktur** (`GET /import/template`): 11 kolom, title row + description row + header row + 3 contoh data
+- **Channel Divisions** (`GET /settings/channel-divisions/template`): 2 kolom, title + deskripsi + header + 10 contoh
+- **Klasifikasi** (`GET /classification-rules/template`): 3 kolom, title + deskripsi panjang (tinggi 80pt) + header + 16 contoh
+- Semua template return `ArrayBuffer` (via `buf.buffer.slice(byteOffset, byteOffset+byteLength)`) agar `new Response()` menerima langsung
+
+**Import Massal — Channel Divisions & Klasifikasi:**
+- Endpoint baru: `POST /settings/channel-divisions/import` dan `POST /classification-rules/import`
+- **`company_id` wajib** di FormData — data diisolasi per company
+- Dedup per company: `findChannelDivisionByNameAndCompany(name, companyId)` — bukan global
+- **Dynamic header detection**: parser scan baris yang mengandung kolom key (`channel_name` / `match_type`) — tidak hardcode row pertama; toleransi template dengan title/description rows di atas header
+- `priority` auto-assign dari `MATCH_TYPE_PRIORITY` saat import klasifikasi
+
+**Bug Fix — Axios Default Content-Type:**
+- Root cause: `axios.create({ headers: { 'Content-Type': 'application/json' } })` override multipart boundary yang dibuat browser untuk FormData
+- Fix: hapus default `Content-Type` dari `axios.create()` — browser generate boundary otomatis jika tidak ada override
+- Error sebelumnya: `TypeError: Can't decode form data from body because of incorrect MIME type/boundary`
+
+**Auth Fix — Force Logout:**
+- Root cause: DB belum di-seed → tidak ada user → login gagal → tidak ada cookie → setiap request 401 → refresh gagal → `forceLogout()`
+- Fix: jalankan `bun run db:seed`
+- Bug tambahan di `App.tsx`: jika `/auth/me` gagal dengan non-401 error, `synced` tidak pernah jadi `true` → app stuck di `PageLoader` selamanya
+- Fix: tambah `useEffect(() => { if (isMeError) setSynced(true) }, [isMeError])`
+
+**File yang diubah (sesi ini):**
+- `backend/src/features/import/import.handler.ts` — `handleGetFakturTemplate` (NEW)
+- `backend/src/features/import/import.route.ts` — `GET /template`
+- `backend/src/features/import/classification.service.ts` — `importClassificationRulesService`, `getClassificationRulesTemplate` (NEW)
+- `backend/src/features/import/classification.handler.ts` — `handleImportClassificationRules`, `handleDownloadClassificationTemplate` (NEW)
+- `backend/src/features/import/classification.route.ts` — `POST /import`, `GET /template`
+- `backend/src/features/settings/channel-divisions.repository.ts` — `findChannelDivisionByNameAndCompany` (NEW)
+- `backend/src/features/settings/channel-divisions.service.ts` — `importChannelDivisionsService`, `getChannelDivisionsTemplate`, dynamic header scan
+- `backend/src/features/settings/channel-divisions.handler.ts` — `handleImportChannelDivisions`, `handleDownloadChannelDivisionsTemplate` (NEW)
+- `backend/src/features/settings/channel-divisions.route.ts` — `POST /import`, `GET /template`
+- `frontend/src/api/axios.ts` — hapus default `Content-Type: application/json` dari `axios.create()`
+- `frontend/src/api/import.api.ts` — `downloadFakturTemplate()` (NEW)
+- `frontend/src/api/channelDivisions.api.ts` — `importCsv(file, companyId)` tambah `company_id`
+- `frontend/src/api/classification.api.ts` — `importClassificationRules(file, companyId)` tambah `company_id`
+- `frontend/src/pages/Import/components/UploadFileCard.tsx` — REWRITTEN (dropdown tipe, 3 mutation, template download)
+- `frontend/src/pages/Settings/Divisions/index.tsx` — hapus tombol import/template
+- `frontend/src/pages/Config/Classification/index.tsx` — hapus tombol import/template
+- `frontend/src/App.tsx` — tambah `isMeError` handler untuk unblock synced
+
+---
+
 ### 2026-06-29 (sesi 24): RBAC Button Guards + Permission Categories + inArray Fix + staleTime Fix
 
 **DB Drop & Re-seed:**

@@ -26,4 +26,22 @@ export const channelDivisionsApi = {
   remove: async (id: number): Promise<void> => {
     await api.delete(`/settings/channel-divisions/${id}`)
   },
+
+  importCsv: async (file: File, companyId: number): Promise<{ added: number; skipped: number; errors: Array<{ row: number; message: string }> }> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('company_id', String(companyId))
+    const res = await api.post<ApiResponse<{ added: number; skipped: number; errors: Array<{ row: number; message: string }> }>>('/settings/channel-divisions/import', form)
+    return res.data.data
+  },
+
+  downloadTemplate: async (): Promise<void> => {
+    const res = await api.get('/settings/channel-divisions/template', { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'channel_divisions_template.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

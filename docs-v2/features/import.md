@@ -1,16 +1,24 @@
 # Feature: Import
 
-> Status: ✅ Complete — File upload (CSV/Excel), SSE streaming progress, import logs, riwayat & detail
-> Last updated: 2026-06-27
-> Baca juga: `features/classification.md`, `features/accurate.md`, `shared/data-model.md`
+> Status: ✅ Complete — File upload (CSV/Excel), SSE streaming progress, import logs, template download, import terpusat (faktur + divisi + klasifikasi)
+> Last updated: 2026-06-30
+> Baca juga: `features/classification.md`, `features/channel-divisions.md`, `features/accurate.md`, `shared/data-model.md`
 
 ---
 
 ## Overview
 
-Import feature adalah entry point utama data faktur ke sistem. Admin upload file CSV atau Excel yang diekspor dari Accurate Online → sistem parse, validasi, dedup, upsert master data, dan simpan ke `invoices` + `invoice_items`.
+Import page adalah entry point terpusat untuk semua jenis data import. Tiga tipe import tersedia dari satu halaman via dropdown selector:
 
-Dua mode import:
+| Tipe | Endpoint | Keterangan |
+|------|----------|------------|
+| **Faktur** | `POST /import/csv` | Upload invoice dari Accurate — butuh company_id + period_month |
+| **Channel Divisions** | `POST /settings/channel-divisions/import` | Mapping channel_name → division, butuh company_id |
+| **Klasifikasi Item** | `POST /classification-rules/import` | Aturan klasifikasi item_type, butuh company_id |
+
+Setiap tipe punya **Download Template** yang mengunduh file XLSX siap pakai (title row + deskripsi kolom + contoh data).
+
+Mode import faktur:
 1. **File upload** (`POST /import/csv`) — one-shot atau streaming SSE
 2. **Accurate API sync** — fetch langsung dari Accurate (lihat `features/accurate.md`)
 
@@ -43,25 +51,26 @@ Return summary / stream SSE progress
 
 ---
 
-## File Format
+## File Format — Faktur
 
 File yang diterima: `.csv` atau `.xlsx` (max 10MB)
 
-Kolom wajib yang diparse:
+Kolom wajib yang diparse (nama persis di template):
 | Kolom di File | Maps To | Keterangan |
 |---|---|---|
-| Nomor SI | `invoices.invoice_number` | Dedup key |
-| Tanggal | `invoices.invoice_date` | Format YYYY-MM-DD |
-| Nama Customer | `customers.name` (UPPER) | Upsert key |
-| Nama Tenaga Penjual | `invoices.channel_name` (UPPER) | Lookup `channel_divisions` |
-| Nama Kategori | `product_categories.name` (UPPER) | Upsert key |
-| Nama Barang | `products.product_name` (UPPER) | Upsert key |
-| Qty | `invoice_items.qty` | |
-| Harga Satuan | `invoice_items.unit_price` | |
-| Diskon | `invoice_items.discount_pct` | |
-| Total Revenue | `invoice_items.total_revenue` | |
-| HPP Satuan | `invoice_items.hpp_unit` | |
-| Total GP | `invoice_items.total_gp` | |
+| `Tanggal` | `invoices.invoice_date` | Format YYYY-MM-DD |
+| `Sales Invoice` | `invoices.invoice_number` | Dedup key |
+| `Pelanggan` | `customers.name` (UPPER) | Upsert key |
+| `Nama Kategori Barang Barang & Jasa` | `product_categories.name` (UPPER) | Upsert key |
+| `Nama Barang` | `products.product_name` (UPPER) | Upsert key |
+| `Kuantitas` | `invoice_items.qty` | |
+| `@Harga` | `invoice_items.unit_price` | |
+| `Total Harga` | `invoice_items.total_revenue` | |
+| `Laba` | `invoice_items.total_gp` | |
+| `Nama Cabang` | `invoices.branch_name` | Opsional |
+| `Nama Tenaga Penjual` | `invoices.channel_name` (UPPER) | Lookup `channel_divisions` |
+
+Parser mendeteksi baris header secara dinamis (scan 10 baris pertama) — file boleh punya metadata/baris judul di atas header tanpa memengaruhi parsing.
 
 ---
 
@@ -72,11 +81,11 @@ src/features/import/
 ├── import.schema.ts          — importFileSchema, importAccurateSchema, importLogQuerySchema, classificationRuleSchema
 ├── import.repository.ts      — createImportLog, createImportError, findClassificationRules, CRUD rules
 ├── import.service.ts         — importFile() — pipeline utama, onProgress callback untuk SSE
-├── import.handler.ts         — handleImportFile, handleImportFileStream, handleGetImportLogs, handleGetImportLogDetail
-├── import.route.ts           — POST /csv, POST /csv/stream, GET /logs, GET /logs/:id
-├── classification.service.ts — listClassificationRules, createClassificationRuleService, updateClassificationRuleService, deleteClassificationRuleService
-├── classification.handler.ts — handleListRules, handleCreateRule, handleUpdateRule, handleDeleteRule
-└── classification.route.ts   — GET /, POST /, PUT /:id, DELETE /:id
+├── import.handler.ts         — handleImportFile, handleImportFileStream, handleGetImportLogs, handleGetImportLogDetail, handleGetFakturTemplate
+├── import.route.ts           — POST /csv, POST /csv/stream, GET /logs, GET /logs/:id, GET /template
+├── classification.service.ts — listClassificationRules, CRUD, importClassificationRulesService, getClassificationRulesTemplate
+├── classification.handler.ts — handleListRules, handleCreateRule, handleUpdateRule, handleDeleteRule, handleImportClassificationRules, handleDownloadClassificationTemplate
+└── classification.route.ts   — GET /, POST /, PUT /:id, DELETE /:id, POST /import, GET /template
 ```
 
 **Tabel DB yang dipakai:**
@@ -98,6 +107,20 @@ src/features/import/
 ## API Endpoints
 
 Base URL: `http://localhost:3000/api/v1/import`
+
+---
+
+### `GET /import/template`
+
+Download template XLSX untuk import faktur.
+
+**Response:** File `.xlsx` (Content-Disposition: attachment)
+
+Template terdiri dari:
+- Row 1: Judul "Template Import Faktur Penjualan"
+- Row 2: Deskripsi tiap kolom (multi-line)
+- Row 3: Header kolom yang dipakai parser
+- Row 4–6: Contoh data
 
 ---
 
@@ -229,10 +252,25 @@ Detail satu import log — termasuk daftar baris error.
 |------|------|---------|
 | 400 | `VALIDATION_ERROR` | company_id / period_month tidak valid |
 | 400 | `FILE_TOO_LARGE` | File > 10MB |
-| 400 | `INVALID_FILE_FORMAT` | Bukan CSV/XLSX |
+| 400 | `INVALID_FILE_FORMAT` | Bukan CSV/XLSX, atau header tidak ditemukan |
 | 404 | `NOT_FOUND` | Import log ID tidak ditemukan |
 | 422 | `IMPORT_PROCESSING_ERROR` | Parse / DB error saat processing |
 | 500 | `INTERNAL_ERROR` | Server error |
+
+---
+
+## Import UI — UploadFileCard
+
+`frontend/src/pages/Import/components/UploadFileCard.tsx` mengelola semua tipe import dari satu UI:
+
+- **Dropdown "Tipe Import"**: pilih `faktur` | `divisi` | `klasifikasi`
+- **Download Template**: tombol selalu tampil, mengunduh template XLSX sesuai tipe yang dipilih
+- **Company selector**: tampil untuk semua tipe; faktur juga butuh period_month
+- **Dropzone**: upload file `.csv` atau `.xlsx`
+- **Hasil non-faktur**: ditampilkan sebagai Alert (misal: `3 ditambahkan, 1 dilewati, 0 error`)
+- **Hasil faktur**: SSE progress bar + summary
+
+Halaman `Settings/Divisions` dan `Config/Classification` **tidak punya** tombol import — semua import terpusat di halaman Import.
 
 ---
 
@@ -276,11 +314,12 @@ Ini adalah pengecualian yang disengaja, bukan pelanggaran arsitektur.
 - **Backend**: `backend/src/features/import/`
 - **DB Schema**: `backend/src/db/schema/import_logs.ts`
 - **Utils**: `backend/src/utils/parser.ts` (parseCsv, parseExcel)
-- **Classification Rules**: `features/classification.md`
+- **Classification Rules + Import**: `features/classification.md`
+- **Channel Divisions + Import**: `features/channel-divisions.md`
 - **Accurate Sync**: `features/accurate.md`
 - **Frontend Page**: `frontend/src/pages/Import/`
 
 ---
 
-**Last Updated**: 2026-06-27
+**Last Updated**: 2026-06-30
 **Status**: ✅ Production Ready

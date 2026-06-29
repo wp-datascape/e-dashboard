@@ -30,3 +30,27 @@ export const updateClassificationRule = (id: number, data: Partial<Classificatio
 
 export const deleteClassificationRule = (id: number) =>
   api.delete(`/classification-rules/${id}`)
+
+export interface ImportClassificationResult {
+  added: number
+  skipped: number
+  errors: Array<{ row: number; message: string }>
+}
+
+export const importClassificationRules = async (file: File, companyId: number): Promise<ImportClassificationResult> => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('company_id', String(companyId))
+  const res = await api.post<{ data: ImportClassificationResult }>('/classification-rules/import', form)
+  return res.data.data
+}
+
+export const downloadClassificationTemplate = async (): Promise<void> => {
+  const res = await api.get('/classification-rules/template', { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'classification_rules_template.xlsx'
+  a.click()
+  URL.revokeObjectURL(url)
+}

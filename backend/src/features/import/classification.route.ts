@@ -10,12 +10,21 @@
  *   DELETE /classification-rules/:id      — Delete rule
  */
 import { Hono } from 'hono'
-import { handleListRules, handleCreateRule, handleUpdateRule, handleDeleteRule } from './classification.handler'
+import {
+  handleListRules,
+  handleCreateRule,
+  handleUpdateRule,
+  handleDeleteRule,
+  handleImportClassificationRules,
+  handleDownloadClassificationTemplate,
+} from './classification.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const classificationRoutes = new Hono()
 
 classificationRoutes.get('/', requirePermission('config.classification:view'), handleListRules)
+classificationRoutes.get('/template', requirePermission('config.classification:view'), handleDownloadClassificationTemplate)
 classificationRoutes.post('/', requirePermission('config.classification:create'), handleCreateRule)
+classificationRoutes.post('/import', requirePermission('config.classification:create'), handleImportClassificationRules)
 classificationRoutes.put('/:id', requirePermission('config.classification:update'), handleUpdateRule)
 classificationRoutes.delete('/:id', requirePermission('config.classification:delete'), handleDeleteRule)
