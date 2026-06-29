@@ -29,7 +29,7 @@ export function M7Expansion({ trend, isLoading }: Props) {
           }))}
           series={[
             { key: 'up_rate',        label: 'Spending Naik (%)', color: theme.palette.success.main },
-            { key: 'flat_down_rate', label: 'Flat / Turun (%)',  color: theme.palette.action.hover },
+            { key: 'flat_down_rate', label: 'Flat / Turun (%)',  color: theme.palette.action.disabledBackground, labelColor: theme.palette.text.primary },
           ]}
           xKey="month"
           height={320}

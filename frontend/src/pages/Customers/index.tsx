@@ -22,6 +22,7 @@ export default function Customers() {
   const { t } = useTranslation();
 
   const { data: companies = [] } = useCompanies();
+  const showCompanyFilter = companies.length > 1;
   const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -87,12 +88,14 @@ export default function Customers() {
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 240 }} />
-        <TextField select size="small" label={t('common.company')} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
-          <MenuItem value="all">{t('common.all')}</MenuItem>
-          {companies.map((c) => (
-            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-          ))}
-        </TextField>
+        {showCompanyFilter && (
+          <TextField select size="small" label={t('common.company')} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
+            <MenuItem value="all">{t('common.all')}</MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+        )}
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ minWidth: 140 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
           <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>

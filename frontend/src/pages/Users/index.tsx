@@ -23,6 +23,7 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useRoles } from '@/hooks/useRoles';
 import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
+import { useCan } from '@/hooks/useCan';
 import { ViewUserDialog } from './components/ViewUserDialog';
 import { CreateUserDialog } from './components/CreateUserDialog';
 import { EditUserDialog } from './components/EditUserDialog';
@@ -61,6 +62,7 @@ const fmtDate = (iso: string | null, fallback: string): string => {
 
 export default function Users() {
   const { t } = useTranslation();
+  const can = useCan();
 
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -162,8 +164,8 @@ export default function Users() {
           <ActionMenu
             items={[
               { label: t('users.viewUser'), icon: <VisibilityIcon />, onClick: () => { setSelectedUser(user); setDialogMode('view'); } },
-              { label: t('users.editUser'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedUser(user); setDialogMode('edit'); } },
-              { label: t('users.deleteUser'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedUser(user); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: isSystemUser(user) },
+              { label: t('users.editUser'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedUser(user); setDialogMode('edit'); }, hidden: !can('access.user:update') },
+              { label: t('users.deleteUser'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedUser(user); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: isSystemUser(user) || !can('access.user:delete') },
             ]}
           />
         );
@@ -177,9 +179,11 @@ export default function Users() {
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('users.title')}
         </Typography>
-        <Button startIcon={<PersonAddIcon />} onClick={() => { resetCreate(); setDialogMode('create'); }} mobileIconOnly>
-          {t('users.addUser')}
-        </Button>
+        {can('access.user:create') && (
+          <Button startIcon={<PersonAddIcon />} onClick={() => { resetCreate(); setDialogMode('create'); }} mobileIconOnly>
+            {t('users.addUser')}
+          </Button>
+        )}
       </Box>
 
       <ResponsiveListView rows={users} columns={columns} loading={isLoading} height={560} />

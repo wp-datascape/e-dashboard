@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useCompanies';
 import type { Company, CreateCompanyPayload, UpdateCompanyPayload } from '@/types/companies';
 
+import { useCan } from '@/hooks/useCan';
 import { CompanyDialog } from './components/CompanyDialog';
 import { CompanyDetailDialog } from './components/CompanyDetailDialog';
 import { BranchSection } from './components/BranchSection';
@@ -32,6 +33,7 @@ type DialogMode = 'create' | 'edit' | 'view' | 'delete' | 'branches' | null;
 
 export default function Companies() {
   const { t } = useTranslation();
+  const can = useCan();
 
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -90,9 +92,9 @@ export default function Companies() {
           <ActionMenu
             items={[
               { label: t('companies.viewCompany'), icon: <VisibilityIcon />, onClick: () => { setSelectedCompany(company); setDialogMode('view'); } },
-              { label: t('companies.editCompany'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedCompany(company); setDialogMode('edit'); } },
-              { label: t('companies.manageBranches'), icon: <BusinessIcon />, onClick: () => { setSelectedCompany(company); setDialogMode('branches'); } },
-              { label: t('companies.deleteCompany'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedCompany(company); setDialogMode('delete'); }, color: 'error', dividerBefore: true },
+              { label: t('companies.editCompany'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedCompany(company); setDialogMode('edit'); }, hidden: !can('settings.company:update') },
+              { label: t('companies.manageBranches'), icon: <BusinessIcon />, onClick: () => { setSelectedCompany(company); setDialogMode('branches'); }, hidden: !can('settings.branch:view') },
+              { label: t('companies.deleteCompany'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedCompany(company); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: !can('settings.company:delete') },
             ]}
           />
         );
@@ -106,9 +108,11 @@ export default function Companies() {
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('companies.title')}
         </Typography>
-        <Button startIcon={<AddIcon />} onClick={() => { resetCreate(); setDialogMode('create'); }} mobileIconOnly>
-          {t('companies.addCompany')}
-        </Button>
+        {can('settings.company:create') && (
+          <Button startIcon={<AddIcon />} onClick={() => { resetCreate(); setDialogMode('create'); }} mobileIconOnly>
+            {t('companies.addCompany')}
+          </Button>
+        )}
       </Box>
 
       <ResponsiveListView rows={companies} columns={columns} loading={isLoading} height={560} />

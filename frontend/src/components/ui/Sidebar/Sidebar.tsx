@@ -105,6 +105,9 @@ function NavGroup({
   const { t } = useTranslation()
   const location = useLocation()
 
+  // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
+  if (!canSee(item.permissionKey)) return null
+
   const visibleChildren = (item.children ?? []).filter((c) => canSee(c.permissionKey))
 
   const anyChildActive = visibleChildren.some(
@@ -164,6 +167,27 @@ function NavGroup({
   )
 }
 
+/** Cek apakah satu item akan ter-render (visible) berdasarkan permission */
+function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
+  if (!canSee(item.permissionKey)) return false
+  if (!item.children) return true
+  return item.children.some((c) => canSee(c.permissionKey))
+}
+
+/** Kelompokkan NAV_ITEMS menjadi sections berdasarkan groupLabel boundary */
+type NavSection = { groupLabel?: string; items: NavItem[] }
+function buildNavSections(items: NavItem[]): NavSection[] {
+  return items.reduce<NavSection[]>((acc, item) => {
+    if (item.groupLabel) {
+      acc.push({ groupLabel: item.groupLabel, items: [item] })
+    } else {
+      if (acc.length === 0) acc.push({ items: [] })
+      acc[acc.length - 1].items.push(item)
+    }
+    return acc
+  }, [])
+}
+
 export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
   const navigate = useNavigate()
   const { permissions } = useAuth()
@@ -179,6 +203,8 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
     navigate(path)
     if (variant === 'temporary') onClose()
   }
+
+  const navSections = buildNavSections(NAV_ITEMS)
 
   return (
     <Drawer
@@ -211,28 +237,32 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
       <Divider />
 
       <List dense disablePadding sx={{ pt: 0.5 }}>
-        {NAV_ITEMS.map((item) => {
-          if (!canSee(item.permissionKey) && !item.children) return null
+        {navSections.map((section) => {
+          // Skip seluruh section (divider + label + items) jika tidak ada item visible
+          const hasVisible = section.items.some((item) => isNavItemVisible(item, canSee))
+          if (!hasVisible) return null
 
           return (
-            <span key={item.key}>
-              {item.groupLabel && (
+            <span key={section.groupLabel ?? '__root__'}>
+              {section.groupLabel && (
                 <>
                   <Divider sx={{ mt: 0.5, mb: 0 }} />
                   {!collapsed && (
                     <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
                       <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
-                        {item.groupLabel}
+                        {section.groupLabel}
                       </Typography>
                     </Box>
                   )}
                 </>
               )}
 
-              {item.children
-                ? <NavGroup item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
-                : <NavButton item={item} collapsed={collapsed} onNav={handleNav} />
-              }
+              {section.items.map((item) => {
+                if (!isNavItemVisible(item, canSee)) return null
+                return item.children
+                  ? <NavGroup key={item.key} item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
+                  : <NavButton key={item.key} item={item} collapsed={collapsed} onNav={handleNav} />
+              })}
             </span>
           )
         })}

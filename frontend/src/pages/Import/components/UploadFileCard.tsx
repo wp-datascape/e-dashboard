@@ -10,6 +10,7 @@ import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import { useTranslation } from 'react-i18next'
 import { Card, Button, ProgressBar } from '@/components/ui'
 import { useImportFileProgress } from '@/hooks/useImport'
+import { useCan } from '@/hooks/useCan'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
 import { ResultBanner } from './ResultBanner'
 import type { Company } from '@/types/users'
@@ -22,6 +23,7 @@ interface UploadFileCardProps {
 
 export function UploadFileCard({ companies, disabled = false, onPendingChange }: UploadFileCardProps) {
   const { t } = useTranslation()
+  const can = useCan()
   const [companyId, setCompanyId] = useState<number | ''>('')
   const [periodMonth, setPeriodMonth] = useState(() => {
     const d = new Date()
@@ -173,14 +175,16 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
           <ResultBanner result={result} onClose={handleCloseResult} />
         )}
 
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={isDisabled}
-          startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
-        >
-          {isPending ? t('import.form.loading') : t('import.file.submit')}
-        </Button>
+        {can('config.import:import') && (
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={isDisabled}
+            startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
+          >
+            {isPending ? t('import.form.loading') : t('import.file.submit')}
+          </Button>
+        )}
       </Stack>
     </Card>
   )

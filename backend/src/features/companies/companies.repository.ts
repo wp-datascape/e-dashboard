@@ -1,10 +1,11 @@
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { companies, company_branches } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
 import type { NewCompany } from '@/db/schema/companies'
 
-export async function findAllCompanies() {
+export async function findAllCompanies(companyIds?: number[]) {
+  if (companyIds !== undefined && companyIds.length === 0) return []
   try {
     return await db
       .select({
@@ -17,6 +18,7 @@ export async function findAllCompanies() {
       })
       .from(companies)
       .leftJoin(company_branches, eq(companies.id, company_branches.company_id))
+      .where(companyIds ? inArray(companies.id, companyIds) : undefined)
       .groupBy(companies.id)
       .orderBy(companies.name)
   } catch (err) {

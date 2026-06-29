@@ -40,8 +40,8 @@ export const queryClient = new QueryClient({
         }
         return failureCount < 2;
       },
-      refetchOnWindowFocus: false, // Direkomendasikan matang untuk dashboard analitik data besar
-      staleTime: 1000 * 60 * 5, // Data dianggap segar selama 5 menit
+      refetchOnWindowFocus: false,
+      staleTime: 0, // Selalu refetch saat komponen mount
     },
   },
 });

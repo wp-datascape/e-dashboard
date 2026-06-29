@@ -23,6 +23,7 @@ import ApiIcon from '@mui/icons-material/Api';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 
 export interface NavItem {
   key: string;
@@ -40,142 +41,146 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 1: EXECUTIVE DASHBOARD — Makro (Core/Utama)
+  // GROUP 1: EXECUTIVE DASHBOARD
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'dashboard',
     path: '/dashboard',
     labelKey: 'nav.dashboard',
     icon: <DashboardIcon fontSize="small" />,
-    permissionKey: 'metrics:menu',
+    permissionKey: 'dashboard:menu',
     groupLabel: 'Executive Dashboard',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 2: CUSTOMER WORKBENCH — Mikro (Who)
+  // GROUP 2: CUSTOMER WORKBENCH
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'customers',
+    key: 'customer',
     path: '/customers',
     labelKey: 'nav.customers',
     icon: <PeopleIcon fontSize="small" />,
-    permissionKey: 'customers:menu',
+    permissionKey: 'customer:menu',
     groupLabel: 'Customer Workbench',
   },
   {
-    key: 'customers-expansion',
+    key: 'expansion',
     path: '/customer-metrics',
     labelKey: 'nav.expansionTargets',
     icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'customers:menu',
+    permissionKey: 'expansion:menu',
   },
   {
-    key: 'dormant-customer',
+    key: 'churn-risk',
     path: '/dormant-customer',
     labelKey: 'nav.churnRisk',
     icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'customers:menu',
+    permissionKey: 'churn.risk:menu',
   },
   {
     key: 'cross-selling',
     path: '/cross-selling',
     labelKey: 'nav.crossSellMatrix',
     icon: <SwapHorizIcon fontSize="small" />,
-    permissionKey: 'customers:menu',
+    permissionKey: 'cross.selling:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 3: PRODUCT & PORTFOLIO WORKBENCH — Mikro (What)
+  // GROUP 3: PRODUCT & PORTFOLIO
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'products',
+    key: 'product',
     path: '/products',
     labelKey: 'nav.productLedger',
     icon: <InventoryIcon fontSize="small" />,
-    permissionKey: 'products:menu',
+    permissionKey: 'product:menu',
     groupLabel: 'Product & Portfolio',
   },
   {
-    key: 'products-high-margin',
+    key: 'high-margin',
     path: '/products/high-margin',
     labelKey: 'nav.highMarginPush',
     icon: <StarIcon fontSize="small" />,
-    permissionKey: 'products:menu',
+    permissionKey: 'high.margin:menu',
   },
   {
-    key: 'products-trend',
+    key: 'product-trend',
     path: '/products/trend',
     labelKey: 'nav.productTrend',
     icon: <ShowChartIcon fontSize="small" />,
-    permissionKey: 'products:menu',
+    permissionKey: 'product.trend:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 4: TRANSACTION & REVENUE WORKBENCH — Mikro (Event)
+  // GROUP 4: TRANSACTION & REVENUE
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'transactions',
+    key: 'order',
     path: '/transactions',
     labelKey: 'nav.orderLedger',
     icon: <ReceiptLongIcon fontSize="small" />,
-    permissionKey: 'transactions:menu',
+    permissionKey: 'order:menu',
     groupLabel: 'Transaction & Revenue',
   },
   {
-    key: 'projects',
+    key: 'project',
     path: '/projects',
     labelKey: 'nav.projectMilestone',
     icon: <EngineeringIcon fontSize="small" />,
-    permissionKey: 'transactions:menu',
+    permissionKey: 'project:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 5: ADMIN
+  // GROUP 5: ADMINISTRATION
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Settings — collapsible
   {
     key: 'settings',
     path: '/settings/app',
     labelKey: 'nav.settings',
     icon: <TuneIcon fontSize="small" />,
-    groupLabel: 'Admin',
+    groupLabel: 'Administration',
     children: [
       {
         key: 'settings-app',
         path: '/settings/app',
         labelKey: 'nav.settingsApp',
         icon: <DisplaySettingsIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'settings.app:menu',
       },
       {
-        key: 'companies',
+        key: 'settings-company',
         path: '/companies',
         labelKey: 'nav.companies',
         icon: <BusinessIcon fontSize="small" />,
-        permissionKey: 'companies:manage',
+        permissionKey: 'settings.company:menu',
       },
       {
-        key: 'settings-divisions',
+        key: 'settings-channel-division',
         path: '/settings/divisions',
         labelKey: 'nav.settingsDivisions',
         icon: <AccountTreeIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'settings.channel.division:menu',
       },
       {
-        key: 'settings-high-margin',
+        key: 'settings-product',
         path: '/settings/high-margin',
         labelKey: 'nav.settingsHighMargin',
         icon: <AutoGraphIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'settings.product:menu',
       },
       {
         key: 'settings-threshold',
         path: '/settings/threshold',
         labelKey: 'nav.settingsThreshold',
         icon: <TuneIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'settings.threshold:menu',
       },
     ],
   },
+
+  // Configuration — collapsible
   {
     key: 'config',
     path: '/settings/classification',
@@ -183,54 +188,66 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <AdminPanelSettingsIcon fontSize="small" />,
     children: [
       {
-        key: 'settings-classification',
+        key: 'config-classification',
         path: '/settings/classification',
         labelKey: 'nav.settingsClassification',
         icon: <EngineeringIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'config.classification:menu',
       },
       {
-        key: 'import',
+        key: 'config-import',
         path: '/import',
         labelKey: 'nav.import',
         icon: <UploadFileIcon fontSize="small" />,
-        permissionKey: 'import:menu',
+        permissionKey: 'config.import:menu',
       },
       {
         key: 'config-integration',
         path: '/config/integration',
         labelKey: 'nav.configIntegration',
         icon: <ApiIcon fontSize="small" />,
-        permissionKey: 'config:menu',
+        permissionKey: 'config.integration:menu',
       },
       {
         key: 'config-features',
         path: '/config/features',
         labelKey: 'nav.configFeatures',
         icon: <ExtensionIcon fontSize="small" />,
-        permissionKey: 'config:menu',
-      },
-      {
-        key: 'users',
-        path: '/users',
-        labelKey: 'nav.users',
-        icon: <ManageAccountsIcon fontSize="small" />,
-        permissionKey: 'users:menu',
-      },
-      {
-        key: 'rbac',
-        path: '/rbac',
-        labelKey: 'nav.rbac',
-        icon: <SecurityIcon fontSize="small" />,
-        permissionKey: 'rbac:menu',
+        permissionKey: 'config.features:menu',
       },
     ],
   },
+
+  // Access Control — collapsible (Users + Roles; Permission = modal dalam RBAC)
+  {
+    key: 'access-control',
+    path: '/users',
+    labelKey: 'nav.accessControl',
+    icon: <VpnKeyIcon fontSize="small" />,
+    children: [
+      {
+        key: 'access-user',
+        path: '/users',
+        labelKey: 'nav.users',
+        icon: <ManageAccountsIcon fontSize="small" />,
+        permissionKey: 'access.user:menu',
+      },
+      {
+        key: 'access-role',
+        path: '/rbac',
+        labelKey: 'nav.rbac',
+        icon: <SecurityIcon fontSize="small" />,
+        permissionKey: 'access.role:menu',
+      },
+    ],
+  },
+
+  // Audit Log — standalone
   {
     key: 'audit-log',
     path: '/audit-log',
     labelKey: 'nav.auditLog',
     icon: <HistoryIcon fontSize="small" />,
-    permissionKey: 'audit:menu',
+    permissionKey: 'audit.log:menu',
   },
 ];

@@ -14,6 +14,7 @@ import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
 import { Card, StatusChip } from '@/components/ui'
+import { useCan } from '@/hooks/useCan'
 
 const PAGE_LABELS: Record<string, string> = {
   dashboard: 'Executive Dashboard',
@@ -108,6 +109,7 @@ export default function FeaturesPage() {
   const { t } = useTranslation()
   const theme = useTheme()
   const mono = theme.typography.caption.fontFamily
+  const can = useCan()
   const { data: pageSettings, isLoading, error } = usePageSettings()
   const { mutate, isPending } = useUpdatePageSetting()
   const [busyKey, setBusyKey] = useState<string | null>(null)
@@ -180,7 +182,7 @@ export default function FeaturesPage() {
                           <StatusChip label={item.ready ? t('common.active') : t('common.inactive')} color={item.ready ? 'success' : 'default'} />
                         </TableCell>
                         <TableCell>
-                          {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" />}
+                          {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
                         </TableCell>
                       </TableRow>
                     )
@@ -199,7 +201,7 @@ export default function FeaturesPage() {
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <StatusChip label={item.ready ? t('common.active') : t('common.inactive')} color={item.ready ? 'success' : 'default'} />
-                        {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" />}
+                        {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
                       </Box>
                     </Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{item.page_key}</Typography>

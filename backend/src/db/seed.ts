@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs, item_classification_rules } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs, item_classification_rules, channel_divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and, isNull, inArray } from 'drizzle-orm'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -26,62 +26,144 @@ const defaultRoles = [
   { name: 'user', description: 'User access', is_system: false },
 ]
 
+// Permission keys lama yang digantikan oleh struktur baru
+const OLD_PERMISSION_NAMES = [
+  'metrics:menu', 'metrics:view',
+  'customers:menu', 'customers:view', 'customers:input', 'customers:update', 'customers:delete',
+  'customers-expansion:menu', 'customers-expansion:view',
+  'dormant-customer:menu', 'dormant-customer:view',
+  'cross-selling:menu', 'cross-selling:view',
+  'products:menu', 'products:view', 'products:input', 'products:update', 'products:delete',
+  'products-high-margin:menu', 'products-high-margin:view',
+  'products-trend:menu', 'products-trend:view',
+  'transactions:menu', 'transactions:view', 'transactions:input', 'transactions:update', 'transactions:delete',
+  'projects:menu', 'projects:view',
+  'import:menu', 'import:view', 'import:input',
+  'users:menu', 'users:view', 'users:input', 'users:update', 'users:delete',
+  'rbac:menu', 'rbac:view', 'rbac:input', 'rbac:update', 'rbac:delete',
+  'config:menu',
+  'settings-classification:menu', 'settings-classification:view',
+  'config-integration:menu', 'config-integration:view', 'config-integration:update',
+  'config-features:menu', 'config-features:view', 'config-features:update',
+  'audit:menu', 'audit:view',
+  'companies:menu', 'companies:view', 'companies:input', 'companies:update', 'companies:delete',
+  'settings:menu',
+  'settings-app:menu', 'settings-app:view',
+  'settings-divisions:menu', 'settings-divisions:view', 'settings-divisions:input', 'settings-divisions:update', 'settings-divisions:delete',
+  'settings-high-margin:menu', 'settings-high-margin:view', 'settings-high-margin:input', 'settings-high-margin:update', 'settings-high-margin:delete',
+  'settings-threshold:menu', 'settings-threshold:view', 'settings-threshold:update',
+]
+
 const defaultPermissions = [
-  // Dashboard & Metrics
-  { name: 'metrics:menu', description: 'Menu Dashboard', category: 'Dashboard & Metrics' },
-  { name: 'metrics:view', description: 'View Dashboard & Metrics', category: 'Dashboard & Metrics' },
+  // ── Executive Dashboard ────────────────────────────────────────────────
+  { name: 'dashboard:menu',   description: 'Menu Dashboard',   category: 'Dashboard' },
+  { name: 'dashboard:view',   description: 'View Dashboard',   category: 'Dashboard' },
 
-  // Customers
-  { name: 'customers:menu', description: 'Menu Customer', category: 'Customers' },
-  { name: 'customers:view', description: 'View Customer', category: 'Customers' },
-  { name: 'customers:input', description: 'Input Customer Baru', category: 'Customers' },
-  { name: 'customers:update', description: 'Update Customer', category: 'Customers' },
-  { name: 'customers:delete', description: 'Delete Customer', category: 'Customers' },
+  // ── Customer Workbench ─────────────────────────────────────────────────
+  { name: 'customer:menu',        description: 'Menu Customer List',        category: 'Customer' },
+  { name: 'customer:view',        description: 'View Customer List',        category: 'Customer' },
+  { name: 'expansion:menu',       description: 'Menu Customer Expansion',   category: 'Expansion' },
+  { name: 'expansion:view',       description: 'View Customer Expansion',   category: 'Expansion' },
+  { name: 'expansion:export',     description: 'Export Customer Expansion', category: 'Expansion' },
+  { name: 'churn.risk:menu',      description: 'Menu Churn Risk',           category: 'Churn Risk' },
+  { name: 'churn.risk:view',      description: 'View Churn Risk',           category: 'Churn Risk' },
+  { name: 'churn.risk:export',    description: 'Export Churn Risk',         category: 'Churn Risk' },
+  { name: 'cross.selling:menu',   description: 'Menu Cross Selling',        category: 'Cross Selling' },
+  { name: 'cross.selling:view',   description: 'View Cross Selling',        category: 'Cross Selling' },
+  { name: 'cross.selling:export', description: 'Export Cross Selling',      category: 'Cross Selling' },
 
-  // Products
-  { name: 'products:menu', description: 'Menu Product', category: 'Products' },
-  { name: 'products:view', description: 'View Product', category: 'Products' },
-  { name: 'products:input', description: 'Input Product Baru', category: 'Products' },
-  { name: 'products:update', description: 'Update Product', category: 'Products' },
-  { name: 'products:delete', description: 'Delete Product', category: 'Products' },
+  // ── Product & Portfolio ────────────────────────────────────────────────
+  { name: 'product:menu',         description: 'Menu Product Ledger',      category: 'Product' },
+  { name: 'product:view',         description: 'View Product Ledger',      category: 'Product' },
+  { name: 'product:export',       description: 'Export Product Ledger',    category: 'Product' },
+  { name: 'high.margin:menu',     description: 'Menu High Margin Push',    category: 'High Margin' },
+  { name: 'high.margin:view',     description: 'View High Margin Push',    category: 'High Margin' },
+  { name: 'high.margin:export',   description: 'Export High Margin Push',  category: 'High Margin' },
+  { name: 'product.trend:menu',   description: 'Menu Product Trend',       category: 'Product Trend' },
+  { name: 'product.trend:view',   description: 'View Product Trend',       category: 'Product Trend' },
+  { name: 'product.trend:export', description: 'Export Product Trend',     category: 'Product Trend' },
 
-  // Transactions
-  { name: 'transactions:menu', description: 'Menu Transaksi', category: 'Transactions' },
-  { name: 'transactions:view', description: 'View Transaksi', category: 'Transactions' },
-  { name: 'transactions:input', description: 'Input Transaksi Baru', category: 'Transactions' },
-  { name: 'transactions:update', description: 'Update Transaksi', category: 'Transactions' },
-  { name: 'transactions:delete', description: 'Delete Transaksi', category: 'Transactions' },
+  // ── Transaction & Revenue ──────────────────────────────────────────────
+  { name: 'order:menu',    description: 'Menu Order Ledger',         category: 'Order' },
+  { name: 'order:view',    description: 'View Order Ledger',         category: 'Order' },
+  { name: 'order:export',  description: 'Export Order Ledger',       category: 'Order' },
+  { name: 'project:menu',  description: 'Menu Project Milestone',    category: 'Project' },
+  { name: 'project:view',  description: 'View Project Milestone',    category: 'Project' },
+  { name: 'project:export', description: 'Export Project Milestone', category: 'Project' },
 
-  // Import
-  { name: 'import:menu', description: 'Menu Import', category: 'Import' },
-  { name: 'import:view', description: 'View Log Import', category: 'Import' },
-  { name: 'import:input', description: 'Import Faktur', category: 'Import' },
+  // ── Settings ───────────────────────────────────────────────────────────
+  { name: 'settings.app:menu',    description: 'Menu App Settings',   category: 'App Settings' },
+  { name: 'settings.app:view',    description: 'View App Settings',   category: 'App Settings' },
+  { name: 'settings.app:update',  description: 'Update App Settings', category: 'App Settings' },
+  // Company — halaman /companies (Company + Branch dalam 1 halaman)
+  { name: 'settings.company:menu',   description: 'Menu Company',   category: 'Company' },
+  { name: 'settings.company:view',   description: 'View Company',   category: 'Company' },
+  { name: 'settings.company:create', description: 'Create Company', category: 'Company' },
+  { name: 'settings.company:update', description: 'Update Company', category: 'Company' },
+  { name: 'settings.company:delete', description: 'Delete Company', category: 'Company' },
+  // Branch — sub-fitur dalam halaman Company (bukan halaman terpisah)
+  { name: 'settings.branch:view',   description: 'View Branch',   category: 'Branch' },
+  { name: 'settings.branch:create', description: 'Create Branch', category: 'Branch' },
+  { name: 'settings.branch:update', description: 'Update Branch', category: 'Branch' },
+  { name: 'settings.branch:delete', description: 'Delete Branch', category: 'Branch' },
+  // Channel Division
+  { name: 'settings.channel.division:menu',   description: 'Menu Channel Division',   category: 'Channel Division' },
+  { name: 'settings.channel.division:view',   description: 'View Channel Division',   category: 'Channel Division' },
+  { name: 'settings.channel.division:create', description: 'Create Channel Division', category: 'Channel Division' },
+  { name: 'settings.channel.division:update', description: 'Update Channel Division', category: 'Channel Division' },
+  { name: 'settings.channel.division:delete', description: 'Delete Channel Division', category: 'Channel Division' },
+  // Product Settings (High Margin mapping)
+  { name: 'settings.product:menu',   description: 'Menu Product Settings', category: 'Product Settings' },
+  { name: 'settings.product:view',   description: 'View Product Settings', category: 'Product Settings' },
+  { name: 'settings.product:create', description: 'Create Product Setting', category: 'Product Settings' },
+  { name: 'settings.product:update', description: 'Update Product Setting', category: 'Product Settings' },
+  { name: 'settings.product:delete', description: 'Delete Product Setting', category: 'Product Settings' },
+  // Threshold
+  { name: 'settings.threshold:menu',   description: 'Menu Threshold Config',   category: 'Threshold' },
+  { name: 'settings.threshold:view',   description: 'View Threshold Config',   category: 'Threshold' },
+  { name: 'settings.threshold:update', description: 'Update Threshold Config', category: 'Threshold' },
 
-  // Users
-  { name: 'users:menu', description: 'Menu Users', category: 'Users' },
-  { name: 'users:view', description: 'View Users', category: 'Users' },
-  { name: 'users:input', description: 'Input User Baru', category: 'Users' },
-  { name: 'users:update', description: 'Update User', category: 'Users' },
-  { name: 'users:delete', description: 'Delete User', category: 'Users' },
+  // ── Configuration ──────────────────────────────────────────────────────
+  { name: 'config.classification:menu',   description: 'Menu Classification Rules', category: 'Classification' },
+  { name: 'config.classification:view',   description: 'View Classification Rules', category: 'Classification' },
+  { name: 'config.classification:create', description: 'Create Classification Rule', category: 'Classification' },
+  { name: 'config.classification:update', description: 'Update Classification Rule', category: 'Classification' },
+  { name: 'config.classification:delete', description: 'Delete Classification Rule', category: 'Classification' },
+  { name: 'config.import:menu',    description: 'Menu Import',          category: 'Import' },
+  { name: 'config.import:view',    description: 'View Import Log',      category: 'Import' },
+  { name: 'config.import:import',  description: 'Upload & Import File', category: 'Import' },
+  { name: 'config.integration:menu',   description: 'Menu Integration Config',       category: 'Integration' },
+  { name: 'config.integration:view',   description: 'View Integration Config',       category: 'Integration' },
+  { name: 'config.integration:create', description: 'Create Integration Credential', category: 'Integration' },
+  { name: 'config.integration:update', description: 'Update Integration Credential', category: 'Integration' },
+  { name: 'config.integration:reset',  description: 'Reset Integration Token',       category: 'Integration' },
+  { name: 'config.integration:delete', description: 'Delete Integration Credential', category: 'Integration' },
+  { name: 'config.integration:test',   description: 'Test Integration Connection',   category: 'Integration' },
+  { name: 'config.features:menu',   description: 'Menu Features Toggle', category: 'Features' },
+  { name: 'config.features:view',   description: 'View Features Toggle', category: 'Features' },
+  { name: 'config.features:update', description: 'Toggle Feature',       category: 'Features' },
 
-  // RBAC (Roles)
-  { name: 'rbac:menu', description: 'Menu Roles', category: 'Roles' },
-  { name: 'rbac:view', description: 'View Roles', category: 'Roles' },
-  { name: 'rbac:input', description: 'Input Role Baru', category: 'Roles' },
-  { name: 'rbac:update', description: 'Update Role', category: 'Roles' },
-  { name: 'rbac:delete', description: 'Delete Role', category: 'Roles' },
+  // ── Access Control ─────────────────────────────────────────────────────
+  { name: 'access.user:menu',   description: 'Menu Users',  category: 'Users' },
+  { name: 'access.user:view',   description: 'View Users',  category: 'Users' },
+  { name: 'access.user:create', description: 'Create User', category: 'Users' },
+  { name: 'access.user:update', description: 'Update User', category: 'Users' },
+  { name: 'access.user:delete', description: 'Delete User', category: 'Users' },
+  { name: 'access.role:menu',   description: 'Menu Roles',  category: 'Roles' },
+  { name: 'access.role:view',   description: 'View Roles',  category: 'Roles' },
+  { name: 'access.role:create', description: 'Create Role', category: 'Roles' },
+  { name: 'access.role:update', description: 'Update Role', category: 'Roles' },
+  { name: 'access.role:delete', description: 'Delete Role', category: 'Roles' },
+  // Permission — sub-fitur dalam halaman RBAC (bukan halaman terpisah)
+  { name: 'access.permission:view',   description: 'View Permissions',  category: 'Permissions' },
+  { name: 'access.permission:create', description: 'Create Permission', category: 'Permissions' },
+  { name: 'access.permission:update', description: 'Update Permission', category: 'Permissions' },
+  { name: 'access.permission:delete', description: 'Delete Permission', category: 'Permissions' },
 
-  // Config
-  { name: 'config:menu', description: 'Menu Config', category: 'Config' },
-  { name: 'config:view', description: 'View Config', category: 'Config' },
-  { name: 'config:update', description: 'Update Config', category: 'Config' },
-
-  // Audit Log
-  { name: 'audit:menu', description: 'Menu Audit Log', category: 'Audit Log' },
-  { name: 'audit:view', description: 'View Audit Log', category: 'Audit Log' },
-
-  // Companies
-  { name: 'companies:manage', description: 'Manage Companies & Branches', category: 'Companies' },
+  // ── Audit Log ──────────────────────────────────────────────────────────
+  { name: 'audit.log:menu',   description: 'Menu Audit Log',   category: 'Audit Log' },
+  { name: 'audit.log:view',   description: 'View Audit Log',   category: 'Audit Log' },
+  { name: 'audit.log:export', description: 'Export Audit Log', category: 'Audit Log' },
 ]
 
 const defaultUsers = [
@@ -184,6 +266,17 @@ async function seedUsers() {
   }
 }
 
+async function cleanupOldPermissions() {
+  console.log('Removing old permission keys...')
+  const existing = await db
+    .select({ name: permissions.name })
+    .from(permissions)
+    .where(inArray(permissions.name, OLD_PERMISSION_NAMES))
+  if (existing.length === 0) { console.log('  nothing to remove'); return }
+  await db.delete(permissions).where(inArray(permissions.name, OLD_PERMISSION_NAMES))
+  console.log(`  removed ${existing.length} old permission(s)`)
+}
+
 async function seedPermissionsList() {
   console.log('Seeding permissions...')
   for (const p of defaultPermissions) {
@@ -211,21 +304,40 @@ async function seedRolePermissions() {
 async function seedUserAssignments() {
   console.log('Seeding user-roles & user-companies...')
   try {
-    const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, 'admin@mail.com')).limit(1)
-    if (!u) { console.log('  skip  admin@mail.com not found'); return }
-
-    const [role] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, 'superadmin')).limit(1)
-    if (role) {
-      const [ex] = await db.select({ userId: userRoles.user_id }).from(userRoles).where(eq(userRoles.user_id, u.id)).limit(1)
-      if (!ex) { await db.insert(userRoles).values({ user_id: u.id, role_id: role.id }); console.log('  ok    superadmin -> admin@mail.com') }
-    }
-
+    const allRoles = await db.select({ id: roles.id, name: roles.name }).from(roles)
+    const roleMap = Object.fromEntries(allRoles.map((r) => [r.name, r.id]))
     const cs = await db.select({ id: companies.id }).from(companies)
-    for (const c of cs) {
-      const [ex] = await db.select({ userId: userCompanies.user_id }).from(userCompanies).where(eq(userCompanies.user_id, u.id)).limit(1)
-      if (!ex) await db.insert(userCompanies).values({ user_id: u.id, company_id: c.id })
+
+    // superadmin & admin test users: auto-assign semua company
+    // user test user: tidak di-assign company dari seed — assign manual via UI
+    const assignments: { email: string; role: string; allCompanies: boolean }[] = [
+      { email: 'admin@mail.com',     role: 'superadmin', allCompanies: true },
+      { email: 'executif@mail.com',  role: 'admin',      allCompanies: true },
+      { email: 'user@mail.com',      role: 'user',       allCompanies: false },
+    ]
+
+    for (const { email, role, allCompanies } of assignments) {
+      const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+      if (!u) { console.log(`  skip  ${email} not found`); continue }
+
+      const roleId = roleMap[role]
+      if (roleId) {
+        const [ex] = await db.select({ userId: userRoles.user_id }).from(userRoles).where(eq(userRoles.user_id, u.id)).limit(1)
+        if (!ex) { await db.insert(userRoles).values({ user_id: u.id, role_id: roleId }); console.log(`  ok    ${role} -> ${email}`) }
+        else { console.log(`  skip  ${role} -> ${email}`) }
+      }
+
+      if (allCompanies) {
+        for (const c of cs) {
+          const [ex] = await db.select({ userId: userCompanies.user_id }).from(userCompanies)
+            .where(and(eq(userCompanies.user_id, u.id), eq(userCompanies.company_id, c.id))).limit(1)
+          if (!ex) await db.insert(userCompanies).values({ user_id: u.id, company_id: c.id })
+        }
+        console.log(`  ok    ${cs.length} companies -> ${email}`)
+      } else {
+        console.log(`  skip  companies -> ${email} (assign manual via UI)`)
+      }
     }
-    console.log(`  ok    ${cs.length} companies -> admin@mail.com`)
   } catch (err) { console.error('  error:', err) }
 }
 
@@ -277,6 +389,58 @@ const defaultClassificationRules: Array<{
   { match_type: 'price_range', match_pattern: '{"max": 50000}',  item_type: 'sparepart', priority: 10 },
 ]
 
+const defaultChannelDivisions: Array<{ channel_name: string; division: string }> = [
+  // distribution
+  { channel_name: 'DC WEST',       division: 'distribution' },
+  { channel_name: 'DC EAST',       division: 'distribution' },
+  { channel_name: 'DC WEST HEAD',  division: 'distribution' },
+  { channel_name: 'DC EAST HEAD',  division: 'distribution' },
+  { channel_name: 'DC EAST CARD',  division: 'distribution' },
+  { channel_name: 'SAMPLE ORDER',  division: 'distribution' },
+  // project
+  { channel_name: 'SDR B2B WEST',  division: 'project' },
+  { channel_name: 'B2B EAST',      division: 'project' },
+  { channel_name: 'KAE WEST',      division: 'project' },
+  { channel_name: 'NAS B2B EAST',  division: 'project' },
+  { channel_name: 'NAS B2B WEST',  division: 'project' },
+  // e_commerce
+  { channel_name: 'KASSEN OFFICIAL STORE', division: 'e_commerce' },
+  { channel_name: 'TOKOPEDIA',     division: 'e_commerce' },
+  { channel_name: 'TIKTOKSHOP',    division: 'e_commerce' },
+  { channel_name: 'LAZADA',        division: 'e_commerce' },
+  // intercompany
+  { channel_name: 'KODE NIAGA TAMA', division: 'intercompany' },
+  { channel_name: 'CODESHOP',      division: 'intercompany' },
+  // freelancer
+  { channel_name: 'SBY UDIN',      division: 'freelancer' },
+  // support
+  { channel_name: 'SALES SUPPORT',     division: 'support' },
+  { channel_name: 'SALES SUPPORT JKT', division: 'support' },
+  // tambahan dari data aktual invoices
+  { channel_name: 'HEAD OF DC EAST',   division: 'distribution' },
+  { channel_name: 'HEAD OF DC WEST',   division: 'distribution' },
+  { channel_name: 'B2B EAST CARD',     division: 'project' },
+  { channel_name: 'FREELANCER SBY UDIN', division: 'freelancer' },
+  { channel_name: 'SDR WEST CARD',     division: 'distribution' },
+]
+
+async function seedChannelDivisions() {
+  console.log('Seeding channel_divisions...')
+  for (const cd of defaultChannelDivisions) {
+    const [existing] = await db
+      .select({ id: channel_divisions.id })
+      .from(channel_divisions)
+      .where(and(eq(channel_divisions.channel_name, cd.channel_name), isNull(channel_divisions.company_id)))
+      .limit(1)
+    if (!existing) {
+      await db.insert(channel_divisions).values({ channel_name: cd.channel_name, division: cd.division, company_id: null })
+      console.log(`  added  ${cd.channel_name} → ${cd.division}`)
+    } else {
+      console.log(`  skip   ${cd.channel_name}`)
+    }
+  }
+}
+
 async function seedClassificationRules() {
   console.log('Seeding classification rules...')
   for (const rule of defaultClassificationRules) {
@@ -311,11 +475,13 @@ async function seed() {
     await seedBranches()
     await seedRoles()
     await seedUsers()
+    await cleanupOldPermissions()
     await seedPermissionsList()
     await seedRolePermissions()
     await seedUserAssignments()
     await seedBusinessConfigs()
     await seedPageSettings()
+    await seedChannelDivisions()
     await seedClassificationRules()
     console.log('All seeds completed.')
   } catch (err) {

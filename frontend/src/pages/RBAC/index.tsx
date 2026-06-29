@@ -11,6 +11,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import { Button, StatusChip } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
+import { useCan } from '@/hooks/useCan';
 import {
   useRbacRoles,
   useRbacPermissions,
@@ -30,6 +31,7 @@ import { SetPermissionDialog } from './components/SetPermissionDialog';
 
 export default function RBAC() {
   const { t } = useTranslation();
+  const can = useCan();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [permDialogOpen, setPermDialogOpen] = useState(false);
@@ -137,23 +139,27 @@ export default function RBAC() {
       headerAlign: 'center',
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title={t('rbac.assignPermissions')}>
-            <IconButton size="small" color="primary" onClick={() => openPermDialog(params.row as Role)}>
-              <SecurityIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={params.row.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
-            <span>
-              <IconButton
-                size="small"
-                color="error"
-                disabled={params.row.is_system}
-                onClick={() => openDeleteDialog(params.row as Role)}
-              >
-                <DeleteIcon sx={{ fontSize: 16 }} />
+          {can('access.permission:update') && (
+            <Tooltip title={t('rbac.assignPermissions')}>
+              <IconButton size="small" color="primary" onClick={() => openPermDialog(params.row as Role)}>
+                <SecurityIcon sx={{ fontSize: 16 }} />
               </IconButton>
-            </span>
-          </Tooltip>
+            </Tooltip>
+          )}
+          {can('access.role:delete') && (
+            <Tooltip title={params.row.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="error"
+                  disabled={params.row.is_system}
+                  onClick={() => openDeleteDialog(params.row as Role)}
+                >
+                  <DeleteIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Box>
       ),
     },
@@ -166,9 +172,11 @@ export default function RBAC() {
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {t('rbac.title')}
         </Typography>
-        <Button startIcon={<AddIcon />} onClick={() => setAddDialogOpen(true)} mobileIconOnly>
-          {t('rbac.addRole')}
-        </Button>
+        {can('access.role:create') && (
+          <Button startIcon={<AddIcon />} onClick={() => setAddDialogOpen(true)} mobileIconOnly>
+            {t('rbac.addRole')}
+          </Button>
+        )}
       </Box>
 
       {/* Role List: Responsive — Desktop DataGrid / Mobile Cards */}

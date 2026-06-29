@@ -3,9 +3,9 @@ import { isNotFoundError } from '@/utils/response'
 import { findCustomers, findCustomerDetail } from './customers.repository'
 import type { CustomersQuery } from './customers.schema'
 
-export async function getCustomers(params: CustomersQuery) {
+export async function getCustomers(params: CustomersQuery, scopeIds?: number[]) {
   try {
-    const result = await findCustomers(params)
+    const result = await findCustomers(params, scopeIds)
     return { data: result?.data ?? [], total: result?.total ?? 0 }
   } catch (err) {
     if (isNotFoundError(err)) return { data: [], total: 0 }

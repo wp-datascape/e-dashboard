@@ -20,6 +20,8 @@ export interface BarSeries {
   key: string;
   label: string;
   color: string;
+  /** Override warna text label di dalam bar — default: getContrastText(color) */
+  labelColor?: string;
 }
 
 export interface BarChartWidgetProps {
@@ -201,7 +203,7 @@ export const BarChartWidget = ({
                     const cy = layout === 'horizontal' ? y + h / 2 : y + h / 2;
                     const label = labelFormatter ? labelFormatter(val) : `${val}%`;
                     return (
-                      <text x={cx} y={cy} dy={4} textAnchor="middle" fontSize={11} fontWeight={600} fill="#fff">
+                      <text x={cx} y={cy} dy={4} textAnchor="middle" fontSize={11} fontWeight={600} fill={s.labelColor ?? theme.palette.getContrastText(s.color)}>
                         {label}
                       </text>
                     );

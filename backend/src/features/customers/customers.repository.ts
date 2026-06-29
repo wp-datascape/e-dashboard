@@ -1,23 +1,21 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
-import { and, eq, isNull, isNotNull, or, sql, desc, asc, ilike } from 'drizzle-orm'
+import { and, eq, inArray, isNull, isNotNull, or, sql, desc, asc, ilike } from 'drizzle-orm'
 import { loadThresholds, buildDormantCaseSql } from '@/features/config/threshold'
 import type { ThresholdConfig } from '@/features/config/threshold'
 import type { CustomersQuery } from './customers.schema'
 
-// ─── Load threshold config dari business_configs ───────────────────────────────
-// Gunakan shared utility di features/config/threshold.ts.
-// Mapping business_unit → dormant key ada di BU_DORMANT_KEY_MAP (sumber tunggal).
-
 // ─── Ekspresi CASE SQL untuk kolom status ─────────────────────────────────────
+// divisionCol: kolom/ekspresi SQL yang berisi nilai division (e.g. channel_divisions.division)
 function buildStatusExpr(
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
   dormant: ThresholdConfig['dormant'],
+  divisionCol: unknown,
 ) {
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
-    ${buildDormantCaseSql(customers.business_unit, dormant)} * INTERVAL '1 month'
+    ${buildDormantCaseSql(divisionCol, dormant)} * INTERVAL '1 month'
   )`
 
   return sql<string>`
@@ -41,10 +39,11 @@ function buildStatusWhere(
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
   dormant: ThresholdConfig['dormant'],
+  divisionCol: unknown,
 ) {
   const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
   const dormantCutoff = sql`${refDate} - (
-    ${buildDormantCaseSql(customers.business_unit, dormant)} * INTERVAL '1 month'
+    ${buildDormantCaseSql(divisionCol, dormant)} * INTERVAL '1 month'
   )`
 
   const isNew = or(
@@ -74,7 +73,7 @@ function buildStatusWhere(
   }
 }
 
-export async function findCustomers(params: CustomersQuery) {
+export async function findCustomers(params: CustomersQuery, scopeIds?: number[]) {
   const { company_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
   const offset = (page - 1) * per_page
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
@@ -103,8 +102,12 @@ export async function findCustomers(params: CustomersQuery) {
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
   if (company_id !== 'all') conditions.push(eq(customers.company_id, company_id))
+  else if (scopeIds) {
+    if (scopeIds.length === 0) return { data: [], total: 0 }
+    conditions.push(inArray(customers.company_id, scopeIds))
+  }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
-  const statusCond = status ? buildStatusWhere(status, refDate, activeMonths, dormant) : undefined
+  const statusCond = status ? buildStatusWhere(status, refDate, activeMonths, dormant, channel_divisions.division) : undefined
   if (statusCond) conditions.push(statusCond)
 
   const whereClause = conditions.length ? and(...conditions) : undefined
@@ -126,7 +129,7 @@ export async function findCustomers(params: CustomersQuery) {
     }
   })()
 
-  const statusExpr = buildStatusExpr(refDate, activeMonths, dormant)
+  const statusExpr = buildStatusExpr(refDate, activeMonths, dormant, channel_divisions.division)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -220,6 +223,9 @@ export async function findCustomerDetail(customerId: number) {
         .limit(1)
     : []
 
+  // Division sudah diketahui dari lookup sebelumnya — pakai sebagai literal SQL
+  const divisionLiteral = sql`${divRow?.division ?? null}`
+
   const [row] = await db
     .select({
       id: customers.id,
@@ -230,7 +236,7 @@ export async function findCustomerDetail(customerId: number) {
       business_unit: customers.business_unit,
       first_invoice_date: customers.first_invoice_date,
       last_invoice_date: customers.last_invoice_date,
-      status: buildStatusExpr(refDate, activeMonths, dormant),
+      status: buildStatusExpr(refDate, activeMonths, dormant, divisionLiteral),
       lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END), 0)`,
       avg_monthly_revenue: sql<string>`
         COALESCE(

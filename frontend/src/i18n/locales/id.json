@@ -61,6 +61,7 @@
     "users": "Pengguna",
     "rbac": "Role",
     "config": "Konfigurasi",
+    "accessControl": "Kontrol Akses",
     "auditLog": "Audit Log",
     "profile": "Profil",
     "crossSelling": "Cross Selling",

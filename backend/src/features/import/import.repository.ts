@@ -3,7 +3,7 @@
  *
  * Repository layer untuk import feature — semua query database terkait import.
  */
-import { and, eq, desc, sql, count, or, isNull } from 'drizzle-orm'
+import { and, eq, desc, sql, count, or, isNull, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
 import {
   invoices,
@@ -46,9 +46,11 @@ export async function updateImportLog(id: number, data: Partial<NewImportLog>) {
   return result
 }
 
-export async function findImportLogs(companyId?: number, page = 1, perPage = 20) {
+export async function findImportLogs(companyId?: number, page = 1, perPage = 20, scopeIds?: number[]) {
   const offset = (page - 1) * perPage
-  const whereClause = companyId ? eq(import_logs.company_id, companyId) : undefined
+  const whereClause = companyId
+    ? eq(import_logs.company_id, companyId)
+    : scopeIds && scopeIds.length > 0 ? inArray(import_logs.company_id, scopeIds) : undefined
 
   const [totalResult] = await db
     .select({ total: count() })

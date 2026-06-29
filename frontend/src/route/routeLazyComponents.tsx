@@ -3,6 +3,7 @@ import { lazy } from 'react'
 // ─── Lazy Core / Public Pages ────────────────────────────────────────────────
 export const Login = lazy(() => import('../pages/Login/index'))
 export const NotFound = lazy(() => import('../pages/NotFound/index'))
+export const Forbidden = lazy(() => import('../pages/Forbidden/index'))
 export const UnderMaintenance = lazy(() => import('../pages/UnderMaintenance/index'))
 
 // ─── Lazy Protected Pages ────────────────────────────────────────────────────

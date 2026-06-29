@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~97%   | Sidebar filter menu by permissions. Auth context simpan `permissions[]`. Customer Metrics M3-M7 sub-pages live. |
-| Backend  | ~80%   | M3–M7 live from real DB. Handler tipis (no try-catch), service layer handle error. Metrics threshold config + segment helper added. Auth, M1-M2 & M8-M10, Transactions masih belum. Middleware: hanya requestId + requestLogger. |
-| Database | ~80%   | 21 tabel aktif + 2 migration baru (0004 customer placeholder, 0005 repeat_order_config). business_configs dipakai live. |
-| Docs     | ~99%   | metrics_docs.md (formula detail M3-M5) + ui-patterns updated. |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. staleTime: 0 global (always fresh). |
+| Backend  | ~80%   | M3–M7 live from real DB. inArray empty-array guard di 4 repository. Auth, M1-M2 & M8-M10, Transactions masih belum. |
+| Database | ~80%   | 21 tabel aktif + **88 permissions** (24 kategori granular, dot-notation keys). DB di-drop + re-seed 2026-06-29. |
+| Docs     | ✅ ~100%   | permissions.md diupdate (88 perms, 24 cat, dot-notation format, useCan pattern). |
 
 ## Frontend — Page Status
 
@@ -26,7 +26,7 @@
 | Dormant Customer | `/dormant-customer` | M8 M9 M10                    |
 | Config           | `/config`           | 3 tabs: Business Rules, Integration, App Settings (theme + lang) |
 | Users            | `/users`            | List + create + edit user, mock API |
-| RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, 35 permissions seeded |
+| RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, **57 permissions seeded** |
 | Import           | `/import`           | Form upload/Accurate + riwayat log + error detail dialog, mock API |
 | Customer         | `/customers`        | DataGrid + detail modal (responsive) + ComboChart trend, **real API** |
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
@@ -176,6 +176,76 @@
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-06-29 (sesi 24): RBAC Button Guards + Permission Categories + inArray Fix + staleTime Fix
+
+**DB Drop & Re-seed:**
+- DB di-drop penuh (schema `public` + `drizzle`) dan di-rebuild ulang dari migrations
+- Semua business data (customers, invoices, products) hilang — perlu re-import via Import page
+- Seed baru: 88 permissions (24 kategori granular)
+
+**Permission Categories — Granular (24 kategori):**
+- Sebelumnya: semua halaman sub-customer dimasukkan ke kategori "Customer", semua admin ke "Settings" → RBAC UI menampilkan 8 accordion lebar
+- Fix: tiap halaman/fitur punya `category` sendiri → RBAC UI menampilkan 24 accordion spesifik
+- 24 kategori: Dashboard, Customer, Expansion, Churn Risk, Cross Selling, Product, High Margin, Product Trend, Order, Project, App Settings, Company, Branch, Channel Division, Product Settings, Threshold, Classification, Import, Integration, Features, Users, Roles, Permissions, Audit Log
+
+**Permission Format Baru — Dot-notation:**
+- Format lama: `customers:menu`, `config-integration:update` (tidak konsisten)
+- Format baru: `module.submodule:action` — contoh: `settings.company:create`, `config.integration:test`, `access.user:delete`, `audit.log:export`
+- Parent menu (Settings, Config, Access Control) tidak punya permission key — visibilitas diturunkan dari child
+- **Total: 88 permissions** (vs 57 sebelumnya)
+
+**`useCan` Hook — Button-Level Guards:**
+- Hook baru: `frontend/src/hooks/useCan.ts` — wrapper tipis `permissions.includes(key)`
+- Diterapkan ke 11 halaman/komponen: Users, RBAC, Companies, BranchSection, Channel Divisions, High Margin Settings, Threshold Settings, Classification, Integration, Features, Import
+- Pattern: `{can('settings.company:create') && <Button>}`, `hidden: !can('settings.company:update')`
+
+**Backend — `inArray` Empty Array Fix:**
+- drizzle-orm melempar error jika `inArray()` dipanggil dengan array kosong
+- Terjadi saat non-superadmin user belum punya company di-assign → `companyIds = []`
+- Fix di 4 repository: companies, customers, import, audit
+- Pattern: `if (scopeIds !== undefined && scopeIds.length === 0) return []` (early return)
+
+**React Query — `staleTime: 0` Global:**
+- Sebelumnya: `staleTime: 5 minutes` di `queryClient.ts` → navigasi kembali ke halaman tidak refetch
+- Fix: `staleTime: 0` global — semua CRUD page selalu refetch saat mount
+- Analytics hooks (useMetrics, useDashboard) yang berat tetap punya `staleTime: 5 min` override sendiri
+- Juga: hapus hardcoded `staleTime: 5 * 60 * 1000` dari `usePageSettings()` dan `useConfig()`
+
+**Bug Fix — Pre-existing TS Error:**
+- `frontend/src/mocks/handlers.ts`: `authHandlers` diimport tapi tidak dipakai → comment import
+
+**File yang diubah (sesi ini):**
+- `backend/src/db/seed.ts` — 88 permissions, 24 categories, dot-notation keys, `cleanupOldPermissions()`
+- `backend/src/features/companies/companies.repository.ts` — `inArray` empty guard
+- `backend/src/features/customers/customers.repository.ts` — `inArray` empty guard
+- `backend/src/features/import/import.repository.ts` — `inArray` empty guard
+- `backend/src/features/audit/audit.repository.ts` — `inArray` empty guard
+- `frontend/src/hooks/useCan.ts` — NEW hook
+- `frontend/src/lib/queryClient.ts` — `staleTime: 0`
+- `frontend/src/hooks/usePageSettings.ts` — hapus hardcoded staleTime
+- `frontend/src/mocks/handlers.ts` — comment authHandlers import
+- `frontend/src/pages/Users/index.tsx` — button guards
+- `frontend/src/pages/RBAC/index.tsx` — button guards
+- `frontend/src/pages/Companies/index.tsx` — button guards
+- `frontend/src/pages/Companies/components/BranchSection.tsx` — button guards
+- `frontend/src/pages/Settings/Divisions/index.tsx` — button guards
+- `frontend/src/pages/Settings/HighMargin/index.tsx` — button guards
+- `frontend/src/pages/Settings/Threshold/index.tsx` — button guards
+- `frontend/src/pages/Config/Classification/index.tsx` — button guards
+- `frontend/src/pages/Config/Integration/index.tsx` — button guards
+- `frontend/src/pages/Config/Features/index.tsx` — button guards
+- `frontend/src/pages/Import/components/UploadFileCard.tsx` — button guards
+- `frontend/src/pages/Import/components/AccurateApiCard.tsx` — button guards
+- `docs-v2/features/permissions.md` — diupdate (88 perms, 24 cat, useCan pattern)
+
+**Pending (belum dikerjakan):**
+- Export buttons: permission key `:export` sudah ada di 10 halaman, tapi tombol belum dibuat
+- `settings.app:update` guard: AppSettings page hanya localStorage/i18n — tidak perlu API guard
+- Permission count gap: user expect 95, aktual 88 — 7 permission unaccounted (belum dikonfirmasi)
+- Re-import data: DB kosong setelah drop/re-seed, user sedang import via Import page
+
+---
 
 ### 2026-06-28/29 (sesi 23): M6 Repeat Order Rate + M7 Expansion Rate — Formula & UI Fix
 

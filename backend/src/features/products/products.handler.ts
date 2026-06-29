@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { success } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
+import { resolveCompanyScope } from '@/middleware/auth'
 import { branchQuerySchema, fetchProductsQuerySchema, localProductsQuerySchema } from './products.schema'
 import { fetchCategoriesFromAccurate, fetchProductsFromAccurate } from './accurate-products.service'
 import { getLocalProducts, getLocalCategories } from './products.service'
@@ -13,13 +14,15 @@ export async function handleGetAccurateCategories(c: Context) {
 
 export async function handleGetLocalProducts(c: Context) {
   const query = validateQuery(c, localProductsQuerySchema)
-  const result = await getLocalProducts(query.company_id, query.category_id)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await getLocalProducts(scopeIds?.[0] ?? query.company_id, query.category_id)
   return success(c, result)
 }
 
 export async function handleGetLocalCategories(c: Context) {
   const query = validateQuery(c, localProductsQuerySchema)
-  const result = await getLocalCategories(query.company_id)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await getLocalCategories(scopeIds?.[0] ?? query.company_id)
   return success(c, result)
 }
 

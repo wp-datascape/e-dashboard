@@ -1,4 +1,4 @@
 // src/route/routes.tsx
-import { Login, NotFound, UnderMaintenance } from './routeLazyComponents'
+import { Login, NotFound, Forbidden, UnderMaintenance } from './routeLazyComponents'
 
-export { Login, NotFound, UnderMaintenance }
+export { Login, NotFound, Forbidden, UnderMaintenance }

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Dialog } from '@/components/ui/Dialog';
 import { Button, ActionMenu, StatusChip } from '@/components/ui';
+import { useCan } from '@/hooks/useCan';
 import {
   useBranchesByCompany,
   useCreateBranch,
@@ -40,6 +41,7 @@ interface EditableBranch {
 
 export function BranchSection({ open, onClose, company }: Props) {
   const { t } = useTranslation();
+  const can = useCan();
   const companyId = company?.id ?? null;
 
   const { data: branches = [], isLoading } = useBranchesByCompany(companyId);
@@ -205,9 +207,9 @@ export function BranchSection({ open, onClose, company }: Props) {
                       />
                       <ActionMenu
                         items={[
-                          { label: t('common.edit'), icon: <EditIcon />, onClick: () => handleStartEdit(branch) },
-                          { label: branch.is_active ? t('common.deactivate') : t('common.activate'), icon: <BlockIcon />, onClick: () => handleToggleActive(branch) },
-                          { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDeleteBranch(branch.id), color: 'error', dividerBefore: true },
+                          { label: t('common.edit'), icon: <EditIcon />, onClick: () => handleStartEdit(branch), hidden: !can('settings.branch:update') },
+                          { label: branch.is_active ? t('common.deactivate') : t('common.activate'), icon: <BlockIcon />, onClick: () => handleToggleActive(branch), hidden: !can('settings.branch:update') },
+                          { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDeleteBranch(branch.id), color: 'error', dividerBefore: true, hidden: !can('settings.branch:delete') },
                         ]}
                       />
                     </Box>
@@ -235,7 +237,7 @@ export function BranchSection({ open, onClose, company }: Props) {
                 onSave={handleCreateBranch}
                 onCancel={() => setNewBranch(null)}
               />
-            ) : (
+            ) : can('settings.branch:create') ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
                   {t('companies.branchManagement.addNew')}
@@ -248,7 +250,7 @@ export function BranchSection({ open, onClose, company }: Props) {
                   {t('companies.branchManagement.add')}
                 </Button>
               </Box>
-            )}
+            ) : null}
           </Box>
         </Box>
       )}

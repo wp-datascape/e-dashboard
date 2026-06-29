@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui'
 import { Button } from '@/components/ui'
 import { useImportAccurate } from '@/hooks/useImport'
+import { useCan } from '@/hooks/useCan'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
 import { ResultBanner } from './ResultBanner'
 import type { Company } from '@/types/users'
@@ -23,6 +24,7 @@ interface AccurateApiCardProps {
 
 export function AccurateApiCard({ companies, disabled = false, onPendingChange }: AccurateApiCardProps) {
   const { t } = useTranslation()
+  const can = useCan()
   const [companyId, setCompanyId] = useState<number | ''>('')
   const [periodMonth, setPeriodMonth] = useState(() => {
     const d = new Date()
@@ -92,14 +94,16 @@ export function AccurateApiCard({ companies, disabled = false, onPendingChange }
         {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
         {result && <ResultBanner result={result} onClose={() => setResult(null)} />}
 
-        <Button
-          variant="outlined"
-          onClick={handleSubmit}
-          disabled={isDisabled}
-          startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-        >
-          {isPending ? t('import.form.loading') : t('import.accurate.submit')}
-        </Button>
+        {can('config.import:import') && (
+          <Button
+            variant="outlined"
+            onClick={handleSubmit}
+            disabled={isDisabled}
+            startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+          >
+            {isPending ? t('import.form.loading') : t('import.accurate.submit')}
+          </Button>
+        )}
       </Stack>
     </Card>
   )

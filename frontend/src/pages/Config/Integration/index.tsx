@@ -22,9 +22,11 @@ import { useCompanies } from '@/hooks/useCompanies'
 import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 import { Card } from '@/components/ui'
+import { useCan } from '@/hooks/useCan'
 
 export default function IntegrationPage() {
   const { t } = useTranslation()
+  const can = useCan()
 
   const { data: companies = [] } = useCompanies()
   const [authMethod, setAuthMethod] = useState<'api-token' | 'oauth'>('api-token')
@@ -249,15 +251,19 @@ export default function IntegrationPage() {
               <Alert severity="warning">{t('config.integration.saveWarning')}</Alert>
               <Divider />
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Button variant="contained" onClick={handleSave} disabled={!isFormValid || status === 'saving'} startIcon={status === 'saving' ? <CircularProgress size={16} /> : undefined}>
-                  {t('config.integration.saveButton')}
-                </Button>
-                {authMethod === 'api-token' && (
+                {(can('config.integration:create') || can('config.integration:update')) && (
+                  <Button variant="contained" onClick={handleSave} disabled={!isFormValid || status === 'saving'} startIcon={status === 'saving' ? <CircularProgress size={16} /> : undefined}>
+                    {t('config.integration.saveButton')}
+                  </Button>
+                )}
+                {authMethod === 'api-token' && can('config.integration:test') && (
                   <Button variant="outlined" color="secondary" onClick={handleTestConnection} disabled={!isFormValid || testResult.status === 'testing'} startIcon={testResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}>
                     {t('config.integration.testButton')}
                   </Button>
                 )}
-                <Button variant="outlined" onClick={handleReset}>{t('common.reset')}</Button>
+                {can('config.integration:reset') && (
+                  <Button variant="outlined" onClick={handleReset}>{t('common.reset')}</Button>
+                )}
               </Box>
             </>
           )}

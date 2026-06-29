@@ -7,6 +7,7 @@ import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { success, paginated, error } from '@/utils/response'
 import { AppError, ErrorCode } from '@/utils/error'
+import { resolveCompanyScope } from '@/middleware/auth'
 import { importFile as importFileService, getImportLogs, getImportLogDetail } from './import.service'
 import { importFileSchema, importAccurateSchema, importLogQuerySchema } from './import.schema'
 
@@ -41,7 +42,8 @@ export async function handleImportFile(c: Context) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    const userId = c.var.user?.userId ?? 1 // fallback until auth is implemented
+    resolveCompanyScope(c, parsed.data.company_id)
+    const userId = c.var.user.userId
 
     const result = await importFileService({
       companyId: parsed.data.company_id,
@@ -86,9 +88,10 @@ export async function handleImportFileStream(c: Context) {
     return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.errors.map(e => e.message).join(', '), 400)
   }
 
+  resolveCompanyScope(c, parsed.data.company_id)
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
-  const userId = c.var.user?.userId ?? 1
+  const userId = c.var.user.userId
 
   return streamSSE(c, async (stream) => {
     try {
@@ -131,7 +134,9 @@ export async function handleImportFileStream(c: Context) {
 
 export async function handleGetImportLogs(c: Context) {
   const query = importLogQuerySchema.parse(c.req.query())
-  const { rows, total } = await getImportLogs(query.company_id, query.page, query.per_page)
+
+  const scopeIds = resolveCompanyScope(c, query.company_id ?? 'all')
+  const { rows, total } = await getImportLogs(query.company_id, query.page, query.per_page, scopeIds)
   return paginated(c, rows, { page: query.page, per_page: query.per_page, total })
 }
 

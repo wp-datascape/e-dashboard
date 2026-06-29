@@ -295,9 +295,33 @@ Mapping per metrik (M1-M10) -> executive-dashboard/metrics.md, bukan di sini.
 
 - `showLabels` menggunakan `LabelList` Recharts di setiap bar
 - Label di-skip otomatis jika nilai bar < 5 (bar terlalu kecil)
-- Teks label berwarna putih — cocok untuk bar dengan background gelap
+- Warna teks label dihitung otomatis via `theme.palette.getContrastText(color)` — adaptif light/dark
 
-Props convention: setiap widget terima data, loading, colorScheme override -- jangan hardcode warna di dalam component chart.
+### BarChartWidget — Warna Series & Label Override
+
+Interface `BarSeries` mendukung `labelColor` opsional:
+
+```typescript
+interface BarSeries {
+  key: string
+  label: string
+  color: string
+  labelColor?: string  // override warna teks label — default: getContrastText(color)
+}
+```
+
+Gunakan `labelColor` hanya saat `color` semi-transparan (e.g. `action.disabledBackground`) karena `getContrastText` tidak bisa menghitung kontras warna transparan dengan benar:
+
+```typescript
+// Pola M5/M6 untuk segmen inaktif/negatif
+series={[
+  { key: 'up_rate',        label: 'Spending Naik (%)', color: theme.palette.success.main },
+  { key: 'flat_down_rate', label: 'Flat / Turun (%)',  color: theme.palette.action.disabledBackground,
+    labelColor: theme.palette.text.primary },
+]}
+```
+
+Props convention: gunakan token `theme.palette.*` — jangan hardcode hex. Untuk segmen "inaktif/negatif", gunakan `action.disabledBackground` (sama seperti pola DonutChart M5).
 
 ## Table Pattern
 
@@ -484,9 +508,29 @@ Aktif hanya saat import.meta.env.DEV
 Satu file handler per domain di src/mocks/handlers/, diimport di handlers.ts
 Endpoint baru -> buat handler dulu sebelum API asli siap, supaya dev tidak terblokir
 
+## Sidebar — Smart Group Visibility
+
+Group header (Divider + label teks) di sidebar di-render hanya jika **ada minimal 1 item visible** dalam group tersebut. Tidak ada DOM trace jika seluruh group tersembunyi.
+
+Implementasi di `Sidebar.tsx`:
+- `buildNavSections()` — pisahkan `NAV_ITEMS` flat ke sections berdasarkan `groupLabel` boundary
+- `isNavItemVisible(item, canSee)` — cek apakah item (+ children jika ada) akan ter-render
+- Tiap section: jika `hasVisible === false` → `return null` → tidak ada elemen di DOM
+
+```typescript
+// Di menu.tsx — tiap sub-page HARUS punya permissionKey sendiri
+{ key: 'customers',          permissionKey: 'customers:menu' }          // parent
+{ key: 'customers-expansion', permissionKey: 'customers-expansion:menu' } // sub-page
+{ key: 'dormant-customer',   permissionKey: 'dormant-customer:menu' }   // sub-page
+{ key: 'cross-selling',      permissionKey: 'cross-selling:menu' }      // sub-page
+```
+
+> **Rule**: Enable `customers:menu` HANYA menampilkan Customer List. Sub-pages Expansion, Churn Risk, Cross Selling masing-masing butuh permission sendiri.
+
 ## New Page Checklist (wajib untuk setiap halaman baru)
-1. Daftarkan route di src/route/routes.tsx (routeRegistry)
-2. Tambahkan entry di src/config/menu.tsx (NAV_ITEMS) -- ikuti struktur group di overview.md tiap workbench
-3. Tambahkan MSW handler di src/mocks/handlers/ jika halaman butuh data mock
-4. Set ready=true di page.handler.ts
-5. Bungkus halaman/menu item dengan PermissionGuard sesuai permission string
+1. Daftarkan route di `src/route/routeConstants.tsx` (routeRegistry) — gunakan `permissionKey` yang spesifik untuk halaman tersebut (`<key>:view`)
+2. Tambahkan permission baru di `backend/src/db/seed.ts` (`<key>:menu` + `<key>:view`)
+3. Tambahkan entry di `src/config/menu.tsx` (NAV_ITEMS) — gunakan `permissionKey: '<key>:menu'` — **jangan reuse key parent**
+4. Tambahkan MSW handler di `src/mocks/handlers/` jika halaman butuh data mock
+5. Set `ready=true` di `page.handler.ts`
+6. Bungkus halaman/menu item dengan PermissionGuard sesuai permission string

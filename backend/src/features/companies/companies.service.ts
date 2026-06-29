@@ -13,8 +13,8 @@ import {
 } from './companies.repository'
 import type { CreateCompanyDto, UpdateCompanyDto } from './companies.schema'
 
-export async function getCompanies() {
-  return findAllCompanies()
+export async function getCompanies(companyIds?: number[]) {
+  return findAllCompanies(companyIds)
 }
 
 export async function getCompanyById(id: number) {

@@ -14,21 +14,15 @@
  * Feature *.route.ts TIDAK BOLEH menambahkan authMiddleware — sudah dihandle di sini.
  */
 
-import type { Hono } from 'hono'
+import { Hono } from 'hono'
+import type { Hono as HonoType } from 'hono'
 import { cors } from 'hono/cors'
 import { env } from '@/config/env'
 import { registerErrorHandlers } from '@/errors'
 import { requestIdMiddleware } from '@/middleware/requestId'
 import { requestLogger } from '@/middleware/requestLogger'
-
-// TODO: Import middleware saat sudah dibuat
-// import { csrfMiddleware } from '@/middleware/csrf'
-// import { rateLimitMiddleware } from '@/middleware/rate-limit'
-// import { authMiddleware } from '@/middleware/auth'
-// import { requireCompanyAccess } from '@/middleware/company-access'
-
-// TODO: Import feature routes saat sudah dibuat
-// import { authRoutes } from '@/features/auth/auth.route'
+import { authMiddleware } from '@/middleware/auth'
+import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
 import { importRoutes } from '@/features/import/import.route'
 import { classificationRoutes } from '@/features/import/classification.route'
@@ -59,7 +53,7 @@ import { sql } from 'drizzle-orm'
 
 // ─── Router Factory ─────────────────────────────────────────────────────────────
 
-export function createRouter(app: Hono): void {
+export function createRouter(app: HonoType): void {
   // ─── ERROR HANDLERS — pasang PERTAMA sebelum semua middleware dan route ──────
   // Menangkap: AppError, ZodError, unknown error → response JSON yang konsisten
   // DILARANG: expose stack trace ke client
@@ -76,38 +70,30 @@ export function createRouter(app: Hono): void {
     }),
   )
 
-  // TODO: Uncomment setelah middleware dibuat
-  // app.use('*', csrfMiddleware())
-  // app.use('*', rateLimitMiddleware())
-
   // ─── LAYER 2: Public routes — tidak butuh auth ──────────────────────────────
-  // TODO: Uncomment setelah auth feature dibuat
-  // app.route('/api/v1/auth', authRoutes)
+  app.route('/api/v1/auth', authRoutes)
 
-  // ─── LAYER 3: Protected routes — wajib auth + company access ────────────────
-  // TODO: Uncomment auth middleware setelah dibuat
-  //
-  // const protectedApi = new Hono()
-  // protectedApi.use('*', authMiddleware())
-  // protectedApi.use('*', requireCompanyAccess())
-  // ...
-  // app.route('/api/v1', protectedApi)
+  // ─── LAYER 3: Protected routes — wajib auth ─────────────────────────────────
+  // authMiddleware: verify JWT cookie + CSRF token (untuk mutasi) + load permissions
+  const protectedApi = new Hono()
+  protectedApi.use('*', authMiddleware())
 
-  // Sementara tanpa auth — hapus saat authMiddleware sudah siap
-  app.route('/api/v1/users', usersRoutes)
-  app.route('/api/v1/page-settings', pageRoutes)
-  app.route('/api/v1/companies', companiesRoutes)
-  app.route('/api/v1/roles', rolesRoutes)
-  app.route('/api/v1/permissions', permissionsRoutes)
-  app.route('/api/v1/config', configRoutes)
-  app.route('/api/v1/audit-logs', auditRoutes)
-  app.route('/api/v1/customers', customersRoutes)
-  app.route('/api/v1/products', productsRoutes)
-  app.route('/api/v1/import', importRoutes)
-  app.route('/api/v1/classification-rules', classificationRoutes)
-  app.route('/api/v1/settings/high-margin', highMarginRoutes)
-  app.route('/api/v1/settings/channel-divisions', channelDivisionsRoutes)
-  app.route('/api/v1/metrics', metricsRoutes)
+  protectedApi.route('/users', usersRoutes)
+  protectedApi.route('/page-settings', pageRoutes)
+  protectedApi.route('/companies', companiesRoutes)
+  protectedApi.route('/roles', rolesRoutes)
+  protectedApi.route('/permissions', permissionsRoutes)
+  protectedApi.route('/config', configRoutes)
+  protectedApi.route('/audit-logs', auditRoutes)
+  protectedApi.route('/customers', customersRoutes)
+  protectedApi.route('/products', productsRoutes)
+  protectedApi.route('/import', importRoutes)
+  protectedApi.route('/classification-rules', classificationRoutes)
+  protectedApi.route('/settings/high-margin', highMarginRoutes)
+  protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
+  protectedApi.route('/metrics', metricsRoutes)
+
+  app.route('/api/v1', protectedApi)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
   // Cek: aplikasi hidup + koneksi DB responsif
   app.get('/health', async (c) => {

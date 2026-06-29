@@ -19,6 +19,7 @@ export interface AuthContextType {
   isLoading: boolean
   login: (token: string, user: User, permissions: string[]) => void
   logout: () => void
+  syncUser: (user: User, permissions: string[]) => void
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────

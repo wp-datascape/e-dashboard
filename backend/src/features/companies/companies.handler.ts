@@ -18,7 +18,8 @@ const companyIdQuerySchema = z.object({ company_id: z.coerce.number().int().posi
 // ─── Companies ────────────────────────────────────────────────────────────────
 
 export async function handleGetCompanies(c: Context) {
-  const rows = await getCompanies()
+  const { companyIds, isSuperAdmin } = c.var.user
+  const rows = await getCompanies(isSuperAdmin ? undefined : companyIds)
   return success(c, rows)
 }
 

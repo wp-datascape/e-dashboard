@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, count, sql } from 'drizzle-orm'
+import { eq, desc, and, gte, lte, count, inArray, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { auditLogs, users } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
@@ -11,6 +11,7 @@ export interface AuditLogsQuery {
   company_id?: number
   date_from?: string
   date_to?: string
+  scopeIds?: number[]
 }
 
 function mapRow(row: any) {
@@ -44,13 +45,14 @@ function mapRow(row: any) {
 }
 
 export async function findAuditLogs(query: AuditLogsQuery) {
-  const { page, per_page, action, actor_id, company_id, date_from, date_to } = query
+  const { page, per_page, action, actor_id, company_id, date_from, date_to, scopeIds } = query
 
   const conditions = []
 
   if (action) conditions.push(eq(auditLogs.action, action))
   if (actor_id) conditions.push(eq(auditLogs.actor_id, actor_id))
   if (company_id) conditions.push(eq(auditLogs.company_id, company_id))
+  else if (scopeIds && scopeIds.length > 0) conditions.push(inArray(auditLogs.company_id, scopeIds))
   if (date_from) conditions.push(gte(auditLogs.created_at, new Date(date_from)))
   if (date_to) {
     const end = new Date(date_to)

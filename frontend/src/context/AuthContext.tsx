@@ -39,6 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('auth_permissions')
   }
 
+  const syncUser = (newUser: User, newPermissions: string[]) => {
+    setUserState(newUser)
+    setPermissions(newPermissions)
+    localStorage.setItem('auth_user', JSON.stringify(newUser))
+    localStorage.setItem('auth_permissions', JSON.stringify(newPermissions))
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -49,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
+        syncUser,
       }}
     >
       {children}
@@ -57,14 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
-export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+export function ProtectedRoute({ children, permissionKey }: { children: ReactNode; permissionKey?: string }) {
+  const { isAuthenticated, isLoading, permissions } = useAuth()
   const location = useLocation()
 
   if (isLoading) return null
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  if (permissionKey && !permissions.includes(permissionKey)) {
+    return <Navigate to="/403" replace />
   }
 
   return <>{children}</>

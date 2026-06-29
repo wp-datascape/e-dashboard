@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-29
+> Last updated: 2026-06-29 (sesi 24)
 
 ---
 
@@ -17,7 +17,7 @@
 | Middleware       | Partial | requestId.ts + requestLogger.ts dibuat; csrf/auth/permission belum |
 | DB Schema        | Done    | 21 tabel aktif (+ channel_divisions, products). Kolom `salesperson_name` direname → `channel_name` via migration 0004 (dieksekusi manual, bukan drizzle-kit). |
 | DB Migration     | Done    | Konsolidasi 3 file deskriptif: 0001_auth_system, 0002_branches_credentials, 0003_transactions_import |
-| DB Seed          | Done    | seed.ts dibuat                             |
+| DB Seed          | Done    | 88 permissions (24 kategori, dot-notation), 3 companies, 5 branches, 3 roles. DB di-drop + re-seed 2026-06-29. |
 | Handler Pattern  | Done    | Semua fitur punya handler.ts terpisah dengan error handling |
 | Feature: Auth    | 0%      | Belum dibuat, router.ts masih commented    |
 | Feature: RBAC    | Done    | roles + permissions mounted                |
@@ -248,6 +248,85 @@ Read-only, paginated, filter by action/date
 ---
 
 ## Catatan Sesi
+
+### 2026-06-29 (sesi 24 — inArray Empty Guard + Permission Seed Overhaul + DB Drop/Re-seed)
+
+**DB Drop + Re-seed:**
+- Drop schema `public` + `drizzle`, lalu `bun run db:migrate` + `bun run db:seed`
+- Semua business data hilang (customers, invoices, products) — user re-import via Import page
+- Lesson learned: harus drop kedua schema (`public` dan `drizzle`) agar migrate tidak skip
+
+**Seed — 88 Permissions (dari 57):**
+- `cleanupOldPermissions()` ditambahkan ke seed untuk hapus keys lama sebelum insert baru
+- Format baru: dot-notation `module.submodule:action` (contoh: `settings.company:create`, `audit.log:export`)
+- 24 kategori granular — setiap halaman punya category sendiri di RBAC UI
+- Source of truth: `backend/src/db/seed.ts` → `defaultPermissions`
+
+**`inArray` Empty Array Fix (4 repository):**
+- drizzle-orm melempar `"inArray requires at least one value"` jika array kosong
+- Terjadi saat non-superadmin user belum punya company assigned → `scopeIds = []`
+- `companies.repository.ts`: `if (companyIds !== undefined && companyIds.length === 0) return []`
+- `customers.repository.ts`: `if (scopeIds.length === 0) return { data: [], total: 0 }`
+- `import.repository.ts`: ternary guard `scopeIds && scopeIds.length > 0 ? inArray(...) : undefined`
+- `audit.repository.ts`: `else if (scopeIds && scopeIds.length > 0) conditions.push(...)`
+
+**File yang berubah:**
+- `backend/src/db/seed.ts` — 88 permissions, 24 categories, dot-notation, cleanupOldPermissions()
+- `backend/src/features/companies/companies.repository.ts` — inArray empty guard
+- `backend/src/features/customers/customers.repository.ts` — inArray empty guard
+- `backend/src/features/import/import.repository.ts` — inArray empty guard
+- `backend/src/features/audit/audit.repository.ts` — inArray empty guard
+
+---
+
+### 2026-06-29 (sesi 10 — Permission Granular + Sidebar Smart Groups + M7 Color Fix)
+
+**Permission Sub-page Granular:**
+- Sebelumnya: semua sub-page Customer (Expansion, Dormant, Cross Selling) berbagi `customers:menu`
+- Fix: tiap sub-page punya `permissionKey` sendiri
+- 11 permission baru ditambahkan ke seed.ts + sudah ada di DB:
+  - `customers-expansion:menu/view`, `dormant-customer:menu/view`, `cross-selling:menu/view`
+  - `products-high-margin:menu/view`, `products-trend:menu/view`, `projects:menu/view`
+- `frontend/src/config/menu.tsx` — tiap item pakai permissionKey yang spesifik
+- `frontend/src/route/routeConstants.tsx` — route guard pakai `<key>:view` yang spesifik
+
+**Sidebar Smart Group Visibility:**
+- Problem: Divider + label group ("Admin", "Customer Workbench") ter-render ke DOM meski semua menu di group tersebut tidak visible
+- Fix: Refactor `Sidebar.tsx` — pre-group `NAV_ITEMS` menjadi sections via `buildNavSections()`
+- `isNavItemVisible(item, canSee)` — cek visibility item + children sebelum render
+- Jika `hasVisible === false` di suatu section → `return null` — tidak ada DOM trace sama sekali
+- Jika `settings:menu` tidak visible tapi `config:menu` visible → section "Admin" tetap muncul (look-ahead handled oleh pre-grouping)
+
+**M7 Expansion Chart — Color Fix:**
+- `flat_down_rate` bar: ganti dari `grey[400]` → `action.disabledBackground` (pola M5/M6 untuk segmen inaktif)
+- `BarSeries` interface: tambah field opsional `labelColor?: string`
+- `BarChartWidget`: render `s.labelColor ?? getContrastText(s.color)` untuk teks label
+- M7: `labelColor: theme.palette.text.primary` untuk `flat_down_rate` (karena `action.disabledBackground` semi-transparan)
+
+**companyIds Fresh dari DB:**
+- `authMiddleware` membaca `companyIds` dari DB setiap request (bukan dari JWT yang bisa stale)
+- `getUserCompanyIds()` di `auth.repository.ts` — dipanggil parallel dengan `getUserPermissions()`
+
+**Race Condition Fix (RBAC):**
+- `App.tsx`: tambah `synced` state — block route render sampai `syncUser()` selesai dipanggil
+- Sebelumnya: `ProtectedRoute` cek permissions dari localStorage stale sebelum `/me` response tiba → redirect ke `/403`
+
+**Halaman 403:**
+- `frontend/src/pages/Forbidden/index.tsx` dibuat — lock icon + pesan + tombol kembali ke Dashboard
+- Route `/403` ditambahkan di `App.tsx`
+
+**File yang berubah:**
+- `frontend/src/config/menu.tsx` — permissionKey granular per item
+- `frontend/src/route/routeConstants.tsx` — permissionKey granular per route
+- `frontend/src/components/ui/Sidebar/Sidebar.tsx` — smart group visibility
+- `frontend/src/components/charts/BarChartWidget/BarChartWidget.tsx` — labelColor support
+- `frontend/src/pages/CustomerMetrics/M7Expansion.tsx` — action.disabledBackground + labelColor
+- `frontend/src/pages/Forbidden/index.tsx` — NEW
+- `frontend/src/App.tsx` — synced state + /403 route
+- `backend/src/middleware/auth.ts` — companyIds fresh dari DB
+- `backend/src/db/seed.ts` — 11 permission baru + channel_divisions 25 entries
+
+---
 
 ### 2026-06-27 (sesi 9 — Channel Division + Rename salesperson_name → channel_name)
 

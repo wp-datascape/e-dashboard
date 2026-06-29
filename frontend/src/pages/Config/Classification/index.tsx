@@ -21,6 +21,7 @@ import type { GridColDef } from '@mui/x-data-grid'
 import { api as axiosInstance } from '@/api/axios'
 import { Button, StatusChip, ActionMenu } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { useCan } from '@/hooks/useCan'
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ const INITIAL_FORM = {
 
 export default function ClassificationSettings() {
   const { t } = useTranslation()
+  const can = useCan()
   const qc = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -164,6 +166,7 @@ export default function ClassificationSettings() {
             size="small"
             checked={params.value as boolean}
             onChange={() => updateMutation.mutate({ id: (params.row as Rule).id, data: { is_active: !params.value } })}
+            disabled={!can('config.classification:update')}
           />
         </Box>
       ),
@@ -180,8 +183,8 @@ export default function ClassificationSettings() {
         return (
           <ActionMenu
             items={[
-              { label: t('common.edit'), icon: <EditIcon />, onClick: () => openEdit(rule) },
-              { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => setDeleteId(rule.id), color: 'error', dividerBefore: true },
+              { label: t('common.edit'), icon: <EditIcon />, onClick: () => openEdit(rule), hidden: !can('config.classification:update') },
+              { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => setDeleteId(rule.id), color: 'error', dividerBefore: true, hidden: !can('config.classification:delete') },
             ]}
           />
         )
@@ -202,9 +205,11 @@ export default function ClassificationSettings() {
           </Box>
           <Typography variant="body2" color="text.secondary">{t('settings.classification.subtitle')}</Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd} mobileIconOnly>
-          {t('classification_rules.add')}
-        </Button>
+        {can('config.classification:create') && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd} mobileIconOnly>
+            {t('classification_rules.add')}
+          </Button>
+        )}
       </Box>
 
       <ResponsiveListView

@@ -24,6 +24,7 @@ import {
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
 import type { Division } from '@/types/customers'
 import { DivisionMappingDialog } from './components/DivisionMappingDialog'
+import { useCan } from '@/hooks/useCan'
 
 type DialogMode = 'create' | 'edit' | null
 
@@ -38,6 +39,7 @@ const DIVISION_OPTIONS: { value: NonNullable<Division>; label: string }[] = [
 
 export default function DivisionsSettings() {
   const { t } = useTranslation()
+  const can = useCan()
 
   // ── Filter state ──
   const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('')
@@ -119,6 +121,7 @@ export default function DivisionsSettings() {
               label: t('common.edit'),
               icon: <EditIcon />,
               onClick: () => { setSelected(row); setDialogMode('edit') },
+              hidden: !can('settings.channel.division:update'),
             },
             {
               label: t('common.delete'),
@@ -126,6 +129,7 @@ export default function DivisionsSettings() {
               onClick: () => handleDelete(row.id),
               color: 'error',
               dividerBefore: true,
+              hidden: !can('settings.channel.division:delete'),
             },
           ]}
         />
@@ -141,14 +145,16 @@ export default function DivisionsSettings() {
           <Typography variant="h5" sx={{ fontWeight: 600 }}>{t('divisions.title')}</Typography>
           <Typography variant="body2" color="text.secondary">{t('divisions.subtitle')}</Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogMode('create')}
-          mobileIconOnly
-        >
-          {t('divisions.add')}
-        </Button>
+        {can('settings.channel.division:create') && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setDialogMode('create')}
+            mobileIconOnly
+          >
+            {t('divisions.add')}
+          </Button>
+        )}
       </Box>
 
       {/* Filters */}

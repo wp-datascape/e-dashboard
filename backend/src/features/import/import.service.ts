@@ -309,8 +309,8 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   }
 }
 
-export async function getImportLogs(companyId?: number, page = 1, perPage = 20) {
-  return findImportLogs(companyId, page, perPage)
+export async function getImportLogs(companyId?: number, page = 1, perPage = 20, scopeIds?: number[]) {
+  return findImportLogs(companyId, page, perPage, scopeIds)
 }
 
 export async function getImportLogDetail(id: number) {

@@ -31,11 +31,13 @@ import {
 } from '@/hooks/useHighMargin'
 import type { HighMarginMapping } from '@/types/highMargin'
 import { HighMarginDialog } from './components/HighMarginDialog'
+import { useCan } from '@/hooks/useCan'
 
 type DialogMode = 'create' | 'edit' | null
 
 export default function HighMarginSettings() {
   const { t } = useTranslation()
+  const can = useCan()
 
   // ── Filter state ──
   const [companyId, setCompanyId] = useState<number | ''>('')
@@ -164,9 +166,9 @@ export default function HighMarginSettings() {
       renderCell: ({ row }) => (
         <ActionMenu
           items={[
-            { label: t('common.edit'), icon: <EditIcon />, onClick: () => { setSelected(row); setDialogMode('edit') } },
-            { label: t('highMargin.deactivate'), icon: <BlockIcon />, onClick: () => handleDeactivate(row.id), disabled: isDeactivating || !isActive(row), hidden: !isActive(row) },
-            { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDelete(row.id), color: 'error', dividerBefore: true },
+            { label: t('common.edit'), icon: <EditIcon />, onClick: () => { setSelected(row); setDialogMode('edit') }, hidden: !can('settings.product:update') },
+            { label: t('highMargin.deactivate'), icon: <BlockIcon />, onClick: () => handleDeactivate(row.id), disabled: isDeactivating || !isActive(row), hidden: !isActive(row) || !can('settings.product:update') },
+            { label: t('common.delete'), icon: <DeleteIcon />, onClick: () => handleDelete(row.id), color: 'error', dividerBefore: true, hidden: !can('settings.product:delete') },
           ]}
         />
       ),
@@ -181,15 +183,17 @@ export default function HighMarginSettings() {
           <Typography variant="h5" sx={{ fontWeight: 600 }}>{t('highMargin.title')}</Typography>
           <Typography variant="body2" color="text.secondary">{t('highMargin.subtitle')}</Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogMode('create')}
-          disabled={!companyId}
-          mobileIconOnly
-        >
-          {t('highMargin.add')}
-        </Button>
+        {can('settings.product:create') && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setDialogMode('create')}
+            disabled={!companyId}
+            mobileIconOnly
+          >
+            {t('highMargin.add')}
+          </Button>
+        )}
       </Box>
 
       {/* Filters */}

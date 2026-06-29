@@ -8,7 +8,6 @@ export function usePageSettings() {
     queryKey: ['page-settings'],
     queryFn: () => pageApi.getPageSettings(),
     select: (response) => response.data,
-    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -17,7 +16,6 @@ export function useConfig() {
     queryKey: ['config'],
     queryFn: () => pageApi.getConfig(),
     select: (response) => response.data,
-    staleTime: 5 * 60 * 1000,
   });
 }
 

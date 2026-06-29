@@ -3,11 +3,27 @@ import { ApiError } from '@/types/api';
 
 let csrfToken: string | null = null;
 
+// Mutex untuk mencegah multiple refresh request serentak
+let isRefreshing = false;
+type QueueItem = { resolve: () => void; reject: (err: unknown) => void };
+let refreshQueue: QueueItem[] = [];
+
+function flushQueue(error: unknown) {
+  refreshQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve()));
+  refreshQueue = [];
+}
+
 export const setCsrfToken = (token: string | null): void => {
   csrfToken = token;
 };
 
-export const getCsrfToken = (): string | null => csrfToken;
+// Fallback: baca dari cookie 'csrf_token' jika in-memory token hilang (page refresh)
+function readCsrfFromCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export const getCsrfToken = (): string | null => csrfToken ?? readCsrfFromCookie();
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1',
@@ -80,10 +96,14 @@ api.interceptors.request.use(
       logRequest(method, url);
     }
 
-    // Pasang CSRF Token untuk mutasi
+    // Pasang CSRF Token untuk mutasi — in-memory dulu, fallback ke cookie (handle page refresh)
     const isMutation = method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
-    if (isMutation && csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
+    if (isMutation) {
+      const token = csrfToken ?? readCsrfFromCookie();
+      if (token) {
+        config.headers['X-CSRF-Token'] = token;
+        if (!csrfToken) csrfToken = token; // sync ke memory agar request berikutnya tidak baca cookie lagi
+      }
     }
 
     // Simpan timestamp untuk hitung durasi — pakai WeakMap, type-safe
@@ -123,12 +143,41 @@ api.interceptors.response.use(
       logError(method, url, status, duration, message);
     }
 
-    // Jika sesi habis, hapus token lokal dan paksa kembali ke login
     if (status === 401) {
-      setCsrfToken(null);
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(window.location.pathname)}`;
+      const requestUrl = error.config?.url ?? '';
+
+      // Jangan coba refresh jika error dari endpoint auth itu sendiri
+      const isAuthEndpoint = requestUrl.includes('/auth/refresh') || requestUrl.includes('/auth/login');
+      if (isAuthEndpoint) {
+        return forceLogout();
       }
+
+      // Jika refresh sedang berjalan, antri request ini dan tunggu
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve: () => resolve(api(error.config!)),
+            reject,
+          });
+        });
+      }
+
+      isRefreshing = true;
+
+      return api.post('/auth/refresh')
+        .then((res) => {
+          const newCsrf = res.data?.data?.csrf_token as string | undefined;
+          if (newCsrf) setCsrfToken(newCsrf);
+          flushQueue(null);
+          return api(error.config!);
+        })
+        .catch((refreshError) => {
+          flushQueue(refreshError);
+          return forceLogout();
+        })
+        .finally(() => {
+          isRefreshing = false;
+        });
     }
 
     // Memastikan data error yang dilempar balik berformat ApiError (Bukan struktur AxiosError mentah)
@@ -140,3 +189,14 @@ api.interceptors.response.use(
     );
   }
 );
+
+function forceLogout(): Promise<never> {
+  setCsrfToken(null);
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_user');
+  localStorage.removeItem('auth_permissions');
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(window.location.pathname)}`;
+  }
+  return Promise.reject({ error: 'UNAUTHORIZED', message: 'Sesi berakhir, silakan login kembali.' });
+}

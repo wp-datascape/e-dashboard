@@ -1,5 +1,5 @@
 // src/App.tsx
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 
 // MUI Components
@@ -7,15 +7,17 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 
 // Providers & Config
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider, ProtectedRoute } from './context/AuthContext'
 import { useAuth } from './context/auth.context'
 import { usePageSettings } from './hooks/usePageSettings'
+import { api } from './api/axios'
 
 // Registry Config & Lazy Base Elements
 import { routeRegistry } from './route/routeConstants'
-import { Login, NotFound, UnderMaintenance } from './route/routes'
+import { Login, NotFound, Forbidden, UnderMaintenance } from './route/routes'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 
 // ─── Loading Fallback Component ──────────────────────────────────────────────
@@ -36,13 +38,30 @@ function PageLoader() {
 
 // ─── Core Router Orchestrator ────────────────────────────────────────────────
 function AppRouter() {
-  // Fetch status ready (true/false) halaman secara real-time dari DB/MSW Mock
   const { data: pageSettings, isLoading } = usePageSettings()
+  const { token, syncUser, isAuthenticated } = useAuth()
 
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  // synced: false saat ada token — tunggu /me selesai dan syncUser dipanggil
+  // Ini mencegah ProtectedRoute mengecek permissions dari localStorage yang stale
+  const [synced, setSynced] = useState(!token)
 
-  // Tampilkan screen loader penuh jika konfigurasi rute belum selesai dimuat
-  if (isLoading || isAuthLoading) {
+  // Sync user & permissions dari server setiap page load — agar perubahan RBAC langsung berlaku
+  const { data: meData, isLoading: isMeLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get('/auth/me').then((r) => r.data.data),
+    enabled: !!token,
+    staleTime: 0,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (meData) {
+      syncUser(meData.user, meData.permissions)
+      setSynced(true)
+    }
+  }, [meData])
+
+  if (isLoading || (!!token && (isMeLoading || !synced))) {
     return <PageLoader />
   }
 
@@ -78,7 +97,7 @@ function AppRouter() {
               path={registry.path}
               element={
                 registry.protected ? (
-                  <ProtectedRoute>{finalElement}</ProtectedRoute>
+                  <ProtectedRoute permissionKey={registry.permissionKey}>{finalElement}</ProtectedRoute>
                 ) : (
                   finalElement
                 )
@@ -86,6 +105,9 @@ function AppRouter() {
             />
           )
         })}
+
+        {/* 403 Forbidden */}
+        <Route path="/403" element={<Forbidden />} />
 
         {/* Fallback 404 Wildcard Handling */}
         <Route path="*" element={<NotFound />} />

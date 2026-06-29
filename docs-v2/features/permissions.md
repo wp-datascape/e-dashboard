@@ -1,7 +1,7 @@
 # Feature: Permissions
 
-> Status: ✅ Complete — CRUD + Category management
-> Last updated: 2026-06-22
+> Status: ✅ Complete — CRUD + Category management + Button-level guards
+> Last updated: 2026-06-29
 > Baca juga: `roles.md`, `shared/api-conventions.md`
 
 ---
@@ -12,25 +12,100 @@ Permissions adalah akses granular ke fitur/action dalam sistem. Setiap permissio
 
 ### Permission Format
 
-Setiap permission mengikuti format `module:action`:
-- `module`: kategori fitur (users, roles, permissions, dll.)
-- `action`: menu, view, input, update, delete
+Setiap permission mengikuti format `module.submodule:action` (dot-notation):
+- `module`: kelompok besar (`settings`, `config`, `access`, `audit`)
+- `submodule` *(opsional)*: fitur spesifik dalam kelompok (`company`, `branch`, `integration`)
+- `action`: `menu`, `view`, `create`, `update`, `delete`, `export`, `import`, `test`, `reset`
 
-### Kategori & Daftar Permissions (35 total)
+**Contoh:**
+```
+metrics:menu           — sidebar visibility Dashboard
+customer:view          — membuka halaman Customer list
+settings.company:create   — tombol Add Company
+settings.branch:delete    — hapus branch
+config.integration:test   — tombol Test Connection
+access.user:update        — edit user
+access.role:delete        — hapus role
+audit.log:export          — export audit log
+```
 
-| Kategori | Action | Jumlah |
-|----------|--------|--------|
-| Dashboard & Metrics | menu, view | 2 |
-| Customers | menu, view, input, update, delete | 5 |
-| Products | menu, view, input, update, delete | 5 |
-| Transactions | menu, view, input, update, delete | 5 |
-| Import | menu, view, input | 3 |
-| Users | menu, view, input, update, delete | 5 |
-| Roles | menu, view, input, update, delete | 5 |
-| Config | menu, view, update | 3 |
-| Audit Log | menu, view | 2 |
+> Parent menu (Settings, Config, Access Control) **tidak punya permission key** — visibilitasnya diturunkan dari child-items yang visible.
 
-**Total: 35 permissions**
+### Kategori & Daftar Permissions (88 total, 24 kategori)
+
+| Kategori | Prefix Key | Actions Tersedia |
+|----------|-----------|-----------------|
+| Dashboard | `metrics` | menu, view |
+| Customer | `customer` | menu, view, export |
+| Expansion | `expansion` | menu, view, export |
+| Churn Risk | `churn.risk` | menu, view, export |
+| Cross Selling | `cross.selling` | menu, view, export |
+| Product | `product` | menu, view, export |
+| High Margin | `high.margin` | menu, view, export |
+| Product Trend | `product.trend` | menu, view, export |
+| Order | `order` | menu, view, export |
+| Project | `project` | menu, view |
+| App Settings | `settings.app` | menu, view, update |
+| Company | `settings.company` | menu, view, create, update, delete |
+| Branch | `settings.branch` | view, create, update, delete *(tidak ada menu — embedded di Company)* |
+| Channel Division | `settings.channel.division` | menu, view, create, update, delete |
+| Product Settings | `settings.product` | menu, view, create, update, delete |
+| Threshold | `settings.threshold` | menu, view, update |
+| Classification | `config.classification` | menu, view, create, update, delete |
+| Import | `config.import` | menu, view, import, export |
+| Integration | `config.integration` | menu, view, create, update, test, reset |
+| Features | `config.features` | menu, view, update |
+| Users | `access.user` | menu, view, create, update, delete |
+| Roles | `access.role` | menu, view, create, update, delete |
+| Permissions | `access.permission` | view, update *(tidak ada menu — embedded di RBAC)* |
+| Audit Log | `audit.log` | menu, view, export |
+
+**Total: 88 permissions** (source of truth: `backend/src/db/seed.ts` → `defaultPermissions`)
+
+> **Prinsip**: setiap page memiliki `permissionKey` tersendiri. Enable `customer:menu` **tidak** otomatis menampilkan Expansion/Churn Risk — tiap menu harus diaktifkan secara eksplisit di RBAC.
+
+---
+
+## Button-Level Guards (`useCan` hook)
+
+Frontend menggunakan hook `useCan` untuk conditional rendering tombol aksi:
+
+```typescript
+// frontend/src/hooks/useCan.ts
+import { useAuth } from '@/context/auth.context'
+export function useCan() {
+  const { permissions } = useAuth()
+  return (key: string) => permissions.includes(key)
+}
+```
+
+**Pattern penggunaan:**
+```tsx
+const can = useCan()
+
+// Tombol Create
+{can('settings.company:create') && <Button>Add Company</Button>}
+
+// ActionMenu item hidden
+{ label: 'Edit', hidden: !can('settings.company:update') }
+{ label: 'Delete', hidden: !can('settings.company:delete') }
+
+// Switch disabled
+<Switch disabled={!can('config.features:update')} />
+```
+
+**Pages yang sudah punya button guards:**
+- Users (`access.user:create/update/delete`)
+- RBAC (`access.role:create/update/delete`, `access.permission:update`)
+- Companies (`settings.company:create/update/delete`, `settings.branch:view`)
+- BranchSection (`settings.branch:create/update/delete`)
+- Channel Divisions (`settings.channel.division:create/update/delete`)
+- High Margin Settings (`settings.product:create/update/delete`)
+- Threshold Settings (`settings.threshold:update`)
+- Classification (`config.classification:create/update/delete`)
+- Integration (`config.integration:create/update/test/reset`)
+- Features (`config.features:update`)
+- Import (`config.import:import`)
 
 ---
 
@@ -191,5 +266,5 @@ Hapus permission. Otomatis remove dari semua role_permissions (CASCADE).
 
 ---
 
-**Last Updated**: 2026-06-22
-**Status**: ✅ Production Ready
+**Last Updated**: 2026-06-29 (sesi 24)
+**Status**: ✅ Production Ready — 88 permissions, 24 categories, button guards on all pages

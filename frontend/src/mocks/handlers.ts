@@ -1,5 +1,5 @@
 // frontend/src/mocks/handlers.ts
-import { authHandlers } from './handlers/auth.handler';
+// import { authHandlers } from './handlers/auth.handler';
 // import { pageHandlers } from './handlers/page.handler';
 // import { rbacHandlers } from './handlers/rbac.handler';
 // import { usersHandlers } from './handlers/users.handler';
@@ -13,9 +13,9 @@ import { productsHandlers } from './handlers/products.handler';
 import { transactionsHandlers } from './handlers/transactions.handler';
 
 // Menggabungkan seluruh domain handler secara bersih menggunakan spread operator
-// NOTE: authHandlers ENABLED untuk mock login di development
+// NOTE: authHandlers DISABLED — auth now from real backend (features/auth)
 export const handlers = [
-  ...authHandlers,
+  // ...authHandlers,
   // ...pageHandlers, // DISABLED — page settings now from real DB API
   ...dashboardHandlers,
   ...metricsHandlers,

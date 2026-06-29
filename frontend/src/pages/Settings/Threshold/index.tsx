@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { useConfig, useUpdateConfig } from '@/hooks/usePageSettings'
 import type { ConfigItem } from '@/types/page'
 import { Card } from '@/components/ui'
+import { useCan } from '@/hooks/useCan'
 
 const BU_LABELS: Record<string, string> = {
   b2b_dc: 'B2B DC',
@@ -43,6 +44,7 @@ function EditablePctCell({ item }: { item: ConfigItem }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
   const { mutate, isPending } = useUpdateConfig()
+  const can = useCan()
   const handleSave = () => mutate({ key: item.key, value: draft }, { onSuccess: () => setEditing(false), onError: () => setDraft(item.value) })
   const handleCancel = () => { setDraft(item.value); setEditing(false) }
   if (editing) {
@@ -58,7 +60,9 @@ function EditablePctCell({ item }: { item: ConfigItem }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <Chip label={`${item.value}%`} size="small" color="success" variant="outlined" />
-      <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
+      {can('settings.threshold:update') && (
+        <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
+      )}
     </Box>
   )
 }
@@ -66,6 +70,7 @@ function EditablePctCell({ item }: { item: ConfigItem }) {
 function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: string, value: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
+  const can = useCan()
   const handleSave = () => { onSave(item.key, draft); setEditing(false) }
   const handleCancel = () => { setDraft(item.value); setEditing(false) }
   if (editing) {
@@ -80,7 +85,9 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <Chip label={`${item.value} bulan`} size="small" color="primary" variant="outlined" />
-      <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
+      {can('settings.threshold:update') && (
+        <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
+      )}
     </Box>
   )
 }
@@ -89,6 +96,7 @@ function ConfigRow({ item }: { item: ConfigItem }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
   const { mutate, isPending } = useUpdateConfig()
+  const can = useCan()
   const handleSave = () => mutate({ key: item.key, value: draft }, { onSuccess: () => setEditing(false), onError: () => setDraft(item.value) })
   const handleCancel = () => { setDraft(item.value); setEditing(false) }
   return (
@@ -108,9 +116,9 @@ function ConfigRow({ item }: { item: ConfigItem }) {
             <IconButton size="small" onClick={handleSave} disabled={isPending} color="primary">{isPending ? <CircularProgress size={16} /> : <CheckIcon fontSize="small" />}</IconButton>
             <IconButton size="small" onClick={handleCancel}><CloseIcon fontSize="small" /></IconButton>
           </>
-        ) : (
+        ) : can('settings.threshold:update') ? (
           <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
-        )}
+        ) : null}
       </Box>
     </Box>
   )
