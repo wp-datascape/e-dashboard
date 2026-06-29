@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs, item_classification_rules, channel_divisions } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
-import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -361,114 +361,6 @@ async function seedPageSettings() {
   }
 }
 
-const defaultClassificationRules: Array<{
-  match_type: string
-  match_pattern: string
-  item_type: string
-  priority: number
-}> = [
-  // Keyword Item Name (priority 100 — paling tinggi)
-  { match_type: 'keyword_item_name', match_pattern: 'CARTRIDGE',   item_type: 'consumable', priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'INK ',        item_type: 'consumable', priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'RIBBON',      item_type: 'consumable', priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'TONER',       item_type: 'consumable', priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'SPARE PART',  item_type: 'sparepart',  priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'PART ',       item_type: 'sparepart',  priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'CABLE',       item_type: 'sparepart',  priority: 100 },
-  { match_type: 'keyword_item_name', match_pattern: 'ADAPTOR',     item_type: 'sparepart',  priority: 100 },
-  // Keyword Category (priority 90)
-  { match_type: 'keyword_category',  match_pattern: 'PRINTER',     item_type: 'unit',       priority: 90 },
-  { match_type: 'keyword_category',  match_pattern: 'SCANNER',     item_type: 'unit',       priority: 90 },
-  { match_type: 'keyword_category',  match_pattern: 'MONEY COUNTER', item_type: 'unit',     priority: 90 },
-  { match_type: 'keyword_category',  match_pattern: 'DISPLAY',     item_type: 'unit',       priority: 90 },
-  { match_type: 'keyword_category',  match_pattern: 'MONITOR',     item_type: 'unit',       priority: 90 },
-  { match_type: 'keyword_category',  match_pattern: 'SPARE PART',  item_type: 'sparepart',  priority: 100 },
-  { match_type: 'keyword_category',  match_pattern: 'CARTRIDGE',   item_type: 'consumable', priority: 90 },
-  // Price Range (priority 10 — fallback jika Layer 1+2 tidak match)
-  { match_type: 'price_range', match_pattern: '{"min": 500000}', item_type: 'unit',      priority: 10 },
-  { match_type: 'price_range', match_pattern: '{"max": 50000}',  item_type: 'sparepart', priority: 10 },
-]
-
-const defaultChannelDivisions: Array<{ channel_name: string; division: string }> = [
-  // distribution
-  { channel_name: 'DC WEST',       division: 'distribution' },
-  { channel_name: 'DC EAST',       division: 'distribution' },
-  { channel_name: 'DC WEST HEAD',  division: 'distribution' },
-  { channel_name: 'DC EAST HEAD',  division: 'distribution' },
-  { channel_name: 'DC EAST CARD',  division: 'distribution' },
-  { channel_name: 'SAMPLE ORDER',  division: 'distribution' },
-  // project
-  { channel_name: 'SDR B2B WEST',  division: 'project' },
-  { channel_name: 'B2B EAST',      division: 'project' },
-  { channel_name: 'KAE WEST',      division: 'project' },
-  { channel_name: 'NAS B2B EAST',  division: 'project' },
-  { channel_name: 'NAS B2B WEST',  division: 'project' },
-  // e_commerce
-  { channel_name: 'KASSEN OFFICIAL STORE', division: 'e_commerce' },
-  { channel_name: 'TOKOPEDIA',     division: 'e_commerce' },
-  { channel_name: 'TIKTOKSHOP',    division: 'e_commerce' },
-  { channel_name: 'LAZADA',        division: 'e_commerce' },
-  // intercompany
-  { channel_name: 'KODE NIAGA TAMA', division: 'intercompany' },
-  { channel_name: 'CODESHOP',      division: 'intercompany' },
-  // freelancer
-  { channel_name: 'SBY UDIN',      division: 'freelancer' },
-  // support
-  { channel_name: 'SALES SUPPORT',     division: 'support' },
-  { channel_name: 'SALES SUPPORT JKT', division: 'support' },
-  // tambahan dari data aktual invoices
-  { channel_name: 'HEAD OF DC EAST',   division: 'distribution' },
-  { channel_name: 'HEAD OF DC WEST',   division: 'distribution' },
-  { channel_name: 'B2B EAST CARD',     division: 'project' },
-  { channel_name: 'FREELANCER SBY UDIN', division: 'freelancer' },
-  { channel_name: 'SDR WEST CARD',     division: 'distribution' },
-]
-
-async function seedChannelDivisions() {
-  console.log('Seeding channel_divisions...')
-  for (const cd of defaultChannelDivisions) {
-    const [existing] = await db
-      .select({ id: channel_divisions.id })
-      .from(channel_divisions)
-      .where(and(eq(channel_divisions.channel_name, cd.channel_name), isNull(channel_divisions.company_id)))
-      .limit(1)
-    if (!existing) {
-      await db.insert(channel_divisions).values({ channel_name: cd.channel_name, division: cd.division, company_id: null })
-      console.log(`  added  ${cd.channel_name} → ${cd.division}`)
-    } else {
-      console.log(`  skip   ${cd.channel_name}`)
-    }
-  }
-}
-
-async function seedClassificationRules() {
-  console.log('Seeding classification rules...')
-  for (const rule of defaultClassificationRules) {
-    // Dedup: skip jika global rule dengan match_type + match_pattern yang sama sudah ada
-    const [existing] = await db
-      .select({ id: item_classification_rules.id })
-      .from(item_classification_rules)
-      .where(
-        and(
-          eq(item_classification_rules.match_type, rule.match_type),
-          eq(item_classification_rules.match_pattern, rule.match_pattern),
-          isNull(item_classification_rules.company_id),
-        ),
-      )
-      .limit(1)
-    if (existing) { console.log(`  skip  ${rule.match_type}:${rule.match_pattern}`); continue }
-    await db.insert(item_classification_rules).values({
-      company_id: null,
-      match_type: rule.match_type,
-      match_pattern: rule.match_pattern,
-      item_type: rule.item_type,
-      priority: rule.priority,
-      is_active: true,
-    })
-    console.log(`  ok    ${rule.match_type}:${rule.match_pattern} → ${rule.item_type}`)
-  }
-}
-
 async function seed() {
   try {
     await seedCompanies()
@@ -481,8 +373,6 @@ async function seed() {
     await seedUserAssignments()
     await seedBusinessConfigs()
     await seedPageSettings()
-    await seedChannelDivisions()
-    await seedClassificationRules()
     console.log('All seeds completed.')
   } catch (err) {
     console.error('Seed failed:', err)
