@@ -164,8 +164,8 @@ export function sqlStatusExpr(
 
 /**
  * WHERE condition untuk filter status di halaman Customer.
- * 'existing' menggunakan definisi KPI (non-new, non-dormant = 323) — BUKAN sub-status chip.
- * Dengan begitu filter "existing" konsisten dengan denominator M4/M5/M6/M7.
+ * 'active' = new + active chip = semua yang last_invoice >= activeCutoff.
+ * 'existing' = non-new, non-dormant (antara active_window dan dormant_threshold).
  */
 export function sqlStatusWhere(
   status: string,
@@ -187,12 +187,12 @@ export function sqlStatusWhere(
   switch (status) {
     case 'new':     return isNew
     case 'dormant': return and(notNew, sql`${lastInv}::date <= ${dormantCutoff}`)
-    case 'active':  return and(notNew, sql`${lastInv}::date >= ${activeCutoff}`)
+    case 'active':  return sql`${lastInv}::date >= ${activeCutoff}`
     case 'existing':
-      // KPI definition: non-new + non-dormant (termasuk yang "active" sub-status)
       return and(
         notNew,
         sql`${lastInv}::date > ${dormantCutoff}`,
+        sql`${lastInv}::date < ${activeCutoff}`,
       )
     default: return undefined
   }

@@ -19,8 +19,8 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
   const liveDatesSq = db
     .select({
       customer_id: invoices.customer_id,
-      live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`.as('live_last'),
-      live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`.as('live_first'),
+      live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_last'),
+      live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_first'),
     })
     .from(invoices)
     .groupBy(invoices.customer_id)
@@ -177,8 +177,8 @@ export async function findCustomerDetail(customerId: number) {
   const divisionKey = BU_DORMANT_KEY_MAP[divRow?.division ?? ''] ?? 'b2b_dc'
   const dormantMonths = dormant[divisionKey]
 
-  const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`
-  const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`
+  const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`
+  const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`
 
   const [row] = await db
     .select({

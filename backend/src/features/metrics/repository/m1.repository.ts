@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
 
-// Konsisten dengan SSOT active_customer: non-new (ada invoice sebelum window) + beli dalam window
+// active = new + active_existing = semua yang ada invoice dalam active_window (SSOT segment.helper)
 const CS_INV_CTE = (p: SegmentParams) => sql`
   inv AS (
     SELECT DISTINCT i.id, i.customer_id
@@ -18,12 +18,6 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
       AND i.invoice_date <= ${p.filterDate}::date
       AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
       AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
-      AND EXISTS (
-        SELECT 1 FROM invoices ix0
-        WHERE ix0.customer_id = i.customer_id
-          AND ix0.deleted_at IS NULL
-          AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-      )
   )
 `
 

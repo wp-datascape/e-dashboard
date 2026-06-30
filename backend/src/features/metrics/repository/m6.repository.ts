@@ -52,21 +52,11 @@ export async function fetchRorBreakdown(
 
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
-    const [tot] = await db.execute(sql`
-      SELECT COUNT(DISTINCT c.id)::int AS total_existing
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
-        AND EXISTS (
-          SELECT 1 FROM invoices ix
-          WHERE ix.customer_id = c.id
-            AND ix.deleted_at IS NULL
-            AND (${cid}::int = 0 OR ix.company_id = ${cid}::int)
-            AND ix.invoice_date >  ${filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
-            AND ix.invoice_date <= ${filterDate}::date
-        )
-    `)
-    return { rows: [], repeat_count: 0, total_existing: Number((tot as Record<string, unknown>)?.total_existing ?? 0) }
+    const [totRow] = await db.execute(sql`
+      WITH ${cteEstablishedCustomers(p)}
+      SELECT COUNT(*)::int AS total_existing FROM established_customers
+    `) as unknown[]
+    return { rows: [], repeat_count: 0, total_existing: Number((totRow as Record<string, unknown>)?.total_existing ?? 0) }
   }
 
   const first = rawRows[0] as Record<string, unknown>

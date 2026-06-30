@@ -18,10 +18,14 @@ import * as schema from '@/db/schema'
 
 // postgres-js client
 // max: jumlah koneksi pool — sesuaikan dengan kebutuhan production
+// onnotice: suppress noisy notices from Drizzle migrations / schema introspection
 const client = postgres(env.DATABASE_URL, {
   max: env.NODE_ENV === 'production' ? 20 : 5,
   idle_timeout: 30,
   connect_timeout: 10,
+  onnotice: () => {},
+  // Paksa timezone WIB agar CURRENT_DATE konsisten dengan server (UTC+7)
+  connection: { TimeZone: 'Asia/Jakarta' },
 })
 
 // Drizzle ORM instance dengan full schema

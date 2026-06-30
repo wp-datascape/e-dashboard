@@ -41,21 +41,26 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
     ),
 
     -- Customer × bulan: hitung last invoice date per titik waktu
+    -- me di-cap filterDate agar bulan berjalan tidak pakai month_end masa depan
+    -- → dormant cutoff konsisten dengan customer page (pakai filterDate, bukan month_end)
     cxm AS (
       SELECT
         sc.cid,
         m.ms                                                                    AS month_start,
-        (m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date                  AS me,
+        LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
+              ${filterDate}::date)                                              AS me,
         (m.ms - INTERVAL '1 day')::date                                        AS prev_me,
         MAX(inv.invoice_date) FILTER (
-          WHERE inv.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date
+          WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
+                                         ${filterDate}::date)
         )                                                                       AS last_at_me,
         MAX(inv.invoice_date) FILTER (
           WHERE inv.invoice_date <= (m.ms - INTERVAL '1 day')::date
         )                                                                       AS last_at_prev_me,
         BOOL_OR(
           inv.invoice_date >= m.ms
-          AND inv.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date
+          AND inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
+                                        ${filterDate}::date)
         )                                                                       AS active_in_month
       FROM scoped_cust sc
       CROSS JOIN months m
@@ -68,31 +73,31 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       COUNT(*) FILTER (WHERE last_at_me IS NOT NULL)::int                       AS total_customers,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND last_at_me < me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
       )::int                                                                     AS dormant_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
-            AND last_at_me < me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
         )::numeric / NULLIF(COUNT(*) FILTER (WHERE last_at_me IS NOT NULL), 0) * 100, 1
       )                                                                          AS dormant_rate,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
-          AND last_at_prev_me < prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
       )::int                                                                     AS prev_dormant_count,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
-          AND last_at_prev_me < prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
           AND active_in_month = true
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
-            AND last_at_prev_me < prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
             AND active_in_month = true
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
-            AND last_at_prev_me < prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate
     FROM cxm
@@ -145,7 +150,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       WHERE c.is_placeholder = false
         AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
       GROUP BY c.id, c.customer_name, c.customer_code
-      HAVING MAX(inv.invoice_date) < ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
+      HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
     )
     SELECT
       customer_id,
