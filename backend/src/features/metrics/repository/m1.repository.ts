@@ -79,11 +79,13 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
         i.invoice_date,
         ii.product_category_id
       FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
       JOIN invoice_items ii ON ii.invoice_id = i.id
       LEFT JOIN channel_divisions cd
         ON  cd.channel_name  = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
+        AND c.is_placeholder = false
         AND i.invoice_date >  ${p.filterDate}::date - INTERVAL '12 months'
         AND i.invoice_date <= ${p.filterDate}::date
         AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
