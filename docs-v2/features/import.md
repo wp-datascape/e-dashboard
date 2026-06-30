@@ -309,6 +309,57 @@ Ini adalah pengecualian yang disengaja, bukan pelanggaran arsitektur.
 
 ---
 
+## ⚠ Blockers / Known Issues
+
+### [BLOCKER] Tidak Ada Pivot Key Stabil untuk Customer
+
+**Status**: Terbuka — keputusan diperlukan sebelum bisa di-fix
+
+**Masalah saat ini:**
+
+Pipeline import mengidentifikasi customer menggunakan:
+```
+dedup key = company_id + UPPER(customer_name)
+```
+
+Ini adalah name-based matching, bukan ID-based. Akibatnya:
+
+| Skenario | Dampak |
+|----------|--------|
+| Nama customer berubah sedikit (typo, singkatan, spasi berbeda) antar import | Record customer baru dibuat — customer lama kehilangan semua invoice |
+| Re-import faktur yang sudah ada (`updateInvoice`) | `customer_id` di-reassign ke customer yang ditemukan berdasarkan nama saat ini — jika nama berbeda, customer lama kehilangan invoice itu |
+| `customers.last_invoice_date` | Hanya diupdate saat `upsertCustomer()` — **tidak pernah diupdate saat invoice di-reassign atau di-soft-delete** → nilai ini bisa stale |
+
+**Dampak ke status customer (active / existing / dormant):**
+
+- Halaman Customer (`/customers`) membaca `customers.last_invoice_date` (stale) → status bisa salah
+- Halaman Customer Metrics (`/customer-metrics`) query live dari `invoices` → lebih akurat, tapi customer_id mismatch masih bisa menyebabkan customer "lenyap" dari perhitungan
+- Ini adalah **salah satu penyebab perbedaan jumlah** antara dua halaman tersebut
+
+**Yang dibutuhkan:**
+
+Accurate memiliki `customer_code` — kode unik per customer yang stabil dan tidak berubah meskipun nama berubah.
+
+**Pertanyaan yang perlu dijawab (BLOCKER):**
+> Apakah file CSV/XLSX export dari Accurate menyertakan kolom `customer_code`?
+
+- **Jika YA** → jadikan `customer_code + company_id` sebagai primary match key. `customer_name` hanya diupdate jika customer sudah ditemukan via code.
+- **Jika TIDAK** → name-matching adalah ceiling saat ini. Pertimbangkan generate `customer_code` internal dari sistem (UUID atau sequential), tapi ini tidak menyelesaikan masalah mismatch saat nama berubah.
+
+**File yang akan diubah jika blocker ini diselesaikan:**
+
+| File | Perubahan |
+|------|-----------|
+| `backend/src/utils/parser.ts` | Tambah kolom `customer_code` ke `InvoiceRow` |
+| `backend/src/features/import/import.repository.ts` | `upsertCustomer()` — ubah dedup logic: cari by `customer_code` dulu, fallback ke name |
+| `backend/src/db/schema/customers.ts` | `customer_code` jadikan NOT NULL (setelah backfill) |
+| `backend/src/features/customers/customers.repository.ts` | Ganti `last_invoice_date` dengan live query `MAX(invoices.invoice_date)` |
+
+**Dependency:**
+Fix halaman Customer (ganti `last_invoice_date` stale dengan live query dari `invoices`) hanya fully akurat jika dedup customer sudah stable — jika customer_id mismatch masih terjadi, live query pun akan menghitung customer yang salah.
+
+---
+
 ## References
 
 - **Backend**: `backend/src/features/import/`

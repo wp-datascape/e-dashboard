@@ -43,14 +43,14 @@ interface Props {
   thresholdPct: number
   companyId: number | 'all'
   division?: string
-  periodMonth: string
+  periodEnd: string
 }
 
-export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, division, periodMonth }: Props) {
-  const [drillMonth, setDrillMonth] = useState<string | null>(null);
+export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, division, periodEnd }: Props) {
+  const [drillDate, setDrillDate] = useState<string | null>(null);
 
   const { data: breakdown, isLoading: breakdownLoading } = useRorBreakdown({
-    month: drillMonth,
+    period_end: drillDate,
     company_id: companyId,
     division,
   });
@@ -68,15 +68,15 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
             value={value}
             thresholdGreen={thresholdPct}
             height={240}
-            onChartClick={() => setDrillMonth(periodMonth)}
+            onChartClick={() => setDrillDate(periodEnd)}
           />
         )}
       </Box>
 
       {/* ROR Breakdown Dialog */}
       <Dialog
-        open={!!drillMonth}
-        onClose={() => setDrillMonth(null)}
+        open={!!drillDate}
+        onClose={() => setDrillDate(null)}
         maxWidth="md"
         fullWidth
         slotProps={{ paper: { sx: { borderRadius: 0 } } }}
@@ -87,7 +87,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              Repeat Order Buyers — {drillMonth}
+              Repeat Order Buyers — {drillDate}
             </Typography>
             {breakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
@@ -105,7 +105,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
               </Box>
             )}
           </Box>
-          <IconButton size="small" onClick={() => setDrillMonth(null)} sx={{ color: 'text.secondary', mt: -0.5 }}>
+          <IconButton size="small" onClick={() => setDrillDate(null)} sx={{ color: 'text.secondary', mt: -0.5 }}>
             <Typography component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✕</Typography>
           </IconButton>
         </Box>

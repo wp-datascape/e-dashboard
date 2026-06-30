@@ -2,6 +2,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { StatusChip } from '@/components/ui/StatusChip';
 import {
   ResponsiveContainer,
@@ -46,6 +47,10 @@ export interface BarChartWidgetProps {
   concentrationThreshold?: number;
   /** Formatter Y-axis (misal fmtRp) */
   yAxisFormatter?: (v: number) => string;
+  /** Lebar Y-axis untuk horizontal layout (default 120) */
+  yAxisWidth?: number;
+  /** Mobile: sembunyikan Y-axis label, tampilkan nama di dalam bar */
+  mobileNameInBar?: boolean;
   /** Callback saat bar diklik — menerima data point bulan tersebut */
   onBarClick?: (dataPoint: Record<string, unknown>) => void;
   /** Tampilkan label nilai di dalam bar */
@@ -73,12 +78,18 @@ export const BarChartWidget = ({
   onBarClick,
   showLabels = false,
   labelFormatter,
+  yAxisWidth = 120,
+  mobileNameInBar = false,
 }: BarChartWidgetProps) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isPositive = (change ?? 0) >= 0;
 
   // For horizontal layout: BarChart layout='vertical', X=number, Y=category
   const isHorizontal = layout === 'horizontal';
+  // Mobile mode: hide Y-axis, render name + value inside bar
+  const showNameInBar = mobileNameInBar && isHorizontal && isMobile;
+  const effectiveYAxisWidth = showNameInBar ? 0 : yAxisWidth;
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
@@ -124,17 +135,19 @@ export const BarChartWidget = ({
             <>
               <XAxis
                 type="number"
+                domain={[0, 'auto']}
                 tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                 axisLine={false}
                 tickLine={false}
+                tickFormatter={yAxisFormatter}
               />
               <YAxis
                 type="category"
                 dataKey={xKey}
-                tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
+                tick={showNameInBar ? false : { fontSize: 9, fill: theme.palette.text.secondary }}
                 axisLine={false}
                 tickLine={false}
-                width={120}
+                width={effectiveYAxisWidth}
               />
             </>
           ) : (
@@ -189,18 +202,44 @@ export const BarChartWidget = ({
               cursor={onBarClick ? 'pointer' : undefined}
               onClick={onBarClick ? (data) => onBarClick(data as unknown as Record<string, unknown>) : undefined}
             >
-              {showLabels && (
+              {/* Mobile horizontal: nama + nilai di dalam bar */}
+              {showNameInBar && idx === 0 && (
                 <LabelList
-                  dataKey={s.key}
+                  dataKey={xKey}
                   content={(props) => {
-                    const val = Number(props.value ?? 0);
-                    if (val < 5) return null; // bar terlalu kecil, skip label
                     const x = Number(props.x ?? 0);
                     const y = Number(props.y ?? 0);
                     const w = Number(props.width ?? 0);
                     const h = Number(props.height ?? 0);
-                    const cx = layout === 'horizontal' ? x + w / 2 : x + w / 2;
-                    const cy = layout === 'horizontal' ? y + h / 2 : y + h / 2;
+                    const name = String(props.value ?? '');
+                    const dataIdx = (props as { index?: number }).index ?? 0;
+                    const rawVal = (data as Record<string, unknown>[])[dataIdx]?.[s.key];
+                    const val = typeof rawVal === 'number' ? rawVal : 0;
+                    const fmtVal = labelFormatter ? labelFormatter(val) : val.toLocaleString('id-ID');
+                    const tx = x + 8;
+                    const cy = y + h / 2;
+                    const fill = s.labelColor ?? theme.palette.getContrastText(s.color);
+                    return (
+                      <text textAnchor="start">
+                        <tspan x={tx} y={cy + 4} fontSize={8} fontWeight={400} fill={fill}>{fmtVal}</tspan>
+                      </text>
+                    );
+                  }}
+                />
+              )}
+              {/* Desktop: nilai di tengah bar (jika showLabels) */}
+              {showLabels && !showNameInBar && (
+                <LabelList
+                  dataKey={s.key}
+                  content={(props) => {
+                    const val = Number(props.value ?? 0);
+                    if (val < 5) return null;
+                    const x = Number(props.x ?? 0);
+                    const y = Number(props.y ?? 0);
+                    const w = Number(props.width ?? 0);
+                    const h = Number(props.height ?? 0);
+                    const cx = x + w / 2;
+                    const cy = y + h / 2;
                     const label = labelFormatter ? labelFormatter(val) : `${val}%`;
                     return (
                       <text x={cx} y={cy} dy={4} textAnchor="middle" fontSize={11} fontWeight={600} fill={s.labelColor ?? theme.palette.getContrastText(s.color)}>

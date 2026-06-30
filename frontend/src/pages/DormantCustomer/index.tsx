@@ -14,9 +14,9 @@ import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
-function currentYearMonth(): string {
+function todayIsoDate(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function fmtRp(v: number): string {
@@ -47,15 +47,15 @@ function SectionLabel({ label }: { label: string }) {
 export default function DormantCustomer() {
   const theme = useTheme();
 
-  const [companyId,   setCompanyId]   = useState<number | 'all'>('all');
-  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
-  const [division,    setDivision]    = useState<string>('');
+  const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
+  const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
+  const [division,   setDivision]   = useState<string>('');
 
   const { data: companies = [] } = useCompanies();
   const { data, isLoading } = useDormantCustomer({
-    company_id:   companyId,
-    period_month: periodMonth,
-    division:     division || undefined,
+    company_id:  companyId,
+    period_end:  periodEnd,
+    division:    division || undefined,
   });
 
   const drc = data?.dormant_rate_current;
@@ -115,9 +115,9 @@ export default function DormantCustomer() {
           </TextField>
 
           <TextField
-            size="small" label="Periode" type="month"
-            value={periodMonth}
-            onChange={(e) => setPeriodMonth(e.target.value)}
+            size="small" label="Per Tanggal" type="date"
+            value={periodEnd}
+            onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
             slotProps={{ inputLabel: { shrink: true } }}
           />
@@ -219,8 +219,13 @@ export default function DormantCustomer() {
               },
             ]}
             xKey="customer_name"
-            height={320}
+            height={520}
             layout="horizontal"
+            yAxisWidth={200}
+            showLabels
+            mobileNameInBar
+            labelFormatter={(v) => fmtRp(v)}
+            yAxisFormatter={(v) => fmtRp(v)}
             tooltipFormatter={(v, n) => [fmtRp(v), n]}
           />
         )}

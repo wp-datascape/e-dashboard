@@ -139,6 +139,64 @@
 - `products` — category performance, high margin detail, upsell targets, avg-category trend
 - `transactions` — invoice list, invoice detail
 
+## Sesi 28 — Obstacle (2026-06-30)
+
+### ⚠ Obstacle: CS_INV_CTE bukan SSOT murni
+
+**Masalah:**
+`CS_INV_CTE` di `backend/src/features/metrics/repository/m1.repository.ts` memiliki logika sendiri (inline EXISTS + is_placeholder filter) yang **tidak** memanggil fungsi dari `segment.helper.ts`. Akibatnya:
+
+- Jika definisi "active customer" diubah di `segment.helper.ts`, perubahan **tidak otomatis propagate** ke KPI 1–2
+- Ada 2 tempat yang harus diubah secara manual → rawan inkonsistensi
+
+**Ditemukan dari:** Investigasi kenapa `active_count` KPI 1 = 161 sedangkan SSOT active_customer = 135.
+Root cause: `CS_INV_CTE` menghitung semua customer ber-invoice (termasuk 25 new customer + 1 placeholder), sedangkan SSOT `active_customer` hanya non-new + non-placeholder.
+
+**Fix sementara:** `CS_INV_CTE` ditambahkan filter `is_placeholder = false` dan EXISTS subquery untuk exclude new customer — sehingga angka sekarang konsisten (135 = 135).
+
+**Fix permanen yang belum dikerjakan:**
+Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` agar benar-benar SSOT. Dengan begitu, 1 perubahan di helper cukup untuk semua consumer.
+
+**File terdampak:**
+- `backend/src/features/metrics/repository/m1.repository.ts` — CS_INV_CTE (obstacle ada di sini)
+- `backend/src/features/customers/helper/segment.helper.ts` — SSOT yang harus jadi acuan
+
+---
+
+## Sesi 27 — Perubahan (2026-06-30)
+
+### Investigasi & Refactor — Gap Jumlah Customer (Halaman Customer vs Halaman Expansion)
+
+**Root cause yang ditemukan (4 penyebab perbedaan active=136/160, existing=390/348):**
+1. **Halaman Customer pakai `customers.last_invoice_date` (stale)** — tidak update saat reimport atau soft-delete; Halaman Expansion query live dari `invoices`
+2. **Dormant threshold berbeda**: Halaman Customer pakai per-customer threshold (`buildDormantCaseSql`) per divisi masing-masing customer; Halaman Expansion pakai threshold divisi dominan company (`resolveDormantMonths`)
+3. **`is_placeholder` filter**: Halaman Expansion filter `is_placeholder = false`; Halaman Customer tidak
+4. **Definisi "existing" Halaman Customer salah**: excludes active (hanya `last_invoice_date >= dormantCutoff AND < activeCutoff`), seharusnya inklusif (semua yang tidak dormant termasuk active)
+
+**Refactor selesai — days → months (lebih akurat):**
+- `segment.helper.ts`: rename `activeDays` → `activeMonths`, `dormantDays` → `dormantMonths`; SQL pakai `INTERVAL '1 month'` (bukan `× 30 * INTERVAL '1 day'`)
+- `metrics.service.ts`: `resolveDormantDays` → `resolveDormantMonths`, hapus semua `* 30`
+- `metrics.repository.ts`: destructuring dan semua SQL window pakai `INTERVAL '1 month'`
+- TypeScript compile: `npx tsc --noEmit` — **pass, 0 error**
+
+**Blocker dicatat di dokumentasi:**
+- `features/import.md` — section `## ⚠ Blockers / Known Issues` baru
+- `CURRENT_STATE.md` — 2 baris baru di tabel Known Blockers
+
+**File yang diubah:**
+- `backend/src/features/metrics/segment.helper.ts` — rename days→months, SQL interval
+- `backend/src/features/metrics/metrics.service.ts` — resolveDormantMonths, hapus ×30
+- `backend/src/features/metrics/metrics.repository.ts` — destructuring + SQL interval semua query
+- `docs-v2/features/import.md` — blocker section baru
+- `docs-v2/CURRENT_STATE.md` — 2 blocker baru + sesi ini
+
+**Pending (belum dikerjakan):**
+1. Fix `customers.repository.ts`: ganti `last_invoice_date` → live query, tambah `is_placeholder=false`, fix definisi "existing" inklusif (blocked by customer pivot key)
+2. Fix `metrics.service.ts` `resolveDormantMonths` → per-customer threshold (align dengan Halaman Customer)
+3. Konfirmasi: apakah Accurate CSV export include kolom `customer_code`?
+
+---
+
 ## Sesi 26 — Perubahan (2026-06-30)
 
 ### Backend
@@ -185,6 +243,8 @@
 | Accurate API key: per-company vs global | PM    | Pending | admin/decisions.md #1 |
 | Import preview step (Opsi A vs B)    | PM/Dev   | Pending | admin/decisions.md #3 |
 | Audit log permission: roles:manage atau audit:read | PM | Pending | admin/decisions.md #2 |
+| **[BLOCKER] Customer pivot key tidak stabil** | PM/Dev | **Open** | Import dedup customer pakai `UPPER(name)+company_id` — rentan mismatch jika nama berubah. Fix butuh `customer_code` dari Accurate. **Pertanyaan**: apakah CSV export Accurate include kolom `customer_code`? Detail: `features/import.md#blockers` |
+| **[BLOCKER] Customer page — status inakurat** | Dev | Blocked | Halaman `/customers` pakai `customers.last_invoice_date` (stale, tidak update saat reimport). Harus diganti live query `MAX(invoices.invoice_date)`. Blocked by pivot key di atas + perlu tambah `is_placeholder=false` filter + fix definisi "existing" (inklusif active). |
 
 ## Next Actions (Priority Order)
 1. Build Auth + RBAC backend (JWT + CSRF) — unblock semua protected route

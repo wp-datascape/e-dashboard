@@ -2,7 +2,7 @@
 
 > WAJIB dibaca sebelum mengerjakan fitur kalkulasi metrik apapun.
 > Sumber kebenaran tunggal untuk definisi bisnis.
-> Last updated: 2026-06-27 (direvisi dari klarifikasi owner)
+> Last updated: 2026-06-30 (semua open questions terjawab — definisi final)
 
 ---
 
@@ -24,29 +24,26 @@ Faktur Accurate / File CSV
 | Param | Tipe | Keterangan |
 |---|---|---|
 | `company_id` | integer \| `"all"` | Filter per entitas; "all" = holding view |
-| `period_month` | string `YYYY-MM` | Bulan referensi periode berjalan |
+| `period_end` | string `YYYY-MM-DD` | Tanggal acuan (default: hari ini). Window 30 hari dihitung mundur dari sini. |
+| `division` | string (opsional) | Filter per divisi/channel |
 
-> **Dihapus**: `active_window` tidak lagi jadi query param.
-> Threshold diambil dari `business_configs` (aktif = 30 hari, dormant = 90 hari).
+> **Dihapus**: `period_month` (YYYY-MM) dan `active_window` tidak lagi dipakai.
+> Periode berjalan = **30 hari rolling** mundur dari `period_end`.
+> Threshold dormant = fixed **90 hari**.
 
 ---
 
-## Definisi Status Customer (REVISED)
+## Definisi Status Customer (FINAL)
 
-Semua status dihitung relatif terhadap **tanggal akhir periode berjalan** (`period_end = akhir bulan dari period_month`).
+Semua status dihitung relatif terhadap **`period_end`** (tanggal dipilih user, default hari ini).
+**Active window = 30 hari rolling** mundur dari `period_end`.
 
 | Status | Kondisi | Threshold |
 |---|---|---|
-| **Aktif** | Punya invoice di periode berjalan (bulan = period_month) | 30 hari / 1 bulan kalender |
-| **Existing** | `first_invoice_date < period_start` AND `last_invoice_date >= period_end - 90 hari` | Pernah beli sebelumnya + belum dormant |
+| **Aktif** | Ada invoice dalam `(period_end - 30 hari, period_end]` | 30 hari rolling |
+| **Existing** | `first_invoice_date < period_end - 30 hari` AND `last_invoice_date >= period_end - 90 hari` | Pernah beli sebelum window + belum dormant |
 | **Dormant** | `last_invoice_date < period_end - 90 hari` | 90 hari tanpa transaksi |
-| **New** | `first_invoice_date` jatuh dalam period_month | Pertama kali beli di bulan ini |
-
-> **Catatan perbedaan dari versi lama:**
-> - "Aktif" bukan lagi rolling window (3/6/12 bln) — cukup ada invoice di bulan berjalan
-> - "Existing" = pernah beli sebelum periode + belum masuk dormant
-> - Threshold dormant = **90 hari** (bukan bulan kalender)
-> - `active_window_months` di `business_configs` tidak lagi relevan untuk definisi status ini
+| **New** | `first_invoice_date` dalam `(period_end - 30 hari, period_end]` | Pertama kali beli dalam window aktif |
 
 ---
 
@@ -64,15 +61,12 @@ Semua status dihitung relatif terhadap **tanggal akhir periode berjalan** (`peri
 3. Multi kategori **tidak akumulasi lintas bulan** — dilihat dari invoice dalam periode berjalan saja
 4. Hasil = COUNT customer yang lolos / COUNT total customer aktif
 
-**Matrix window (konfirmasi pending — lihat open questions):**
-Ditampilkan untuk 4 window: **30 / 90 / 180 / 360 hari**
-
 ```
-Numerator   : COUNT DISTINCT customer_id yang punya ≥ 2 kategori dalam invoice periode
-Denominator : COUNT DISTINCT customer_id yang ada di invoice periode
+Numerator   : COUNT DISTINCT customer_id yang punya ≥ 2 kategori dalam 30-hari window
+Denominator : COUNT DISTINCT customer_id yang ada di 30-hari window
 ```
 
-**Chart:** BarChartWidget di `/cross-selling`
+**Chart:** BarChartWidget 12 bulan di `/cross-selling` — tiap bar = 1 window 30 hari bergeser mundur
 **Detail (KPI 1.1):** HeatmapWidget — Customer × Kategori
 
 ---
@@ -97,33 +91,31 @@ Total jenis item (kategori unik) yang terjual di period
 
 ## KPI 3 — Existing Customer Active (Revenue)
 
-**Definisi:** Jumlah existing customer yang melakukan transaksi di periode berjalan + rata-rata revenue mereka.
+**Definisi:** Jumlah existing customer yang melakukan transaksi dalam active window 30 hari.
 
-**Existing customer** = `first_invoice_date < period_start` AND `last_invoice_date >= period_end - 90 hari`
+**Existing customer** = `first_invoice_date < period_end - 30 hari` AND `last_invoice_date >= period_end - 90 hari`
 
 **Cara hitung:**
 ```
-Count   : COUNT existing customer yang punya invoice di period_month
-Avg Rev : SUM(total_revenue) existing di period ÷ COUNT existing yang transaksi di period
+Count : COUNT existing customer yang punya invoice dalam (period_end - 30 hari, period_end]
 ```
 
-**Yang ditampilkan di chart:**
-- Jumlah existing customer yang transaksi (count)
-- Rata-rata revenue per existing customer yang transaksi
+**Yang ditampilkan:** Jumlah existing customer yang transaksi (count saja).
+
+> **MVP:** Avg revenue per customer di-hold untuk setelah project live.
 
 **Scope:** Semua produk + jasa, tidak difilter kategori.
 
-**Chart:** ComboChartWidget di `/customer-metrics`
-(Batang = total revenue existing, Garis = avg revenue per customer)
+**Chart:** BarChartWidget 12 bulan di `/customer-metrics`
 
 ---
 
 ## KPI 4 — Existing Customer Active (Gross Profit)
 
-**Definisi:** Sama persis dengan KPI 3, tapi kolom yang dihitung adalah **gross profit**.
+**Definisi:** Total gross profit dari existing customer yang transaksi dalam active window 30 hari.
 
 ```
-Avg GP : SUM(total_gp) existing di period ÷ COUNT existing yang transaksi di period
+Total GP : SUM(gross_profit) dari invoice existing customer dalam (period_end - 30 hari, period_end]
 ```
 
 **Chart:** BarChartWidget stacked (3 tier: top/mid/long-tail) di `/customer-metrics`
@@ -132,34 +124,33 @@ Avg GP : SUM(total_gp) existing di period ÷ COUNT existing yang transaksi di pe
 
 ## KPI 5 — High Margin Product Penetration
 
-**Definisi:** Proporsi existing customer yang membeli produk high margin di periode berjalan.
+**Definisi:** Proporsi existing customer yang membeli produk high margin dalam active window 30 hari.
 
 **High Margin Product:** Ditentukan via **memo entitas** — admin input produk/kategori mana yang dianggap high margin untuk periode tertentu. Tersimpan di tabel `high_margin_products` (dengan `effective_from` / `effective_until`).
 
 **Cara hitung:**
 ```
-Numerator   : COUNT existing customer yang punya ≥ 1 invoice_item dari produk high margin di period
-Denominator : COUNT TOTAL existing customer (bukan hanya yang transaksi di period ini)
+Numerator   : COUNT existing customer yang punya ≥ 1 invoice_item dari produk high margin
+              dalam (period_end - 30 hari, period_end]
+Denominator : COUNT TOTAL existing customer (termasuk yang tidak transaksi di window ini)
 ```
 
-**Chart:** DonutChartWidget snapshot bulan ini di `/customer-metrics`
+**Chart:** DonutChartWidget snapshot di `/customer-metrics`
 
 ---
 
 ## KPI 6 — Repeat Order Rate
 
-**Definisi:** Proporsi existing customer yang melakukan lebih dari 1 transaksi di **active window 30 hari** periode berjalan.
+**Definisi:** Proporsi existing customer yang melakukan **lebih dari 1 transaksi** dalam active window 30 hari.
 
 **Cara hitung:**
 ```
-Numerator   : COUNT existing customer dengan COUNT(DISTINCT invoice) > 1 dalam 30 hari terakhir
+Numerator   : COUNT existing customer dengan COUNT(DISTINCT invoice_id) > 1
+              dalam (period_end - 30 hari, period_end]
 Denominator : COUNT TOTAL existing customer
 ```
 
-> **Perbedaan dari versi lama:**
-> - Denominator = **total existing** (bukan "active existing")
-> - Numerator = customer yang order **lebih dari 1x** (bukan sekadar punya invoice)
-> - "Repeat order" berarti minimal 2 transaksi berbeda dalam 30 hari aktif
+> "Repeat order" = frekuensi ≥ 2 transaksi dalam 30 hari, bukan sekadar pernah beli sebelumnya.
 
 **Threshold target:** Dikonfigurasi via `business_configs.repeat_order_target_pct` (default 80%). Dapat diubah di halaman Settings → Threshold → Target KPI.
 
@@ -178,18 +169,15 @@ Denominator : COUNT TOTAL existing customer
 
 **Cara hitung:**
 ```
-Window aktif (cur) : SUM(revenue) existing customer dalam 30 hari terakhir periode
-Window sebelumnya (prev): SUM(revenue) existing customer dalam 30 hari SEBELUM window aktif
-  (yaitu: [period_end - 60 hari, period_end - 30 hari])
+Window aktif (cur)  : SUM(revenue) existing dalam (period_end - 30 hari, period_end]
+Window sebelumnya   : SUM(revenue) existing dalam (period_end - 60 hari, period_end - 30 hari]
 
 Numerator   : COUNT existing dimana COALESCE(cur.rev, 0) > COALESCE(prev.rev, 0)
 Denominator : COUNT TOTAL existing customer
 ```
 
-> **Perbedaan dari versi lama:**
-> - Window sebelumnya = **30 hari sebelum window aktif** (bukan bulan kalender sebelumnya)
-> - Customer yang tidak order di periode sebelumnya (prev.rev = 0) tapi order sekarang **dihitung** sebagai "spending naik"
-> - Denominator = **semua existing**, termasuk yang tidak aktif sama sekali
+> Customer yang tidak order di window sebelumnya (prev.rev = 0) tapi order sekarang **dihitung** sebagai "spending naik".
+> Denominator = **semua existing**, termasuk yang tidak aktif sama sekali.
 
 **Chart:** BarChartWidget 100% stacked horizontal di `/customer-metrics`
 
@@ -204,10 +192,8 @@ Denominator : COUNT TOTAL existing customer
 **Cara hitung:**
 ```
 Numerator   : COUNT customer dengan last_invoice_date < period_end - 90 hari
-Denominator : COUNT ALL customer (seluruh data customer di DB, bukan hanya existing)
+Denominator : COUNT ALL customer (seluruh data customer di DB)
 ```
-
-> **Perbedaan dari versi lama:** Denominator = **ALL customer**, bukan hanya existing customer.
 
 **Butuh data:** Seluruh tabel `customers` + tanggal transaksi terakhir dari `invoices`.
 
@@ -239,42 +225,20 @@ Target minimum: 15–20%
 
 ---
 
-## Perbandingan: Definisi Lama vs Baru
+## Perbandingan: Definisi Lama vs Final
 
-| Aspek | Versi Lama | Versi Baru (Revised) |
+| Aspek | Versi Lama | Versi Final (2026-06-30) |
 |---|---|---|
-| Threshold aktif | Rolling 3/6/12 bulan (configurable) | 30 hari = 1 bulan kalender |
-| Threshold dormant | `dormant_threshold_months` dari config | Fixed 90 hari |
+| Parameter filter | `period_month: YYYY-MM` | `period_end: YYYY-MM-DD` (default: hari ini) |
+| Periode berjalan | Bulan kalender | **30 hari rolling** mundur dari `period_end` |
+| Threshold dormant | `dormant_threshold_months` dari config | Fixed **90 hari** |
 | `active_window` param | Ada di query param | Dihapus |
-| KPI 1 window | 12 bulan rolling trend | 30/90/180/360 hari (multi-window) |
+| KPI 1 window | Multi-window 30/90/180/360 hari | Bar chart **12 bulan** (tiap bar = 30-hari rolling) |
+| KPI 3 tampilan | Count + avg revenue | **Count saja** (avg revenue = fitur post-MVP) |
 | KPI 5,6,7 denominator | Active existing | Total existing |
+| KPI 6 definisi | Returning customer | **Frekuensi > 1x dalam 30 hari** |
 | KPI 8 denominator | Total existing | **All customer** |
 | Definisi "existing" | first_invoice_date < period_start | + syarat belum dormant (< 90 hari) |
-
----
-
-## ⚠️ Open Questions — Perlu Konfirmasi Owner
-
-Pertanyaan ini muncul dari sesi klarifikasi 2026-06-27 dan **belum terjawab**. Harus dikonfirmasi sebelum implementasi KPI 1, 3, 6, 7.
-
-**Q1 — "Periode berjalan" = 30 hari rolling atau bulan kalender?**
-User menyebut "threshold per 30 hari" dan "bulan berjalan" bergantian.
-- Opsi A: Bulan kalender (Jan 1–31, Feb 1–28) — filter tetap `period_month` YYYY-MM
-- Opsi B: 30 hari rolling dari tanggal hari ini ke belakang
-- Implikasi: jika rolling, filter di halaman harus date-range picker, bukan month picker
-
-**Q2 — KPI 1 "matrix per 30/90/180/360 hari":**
-Apakah ini berarti:
-- Opsi A: User bisa **pilih** salah satu window (dropdown filter)?
-- Opsi B: **4 angka ditampilkan sekaligus** dalam satu tabel/chart?
-
-**Q3 — KPI 3: yang ditampilkan COUNT saja atau COUNT + avg revenue?**
-"Data yang ditampilkan jumlah customer existing yang melakukan transaksi" — apakah cukup jumlahnya saja, atau juga rata-rata revenue per customer seperti chart ComboWidget saat ini?
-
-**Q4 — KPI 6 "repeat order":**
-Artinya:
-- Opsi A: Customer existing yang beli **lebih dari 1 kali** dalam 30 hari (frekuensi)?
-- Opsi B: Customer existing yang **pernah beli sebelumnya** dan beli lagi di 30 hari ini (returning)?
 
 ---
 
@@ -283,14 +247,12 @@ Artinya:
 ```json
 {
   "company_id": 1,
-  "period_month": "2026-06",
+  "period_end": "2026-06-30",
   "trend": [
     {
-      "month": "2026-06",
+      "period_end": "2026-06-30",
       "existing_customers": 928,
       "total_revenue_existing": 287149564,
-      "avg_revenue": 8445575,
-      "avg_gross_profit": 2242628,
       "high_margin_ratio": 0,
       "repeat_order_rate": 37.3,
       "expansion_rate": 56.1
@@ -300,6 +262,8 @@ Artinya:
   "repeat_order_current": { "value": 37.3 }
 }
 ```
+
+> `avg_revenue` dan `avg_gross_profit` dihapus dari response MVP.
 
 ---
 

@@ -29,15 +29,15 @@ interface Props {
   hm: { bought_pct: number; not_bought_pct: number } | undefined
   companyId: number | 'all'
   division?: string
-  periodMonth: string
+  periodEnd: string
 }
 
-export function M5HighMargin({ isLoading, hm, companyId, division, periodMonth }: Props) {
+export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: Props) {
   const theme = useTheme();
-  const [hmDrillMonth, setHmDrillMonth] = useState<string | null>(null);
+  const [hmDrillDate, setHmDrillDate] = useState<string | null>(null);
 
   const { data: hmBreakdown, isLoading: hmBreakdownLoading } = useHmBreakdown({
-    month: hmDrillMonth,
+    period_end: hmDrillDate,
     company_id: companyId,
     division,
   });
@@ -59,15 +59,15 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodMonth }
             centerValue={`${hm?.bought_pct ?? 0}%`}
             centerLabel="High Margin"
             height={240}
-            onChartClick={() => setHmDrillMonth(periodMonth)}
+            onChartClick={() => setHmDrillDate(periodEnd)}
           />
         )}
       </Box>
 
       {/* HM Breakdown Dialog */}
       <Dialog
-        open={!!hmDrillMonth}
-        onClose={() => setHmDrillMonth(null)}
+        open={!!hmDrillDate}
+        onClose={() => setHmDrillDate(null)}
         maxWidth="md"
         fullWidth
         slotProps={{ paper: { sx: { borderRadius: 0 } } }}
@@ -78,7 +78,7 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodMonth }
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              High Margin Buyers — {hmDrillMonth}
+              High Margin Buyers — {hmDrillDate}
             </Typography>
             {hmBreakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
@@ -97,7 +97,7 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodMonth }
               </Box>
             )}
           </Box>
-          <IconButton size="small" onClick={() => setHmDrillMonth(null)} sx={{ color: 'text.secondary', mt: -0.5 }}>
+          <IconButton size="small" onClick={() => setHmDrillDate(null)} sx={{ color: 'text.secondary', mt: -0.5 }}>
             <Typography component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✕</Typography>
           </IconButton>
         </Box>

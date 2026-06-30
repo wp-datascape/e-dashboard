@@ -18,7 +18,8 @@ export interface CustomerMetricsTrendPoint {
   up_rate: number
   flat_down_rate: number
   // M3 enrichment
-  active_count: number
+  active_existing_count: number
+  active_new_count: number
   median_revenue: number
   top_customer_id: number | null
   top_customer_name: string | null
@@ -39,7 +40,7 @@ export interface GpBreakdownRow {
 }
 
 export interface GpBreakdownData {
-  month: string
+  period_end: string
   total_gp: number
   median_threshold: number
   total_existing: number
@@ -57,7 +58,7 @@ export interface HmBreakdownRow {
 }
 
 export interface HmBreakdownData {
-  month: string
+  period_end: string
   total_hm_revenue: number
   hm_buyer_count: number
   total_existing: number
@@ -75,7 +76,7 @@ export interface RorBreakdownRow {
 }
 
 export interface RorBreakdownData {
-  month: string
+  period_end: string
   repeat_count: number
   total_existing: number
   rows: RorBreakdownRow[]

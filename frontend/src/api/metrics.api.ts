@@ -15,7 +15,7 @@ export const metricsApi = {
 
   getCustomerMetrics: async (params?: {
     company_id?: number | 'all';
-    period_month?: string;
+    period_end?: string;
     division?: string;
   }): Promise<CustomerMetricsData> => {
     const res = await api.get<ApiResponse<CustomerMetricsData>>('/metrics/customer-metrics', { params });
@@ -24,24 +24,24 @@ export const metricsApi = {
 
   getDormantCustomer: async (params?: {
     company_id?: number | 'all';
-    period_month?: string;
+    period_end?: string;
     division?: string;
   }): Promise<DormantData> => {
     const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer', { params });
     return res.data.data;
   },
 
-  getGpBreakdown: async (params: { month: string; company_id?: number | 'all'; division?: string }): Promise<GpBreakdownData> => {
+  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string }): Promise<GpBreakdownData> => {
     const res = await api.get<ApiResponse<GpBreakdownData>>('/metrics/gp-breakdown', { params });
     return res.data.data;
   },
 
-  getHmBreakdown: async (params: { month: string; company_id?: number | 'all'; division?: string }): Promise<HmBreakdownData> => {
+  getHmBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string }): Promise<HmBreakdownData> => {
     const res = await api.get<ApiResponse<HmBreakdownData>>('/metrics/hm-breakdown', { params });
     return res.data.data;
   },
 
-  getRorBreakdown: async (params: { month: string; company_id?: number | 'all'; division?: string }): Promise<RorBreakdownData> => {
+  getRorBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string }): Promise<RorBreakdownData> => {
     const res = await api.get<ApiResponse<RorBreakdownData>>('/metrics/ror-breakdown', { params });
     return res.data.data;
   },

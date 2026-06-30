@@ -1,0 +1,247 @@
+import { db } from '@/config/db'
+import { sql } from 'drizzle-orm'
+import type { SegmentParams } from '../segment.helper'
+import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
+
+// Konsisten dengan SSOT active_customer: non-new (ada invoice sebelum window) + beli dalam window
+const CS_INV_CTE = (p: SegmentParams) => sql`
+  inv AS (
+    SELECT DISTINCT i.id, i.customer_id
+    FROM invoices i
+    JOIN customers c ON c.id = i.customer_id
+    LEFT JOIN channel_divisions cd
+      ON  cd.channel_name  = i.channel_name
+      AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+    WHERE i.deleted_at IS NULL
+      AND c.is_placeholder = false
+      AND i.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
+      AND i.invoice_date <= ${p.filterDate}::date
+      AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+      AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+      AND EXISTS (
+        SELECT 1 FROM invoices ix0
+        WHERE ix0.customer_id = i.customer_id
+          AND ix0.deleted_at IS NULL
+          AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
+      )
+  )
+`
+
+export async function fetchCrossSellingKPI(p: SegmentParams) {
+  const rawRows = await db.execute(sql`
+    WITH
+    ${CS_INV_CTE(p)},
+    cc AS (
+      SELECT
+        inv.customer_id,
+        COUNT(DISTINCT ii.product_category_id) AS cat_count
+      FROM inv
+      JOIN invoice_items ii ON ii.invoice_id = inv.id
+      WHERE ii.product_category_id IS NOT NULL
+      GROUP BY inv.customer_id
+    )
+    SELECT
+      COUNT(*)::int                                                         AS active_count,
+      COUNT(*) FILTER (WHERE cat_count > 1)::int                           AS multi_cat_count,
+      ROUND(
+        COUNT(*) FILTER (WHERE cat_count > 1)::numeric
+        / NULLIF(COUNT(*), 0) * 100, 1
+      )                                                                     AS multi_cat_rate,
+      ROUND(AVG(cat_count)::numeric, 2)                                     AS avg_categories,
+      (
+        SELECT COUNT(DISTINCT ii2.product_category_id)::int
+        FROM inv
+        JOIN invoice_items ii2 ON ii2.invoice_id = inv.id
+        WHERE ii2.product_category_id IS NOT NULL
+      )                                                                     AS total_distinct_cats
+    FROM cc
+  `)
+  const row = ((rawRows as unknown[])[0] ?? {}) as Record<string, unknown>
+  return {
+    active_count:        Number(row.active_count        ?? 0),
+    multi_cat_count:     Number(row.multi_cat_count     ?? 0),
+    multi_cat_rate:      Number(row.multi_cat_rate      ?? 0),
+    avg_categories:      Number(row.avg_categories      ?? 0),
+    total_distinct_cats: Number(row.total_distinct_cats ?? 0),
+  }
+}
+
+export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSellingTrendRow[]> {
+  const rawRows = await db.execute(sql`
+    WITH
+    months AS (
+      SELECT
+        TO_CHAR(m, 'YYYY-MM') AS label,
+        (date_trunc('month', m) + INTERVAL '1 month' - INTERVAL '1 day')::date AS me
+      FROM generate_series(
+        date_trunc('month', ${p.filterDate}::date - INTERVAL '11 months'),
+        date_trunc('month', ${p.filterDate}::date),
+        INTERVAL '1 month'
+      ) AS m
+    ),
+    base AS (
+      SELECT
+        i.customer_id,
+        i.invoice_date,
+        ii.product_category_id
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoice_id = i.id
+      LEFT JOIN channel_divisions cd
+        ON  cd.channel_name  = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      WHERE i.deleted_at IS NULL
+        AND i.invoice_date >  ${p.filterDate}::date - INTERVAL '12 months'
+        AND i.invoice_date <= ${p.filterDate}::date
+        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND ii.product_category_id IS NOT NULL
+    ),
+    monthly AS (
+      SELECT
+        m.label,
+        b.customer_id,
+        COUNT(DISTINCT b.product_category_id) AS cat_count
+      FROM months m
+      JOIN base b ON b.invoice_date > m.me - ${p.activeMonths}::int * INTERVAL '1 month'
+                 AND b.invoice_date <= m.me
+      GROUP BY m.label, b.customer_id
+    )
+    SELECT
+      label                                                              AS month,
+      COUNT(*)::int                                                      AS total_active,
+      COUNT(*) FILTER (WHERE cat_count > 1)::int                        AS multi_product,
+      ROUND(COUNT(*) FILTER (WHERE cat_count > 1)::numeric
+        / NULLIF(COUNT(*), 0) * 100, 1)                                  AS ratio,
+      ROUND(AVG(cat_count)::numeric, 2)                                  AS avg_category
+    FROM monthly
+    GROUP BY label
+    ORDER BY label
+  `)
+  return (rawRows as unknown[]).map((r) => {
+    const row = r as Record<string, unknown>
+    return {
+      month:         String(row.month),
+      total_active:  Number(row.total_active  ?? 0),
+      multi_product: Number(row.multi_product ?? 0),
+      ratio:         Number(row.ratio         ?? 0),
+      avg_category:  Number(row.avg_category  ?? 0),
+    }
+  })
+}
+
+export async function fetchCrossSellingDetail(p: SegmentParams): Promise<CrossSellingDetailRow[]> {
+  const rawRows = await db.execute(sql`
+    WITH
+    ${CS_INV_CTE(p)},
+    cc AS (
+      SELECT
+        inv.customer_id,
+        COUNT(DISTINCT ii.product_category_id)  AS cat_count,
+        SUM(ii.revenue::numeric)                AS total_revenue,
+        BOOL_OR(pc.item_type = 'unit')          AS has_unit,
+        BOOL_OR(pc.item_type = 'consumable')    AS has_consumable,
+        BOOL_OR(pc.item_type = 'sparepart')     AS has_sparepart
+      FROM inv
+      JOIN invoice_items ii ON ii.invoice_id = inv.id
+      LEFT JOIN product_categories pc ON pc.id = ii.product_category_id
+      WHERE ii.product_category_id IS NOT NULL
+      GROUP BY inv.customer_id
+    )
+    SELECT
+      c.id                       AS customer_id,
+      c.customer_code,
+      c.customer_name,
+      cc.cat_count::int          AS category_count,
+      cc.has_unit,
+      cc.has_consumable,
+      cc.has_sparepart,
+      cc.total_revenue::bigint   AS total_revenue
+    FROM cc
+    JOIN customers c ON c.id = cc.customer_id
+    ORDER BY cat_count DESC, total_revenue DESC
+  `)
+  return (rawRows as unknown[]).map((r) => {
+    const row = r as Record<string, unknown>
+    return {
+      customer_id:    Number(row.customer_id),
+      customer_code:  row.customer_code ? String(row.customer_code) : null,
+      customer_name:  String(row.customer_name),
+      category_count: Number(row.category_count ?? 0),
+      has_unit:       Boolean(row.has_unit),
+      has_consumable: Boolean(row.has_consumable),
+      has_sparepart:  Boolean(row.has_sparepart),
+      total_revenue:  Number(row.total_revenue ?? 0),
+    }
+  })
+}
+
+export async function fetchCrossSellingHeatmap(p: SegmentParams): Promise<{
+  heatmap: CrossSellingHeatmapRow[]
+  categories: string[]
+}> {
+  const rawRows = await db.execute(sql`
+    WITH
+    ${CS_INV_CTE(p)},
+    type_counts AS (
+      SELECT pc.item_type AS name, COUNT(*) AS freq
+      FROM inv
+      JOIN invoice_items ii ON ii.invoice_id = inv.id
+      JOIN product_categories pc ON pc.id = ii.product_category_id
+      WHERE pc.item_type IS NOT NULL
+      GROUP BY pc.item_type
+      ORDER BY freq DESC
+    ),
+    top_customers AS (
+      SELECT
+        inv.customer_id,
+        COUNT(DISTINCT pc.item_type) AS type_count,
+        COUNT(*)                     AS tx_count
+      FROM inv
+      JOIN invoice_items ii ON ii.invoice_id = inv.id
+      JOIN product_categories pc ON pc.id = ii.product_category_id
+      WHERE pc.item_type IS NOT NULL
+      GROUP BY inv.customer_id
+      ORDER BY type_count DESC, tx_count DESC
+      LIMIT 30
+    )
+    SELECT
+      c.customer_name  AS customer,
+      pc.item_type     AS category,
+      COUNT(*)::int    AS purchase_count,
+      tc2.freq         AS cat_freq
+    FROM top_customers tc
+    JOIN customers c ON c.id = tc.customer_id
+    JOIN inv         ON inv.customer_id = tc.customer_id
+    JOIN invoice_items ii ON ii.invoice_id = inv.id
+    JOIN product_categories pc ON pc.id = ii.product_category_id
+    JOIN type_counts tc2 ON tc2.name = pc.item_type
+    WHERE pc.item_type IS NOT NULL
+    GROUP BY c.customer_name, pc.item_type, tc2.freq
+    ORDER BY c.customer_name, tc2.freq DESC
+  `)
+
+  const catFreqMap = new Map<string, number>()
+  const customerMap = new Map<string, Record<string, number>>()
+
+  for (const r of rawRows as unknown[]) {
+    const row = r as Record<string, unknown>
+    const customer = String(row.customer)
+    const category = String(row.category)
+    const count    = Number(row.purchase_count ?? 0)
+    const freq     = Number(row.cat_freq       ?? 0)
+    if (!catFreqMap.has(category)) catFreqMap.set(category, freq)
+    if (!customerMap.has(customer)) customerMap.set(customer, {})
+    customerMap.get(customer)![category] = count
+  }
+
+  const categories = [...catFreqMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name)
+
+  const heatmap: CrossSellingHeatmapRow[] = [...customerMap.entries()].map(([customer, values]) => ({
+    customer,
+    values,
+  }))
+
+  return { heatmap, categories }
+}

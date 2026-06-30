@@ -7,7 +7,7 @@ import MenuItem from '@mui/material/MenuItem';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
-import { currentYearMonth } from './helpers';
+import { todayIsoDate } from './helpers';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
 import { M5HighMargin }  from './M5HighMargin';
@@ -15,15 +15,15 @@ import { M6RepeatOrder } from './M6RepeatOrder';
 import { M7Expansion }   from './M7Expansion';
 
 export default function CustomerMetrics() {
-  const [companyId,   setCompanyId]   = useState<number | 'all'>('all');
-  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
-  const [division,    setDivision]    = useState<string>('');
+  const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
+  const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
+  const [division,   setDivision]   = useState<string>('');
 
   const { data: companies = [] } = useCompanies();
   const { data, isLoading } = useCustomerMetrics({
-    company_id:   companyId,
-    period_month: periodMonth,
-    division:     division || undefined,
+    company_id:  companyId,
+    period_end:  periodEnd,
+    division:    division || undefined,
   });
 
   const trend = data?.trend ?? [];
@@ -78,9 +78,9 @@ export default function CustomerMetrics() {
           </TextField>
 
           <TextField
-            type="month" size="small" label="Periode"
-            value={periodMonth}
-            onChange={(e) => setPeriodMonth(e.target.value)}
+            type="date" size="small" label="Per Tanggal"
+            value={periodEnd}
+            onChange={(e) => setPeriodEnd(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
@@ -106,7 +106,7 @@ export default function CustomerMetrics() {
             hm={hm}
             companyId={companyId}
             division={division || undefined}
-            periodMonth={periodMonth}
+            periodEnd={periodEnd}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
@@ -116,7 +116,7 @@ export default function CustomerMetrics() {
             thresholdPct={ror?.target_pct ?? 80}
             companyId={companyId}
             division={division || undefined}
-            periodMonth={periodMonth}
+            periodEnd={periodEnd}
           />
         </Grid>
       </Grid>

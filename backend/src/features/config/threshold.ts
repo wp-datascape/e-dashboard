@@ -17,6 +17,7 @@
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { findAllConfigs } from './config.repository'
+import { db } from '@/config/db'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,37 @@ export function parseThresholdConfigs(
 export async function loadThresholds(): Promise<ThresholdConfig> {
   const configs = await findAllConfigs()
   return parseThresholdConfigs(configs)
+}
+
+// ─── Company-wide dormant resolver ───────────────────────────────────────────
+
+/**
+ * Cari dormant threshold berdasarkan divisi terbanyak di invoices company.
+ * cid = 0 berarti semua perusahaan.
+ * Dipakai Customer page DAN Metrics page agar threshold konsisten.
+ */
+export async function resolveDormantMonths(
+  cid: number,
+  dormant: ThresholdConfig['dormant'],
+): Promise<number> {
+  const result = await db.execute(sql`
+    SELECT cd.division, COUNT(*) AS cnt
+    FROM invoices i
+    JOIN channel_divisions cd
+      ON cd.channel_name = i.channel_name
+     AND (cd.company_id = ${cid === 0 ? null : cid}::int OR cd.company_id IS NULL)
+    WHERE i.deleted_at IS NULL
+      AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+      AND i.channel_name IS NOT NULL
+    GROUP BY cd.division
+    ORDER BY cnt DESC
+    LIMIT 1
+  `)
+  const rows = result as unknown[]
+  const first = rows[0] as Record<string, unknown> | undefined
+  const division = first?.division != null ? String(first.division) : 'distribution'
+  const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
+  return dormant[dormantKey]
 }
 
 // ─── SQL CASE builder ─────────────────────────────────────────────────────────

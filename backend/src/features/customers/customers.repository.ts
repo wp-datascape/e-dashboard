@@ -1,77 +1,9 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
-import { and, eq, inArray, isNull, isNotNull, or, sql, desc, asc, ilike } from 'drizzle-orm'
-import { loadThresholds, buildDormantCaseSql } from '@/features/config/threshold'
-import type { ThresholdConfig } from '@/features/config/threshold'
+import { and, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
+import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
+import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
-
-// ─── Ekspresi CASE SQL untuk kolom status ─────────────────────────────────────
-// divisionCol: kolom/ekspresi SQL yang berisi nilai division (e.g. channel_divisions.division)
-function buildStatusExpr(
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormant: ThresholdConfig['dormant'],
-  divisionCol: unknown,
-) {
-  const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
-  const dormantCutoff = sql`${refDate} - (
-    ${buildDormantCaseSql(divisionCol, dormant)} * INTERVAL '1 month'
-  )`
-
-  return sql<string>`
-    CASE
-      WHEN ${customers.last_invoice_date} IS NULL
-        THEN 'new'
-      WHEN ${customers.first_invoice_date}::date >= ${activeCutoff}
-        THEN 'new'
-      WHEN ${customers.last_invoice_date}::date < ${dormantCutoff}
-        THEN 'dormant'
-      WHEN ${customers.last_invoice_date}::date >= ${activeCutoff}
-        THEN 'active'
-      ELSE 'existing'
-    END
-  `
-}
-
-// ─── WHERE condition untuk filter status ──────────────────────────────────────
-function buildStatusWhere(
-  status: string,
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormant: ThresholdConfig['dormant'],
-  divisionCol: unknown,
-) {
-  const activeCutoff = sql`${refDate} - ${activeMonths}::int * INTERVAL '1 month'`
-  const dormantCutoff = sql`${refDate} - (
-    ${buildDormantCaseSql(divisionCol, dormant)} * INTERVAL '1 month'
-  )`
-
-  const isNew = or(
-    isNull(customers.last_invoice_date),
-    sql`${customers.first_invoice_date}::date >= ${activeCutoff}`,
-  )
-  const notNew = and(
-    isNotNull(customers.last_invoice_date),
-    sql`(${customers.first_invoice_date} IS NULL OR ${customers.first_invoice_date}::date < ${activeCutoff})`,
-  )
-
-  switch (status) {
-    case 'new':
-      return isNew
-    case 'dormant':
-      return and(notNew, sql`${customers.last_invoice_date}::date < ${dormantCutoff}`)
-    case 'active':
-      return and(notNew, sql`${customers.last_invoice_date}::date >= ${activeCutoff}`)
-    case 'existing':
-      return and(
-        notNew,
-        sql`${customers.last_invoice_date}::date >= ${dormantCutoff}`,
-        sql`${customers.last_invoice_date}::date < ${activeCutoff}`,
-      )
-    default:
-      return undefined
-  }
-}
 
 export async function findCustomers(params: CustomersQuery, scopeIds?: number[]) {
   const { company_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
@@ -79,6 +11,20 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
 
   const { activeMonths, dormant } = await loadThresholds()
+  const cid = company_id === 'all' ? 0 : company_id
+  const dormantMonths = await resolveDormantMonths(cid, dormant)
+
+  // Subquery: live first/last invoice date per customer (dari tabel invoices langsung)
+  // Alias berbeda dari customers.first/last_invoice_date agar tidak ambigu di GROUP BY
+  const liveDatesSq = db
+    .select({
+      customer_id: invoices.customer_id,
+      live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`.as('live_last'),
+      live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`.as('live_first'),
+    })
+    .from(invoices)
+    .groupBy(invoices.customer_id)
+    .as('live_dates')
 
   // Aggregate expressions
   const lifetimeExpr = sql<string>`
@@ -101,13 +47,16 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
+  conditions.push(eq(customers.is_placeholder, false))
   if (company_id !== 'all') conditions.push(eq(customers.company_id, company_id))
   else if (scopeIds) {
     if (scopeIds.length === 0) return { data: [], total: 0 }
     conditions.push(inArray(customers.company_id, scopeIds))
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
-  const statusCond = status ? buildStatusWhere(status, refDate, activeMonths, dormant, channel_divisions.division) : undefined
+  const statusCond = status
+    ? sqlStatusWhere(status, refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
+    : undefined
   if (statusCond) conditions.push(statusCond)
 
   const whereClause = conditions.length ? and(...conditions) : undefined
@@ -125,11 +74,11 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
       case 'lifetime_value':      return isAsc ? asc(lifetimeExpr) : desc(lifetimeExpr)
       case 'avg_monthly_revenue': return isAsc ? asc(avgMonthlyExpr) : desc(avgMonthlyExpr)
       case 'category_count':      return isAsc ? asc(catCountExpr) : desc(catCountExpr)
-      default:                    return isAsc ? asc(customers.last_invoice_date) : desc(customers.last_invoice_date)
+      default:                    return isAsc ? asc(liveDatesSq.live_last) : desc(liveDatesSq.live_last)
     }
   })()
 
-  const statusExpr = buildStatusExpr(refDate, activeMonths, dormant, channel_divisions.division)
+  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -146,6 +95,7 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
     db
       .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
       .from(customers)
+      .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
       .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
       .where(whereWithDivision)
@@ -159,8 +109,8 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
         company_name: companies.name,
         business_unit: customers.business_unit,
         division: channel_divisions.division,
-        first_invoice_date: customers.first_invoice_date,
-        last_invoice_date: customers.last_invoice_date,
+        first_invoice_date: liveDatesSq.live_first,
+        last_invoice_date: liveDatesSq.live_last,
         total_invoices: invCountExpr,
         lifetime_value: lifetimeExpr,
         avg_monthly_revenue: avgMonthlyExpr,
@@ -168,6 +118,7 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
         status: statusExpr,
       })
       .from(customers)
+      .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(companies, eq(customers.company_id, companies.id))
       .leftJoin(invoices, eq(invoices.customer_id, customers.id))
       .leftJoin(
@@ -177,7 +128,7 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
       .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, channel_divisions.division)
+      .groupBy(customers.id, companies.id, channel_divisions.division, liveDatesSq.live_last, liveDatesSq.live_first)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -223,8 +174,11 @@ export async function findCustomerDetail(customerId: number) {
         .limit(1)
     : []
 
-  // Division sudah diketahui dari lookup sebelumnya — pakai sebagai literal SQL
-  const divisionLiteral = sql`${divRow?.division ?? null}`
+  const divisionKey = BU_DORMANT_KEY_MAP[divRow?.division ?? ''] ?? 'b2b_dc'
+  const dormantMonths = dormant[divisionKey]
+
+  const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`
+  const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.invoice_date} END)`
 
   const [row] = await db
     .select({
@@ -234,9 +188,9 @@ export async function findCustomerDetail(customerId: number) {
       company_id: companies.id,
       company_name: companies.name,
       business_unit: customers.business_unit,
-      first_invoice_date: customers.first_invoice_date,
-      last_invoice_date: customers.last_invoice_date,
-      status: buildStatusExpr(refDate, activeMonths, dormant, divisionLiteral),
+      first_invoice_date: liveFirstInv.mapWith(String),
+      last_invoice_date: liveLastInv.mapWith(String),
+      status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv),
       lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END), 0)`,
       avg_monthly_revenue: sql<string>`
         COALESCE(

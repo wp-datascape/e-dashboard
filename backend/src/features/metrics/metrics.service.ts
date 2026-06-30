@@ -1,46 +1,14 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { loadThresholds, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
-import type { ThresholdConfig } from '@/features/config/threshold'
+import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
 import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap } from './metrics.repository'
-import { buildSegmentParams, monthEndDate } from './segment.helper'
+import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
 import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery } from './metrics.schema'
 import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData } from './metrics.types'
-import { db } from '@/config/db'
-import { sql } from 'drizzle-orm'
 
 function todayDate(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
-
-/**
- * Tentukan dormantDays berdasarkan division terbanyak dari invoices company.
- * Ambil channel_name → channel_divisions.division → dormant_threshold_months.{type}
- */
-async function resolveDormantDays(
-  cid: number,
-  dormant: ThresholdConfig['dormant'],
-): Promise<number> {
-  const result = await db.execute(sql`
-    SELECT cd.division, COUNT(*) AS cnt
-    FROM invoices i
-    JOIN channel_divisions cd
-      ON cd.channel_name = i.channel_name
-     AND (cd.company_id = ${cid === 0 ? null : cid}::int OR cd.company_id IS NULL)
-    WHERE i.deleted_at IS NULL
-      AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
-      AND i.channel_name IS NOT NULL
-    GROUP BY cd.division
-    ORDER BY cnt DESC
-    LIMIT 1
-  `)
-
-  const rows = result as unknown[]
-  const first = rows[0] as Record<string, unknown> | undefined
-  const division = first?.division != null ? String(first.division) : 'distribution'
-  const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
-  return dormant[dormantKey] * 30
 }
 
 async function resolveSegmentParams(
@@ -50,32 +18,30 @@ async function resolveSegmentParams(
 ): Promise<SegmentParams> {
   const { activeMonths, dormant } = await loadThresholds()
   const cid = companyId === 'all' ? 0 : companyId
-  let dormantDays: number
+  let dormantMonths: number
   if (division) {
     const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
-    dormantDays = dormant[dormantKey] * 30
+    dormantMonths = dormant[dormantKey]
   } else {
-    dormantDays = await resolveDormantDays(cid, dormant)
+    dormantMonths = await resolveDormantMonths(cid, dormant)
   }
-  return buildSegmentParams(companyId, filterDate, activeMonths * 30, dormantDays, division)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery): Promise<CrossSellingMetricsData> {
   try {
-    const periodEnd = params.period_end ?? todayDate()
-    const cid       = params.company_id === 'all' ? 0 : params.company_id
-    const division  = params.division ?? null
-    const p = { cid, periodEnd, division }
+    const periodEnd  = params.period_end ?? todayDate()
+    const segParams  = await resolveSegmentParams(params.company_id, periodEnd, params.division)
 
     const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
-      fetchCrossSellingKPI(p),
-      fetchCrossSellingTrend(p),
-      fetchCrossSellingDetail(p),
-      fetchCrossSellingHeatmap(p),
+      fetchCrossSellingKPI(segParams),
+      fetchCrossSellingTrend(segParams),
+      fetchCrossSellingDetail(segParams),
+      fetchCrossSellingHeatmap(segParams),
     ])
 
     const periodStart = new Date(periodEnd)
-    periodStart.setDate(periodStart.getDate() - 30)
+    periodStart.setMonth(periodStart.getMonth() - segParams.activeMonths)
     const startStr = periodStart.toISOString().slice(0, 10)
 
     return {
@@ -102,7 +68,7 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery): Promise
 
 export async function getCustomerMetrics(params: CustomerMetricsQuery): Promise<CustomerMetricsData> {
   try {
-    const filterDate = params.period_month ? monthEndDate(params.period_month) : todayDate()
+    const filterDate = params.period_end ?? todayDate()
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
       resolveSegmentParams(params.company_id, filterDate, params.division),
       loadThresholds(),
@@ -129,7 +95,8 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery): Promise<
       expansion_rate:          row.expansion_rate,
       up_rate:                 row.expansion_rate,
       flat_down_rate:          parseFloat((100 - row.expansion_rate).toFixed(1)),
-      active_count:            row.active_count,
+      active_existing_count:   row.active_existing_count,
+      active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
       top_customer_id:         row.top_customer_id,
       top_customer_name:       row.top_customer_name,
@@ -160,11 +127,11 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery): Promise<
 
 export async function getGpBreakdown(params: GpBreakdownQuery): Promise<GpBreakdownData> {
   try {
-    const filterDate = monthEndDate(params.month)
+    const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division)
     const result = await fetchGpBreakdown(segParams)
     return {
-      month:            params.month,
+      period_end:       filterDate,
       total_gp:         result.total_gp,
       median_threshold: result.median_threshold,
       total_existing:   result.total_existing,
@@ -178,11 +145,11 @@ export async function getGpBreakdown(params: GpBreakdownQuery): Promise<GpBreakd
 
 export async function getHmBreakdown(params: HmBreakdownQuery): Promise<HmBreakdownData> {
   try {
-    const filterDate = monthEndDate(params.month)
+    const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division)
     const result = await fetchHmBreakdown(segParams)
     return {
-      month:            params.month,
+      period_end:       filterDate,
       total_hm_revenue: result.total_hm_revenue,
       hm_buyer_count:   result.hm_buyer_count,
       total_existing:   result.total_existing,
@@ -196,7 +163,7 @@ export async function getHmBreakdown(params: HmBreakdownQuery): Promise<HmBreakd
 
 export async function getDormantCustomerMetrics(params: DormantCustomerQuery): Promise<DormantMetricsData> {
   try {
-    const filterDate = params.period_month ? monthEndDate(params.period_month) : todayDate()
+    const filterDate = params.period_end ?? todayDate()
     const [segParams, thresholds] = await Promise.all([
       resolveSegmentParams(params.company_id, filterDate, params.division),
       loadThresholds(),
@@ -232,11 +199,11 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery): P
 
 export async function getRorBreakdown(params: RorBreakdownQuery): Promise<RorBreakdownData> {
   try {
-    const filterDate = monthEndDate(params.month)
+    const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division)
     const result = await fetchRorBreakdown(segParams)
     return {
-      month:          params.month,
+      period_end:     filterDate,
       repeat_count:   result.repeat_count,
       total_existing: result.total_existing,
       rows:           result.rows,

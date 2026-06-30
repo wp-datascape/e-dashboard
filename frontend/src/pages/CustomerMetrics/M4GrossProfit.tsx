@@ -18,7 +18,7 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useGpBreakdown } from '@/hooks/useMetrics';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
-import { fmtRp, fmtRpDetail, SectionLabel, Row } from './helpers';
+import { fmtRp, fmtRpDetail, SectionLabel, Row, monthToEndDate } from './helpers';
 
 function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();
@@ -40,7 +40,7 @@ function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
       <Divider sx={{ mb: 1 }} />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
         <Row label="Total GP Existing" value={fmtRp(totalGp)} />
-        <Row label="Avg GP / Customer" value={fmtRp(d.avg_gross_profit)} />
+        <Row label="Avg GP / Customer" value={fmtRp(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
         <Divider sx={{ my: 0.75 }} />
         <Row label="Atas (GP > median)"        value={fmtRp(d.gp_tier1)} />
         <Row label="Tengah (50%–100% median)"  value={fmtRp(d.gp_tier2)} />
@@ -89,10 +89,10 @@ interface Props {
 
 export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) {
   const theme = useTheme();
-  const [drillMonth, setDrillMonth] = useState<string | null>(null);
+  const [drillDate, setDrillDate] = useState<string | null>(null);
 
   const { data: breakdown, isLoading: breakdownLoading } = useGpBreakdown({
-    month: drillMonth,
+    period_end: drillDate,
     company_id: companyId,
     division,
   });
@@ -120,15 +120,15 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
             renderTooltip={(props) => <M4Tooltip {...props} />}
             concentrationKey="top_gp_pct"
             concentrationThreshold={25}
-            onBarClick={(d) => setDrillMonth(String(d.month ?? ''))}
+            onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
           />
         )}
       </Box>
 
       {/* GP Breakdown Dialog */}
       <Dialog
-        open={!!drillMonth}
-        onClose={() => setDrillMonth(null)}
+        open={!!drillDate}
+        onClose={() => setDrillDate(null)}
         maxWidth="md"
         fullWidth
         slotProps={{ paper: { sx: { borderRadius: 0 } } }}
@@ -139,13 +139,13 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              GP Breakdown — {drillMonth}
+              GP Breakdown — {drillDate}
             </Typography>
             {breakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
                 {([
                   ['Gross Profit Existing Customer',  fmtRpDetail(breakdown.total_gp)],
-                  ['Total Existing Customer',          String(breakdown.total_existing)],
+                  ['Total Established (Active+Existing)', String(breakdown.total_existing)],
                   ['Avg GP/Customer',                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
                   ['Median threshold',                 fmtRpDetail(breakdown.median_threshold)],
                   ['Existing bertransaksi bulan ini',  String(breakdown.rows.length)],
@@ -165,13 +165,13 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
                 <IconButton
                   size="small"
                   sx={{ color: 'text.secondary' }}
-                  onClick={() => exportGpBreakdownPdf(drillMonth!, breakdown)}
+                  onClick={() => exportGpBreakdownPdf(drillDate!, breakdown)}
                 >
                   <DownloadOutlinedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </MuiTooltip>
             )}
-            <IconButton size="small" onClick={() => setDrillMonth(null)} sx={{ color: 'text.secondary' }}>
+            <IconButton size="small" onClick={() => setDrillDate(null)} sx={{ color: 'text.secondary' }}>
               <Typography component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✕</Typography>
             </IconButton>
           </Box>

@@ -68,6 +68,24 @@ export const ComboChartWidget = ({
   const theme = useTheme();
   const warnColor = concentrationColor ?? theme.palette.warning.light;
 
+  // Hitung domain right axis dari field yang benar-benar di-plot (bukan semua field data)
+  const rightDomain = (() => {
+    const vals: number[] = [];
+    for (const d of data as Record<string, unknown>[]) {
+      const v1 = d[lineKey];
+      if (typeof v1 === 'number' && isFinite(v1)) vals.push(v1);
+      if (line2Key) {
+        const v2 = d[line2Key];
+        if (typeof v2 === 'number' && isFinite(v2)) vals.push(v2);
+      }
+    }
+    if (vals.length === 0) return [0, 'auto'] as const;
+    const mn = Math.min(...vals);
+    const mx = Math.max(...vals);
+    const pad = (mx - mn) * 0.1 || mx * 0.1;
+    return [Math.max(0, mn - pad), mx + pad] as const;
+  })();
+
   const tooltipFormatter = (value: unknown, name: unknown) => {
     const v = value as number;
     const n = name as string;
@@ -112,6 +130,7 @@ export const ComboChartWidget = ({
           <YAxis
             yAxisId="right"
             orientation="right"
+            domain={rightDomain}
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}

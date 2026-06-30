@@ -19,7 +19,7 @@ export const customerMetricsQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  period_month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM').optional(),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
 })
 
@@ -30,7 +30,7 @@ export const gpBreakdownQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
 })
 
@@ -41,7 +41,7 @@ export const hmBreakdownQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
 })
 
@@ -52,7 +52,7 @@ export const rorBreakdownQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
 })
 
@@ -63,7 +63,7 @@ export const dormantCustomerQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  period_month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM').optional(),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
 })
 
