@@ -152,7 +152,7 @@ export default function CrossSelling() {
             {t('crossSelling.pageTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Metrik 1–2 · Window 30 hari · Sumber: invoice + item kategori produk
+            Metrik 1–2 · Window {data?.period.active_months ?? '…'} bulan · Sumber: invoice + item kategori produk
           </Typography>
         </Box>
 
@@ -211,7 +211,7 @@ export default function CrossSelling() {
             <KpiCard
               label="KPI 2 · Rata-rata Kategori / Customer"
               value={data?.kpi2.avg_categories ?? 0}
-              sub={`${data?.kpi2.total_distinct_cats ?? 0} jenis kategori terjual dalam 30 hari terakhir`}
+              sub={`${data?.kpi2.total_distinct_cats ?? 0} jenis kategori terjual dalam ${data?.period.active_months ?? '…'} bulan terakhir`}
               color={theme.palette.info.main}
             />
           )}
@@ -219,7 +219,7 @@ export default function CrossSelling() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label="Customer Aktif (30 hari)"
+              label={`Customer Aktif (${data?.period.active_months ?? '…'} bulan)`}
               value={data?.kpi1.active_count ?? 0}
               sub={`Periode ${data?.period.start ?? '—'} s/d ${data?.period.end ?? '—'}`}
               color={theme.palette.success.main}
@@ -248,7 +248,7 @@ export default function CrossSelling() {
             ) : (
               <BarChartWidget
                 title="Customer Aktif vs Multi-Kategori (12 Bulan)"
-                subtitle="Bar abu = total customer aktif · Bar biru = customer beli >1 kategori produk dalam 30 hari terakhir bulan itu"
+                subtitle={`Bar abu = total customer aktif · Bar biru = customer beli >1 kategori produk dalam window ${data?.period.active_months ?? '…'} bulan terakhir bulan itu`}
                 data={data?.trend ?? []}
                 series={[
                   { key: 'total_active',  label: 'Customer Aktif',      color: theme.palette.text.secondary },
@@ -323,7 +323,7 @@ export default function CrossSelling() {
         ) : (
           <AreaChartWidget
             title="Avg Kategori per Customer Aktif — Tren 12 Bulan"
-            subtitle="Rata-rata berapa banyak kategori produk yang dibeli per customer aktif dalam window 30 hari"
+            subtitle={`Rata-rata berapa banyak kategori produk yang dibeli per customer aktif dalam window ${data?.period.active_months ?? '…'} bulan`}
             value={`${latestTrend?.avg_category ?? 0}`}
             data={data?.trend ?? []}
             series={[{ key: 'avg_category', label: 'Avg Kategori', color: theme.palette.success.main }]}

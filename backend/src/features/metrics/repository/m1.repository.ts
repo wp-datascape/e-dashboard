@@ -101,17 +101,28 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
       JOIN base b ON b.invoice_date > m.me - ${p.activeMonths}::int * INTERVAL '1 month'
                  AND b.invoice_date <= m.me
       GROUP BY m.label, b.customer_id
+    ),
+    -- Agregasi per bulan sebelum LEFT JOIN ke months agar bulan tanpa transaksi tetap muncul (nilai 0)
+    agg AS (
+      SELECT
+        label,
+        COUNT(*)::int                                                    AS total_active,
+        COUNT(*) FILTER (WHERE cat_count > 1)::int                      AS multi_product,
+        ROUND(COUNT(*) FILTER (WHERE cat_count > 1)::numeric
+          / NULLIF(COUNT(*), 0) * 100, 1)                               AS ratio,
+        ROUND(AVG(cat_count)::numeric, 2)                               AS avg_category
+      FROM monthly
+      GROUP BY label
     )
     SELECT
-      label                                                              AS month,
-      COUNT(*)::int                                                      AS total_active,
-      COUNT(*) FILTER (WHERE cat_count > 1)::int                        AS multi_product,
-      ROUND(COUNT(*) FILTER (WHERE cat_count > 1)::numeric
-        / NULLIF(COUNT(*), 0) * 100, 1)                                  AS ratio,
-      ROUND(AVG(cat_count)::numeric, 2)                                  AS avg_category
-    FROM monthly
-    GROUP BY label
-    ORDER BY label
+      m.label                          AS month,
+      COALESCE(a.total_active,  0)     AS total_active,
+      COALESCE(a.multi_product, 0)     AS multi_product,
+      COALESCE(a.ratio,         0)     AS ratio,
+      COALESCE(a.avg_category,  0)     AS avg_category
+    FROM months m
+    LEFT JOIN agg a ON a.label = m.label
+    ORDER BY m.label
   `)
   return (rawRows as unknown[]).map((r) => {
     const row = r as Record<string, unknown>

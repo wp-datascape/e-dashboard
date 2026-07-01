@@ -160,7 +160,7 @@ export interface CrossSellingHeatmapRow {
 }
 
 export interface CrossSellingMetricsData {
-  period: { start: string; end: string }
+  period: { start: string; end: string; active_months: number }
   kpi1: { multi_cat_count: number; active_count: number; rate: number }
   kpi2: { avg_categories: number; total_distinct_cats: number }
   trend: CrossSellingTrendRow[]

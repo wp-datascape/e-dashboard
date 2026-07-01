@@ -30,8 +30,16 @@ async function resolveSegmentParams(
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery): Promise<CrossSellingMetricsData> {
   try {
-    const periodEnd  = params.period_end ?? todayDate()
-    const segParams  = await resolveSegmentParams(params.company_id, periodEnd, params.division)
+    const periodEnd = params.period_end ?? todayDate()
+
+    // Normalisasi ke akhir bulan agar KPI / Detail / Heatmap / Trend semua pakai window identik.
+    // Tanpa ini, KPI pakai filterDate (hari ini) sementara Trend pakai end-of-month per bulan →
+    // pada 1 Juli KPI Card 1 menunjuk data Juni tapi Trend titik Juli = 0%.
+    const [py, pm] = periodEnd.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const endOfMonth = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division)
 
     const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams),
@@ -40,12 +48,12 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery): Promise
       fetchCrossSellingHeatmap(segParams),
     ])
 
-    const periodStart = new Date(periodEnd)
-    periodStart.setMonth(periodStart.getMonth() - segParams.activeMonths)
-    const startStr = periodStart.toISOString().slice(0, 10)
+    // period.start = hari pertama window inklusif: endOfMonth − activeMonths bulan + 1 hari.
+    // Date.UTC aman untuk boundary tahun (Jan − 3 = Okt tahun lalu).
+    const startStr = new Date(Date.UTC(py, pm - segParams.activeMonths, 1)).toISOString().slice(0, 10)
 
     return {
-      period: { start: startStr, end: periodEnd },
+      period: { start: startStr, end: endOfMonth, active_months: segParams.activeMonths },
       kpi1: {
         multi_cat_count: kpiRaw.multi_cat_count,
         active_count:    kpiRaw.active_count,
