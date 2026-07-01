@@ -1,10 +1,14 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { findAuditLogs, findAuditLogById as findById } from './audit.repository'
+import { findAuditLogs, findAuditLogById as findById, findDistinctActions } from './audit.repository'
 import type { AuditLogsQuery } from './audit.repository'
 
 export async function getAuditLogs(query: AuditLogsQuery) {
   const result = await findAuditLogs(query)
   return result!
+}
+
+export async function getAuditActions() {
+  return findDistinctActions()
 }
 
 export async function getAuditLogById(id: number) {

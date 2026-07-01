@@ -24,6 +24,11 @@ export const channelDivisionIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })
 
+export const unmappedChannelsQuerySchema = z.object({
+  company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).optional().default('all'),
+})
+
 export type CreateChannelDivisionDto = z.infer<typeof createChannelDivisionSchema>
 export type UpdateChannelDivisionDto = z.infer<typeof updateChannelDivisionSchema>
 export type ListChannelDivisionsQuery = z.infer<typeof listChannelDivisionsQuerySchema>
+export type UnmappedChannelsQuery = z.infer<typeof unmappedChannelsQuerySchema>

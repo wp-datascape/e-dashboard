@@ -199,3 +199,68 @@ Terima baris (CSV parser atau Accurate API response)
 - `item_classification_rules` — tidak berubah, untuk klasifikasi item_type (unit/consumable/dll), bukan high margin
 - Pattern `Route → Handler → Service → Repository` — konsisten dengan pola yang sudah ada
 - `batchInvoiceCache` untuk multi-item dalam satu batch — tidak berubah, hanya ditambah `resetItemsCache`
+
+---
+
+## 8. Fitur "Upsell Targets" — Logika Rekomendasi
+
+Halaman `/products/high-margin` punya 2 tab: **Penetrasi Kategori** dan **Upsell Targets**. Tab kedua menghasilkan daftar customer yang direkomendasikan untuk ditawari produk high margin. Endpoint: `GET /metrics/high-margin-penetration/customers`.
+
+### 8.1 Konsep sederhana (bahasa awam)
+
+Anggap ada 3 kategori yang sudah ditandai "High Margin" oleh admin: **A, B, C**.
+
+1. **Cek riwayat belanja tiap customer** — kategori apa yang sudah/belum dibeli dalam window aktif (3/6/12 bulan terakhir).
+
+   | Customer | Sudah beli | Belum beli |
+   |---|---|---|
+   | Budi | A | B, C |
+   | Sari | A, B | C |
+   | Andi | A, B, C | — (sudah lengkap → **tidak dimunculkan**) |
+
+2. **Cari tahu jenis customer yang biasa beli tiap kategori** — dari data transaksi riil: kategori B paling banyak dibeli oleh business unit "Toko Retail", kategori C paling banyak dibeli oleh "Proyek". Ini seperti pola "customer yang mirip kamu biasanya beli barang ini juga".
+
+3. **Cocokkan jenis customer dengan kategori yang belum dia beli**:
+   - Budi jenisnya "Toko Retail", belum beli B & C. B memang biasa dibeli "Toko Retail" (jenis Budi) → **tawaran B masuk akal buat Budi**. C biasa dibeli "Proyek" (bukan jenisnya) → kurang nyambung, tidak dihitung sebagai peluang kuat.
+   - Sari jenisnya "Proyek", belum beli C. C memang biasa dibeli "Proyek" (jenis Sari) → **cocok, peluang kuat**.
+
+4. **Urutkan** — customer dengan paling banyak "tawaran yang masuk akal" (cocok dengan jenisnya) ditaruh di atas. Kalau nilainya sama, yang belanjanya paling besar per bulan didahulukan.
+
+Intinya cuma dua hal digabung: **"dia belum beli apa"** + **"barang itu cocok tidak dengan jenis customer-nya"**.
+
+### 8.2 Alur teknis
+
+Sama seperti tab Penetrasi Kategori, langkah pertama tetap resolusi `hm_cats` (lihat §2.2) — kategori HM aktif untuk periode & company yang difilter.
+
+```
+1. hm_cats            → daftar kategori HM aktif (dari high_margin_products, lihat §2.2)
+2. customer_data       → per customer: kategori apa yang sudah dibeli (cat_ids_bought)
+                          dalam window aktif, + avg_monthly_revenue, last_invoice_date
+3. hm_affinity         → per kategori HM: top-2 business_unit dengan jumlah distinct
+                          buyer terbanyak (dari data invoice riil)
+4. missing categories  = hm_cats MINUS cat_ids_bought
+5. relevance_score     = COUNT(missing categories yang business_unit top-buyer-nya
+                          == business_unit customer ini)
+                          → dipakai untuk ORDER BY saja, TIDAK dikirim ke response
+6. exclude customer yang cat_ids_bought sudah mencakup semua hm_cats (tidak ada yang missing)
+7. ORDER BY relevance_score DESC, avg_monthly_revenue DESC
+```
+
+**File terkait:**
+
+| Layer | File |
+|---|---|
+| Query | `backend/src/features/metrics/repository/high-margin-penetration.repository.ts` → `fetchUpsellTargets()` |
+| Service | `backend/src/features/metrics/metrics.service.ts` → `getUpsellTargets()` (strip `relevance_score` sebelum dikirim) |
+| Route | `backend/src/features/metrics/metrics.route.ts` → `GET /high-margin-penetration/customers` |
+| Frontend tab | `frontend/src/pages/ProductsHighMargin/index.tsx` → `UpsellTargetsTab` |
+| Drawer riwayat beli | `frontend/src/pages/ProductsHighMargin/components/UpsellCustomerDrawer.tsx` |
+
+### 8.3 Catatan penting — jangan tertukar dua jenis "margin"
+
+| | Sumber | Fungsi |
+|---|---|---|
+| **Status "High Margin"** (kategori/produk ditandai target upsell) | Setting manual admin di `high_margin_products` (§2.2) | Menentukan kategori mana yang jadi acuan "belum dibeli" di atas |
+| **`gp_margin_percent`** yang tampil di tabel/drawer (mis. chip warna di `UpsellCustomerDrawer.tsx`) | Dihitung real-time dari data invoice (`total_gp / total_revenue`) | Cuma informasi tampilan, **tidak mempengaruhi** apakah kategori dianggap "High Margin" |
+
+Produk dengan margin aktual tinggi sekalipun **tidak akan** muncul sebagai target upsell kalau tidak pernah didaftarkan admin di Settings → High Margin. Sebaliknya, produk yang sudah didaftarkan tetap dianggap "High Margin" walau margin aktualnya sedang turun — sampai admin men-deactivate mapping-nya.

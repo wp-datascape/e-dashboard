@@ -6,6 +6,7 @@ import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices } from '@/hooks/useTransactions'
+import { useDivisionOptions } from '@/hooks/useDivisionOptions'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
@@ -16,6 +17,7 @@ export default function Transactions() {
   const { t } = useTranslation()
   const [customerSearch, setCustomerSearch] = useState('')
   const [buFilter, setBuFilter] = useState<string>('')
+  const divisionOptions = useDivisionOptions('all')
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
@@ -56,12 +58,11 @@ export default function Transactions() {
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ minWidth: 240 }} />
-        <TextField select size="small" label={t('customers.detail.businessUnit')} value={buFilter} onChange={(e) => setBuFilter(e.target.value)} sx={{ minWidth: 160 }}>
+        <TextField select size="small" label={t('customers.detail.division')} value={buFilter} onChange={(e) => setBuFilter(e.target.value)} sx={{ minWidth: 160 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
-          <MenuItem value="b2b_dc">B2B DC</MenuItem>
-          <MenuItem value="b2b_project">B2B Project</MenuItem>
-          <MenuItem value="b2c">B2C</MenuItem>
-          <MenuItem value="manufacturing">Manufacturing</MenuItem>
+          {divisionOptions.map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+          ))}
         </TextField>
       </Box>
 

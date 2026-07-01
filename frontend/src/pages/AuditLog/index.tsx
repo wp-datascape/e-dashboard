@@ -11,7 +11,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { Card, DatePicker } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
-import { useAuditLogs } from '@/hooks/useAuditLogs'
+import { useAuditLogs, useAuditActions } from '@/hooks/useAuditLogs'
 import type { AuditLog, AuditLogFilters } from '@/types/audit'
 import { ViewAuditLogDialog } from './components/ViewAuditLogDialog'
 
@@ -112,6 +112,7 @@ export default function AuditLog() {
 
   // ── Data ──
   const { data, isLoading, error } = useAuditLogs(filters)
+  const { data: actions = [] } = useAuditActions()
 
   // ── Handlers ──
   const handleFilterChange = (key: keyof AuditLogFilters, value: string | number) => {
@@ -228,14 +229,9 @@ export default function AuditLog() {
           sx={{ minWidth: 160 }}
         >
           <MenuItem value="">{t('auditLog.allActions')}</MenuItem>
-          <MenuItem value="invoice.import">invoice.import</MenuItem>
-          <MenuItem value="user.create">user.create</MenuItem>
-          <MenuItem value="user.update">user.update</MenuItem>
-          <MenuItem value="user.delete">user.delete</MenuItem>
-          <MenuItem value="role.create">role.create</MenuItem>
-          <MenuItem value="role.update">role.update</MenuItem>
-          <MenuItem value="role.delete">role.delete</MenuItem>
-          <MenuItem value="config.update">config.update</MenuItem>
+          {actions.map((action) => (
+            <MenuItem key={action} value={action}>{action}</MenuItem>
+          ))}
         </TextField>
 
         <DatePicker

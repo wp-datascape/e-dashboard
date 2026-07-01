@@ -12,6 +12,7 @@ import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
 import { useCompanies } from '@/hooks/useCompanies'
+import { useDivisionOptions } from '@/hooks/useDivisionOptions'
 import type {
   HighMarginCategoryRow,
   HighMarginDetailParams,
@@ -148,6 +149,8 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [buFilter, setBuFilter] = useState('')
 
+  const divisionOptions = useDivisionOptions(filter.companyId)
+
   // Drawer: customer purchase history (row click or categories_bought chip click)
   const [drawerCustomer,  setDrawerCustomer]  = useState<UpsellTargetRow | null>(null)
   const [drawerCatFilter, setDrawerCatFilter] = useState<CategoryRef | null>(null)
@@ -259,16 +262,15 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
     <Box>
       <Box sx={{ mb: 2 }}>
         <TextField
-          select size="small" label={t('customers.detail.businessUnit')}
+          select size="small" label={t('customers.detail.division')}
           value={buFilter}
           onChange={(e) => { setBuFilter(e.target.value); setPagination((p) => ({ ...p, page: 0 })) }}
           sx={{ minWidth: 180 }}
         >
           <MenuItem value="">{t('common.all')}</MenuItem>
-          <MenuItem value="b2b_dc">B2B DC</MenuItem>
-          <MenuItem value="b2b_project">B2B Project</MenuItem>
-          <MenuItem value="b2c">B2C</MenuItem>
-          <MenuItem value="manufacturing">Manufacturing</MenuItem>
+          {divisionOptions.map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+          ))}
         </TextField>
       </Box>
 
@@ -325,6 +327,20 @@ export default function ProductsHighMargin() {
 
   const filter: FilterState = { companyId, periodMonth, activeWindow }
 
+  // Ambil seluruh kategori HM (bukan hanya 1 halaman grid) untuk hitung summary
+  // per_page dibatasi maksimal 100 oleh backend (metrics.schema.ts)
+  const { data: summaryData } = useHighMarginDetail({
+    company_id:    filter.companyId,
+    period_month:  filter.periodMonth,
+    active_window: filter.activeWindow,
+    page: 1,
+    per_page: 100,
+  })
+  const categoryCount = summaryData?.meta.total ?? 0
+  const avgPenetration = summaryData?.data.length
+    ? summaryData.data.reduce((sum, r) => sum + r.penetration_rate, 0) / summaryData.data.length
+    : 0
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header + Filter */}
@@ -379,6 +395,14 @@ export default function ProductsHighMargin() {
           </TextField>
         </Stack>
       </Box>
+
+      {/* Summary chips */}
+      {categoryCount > 0 && (
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+          <StatusChip label={t('productsHighMargin.summaryCategories', { count: categoryCount })} color="warning" />
+          <StatusChip label={t('productsHighMargin.summaryAvgPenetration', { pct: avgPenetration.toFixed(1) })} color="info" />
+        </Stack>
+      )}
 
       {/* Tabs */}
       <Tabs

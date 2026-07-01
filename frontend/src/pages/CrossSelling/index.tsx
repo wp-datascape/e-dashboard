@@ -19,6 +19,7 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { Card } from '@/components/ui';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 import { DetailCard } from './components/DetailCard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ export default function CrossSelling() {
   const [division,   setDivision]   = useState<string>('');
 
   const { data: companies = [] } = useCompanies();
+  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useCrossSelling({
     company_id: companyId,
     period_end:  periodEnd,
@@ -176,12 +178,9 @@ export default function CrossSelling() {
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">Semua Divisi</MenuItem>
-            <MenuItem value="distribution">Distribution</MenuItem>
-            <MenuItem value="project">Project</MenuItem>
-            <MenuItem value="e_commerce">E-Commerce</MenuItem>
-            <MenuItem value="intercompany">Intercompany</MenuItem>
-            <MenuItem value="freelancer">Freelancer</MenuItem>
-            <MenuItem value="support">Support</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
           </TextField>
 
           <TextField

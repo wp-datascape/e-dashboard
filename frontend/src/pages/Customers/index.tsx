@@ -9,6 +9,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useCompanies } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
@@ -25,6 +26,7 @@ export default function Customers() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
+  const divisionOptions = useDivisionOptions(companyFilter);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -102,12 +104,9 @@ export default function Customers() {
         </TextField>
         <TextField select size="small" label={t('customers.detail.division')} value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')} sx={{ minWidth: 160 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
-          <MenuItem value="distribution">Distribution</MenuItem>
-          <MenuItem value="project">Project</MenuItem>
-          <MenuItem value="e_commerce">E-Commerce</MenuItem>
-          <MenuItem value="intercompany">Intercompany</MenuItem>
-          <MenuItem value="freelancer">Freelancer</MenuItem>
-          <MenuItem value="support">Support</MenuItem>
+          {divisionOptions.map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+          ))}
         </TextField>
       </Box>
 

@@ -97,6 +97,18 @@ export async function findAuditLogs(query: AuditLogsQuery) {
   }
 }
 
+export async function findDistinctActions(): Promise<string[]> {
+  try {
+    const rows = await db
+      .selectDistinct({ action: auditLogs.action })
+      .from(auditLogs)
+      .orderBy(auditLogs.action)
+    return rows.map((r) => r.action)
+  } catch (err) {
+    handleDbError(err)
+  }
+}
+
 export async function findAuditLogById(id: number) {
   try {
     const [row] = await db

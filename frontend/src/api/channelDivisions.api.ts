@@ -35,6 +35,13 @@ export const channelDivisionsApi = {
     return res.data.data
   },
 
+  listUnmappedChannels: async (companyId: number | 'all'): Promise<string[]> => {
+    const res = await api.get<ApiResponse<string[]>>('/settings/channel-divisions/unmapped-channels', {
+      params: { company_id: companyId },
+    })
+    return res.data.data
+  },
+
   downloadTemplate: async (): Promise<void> => {
     const res = await api.get('/settings/channel-divisions/template', { responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))

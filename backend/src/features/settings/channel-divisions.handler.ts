@@ -7,6 +7,7 @@ import {
   updateChannelDivisionSchema,
   listChannelDivisionsQuerySchema,
   channelDivisionIdParamSchema,
+  unmappedChannelsQuerySchema,
 } from './channel-divisions.schema'
 import {
   listChannelDivisionsService,
@@ -15,11 +16,18 @@ import {
   deleteChannelDivisionService,
   importChannelDivisionsService,
   getChannelDivisionsTemplate,
+  listUnmappedChannelsService,
 } from './channel-divisions.service'
 
 export async function handleListChannelDivisions(c: Context) {
   const query = validateQuery(c, listChannelDivisionsQuerySchema)
   const result = await listChannelDivisionsService(query)
+  return success(c, result)
+}
+
+export async function handleListUnmappedChannels(c: Context) {
+  const query = validateQuery(c, unmappedChannelsQuerySchema)
+  const result = await listUnmappedChannelsService(query.company_id)
   return success(c, result)
 }
 

@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { channel_divisions, companies } from '@/db/schema'
-import { and, eq, ilike, isNull, or } from 'drizzle-orm'
+import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import type { CreateChannelDivisionDto, UpdateChannelDivisionDto, ListChannelDivisionsQuery } from './channel-divisions.schema'
 
 export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
@@ -91,4 +91,26 @@ export async function updateChannelDivision(id: number, data: UpdateChannelDivis
 
 export async function deleteChannelDivision(id: number) {
   await db.delete(channel_divisions).where(eq(channel_divisions.id, id))
+}
+
+/**
+ * Channel name riil dari invoices (hasil import) yang belum punya mapping
+ * di channel_divisions — dipakai untuk opsi dropdown "Add Channel Mapping"
+ * agar admin pilih dari data nyata, bukan ketik manual.
+ */
+export async function findUnmappedChannelNames(cid: number): Promise<string[]> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT i.channel_name
+    FROM invoices i
+    WHERE i.deleted_at IS NULL
+      AND i.channel_name IS NOT NULL
+      AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+      AND NOT EXISTS (
+        SELECT 1 FROM channel_divisions cd
+        WHERE cd.channel_name = i.channel_name
+          AND (cd.company_id IS NULL OR cd.company_id = i.company_id)
+      )
+    ORDER BY i.channel_name
+  `)
+  return (rows as unknown[]).map((r) => (r as { channel_name: string }).channel_name)
 }

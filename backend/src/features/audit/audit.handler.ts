@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { success, paginated } from '@/utils/response'
 import { validateQuery, validateParam } from '@/utils/validator'
 import { resolveCompanyScope } from '@/middleware/auth'
-import { getAuditLogs, getAuditLogById } from './audit.service'
+import { getAuditLogs, getAuditLogById, getAuditActions } from './audit.service'
 import { auditQuerySchema } from './audit.schema'
 
 export async function handleGetAuditLogs(c: Context) {
@@ -21,6 +21,11 @@ export async function handleGetAuditLogs(c: Context) {
     scopeIds,
   })
   return paginated(c, data, { page: query.page ?? 1, per_page: query.per_page ?? 50, total })
+}
+
+export async function handleGetAuditActions(c: Context) {
+  const actions = await getAuditActions()
+  return success(c, actions)
 }
 
 export async function handleGetAuditLogById(c: Context) {

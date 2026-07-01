@@ -21,21 +21,13 @@ import {
   useUpdateChannelDivision,
   useDeleteChannelDivision,
 } from '@/hooks/useChannelDivisions'
+import { useDivisionOptions } from '@/hooks/useDivisionOptions'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
 import type { Division } from '@/types/customers'
 import { DivisionMappingDialog } from './components/DivisionMappingDialog'
 import { useCan } from '@/hooks/useCan'
 
 type DialogMode = 'create' | 'edit' | null
-
-const DIVISION_OPTIONS: { value: NonNullable<Division>; label: string }[] = [
-  { value: 'distribution', label: 'Distribution' },
-  { value: 'project', label: 'Project' },
-  { value: 'e_commerce', label: 'E-Commerce' },
-  { value: 'intercompany', label: 'Intercompany' },
-  { value: 'freelancer', label: 'Freelancer' },
-  { value: 'support', label: 'Support' },
-]
 
 export default function DivisionsSettings() {
   const { t } = useTranslation()
@@ -44,6 +36,8 @@ export default function DivisionsSettings() {
   // ── Filter state ──
   const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('')
   const [search, setSearch] = useState('')
+  // Opsi filter diambil dari mapping riil yang sudah di-import ke channel_divisions
+  const divisionOptions = useDivisionOptions('all')
 
   // ── Dialog / selection state ──
   const [dialogMode, setDialogMode] = useState<DialogMode>(null)
@@ -168,7 +162,7 @@ export default function DivisionsSettings() {
               onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')}
             >
               <MenuItem value="">{t('common.all')}</MenuItem>
-              {DIVISION_OPTIONS.map((opt) => (
+              {divisionOptions.map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
               ))}
             </Select>

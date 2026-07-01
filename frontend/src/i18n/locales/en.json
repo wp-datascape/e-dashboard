@@ -86,7 +86,7 @@
     "addMapping": "Add Channel Mapping",
     "editMapping": "Edit Channel Mapping",
     "channelName": "Channel Name",
-    "channelNameHelp": "Must match exactly as in Accurate (e.g. DC WEST, TOKOPEDIA). Saved as uppercase.",
+    "channelNameHelp": "Selected from real channel names in invoice data that don't have a division mapping yet.",
     "division": "Division",
     "scope": "Scope",
     "scopeGlobal": "Global (all companies)",

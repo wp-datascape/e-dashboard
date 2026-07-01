@@ -7,6 +7,7 @@ import MenuItem from '@mui/material/MenuItem';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 import { todayIsoDate } from './helpers';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
@@ -20,6 +21,7 @@ export default function CustomerMetrics() {
   const [division,   setDivision]   = useState<string>('');
 
   const { data: companies = [] } = useCompanies();
+  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useCustomerMetrics({
     company_id:  companyId,
     period_end:  periodEnd,
@@ -69,12 +71,9 @@ export default function CustomerMetrics() {
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">Semua Divisi</MenuItem>
-            <MenuItem value="distribution">Distribution</MenuItem>
-            <MenuItem value="project">Project</MenuItem>
-            <MenuItem value="e_commerce">E-Commerce</MenuItem>
-            <MenuItem value="intercompany">Intercompany</MenuItem>
-            <MenuItem value="freelancer">Freelancer</MenuItem>
-            <MenuItem value="support">Support</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
           </TextField>
 
           <TextField

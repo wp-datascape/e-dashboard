@@ -7,6 +7,7 @@ import type {
 } from '@/types/channelDivisions'
 
 const KEY = 'channel-divisions'
+const UNMAPPED_KEY = 'channel-divisions-unmapped'
 
 export function useChannelDivisions(params?: ListChannelDivisionsParams) {
   return useQuery({
@@ -15,11 +16,23 @@ export function useChannelDivisions(params?: ListChannelDivisionsParams) {
   })
 }
 
+/** Channel name riil dari invoices yang belum punya mapping — untuk dropdown "Add Channel Mapping". */
+export function useUnmappedChannels(companyId: number | 'all', enabled = true) {
+  return useQuery({
+    queryKey: [UNMAPPED_KEY, companyId],
+    queryFn: () => channelDivisionsApi.listUnmappedChannels(companyId),
+    enabled,
+  })
+}
+
 export function useCreateChannelDivision() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateChannelDivisionPayload) => channelDivisionsApi.create(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [KEY] })
+      qc.invalidateQueries({ queryKey: [UNMAPPED_KEY] })
+    },
   })
 }
 
@@ -36,6 +49,9 @@ export function useDeleteChannelDivision() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => channelDivisionsApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [KEY] })
+      qc.invalidateQueries({ queryKey: [UNMAPPED_KEY] })
+    },
   })
 }

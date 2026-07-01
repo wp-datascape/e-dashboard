@@ -18,3 +18,10 @@ export const useAuditLogs = (filters: AuditLogFilters = {}) => {
     staleTime: 0, // Always refetch fresh data
   })
 }
+
+export const useAuditActions = () => {
+  return useQuery({
+    queryKey: ['auditLogs', 'actions'],
+    queryFn: () => auditApi.getActions(),
+  })
+}

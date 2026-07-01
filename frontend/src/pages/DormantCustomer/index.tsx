@@ -12,6 +12,7 @@ import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
 function todayIsoDate(): string {
@@ -52,6 +53,7 @@ export default function DormantCustomer() {
   const [division,   setDivision]   = useState<string>('');
 
   const { data: companies = [] } = useCompanies();
+  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useDormantCustomer({
     company_id:  companyId,
     period_end:  periodEnd,
@@ -106,12 +108,9 @@ export default function DormantCustomer() {
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">Semua Divisi</MenuItem>
-            <MenuItem value="distribution">Distribution</MenuItem>
-            <MenuItem value="project">Project</MenuItem>
-            <MenuItem value="e_commerce">E-Commerce</MenuItem>
-            <MenuItem value="intercompany">Intercompany</MenuItem>
-            <MenuItem value="freelancer">Freelancer</MenuItem>
-            <MenuItem value="support">Support</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
           </TextField>
 
           <TextField

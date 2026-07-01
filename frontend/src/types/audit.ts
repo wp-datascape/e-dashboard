@@ -41,22 +41,3 @@ export interface AuditLogFilters {
   page?: number
   per_page?: number
 }
-
-export const ACTION_TYPES = [
-  'invoice.import',
-  'user.create',
-  'user.update',
-  'user.delete',
-  'role.create',
-  'role.update',
-  'role.delete',
-  'permission.assign',
-  'permission.revoke',
-  'user_role.assign',
-  'user_role.revoke',
-  'config.update',
-  'category.update',
-  'page_setting.update',
-] as const
-
-export type ActionType = (typeof ACTION_TYPES)[number]

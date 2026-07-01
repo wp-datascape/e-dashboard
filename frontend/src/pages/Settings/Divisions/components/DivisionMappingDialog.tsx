@@ -4,6 +4,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import TextField from '@mui/material/TextField'
+import Autocomplete from '@mui/material/Autocomplete'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
@@ -11,6 +12,8 @@ import MenuItem from '@mui/material/MenuItem'
 import Alert from '@mui/material/Alert'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui'
+import { useDivisionOptions } from '@/hooks/useDivisionOptions'
+import { useUnmappedChannels } from '@/hooks/useChannelDivisions'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
 import type { Division } from '@/types/customers'
 import type { Company } from '@/types/companies'
@@ -29,23 +32,22 @@ interface Props {
   onUpdate: (id: number, payload: UpdateChannelDivisionPayload) => void
 }
 
-const DIVISION_OPTIONS: { value: NonNullable<Division>; label: string }[] = [
-  { value: 'distribution', label: 'Distribution' },
-  { value: 'project', label: 'Project' },
-  { value: 'e_commerce', label: 'E-Commerce' },
-  { value: 'intercompany', label: 'Intercompany' },
-  { value: 'freelancer', label: 'Freelancer' },
-  { value: 'support', label: 'Support' },
-]
-
 export function DivisionMappingDialog({
   open, mode, selected, companies, isPending, error, onClose, onCreate, onUpdate,
 }: Props) {
   const { t } = useTranslation()
+  const divisionOptions = useDivisionOptions('all')
 
   const [channelName, setChannelName] = useState('')
   const [division, setDivision] = useState<NonNullable<Division> | ''>('')
   const [companyId, setCompanyId] = useState<number | ''>('')
+
+  // Opsi channel_name: hanya yang riil ada di invoices dan belum punya mapping —
+  // tidak ada opsi hardcode/ketik bebas, cuma pilih dari apa yang ada.
+  const { data: unmappedChannels = [] } = useUnmappedChannels(
+    companyId === '' ? 'all' : companyId,
+    open && mode === 'create',
+  )
 
   useEffect(() => {
     if (open) {
@@ -84,16 +86,31 @@ export function DivisionMappingDialog({
           </Alert>
         )}
 
-        <TextField
-          label={t('divisions.channelName')}
-          value={channelName}
-          onChange={(e) => setChannelName(e.target.value.toUpperCase())}
-          required
-          fullWidth
-          size="small"
-          helperText={t('divisions.channelNameHelp')}
-          slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
-        />
+        {mode === 'create' ? (
+          <Autocomplete
+            options={unmappedChannels}
+            value={channelName || null}
+            onChange={(_, val) => setChannelName(val ?? '')}
+            disablePortal
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={t('divisions.channelName')}
+                required
+                size="small"
+                helperText={t('divisions.channelNameHelp')}
+              />
+            )}
+          />
+        ) : (
+          <TextField
+            label={t('divisions.channelName')}
+            value={channelName}
+            disabled
+            fullWidth
+            size="small"
+          />
+        )}
 
         <FormControl fullWidth size="small" required>
           <InputLabel>{t('divisions.division')}</InputLabel>
@@ -102,7 +119,7 @@ export function DivisionMappingDialog({
             label={t('divisions.division')}
             onChange={(e) => setDivision(e.target.value as NonNullable<Division>)}
           >
-            {DIVISION_OPTIONS.map((opt) => (
+            {divisionOptions.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </Select>

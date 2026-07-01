@@ -12,6 +12,7 @@ import {
   createChannelDivision,
   updateChannelDivision,
   deleteChannelDivision,
+  findUnmappedChannelNames,
 } from './channel-divisions.repository'
 import type {
   ListChannelDivisionsQuery,
@@ -28,6 +29,16 @@ export async function listChannelDivisionsService(query: ListChannelDivisionsQue
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar channel division', 500)
+  }
+}
+
+export async function listUnmappedChannelsService(companyId: number | 'all') {
+  try {
+    const cid = companyId === 'all' ? 0 : companyId
+    return await findUnmappedChannelNames(cid)
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil channel name yang belum di-mapping', 500)
   }
 }
 

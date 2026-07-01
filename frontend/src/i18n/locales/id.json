@@ -86,7 +86,7 @@
     "addMapping": "Tambah Mapping Channel",
     "editMapping": "Edit Mapping Channel",
     "channelName": "Nama Channel",
-    "channelNameHelp": "Harus sama persis seperti di Accurate (mis. DC WEST, TOKOPEDIA). Disimpan dalam huruf kapital.",
+    "channelNameHelp": "Dipilih dari channel name riil di data faktur yang belum punya mapping divisi.",
     "division": "Divisi",
     "scope": "Lingkup",
     "scopeGlobal": "Global (semua perusahaan)",
