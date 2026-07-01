@@ -11,7 +11,7 @@ import { useTheme } from '@mui/material/styles';
 import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, SectionLabel } from './helpers';
+import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
 
 const hmColumns: GridColDef[] = [
   { field: 'ranking',       headerName: '#',          width: 56,  sortable: false },
@@ -59,7 +59,7 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: 
             centerValue={`${hm?.bought_pct ?? 0}%`}
             centerLabel="High Margin"
             height={240}
-            onChartClick={() => setHmDrillDate(periodEnd)}
+            onChartClick={() => setHmDrillDate(monthToEndDate(periodEnd))}
           />
         )}
       </Box>

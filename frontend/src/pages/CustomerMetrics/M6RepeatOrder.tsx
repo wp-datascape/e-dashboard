@@ -12,7 +12,7 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, SectionLabel } from './helpers';
+import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
 
 function orderCountColor(n: number): StatusChipColor {
   if (n >= 10) return 'success';
@@ -68,7 +68,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
             value={value}
             thresholdGreen={thresholdPct}
             height={240}
-            onChartClick={() => setDrillDate(periodEnd)}
+            onChartClick={() => setDrillDate(monthToEndDate(periodEnd))}
           />
         )}
       </Box>
