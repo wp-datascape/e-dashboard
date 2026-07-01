@@ -11,3 +11,7 @@ export {
   fetchCrossSellingDetail,
   fetchCrossSellingHeatmap,
 } from './repository/m1.repository'
+export { fetchCategoryPerformance } from './repository/category-performance.repository'
+export type { CategoryPerformanceDbRow } from './repository/category-performance.repository'
+export { fetchCategoryProducts } from './repository/category-products.repository'
+export type { CategoryProductDbRow } from './repository/category-products.repository'

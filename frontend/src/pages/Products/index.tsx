@@ -1,16 +1,24 @@
 // frontend/src/pages/Products/index.tsx
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
 import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useCategoryPerformance } from '@/hooks/useProducts'
+import { useCompanies } from '@/hooks/useCompanies'
 import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { formatIDR } from '@/utils/format'
+import { CategoryProductsDrawer } from './components/CategoryProductsDrawer'
 
-function formatIDR(val: number) {
-  return `Rp ${(val / 1_000_000).toFixed(1)}M`
+function todayMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
 function MarginChip({ pct }: { pct: number }) {
@@ -21,6 +29,12 @@ function MarginChip({ pct }: { pct: number }) {
 export default function Products() {
   const { t } = useTranslation()
 
+  const [companyId,       setCompanyId]       = useState<number | 'all'>('all')
+  const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
+  const [activeWindow,    setActiveWindow]    = useState(6)
+  const [search,          setSearch]          = useState('')
+  const [highMarginOnly,  setHighMarginOnly]  = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryPerformanceRow | null>(null)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -29,10 +43,18 @@ export default function Products() {
     { field: 'total_revenue', sort: 'desc' },
   ])
 
+  const { data: companies = [] } = useCompanies()
+
+  const handleRowClick = useCallback((row: CategoryPerformanceRow) => {
+    setSelectedCategory(row)
+  }, [])
+
   const queryParams: CategoryPerformanceParams = {
-    company_id: 'all',
-    period_month: '2024-01',
-    active_window: 6,
+    company_id:      companyId,
+    period_month:    periodMonth,
+    active_window:   activeWindow,
+    search:          search || undefined,
+    high_margin_only: highMarginOnly || undefined,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: (sortModel[0]?.field as CategoryPerformanceParams['sort_by']) ?? 'total_revenue',
@@ -46,16 +68,20 @@ export default function Products() {
       field: 'category_name',
       headerName: t('products.categoryName'),
       flex: 1,
-      minWidth: 160,
+      minWidth: 180,
       sortable: false,
       renderCell: ({ row }) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">{row.category_name}</Typography>
-          {row.is_high_margin && (
-            <StatusChip label={t('products.highMarginBadge')} color="warning" />
-          )}
-        </Box>
+        <Typography variant="body2">{row.category_name}</Typography>
       ),
+    },
+    {
+      field: 'is_high_margin',
+      headerName: 'Status',
+      width: 120,
+      sortable: false,
+      renderCell: ({ row }) => row.is_high_margin
+        ? <StatusChip label={t('products.highMarginBadge')} color="info" />
+        : null,
     },
     {
       field: 'total_revenue',
@@ -105,13 +131,77 @@ export default function Products() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
-        {t('products.title')}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {t('products.subtitle')}
-      </Typography>
+      {/* Header + Filter */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-start' },
+        justifyContent: 'space-between',
+        gap: 2,
+        mb: 3,
+      }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+            {t('products.title')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {t('products.subtitle')}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, alignItems: 'center' }}>
+          <TextField
+            size="small" label="Cari Kategori"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPaginationModel((p) => ({ ...p, page: 0 })) }}
+            sx={{ minWidth: { xs: '100%', sm: 180 } }}
+          />
+
+          <TextField
+            select size="small" label="Entitas"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            sx={{ minWidth: { xs: '100%', sm: 160 } }}
+          >
+            <MenuItem value="all">Semua Entitas</MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            size="small" label="Bulan" type="month"
+            value={periodMonth}
+            onChange={(e) => setPeriodMonth(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+
+          <TextField
+            select size="small" label="Window Aktif"
+            value={activeWindow}
+            onChange={(e) => setActiveWindow(Number(e.target.value))}
+            sx={{ minWidth: { xs: '100%', sm: 130 } }}
+          >
+            <MenuItem value={3}>3 Bulan</MenuItem>
+            <MenuItem value={6}>6 Bulan</MenuItem>
+            <MenuItem value={12}>12 Bulan</MenuItem>
+          </TextField>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={highMarginOnly}
+                onChange={(e) => { setHighMarginOnly(e.target.checked); setPaginationModel((p) => ({ ...p, page: 0 })) }}
+                color="warning"
+                size="small"
+              />
+            }
+            label="High Margin"
+            sx={{ ml: 0, whiteSpace: 'nowrap' }}
+          />
+        </Box>
+      </Box>
 
       {/* DataGrid */}
       <ResponsiveListView
@@ -128,6 +218,15 @@ export default function Products() {
         onSortModelChange={setSortModel}
         pageSizeOptions={[25, 50, 100]}
         height={600}
+        onRowClick={(row) => handleRowClick(row as unknown as CategoryPerformanceRow)}
+      />
+
+      <CategoryProductsDrawer
+        category={selectedCategory}
+        companyId={companyId}
+        periodMonth={periodMonth}
+        activeWindow={activeWindow}
+        onClose={() => setSelectedCategory(null)}
       />
     </Box>
   )

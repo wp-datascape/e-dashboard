@@ -12,10 +12,7 @@ import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
 import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
 import { DivisionChip } from './DivisionChip'
-
-function formatIDR(val: number) {
-  return `Rp ${(val / 1_000_000).toFixed(1)}M`
-}
+import { formatIDR } from '@/utils/format'
 
 interface Props {
   customerId: number | null

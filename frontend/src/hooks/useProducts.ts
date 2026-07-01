@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productsApi } from '@/api/products.api'
 import type {
   CategoryPerformanceParams,
+  CategoryProductsParams,
   HighMarginDetailParams,
   UpsellTargetParams,
   ProductTrendParams,
@@ -11,6 +12,8 @@ import type {
 export const PRODUCTS_KEYS = {
   categoryPerformance: (params: CategoryPerformanceParams) =>
     ['products', 'category-performance', params] as const,
+  categoryProducts: (params: CategoryProductsParams) =>
+    ['products', 'category-products', params] as const,
   highMarginDetail: (params: HighMarginDetailParams) =>
     ['products', 'high-margin-detail', params] as const,
   upsellTargets: (params: UpsellTargetParams) =>
@@ -23,6 +26,14 @@ export function useCategoryPerformance(params: CategoryPerformanceParams) {
   return useQuery({
     queryKey: PRODUCTS_KEYS.categoryPerformance(params),
     queryFn: () => productsApi.getCategoryPerformance(params),
+  })
+}
+
+export function useCategoryProducts(params: CategoryProductsParams | null) {
+  return useQuery({
+    queryKey: params ? PRODUCTS_KEYS.categoryProducts(params) : ['products', 'category-products', null],
+    queryFn: () => productsApi.getCategoryProducts(params!),
+    enabled: !!params,
   })
 }
 

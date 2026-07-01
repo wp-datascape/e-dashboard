@@ -10,8 +10,7 @@ import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
 import { InvoiceDetailDrawer } from './components/InvoiceDetailDrawer'
-
-function formatIDR(val: number) { return `Rp ${(val / 1_000_000).toFixed(1)}M` }
+import { formatIDR } from '@/utils/format'
 
 export default function Transactions() {
   const { t } = useTranslation()

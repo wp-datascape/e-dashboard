@@ -13,10 +13,7 @@ import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailModal } from './components/CustomerDetailModal';
-
-function formatIDR(val: number) {
-  return `Rp ${(val / 1_000_000).toFixed(1)}M`;
-}
+import { formatIDR } from '@/utils/format';
 
 export default function Customers() {
   const { t } = useTranslation();

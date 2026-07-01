@@ -4,6 +4,8 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type {
   CategoryPerformanceRow,
   CategoryPerformanceParams,
+  CategoryProductRow,
+  CategoryProductsParams,
   HighMarginCategoryRow,
   HighMarginDetailParams,
   UpsellTargetRow,
@@ -19,6 +21,17 @@ export const productsApi = {
   ): Promise<PaginatedResponse<CategoryPerformanceRow>> => {
     const res = await api.get<PaginatedResponse<CategoryPerformanceRow>>(
       '/metrics/category-performance',
+      { params }
+    )
+    return res.data
+  },
+
+  // 3.1b — Products in a category (drawer)
+  getCategoryProducts: async (
+    params: CategoryProductsParams
+  ): Promise<PaginatedResponse<CategoryProductRow>> => {
+    const res = await api.get<PaginatedResponse<CategoryProductRow>>(
+      '/metrics/category-products',
       { params }
     )
     return res.data

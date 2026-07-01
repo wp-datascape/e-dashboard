@@ -18,10 +18,7 @@ import type {
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { StatusChip } from '@/components/ui'
 import { BuChip } from '@/pages/Transactions/components/BuChip'
-
-function formatIDR(val: number) {
-  return `Rp ${(val / 1_000_000).toFixed(1)}M`
-}
+import { formatIDR } from '@/utils/format'
 
 // ─── Penetration Bar ─────────────────────────────────────────────────────────
 function PenetrationBar({ value }: { value: number }) {

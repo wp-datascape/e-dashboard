@@ -11,8 +11,7 @@ import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { useInvoiceDetail } from '@/hooks/useTransactions'
 import type { InvoiceItem } from '@/types/transactions'
-
-function formatIDR(val: number) { return `Rp ${(val / 1_000_000).toFixed(1)}M` }
+import { formatIDR } from '@/utils/format'
 
 interface InvoiceDetailDrawerProps {
   invoiceId: number | null

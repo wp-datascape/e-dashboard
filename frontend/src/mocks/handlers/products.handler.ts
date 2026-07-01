@@ -222,8 +222,9 @@ const mockProductTrend: ProductTrendData = {
   ],
 }
 
-export const productsHandlers = [
-  // GET /metrics/category-performance — 3.1
+// 3.1: Category Performance — DISABLED: real backend at GET /api/v1/metrics/category-performance
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const categoryPerformanceHandlers = [
   http.get(`${BASE_URL}/metrics/category-performance`, ({ request }) => {
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') ?? '1')
@@ -251,6 +252,10 @@ export const productsHandlers = [
       meta: { page, per_page: perPage, total },
     })
   }),
+]
+
+export const productsHandlers = [
+  // categoryPerformanceHandlers — DISABLED: real backend at GET /api/v1/metrics/category-performance
 
   // GET /metrics/high-margin-penetration/detail — 3.2
   http.get(`${BASE_URL}/metrics/high-margin-penetration/detail`, ({ request }) => {

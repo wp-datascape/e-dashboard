@@ -1,9 +1,9 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
-import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery } from './metrics.schema'
+import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery } from './metrics.schema'
 import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData } from './metrics.types'
 
 function todayDate(): string {
@@ -219,5 +219,66 @@ export async function getRorBreakdown(params: RorBreakdownQuery): Promise<RorBre
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil ROR breakdown', 500)
+  }
+}
+
+export async function getCategoryPerformance(
+  params: CategoryPerformanceQuery,
+): Promise<{ data: object[]; total: number }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+
+    // Normalisasi period_month ke akhir bulan (sama dengan pola cross-selling)
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const rows = await fetchCategoryPerformance({
+      cid,
+      periodEnd,
+      activeWindow:   params.active_window,
+      search:         params.search,
+      highMarginOnly: params.high_margin_only,
+      sortBy:         params.sort_by,
+      sortDir:        params.sort_dir,
+      page:           params.page,
+      perPage:        params.per_page,
+    })
+
+    const total = rows[0]?.total_count ?? 0
+    const data  = rows.map(({ total_count, ...row }) => ({ id: row.category_id, ...row }))
+
+    return { data, total }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil performa kategori produk', 500)
+  }
+}
+
+export async function getCategoryProducts(
+  params: CategoryProductsQuery,
+): Promise<{ data: object[]; total: number }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const rows = await fetchCategoryProducts({
+      cid,
+      categoryId:  params.category_id,
+      periodEnd,
+      activeWindow: params.active_window,
+      page:         params.page,
+      perPage:      params.per_page,
+    })
+
+    const total = rows[0]?.total_count ?? 0
+    const data  = rows.map(({ total_count, ...row }) => ({ id: row.product_id, ...row }))
+
+    return { data, total }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil produk dalam kategori', 500)
   }
 }

@@ -19,10 +19,33 @@ export interface CategoryPerformanceParams {
   company_id?: number | 'all'
   period_month?: string
   active_window?: number
+  search?: string
+  high_margin_only?: boolean
   page?: number
   per_page?: number
   sort_by?: 'total_revenue' | 'total_gp' | 'gp_margin_percent' | 'customer_count'
   sort_dir?: 'asc' | 'desc'
+}
+
+// ─── 3.1b Category Products (drawer detail) ──────────────────────────────────
+export interface CategoryProductRow {
+  id: number
+  product_id: number
+  product_name: string
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+  invoice_count: number
+  customer_count: number
+}
+
+export interface CategoryProductsParams {
+  company_id?: number | 'all'
+  category_id: number
+  period_month?: string
+  active_window?: number
+  page?: number
+  per_page?: number
 }
 
 // ─── 3.2 High Margin Push List ────────────────────────────────────────────────
