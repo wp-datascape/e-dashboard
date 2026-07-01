@@ -134,6 +134,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
+        AND i.invoice_date <= ${filterDate}::date
         AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
     ),
