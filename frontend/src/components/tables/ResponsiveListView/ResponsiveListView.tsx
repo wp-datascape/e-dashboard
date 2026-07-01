@@ -39,8 +39,8 @@ export interface ResponsiveListViewProps {
   title?: string;
   /** Initial page size for DataGrid (default 10, ignored if paginationModel passed) */
   pageSize?: number;
-  /** DataGrid container height (default 400) */
-  height?: number;
+  /** DataGrid container height (default 400). Pass '100%' untuk fill flex parent. */
+  height?: number | string;
   /** Fields to show in auto-generated mobile card. Defaults to all columns that have a headerName. */
   mobileFields?: string[];
   // ─── Server-side pagination & sorting props ──────────────────────────────
@@ -195,7 +195,7 @@ export function ResponsiveListView({
             ))}
           </Box>
         ) : (
-          <Skeleton variant="rectangular" height={height} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rectangular" height={typeof height === 'number' ? height : 400} sx={{ borderRadius: 1 }} />
         )}
       </Box>
     );

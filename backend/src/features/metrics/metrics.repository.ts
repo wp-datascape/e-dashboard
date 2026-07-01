@@ -15,3 +15,7 @@ export { fetchCategoryPerformance } from './repository/category-performance.repo
 export type { CategoryPerformanceDbRow } from './repository/category-performance.repository'
 export { fetchCategoryProducts } from './repository/category-products.repository'
 export type { CategoryProductDbRow } from './repository/category-products.repository'
+export { fetchHmDetail, fetchUpsellTargets } from './repository/high-margin-penetration.repository'
+export type { HmDetailDbRow, UpsellTargetDbRow, CategoryRef } from './repository/high-margin-penetration.repository'
+export { fetchCustomerProducts } from './repository/customer-products.repository'
+export type { CustomerProductDbRow } from './repository/customer-products.repository'

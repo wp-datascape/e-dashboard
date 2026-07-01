@@ -10,6 +10,8 @@ import type {
   HighMarginDetailParams,
   UpsellTargetRow,
   UpsellTargetParams,
+  CustomerProductRow,
+  CustomerProductsParams,
   ProductTrendData,
   ProductTrendParams,
 } from '@/types/products'
@@ -54,6 +56,17 @@ export const productsApi = {
   ): Promise<PaginatedResponse<UpsellTargetRow>> => {
     const res = await api.get<PaginatedResponse<UpsellTargetRow>>(
       '/metrics/high-margin-penetration/customers',
+      { params }
+    )
+    return res.data
+  },
+
+  // customer purchase history
+  getCustomerProducts: async (
+    params: CustomerProductsParams
+  ): Promise<PaginatedResponse<CustomerProductRow>> => {
+    const res = await api.get<PaginatedResponse<CustomerProductRow>>(
+      '/metrics/customer-products',
       { params }
     )
     return res.data

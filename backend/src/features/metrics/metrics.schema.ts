@@ -125,3 +125,54 @@ export const categoryProductsQuerySchema = z.object({
 })
 
 export type CategoryProductsQuery = z.infer<typeof categoryProductsQuerySchema>
+
+export const hmDetailQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  page:     z.coerce.number().int().positive().optional().default(1),
+  per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
+})
+export type HmDetailQuery = z.infer<typeof hmDetailQuerySchema>
+
+export const upsellTargetQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  business_unit: z.string().optional(),
+  page:     z.coerce.number().int().positive().optional().default(1),
+  per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
+})
+export type UpsellTargetQuery = z.infer<typeof upsellTargetQuerySchema>
+
+export const customerProductsQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  customer_id:  z.coerce.number().int().positive(),
+  category_id:  z.coerce.number().int().positive().optional(),
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  page:     z.coerce.number().int().positive().optional().default(1),
+  per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
+})
+export type CustomerProductsQuery = z.infer<typeof customerProductsQuerySchema>

@@ -154,8 +154,8 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     business_unit: 'e_commerce',
     last_invoice_date: '2023-09-12',
     avg_monthly_revenue: 3_200_000,
-    categories_bought: ['Ribbon', 'Label'],
-    missing_high_margin_categories: ['Scanner', 'Printer', 'POS Terminal'],
+    categories_bought: [{ id: 3, name: 'Ribbon' }, { id: 5, name: 'Label' }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 2,
@@ -164,8 +164,8 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     business_unit: null,
     last_invoice_date: '2024-01-10',
     avg_monthly_revenue: 6_000_000,
-    categories_bought: ['Toner', 'Ribbon'],
-    missing_high_margin_categories: ['Scanner', 'Printer', 'POS Terminal'],
+    categories_bought: [{ id: 4, name: 'Toner' }, { id: 3, name: 'Ribbon' }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 3,
@@ -174,8 +174,8 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     business_unit: 'distribution',
     last_invoice_date: '2024-01-08',
     avg_monthly_revenue: 12_000_000,
-    categories_bought: ['Ribbon', 'Toner', 'Barcode Reader'],
-    missing_high_margin_categories: ['Scanner', 'POS Terminal'],
+    categories_bought: [{ id: 3, name: 'Ribbon' }, { id: 4, name: 'Toner' }, { id: 7, name: 'Barcode Reader' }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 4,
@@ -184,8 +184,8 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     business_unit: 'distribution',
     last_invoice_date: '2024-01-05',
     avg_monthly_revenue: 9_500_000,
-    categories_bought: ['Label', 'Barcode Reader'],
-    missing_high_margin_categories: ['Printer', 'Scanner', 'POS Terminal'],
+    categories_bought: [{ id: 5, name: 'Label' }, { id: 7, name: 'Barcode Reader' }],
+    missing_high_margin_categories: [{ id: 2, name: 'Printer' }, { id: 1, name: 'Scanner' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 5,
@@ -194,8 +194,8 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     business_unit: 'project',
     last_invoice_date: '2023-12-20',
     avg_monthly_revenue: 25_000_000,
-    categories_bought: ['Ribbon'],
-    missing_high_margin_categories: ['Scanner', 'Printer', 'POS Terminal'],
+    categories_bought: [{ id: 3, name: 'Ribbon' }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
 ]
 
@@ -254,48 +254,52 @@ export const categoryPerformanceHandlers = [
   }),
 ]
 
-export const productsHandlers = [
-  // categoryPerformanceHandlers — DISABLED: real backend at GET /api/v1/metrics/category-performance
-
-  // GET /metrics/high-margin-penetration/detail — 3.2
+// 3.2a: HM Detail — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/detail
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const hmDetailHandlers = [
   http.get(`${BASE_URL}/metrics/high-margin-penetration/detail`, ({ request }) => {
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') ?? '1')
     const perPage = parseInt(url.searchParams.get('per_page') ?? '50')
-
     const total = mockHighMarginDetail.length
-    const start = (page - 1) * perPage
-    const data = mockHighMarginDetail.slice(start, start + perPage)
-
+    const data = mockHighMarginDetail.slice((page - 1) * perPage, page * perPage)
     return HttpResponse.json<PaginatedResponse<HighMarginCategoryRow>>({
-      message: 'Success',
-      data,
-      meta: { page, per_page: perPage, total },
+      message: 'Success', data, meta: { page, per_page: perPage, total },
     })
   }),
+]
 
-  // GET /metrics/high-margin-penetration/customers — 3.2 upsell targets
+// 3.2b: Upsell Targets — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/customers
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const upsellTargetHandlers = [
   http.get(`${BASE_URL}/metrics/high-margin-penetration/customers`, ({ request }) => {
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') ?? '1')
     const perPage = parseInt(url.searchParams.get('per_page') ?? '50')
     const buFilter = url.searchParams.get('business_unit')
-
     let rows = [...mockUpsellTargets]
-    if (buFilter) {
-      rows = rows.filter((r) => r.business_unit === buFilter)
-    }
-
+    if (buFilter) rows = rows.filter((r) => r.business_unit === buFilter)
     const total = rows.length
-    const start = (page - 1) * perPage
-    const data = rows.slice(start, start + perPage)
-
+    const data = rows.slice((page - 1) * perPage, page * perPage)
     return HttpResponse.json<PaginatedResponse<UpsellTargetRow>>({
-      message: 'Success',
-      data,
-      meta: { page, per_page: perPage, total },
+      message: 'Success', data, meta: { page, per_page: perPage, total },
     })
   }),
+]
+
+// customer purchase history — DISABLED: real backend at GET /api/v1/metrics/customer-products
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const customerProductHandlers = [
+  http.get(`${BASE_URL}/metrics/customer-products`, () => {
+    return HttpResponse.json({ message: 'Success', data: [], meta: { page: 1, per_page: 50, total: 0 } })
+  }),
+]
+
+export const productsHandlers = [
+  // categoryPerformanceHandlers — DISABLED: real backend at GET /api/v1/metrics/category-performance
+  // hmDetailHandlers       — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/detail
+  // upsellTargetHandlers   — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/customers
+  // customerProductHandlers — DISABLED: real backend at GET /api/v1/metrics/customer-products
 
   // GET /metrics/avg-category — 3.3 (product trend / M2)
   http.get(`${BASE_URL}/metrics/avg-category`, () => {

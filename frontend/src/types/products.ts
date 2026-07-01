@@ -70,6 +70,11 @@ export interface HighMarginDetailParams {
   per_page?: number
 }
 
+export interface CategoryRef {
+  id: number
+  name: string
+}
+
 export interface UpsellTargetRow {
   id: number
   customer_code: string
@@ -77,8 +82,31 @@ export interface UpsellTargetRow {
   business_unit: string | null
   last_invoice_date: string
   avg_monthly_revenue: number
-  categories_bought: string[]
-  missing_high_margin_categories: string[]
+  categories_bought: CategoryRef[]
+  missing_high_margin_categories: CategoryRef[]
+}
+
+// ─── Customer Products (purchase history drawer) ──────────────────────────────
+export interface CustomerProductRow {
+  id: number
+  product_id: number
+  product_name: string
+  category_id: number
+  category_name: string
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+  invoice_count: number
+}
+
+export interface CustomerProductsParams {
+  company_id?: number | 'all'
+  customer_id: number
+  category_id?: number
+  period_month?: string
+  active_window?: number
+  page?: number
+  per_page?: number
 }
 
 export interface UpsellTargetParams {

@@ -4,21 +4,32 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import LinearProgress from '@mui/material/LinearProgress'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
+import { useCompanies } from '@/hooks/useCompanies'
 import type {
   HighMarginCategoryRow,
   HighMarginDetailParams,
   UpsellTargetRow,
   UpsellTargetParams,
+  CategoryRef,
 } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { StatusChip } from '@/components/ui'
 import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { formatIDR } from '@/utils/format'
+import { UpsellCustomerDrawer } from './components/UpsellCustomerDrawer'
+import { CategoryProductsDrawer } from '@/pages/Products/components/CategoryProductsDrawer'
+
+function todayMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
 
 // ─── Penetration Bar ─────────────────────────────────────────────────────────
 function PenetrationBar({ value }: { value: number }) {
@@ -38,15 +49,22 @@ function PenetrationBar({ value }: { value: number }) {
   )
 }
 
+// ─── Shared Filter Props ──────────────────────────────────────────────────────
+interface FilterState {
+  companyId: number | 'all'
+  periodMonth: string
+  activeWindow: number
+}
+
 // ─── Tab 1: Category Penetration ─────────────────────────────────────────────
-function HighMarginCategoryTab() {
+function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
 
   const params: HighMarginDetailParams = {
-    company_id: 'all',
-    period_month: '2024-01',
-    active_window: 6,
+    company_id:    filter.companyId,
+    period_month:  filter.periodMonth,
+    active_window: filter.activeWindow,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
   }
@@ -72,7 +90,7 @@ function HighMarginCategoryTab() {
     {
       field: 'customer_count',
       headerName: t('productsHighMargin.customersBuying'),
-      width: 150,
+      width: 160,
       type: 'number',
       sortable: false,
       renderCell: ({ row }) => (
@@ -125,14 +143,34 @@ function HighMarginCategoryTab() {
 }
 
 // ─── Tab 2: Upsell Targets ────────────────────────────────────────────────────
-function UpsellTargetsTab() {
+function UpsellTargetsTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
+  const [buFilter, setBuFilter] = useState('')
+
+  // Drawer: customer purchase history (row click or categories_bought chip click)
+  const [drawerCustomer,  setDrawerCustomer]  = useState<UpsellTargetRow | null>(null)
+  const [drawerCatFilter, setDrawerCatFilter] = useState<CategoryRef | null>(null)
+
+  // Drawer: HM category products (missing_high_margin_categories chip click)
+  const [hmCategoryDrawer, setHmCategoryDrawer] = useState<CategoryRef | null>(null)
+
+  const openHistory = (row: UpsellTargetRow, cat: CategoryRef | null, e?: React.MouseEvent<HTMLDivElement>) => {
+    e?.stopPropagation()
+    setDrawerCustomer(row)
+    setDrawerCatFilter(cat)
+  }
+
+  const openHmCategory = (cat: CategoryRef, e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    setHmCategoryDrawer(cat)
+  }
 
   const params: UpsellTargetParams = {
-    company_id: 'all',
-    period_month: '2024-01',
-    active_window: 6,
+    company_id:    filter.companyId,
+    period_month:  filter.periodMonth,
+    active_window: filter.activeWindow,
+    business_unit: buFilter || undefined,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
   }
@@ -145,13 +183,17 @@ function UpsellTargetsTab() {
       headerName: t('customers.code'),
       width: 120,
       sortable: false,
+      valueFormatter: (v) => (v as string) ?? '—',
     },
     {
       field: 'customer_name',
       headerName: t('customers.name'),
       flex: 1,
-      minWidth: 180,
+      minWidth: 160,
       sortable: false,
+      renderCell: ({ row }) => (
+        <Typography variant="body2">{row.customer_name}</Typography>
+      ),
     },
     {
       field: 'business_unit',
@@ -177,7 +219,11 @@ function UpsellTargetsTab() {
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.categories_bought.map((cat) => (
-            <StatusChip key={cat} label={cat} />
+            <StatusChip
+              key={cat.id}
+              label={cat.name}
+              onClick={(e) => openHistory(row, cat, e)}
+            />
           ))}
         </Box>
       ),
@@ -191,7 +237,12 @@ function UpsellTargetsTab() {
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.missing_high_margin_categories.map((cat) => (
-            <StatusChip key={cat} label={cat} color="warning" />
+            <StatusChip
+              key={cat.id}
+              label={cat.name}
+              color="info"
+              onClick={(e) => openHmCategory(cat, e)}
+            />
           ))}
         </Box>
       ),
@@ -205,18 +256,59 @@ function UpsellTargetsTab() {
   ]
 
   return (
-    <ResponsiveListView
-      rows={data?.data ?? []}
-      columns={columns}
-      rowCount={data?.meta.total ?? 0}
-      loading={isLoading}
-      error={error as Error | null}
-      paginationMode="server"
-      paginationModel={pagination}
-      onPaginationModelChange={setPagination}
-      pageSizeOptions={[25, 50, 100]}
-      height={500}
-    />
+    <Box>
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          select size="small" label={t('customers.detail.businessUnit')}
+          value={buFilter}
+          onChange={(e) => { setBuFilter(e.target.value); setPagination((p) => ({ ...p, page: 0 })) }}
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">{t('common.all')}</MenuItem>
+          <MenuItem value="b2b_dc">B2B DC</MenuItem>
+          <MenuItem value="b2b_project">B2B Project</MenuItem>
+          <MenuItem value="b2c">B2C</MenuItem>
+          <MenuItem value="manufacturing">Manufacturing</MenuItem>
+        </TextField>
+      </Box>
+
+      <ResponsiveListView
+        rows={data?.data ?? []}
+        columns={columns}
+        rowCount={data?.meta.total ?? 0}
+        loading={isLoading}
+        error={error as Error | null}
+        paginationMode="server"
+        paginationModel={pagination}
+        onPaginationModelChange={setPagination}
+        pageSizeOptions={[25, 50, 100]}
+        height={500}
+        onRowClick={(row) => openHistory(row as unknown as UpsellTargetRow, null)}
+      />
+
+      {/* Customer purchase history drawer */}
+      <UpsellCustomerDrawer
+        customer={drawerCustomer}
+        filterCategory={drawerCatFilter}
+        companyId={filter.companyId}
+        periodMonth={filter.periodMonth}
+        activeWindow={filter.activeWindow}
+        onClose={() => { setDrawerCustomer(null); setDrawerCatFilter(null) }}
+      />
+
+      {/* HM category products drawer (missing HM chip click) */}
+      <CategoryProductsDrawer
+        category={hmCategoryDrawer ? {
+          category_id:   hmCategoryDrawer.id,
+          category_name: hmCategoryDrawer.name,
+          is_high_margin: true,
+        } : null}
+        companyId={filter.companyId}
+        periodMonth={filter.periodMonth}
+        activeWindow={filter.activeWindow}
+        onClose={() => setHmCategoryDrawer(null)}
+      />
+    </Box>
   )
 }
 
@@ -225,21 +317,68 @@ export default function ProductsHighMargin() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(0)
 
+  const [companyId,    setCompanyId]    = useState<number | 'all'>('all')
+  const [periodMonth,  setPeriodMonth]  = useState(todayMonth())
+  const [activeWindow, setActiveWindow] = useState(6)
+
+  const { data: companies = [] } = useCompanies()
+
+  const filter: FilterState = { companyId, periodMonth, activeWindow }
+
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
-        {t('productsHighMargin.title')}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {t('productsHighMargin.subtitle')}
-      </Typography>
+      {/* Header + Filter */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-start' },
+        justifyContent: 'space-between',
+        gap: 2,
+        mb: 3,
+      }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+            {t('productsHighMargin.title')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {t('productsHighMargin.subtitle')}
+          </Typography>
+        </Box>
 
-      {/* Summary chips */}
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        <StatusChip label={t('productsHighMargin.summaryCategories', { count: 3 })} color="warning" />
-        <StatusChip label={t('productsHighMargin.summaryAvgPenetration', { pct: '29.8' })} color="info" />
-      </Stack>
+        <Stack direction="row" spacing={1.5}
+          sx={{ width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            select size="small" label="Entitas"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            sx={{ minWidth: 160 }}
+          >
+            <MenuItem value="all">Semua Entitas</MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            size="small" label="Bulan" type="month"
+            value={periodMonth}
+            onChange={(e) => setPeriodMonth(e.target.value)}
+            sx={{ minWidth: 150 }}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+
+          <TextField
+            select size="small" label="Window Aktif"
+            value={activeWindow}
+            onChange={(e) => setActiveWindow(Number(e.target.value))}
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value={3}>3 Bulan</MenuItem>
+            <MenuItem value={6}>6 Bulan</MenuItem>
+            <MenuItem value={12}>12 Bulan</MenuItem>
+          </TextField>
+        </Stack>
+      </Box>
 
       {/* Tabs */}
       <Tabs
@@ -251,8 +390,8 @@ export default function ProductsHighMargin() {
         <Tab label={t('productsHighMargin.tabUpsellTargets')} />
       </Tabs>
 
-      {activeTab === 0 && <HighMarginCategoryTab />}
-      {activeTab === 1 && <UpsellTargetsTab />}
+      {activeTab === 0 && <HighMarginCategoryTab filter={filter} />}
+      {activeTab === 1 && <UpsellTargetsTab filter={filter} />}
     </Box>
   )
 }

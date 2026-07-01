@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Drawer from '@mui/material/Drawer'
+import Toolbar from '@mui/material/Toolbar'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
@@ -9,13 +10,25 @@ import CloseIcon from '@mui/icons-material/Close'
 import { StatusChip } from '@/components/ui'
 import { useCategoryProducts } from '@/hooks/useProducts'
 import { formatIDR } from '@/utils/format'
-import type { CategoryPerformanceRow } from '@/types/products'
 import type { GridColDef } from '@mui/x-data-grid'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import type { CategoryProductRow } from '@/types/products'
 
+export interface CategoryDrawerInfo {
+  category_id: number
+  category_name: string
+  is_high_margin?: boolean
+  is_service?: boolean
+  total_revenue?: number
+  total_gp?: number
+  gp_margin_percent?: number
+  invoice_count?: number
+  customer_count?: number
+  last_sold_month?: string | null
+}
+
 interface Props {
-  category: CategoryPerformanceRow | null
+  category: CategoryDrawerInfo | null
   companyId: number | 'all'
   periodMonth: string
   activeWindow: number
@@ -101,7 +114,9 @@ export function CategoryProductsDrawer({
       onClose={onClose}
       slotProps={{ paper: { sx: { width: { xs: '100%', sm: 680 } } } }}
     >
-      <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ height: '100%', overflow: 'auto' }}>
+        <Toolbar />
+        <Box sx={{ p: 3 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
           <Box>
@@ -126,7 +141,7 @@ export function CategoryProductsDrawer({
         </Box>
 
         {/* Summary stats */}
-        {category && (
+        {category && (category.total_revenue !== undefined) && (
           <Box
             sx={{
               display: 'grid',
@@ -137,11 +152,11 @@ export function CategoryProductsDrawer({
             }}
           >
             {[
-              { label: 'Total Revenue', value: formatIDR(category.total_revenue) },
-              { label: 'Total GP',      value: formatIDR(category.total_gp) },
-              { label: 'Margin',        value: `${category.gp_margin_percent.toFixed(1)}%` },
-              { label: 'Faktur',        value: String(category.invoice_count) },
-              { label: 'Customer',      value: String(category.customer_count) },
+              { label: 'Total Revenue', value: formatIDR(category.total_revenue ?? 0) },
+              { label: 'Total GP',      value: formatIDR(category.total_gp ?? 0) },
+              { label: 'Margin',        value: `${(category.gp_margin_percent ?? 0).toFixed(1)}%` },
+              { label: 'Faktur',        value: String(category.invoice_count ?? '—') },
+              { label: 'Customer',      value: String(category.customer_count ?? '—') },
               { label: 'Terakhir Jual', value: category.last_sold_month ?? '—' },
             ].map(({ label, value }) => (
               <Box key={label} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
@@ -170,19 +185,18 @@ export function CategoryProductsDrawer({
             ))}
           </Stack>
         ) : (
-          <Box sx={{ flex: 1, minHeight: 0 }}>
-            <ResponsiveListView
-              rows={data?.data ?? []}
-              columns={columns}
-              rowCount={data?.meta.total ?? 0}
-              loading={false}
-              error={null}
-              paginationMode="client"
-              height={460}
-              pageSizeOptions={[25, 50, 100]}
-            />
-          </Box>
+          <ResponsiveListView
+            rows={data?.data ?? []}
+            columns={columns}
+            rowCount={data?.meta.total ?? 0}
+            loading={false}
+            error={null}
+            paginationMode="client"
+            height={420}
+            pageSizeOptions={[25, 50, 100]}
+          />
         )}
+        </Box>
       </Box>
     </Drawer>
   )

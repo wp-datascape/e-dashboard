@@ -33,7 +33,7 @@ export interface StatusChipProps {
   /** sx override jika diperlukan di konteks khusus */
   sx?: SxProps<Theme>;
   /** onClick handler opsional */
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export const StatusChip = ({

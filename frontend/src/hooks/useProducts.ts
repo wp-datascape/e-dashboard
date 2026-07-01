@@ -6,10 +6,13 @@ import type {
   CategoryProductsParams,
   HighMarginDetailParams,
   UpsellTargetParams,
+  CustomerProductsParams,
   ProductTrendParams,
 } from '@/types/products'
 
 export const PRODUCTS_KEYS = {
+  customerProducts: (params: CustomerProductsParams) =>
+    ['products', 'customer-products', params] as const,
   categoryPerformance: (params: CategoryPerformanceParams) =>
     ['products', 'category-performance', params] as const,
   categoryProducts: (params: CategoryProductsParams) =>
@@ -48,6 +51,14 @@ export function useUpsellTargets(params: UpsellTargetParams) {
   return useQuery({
     queryKey: PRODUCTS_KEYS.upsellTargets(params),
     queryFn: () => productsApi.getUpsellTargets(params),
+  })
+}
+
+export function useCustomerProducts(params: CustomerProductsParams | null) {
+  return useQuery({
+    queryKey: params ? PRODUCTS_KEYS.customerProducts(params) : ['products', 'customer-products', null],
+    queryFn: () => productsApi.getCustomerProducts(params!),
+    enabled: !!params,
   })
 }
 
