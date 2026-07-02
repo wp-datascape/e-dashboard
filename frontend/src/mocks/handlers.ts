@@ -4,7 +4,7 @@
 // import { rbacHandlers } from './handlers/rbac.handler';
 // import { usersHandlers } from './handlers/users.handler';
 // import { auditHandlers } from './handlers/audit.handler';
-import { dashboardHandlers } from './handlers/dashboard.handler';
+// import { dashboardHandlers } from './handlers/dashboard.handler'; // DISABLED — dashboard now from real backend API
 import { metricsHandlers } from './handlers/metrics.handler';
 // import { customersHandlers } from './handlers/customers.handler';
 // import { importHandlers } from './handlers/import.handler';
@@ -17,7 +17,7 @@ import { productsHandlers } from './handlers/products.handler';
 export const handlers = [
   // ...authHandlers,
   // ...pageHandlers, // DISABLED — page settings now from real DB API
-  ...dashboardHandlers,
+  // ...dashboardHandlers, // DISABLED — dashboard now from real backend API
   ...metricsHandlers,
   // ...rbacHandlers, // DISABLED — RBAC now from real backend API
   // ...usersHandlers, // DISABLED — users now from real DB API (backend/src/features/users)

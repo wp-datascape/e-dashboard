@@ -24,6 +24,7 @@ import { requestLogger } from '@/middleware/requestLogger'
 import { authMiddleware } from '@/middleware/auth'
 import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
+import { dashboardRoutes } from '@/features/dashboard/dashboard.route'
 import { importRoutes } from '@/features/import/import.route'
 import { classificationRoutes } from '@/features/import/classification.route'
 import { usersRoutes } from '@/features/users/user.route'
@@ -93,6 +94,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
+  protectedApi.route('/dashboard', dashboardRoutes)
 
   app.route('/api/v1', protectedApi)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────
