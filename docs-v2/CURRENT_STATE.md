@@ -6,9 +6,9 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). **Fix logout tidak invalidasi sesi server (sesi 29)**. |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) lengkap 83 operasi/63 path — seluruh protectedApi (sesi 29). |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) lengkap 83 operasi/63 path — seluruh protectedApi (sesi 29). **Users: bulk import (template upload), reset password, fix role/company tidak tersimpan saat create, fix duplikasi role di response (sesi 30)**. |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
-| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). api-docs.md (baru, sesi 29). |
+| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). api-docs.md (baru, sesi 29). deployment.md (baru, Render+Vercel). users.md diupdate menyeluruh (sesi 30). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
 
 ## Frontend — Page Status
@@ -271,6 +271,37 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-03 (sesi 30): Users — Bulk Import Template + Reset Password + 2 Bug Fix
+
+**Bulk import user baru (permintaan awal sesi ini):**
+- Template Excel (`GET /users/template`): kolom `name`, `email`, `role` (opsional, by nama), `company_code` (opsional, multi dipisah koma)
+- Upload (`POST /users/import`, multipart): admin isi `default_password` di form saat upload (bukan per-baris, bukan config server) — dipakai untuk semua user baru di file itu
+- Pola parsing/validasi identik `importChannelDivisionsService` (skip duplikat email, error per-baris dengan nomor baris, tidak gagal total di baris pertama yang error)
+- Frontend: reuse halaman `/import` yang sudah ada — `user` jadi tipe ke-4 di dropdown (`UploadFileCard.tsx`), bukan halaman terpisah
+
+**Reset password di Edit User (ditemukan saat desain bulk-import: sistem ini tidak punya mekanisme ganti password sama sekali sebelumnya):**
+- `updateUserSchema` terima `password?` opsional, di-hash sebelum simpan. Audit log cuma catat `passwordReset: true`, tidak pernah catat password
+- Frontend: checkbox "Reset Password" di `EditUserDialog.tsx`, default tersembunyi
+
+**Fix — Create User tidak pernah simpan role/company (bug lama, ditemukan saat cek alur bulk-import):**
+- `createUserSchema` sebelumnya cuma `{name, email, password}` — `role_ids`/`company_ids` yang dikirim frontend di-strip diam-diam oleh Zod. Semua user baru dari form selalu tanpa role/company sampai di-edit manual
+- Fix: `createUserService` sekarang assign role/company pakai `replaceUserRoles`/`replaceUserCompanies` yang sama dengan update, lalu re-fetch sebelum return
+
+**Fix — role ter-duplikasi di response (bug lama, ditemukan saat verifikasi manual — role "superadmin" muncul 3x untuk admin dengan 3 company):**
+- `findAllUsers`/`findUserById` sebelumnya JOIN `user_roles`+`roles` DAN `user_companies`+`companies` dalam satu query + `GROUP BY` → cartesian product, role ter-duplikasi sebanyak jumlah company user itu
+- Fix: dipecah jadi 2 query terpisah (`fetchRolesAndCompaniesByUserIds`, dibatch pakai `inArray`), digabung per-user di kode, bukan di SQL
+
+**Tidak ada migration DB** — semua fitur pakai tabel yang sudah ada (`users`, `user_roles`, `user_companies`).
+
+**Verifikasi:** end-to-end lewat curl ke backend real (bukan baca kode doang) — login, download template, bulk-upload (berhasil + skip duplikat + error per-baris + role/company ter-assign benar), login pakai password default hasil bulk-upload, reset password (password lama ditolak, baru diterima), create user dengan role+company, konfirmasi bug duplikasi hilang untuk user lama (admin) maupun baru. Data test dibersihkan setelah selesai.
+
+**File yang diubah:**
+- Backend: `backend/src/features/users/{user.schema,user.repository,user.service,user.handler,user.route}.ts`
+- Frontend: `frontend/src/api/users.api.ts`, `frontend/src/pages/Users/components/EditUserDialog.tsx`, `frontend/src/pages/Import/components/UploadFileCard.tsx`, `frontend/src/types/users.ts`, i18n `en/id` × `import.json`+`users.json`
+- Docs: `features/users.md` (update menyeluruh)
+
+---
 
 ### 2026-07-02 (sesi 29): API Docs (Swagger UI, spec statis) + Fix Logout Tidak Invalidasi Sesi
 

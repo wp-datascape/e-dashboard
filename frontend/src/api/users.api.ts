@@ -75,4 +75,25 @@ export const usersApi = {
       throw err;
     }
   },
+
+  importUsers: async (
+    file: File,
+    defaultPassword: string,
+  ): Promise<{ added: number; skipped: number; errors: Array<{ row: number; message: string }> }> => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('default_password', defaultPassword);
+    const res = await api.post<ApiResponse<{ added: number; skipped: number; errors: Array<{ row: number; message: string }> }>>('/users/import', form);
+    return res.data.data;
+  },
+
+  downloadTemplate: async (): Promise<void> => {
+    const res = await api.get('/users/template', { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template_user.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

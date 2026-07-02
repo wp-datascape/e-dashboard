@@ -30,7 +30,12 @@ const editSchema = (t: (key: string) => string) => z.object({
   role_id: z.number().int().min(1, t('users.validation.roleRequired')),
   company_ids: z.array(z.number()).min(1, t('users.validation.companiesRequired')),
   is_active: z.boolean(),
-});
+  resetPassword: z.boolean(),
+  newPassword: z.string(),
+}).refine(
+  (data) => !data.resetPassword || data.newPassword.length >= 8,
+  { message: t('users.validation.newPasswordMin'), path: ['newPassword'] },
+);
 
 type EditFormData = z.infer<ReturnType<typeof editSchema>>;
 
@@ -61,11 +66,14 @@ export function EditUserDialog({
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors },
   } = useForm<EditFormData>({
     resolver: zodResolver(editSchema(t)),
-    defaultValues: { name: '', role_id: 0, company_ids: [], is_active: true },
+    defaultValues: { name: '', role_id: 0, company_ids: [], is_active: true, resetPassword: false, newPassword: '' },
   });
+
+  const resetPassword = watch('resetPassword');
 
   // Populate form when user changes
   useEffect(() => {
@@ -75,6 +83,8 @@ export function EditUserDialog({
         role_id: user.roles[0]?.id ?? 0,
         company_ids: user.companies.map(c => c.id),
         is_active: user.is_active,
+        resetPassword: false,
+        newPassword: '',
       });
     }
   }, [user, open, reset]);
@@ -85,6 +95,7 @@ export function EditUserDialog({
       role_ids: [data.role_id],
       company_ids: data.company_ids,
       is_active: data.is_active,
+      ...(data.resetPassword ? { password: data.newPassword } : {}),
     });
   };
 
@@ -182,6 +193,42 @@ export function EditUserDialog({
               </FormControl>
             )}
           />
+
+          {/* Reset Password */}
+          <Controller
+            name="resetPassword"
+            control={control}
+            render={({ field }) => (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={field.value}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label={<Typography variant="body2">{t('users.resetPassword')}</Typography>}
+              />
+            )}
+          />
+          {resetPassword && (
+            <Controller
+              name="newPassword"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label={t('users.newPassword')}
+                  placeholder={t('users.passwordPlaceholder')}
+                  type="password"
+                  fullWidth
+                  size="small"
+                  error={!!errors.newPassword}
+                  helperText={errors.newPassword?.message}
+                />
+              )}
+            />
+          )}
 
           {/* Active toggle */}
           <Controller

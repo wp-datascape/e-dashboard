@@ -37,6 +37,7 @@ export interface UpdateUserPayload {
   role_ids?: number[];
   company_ids?: number[];
   is_active?: boolean;
+  password?: string;
 }
 
 export interface Company {

@@ -1,19 +1,20 @@
 # Feature: Users CRUD
 
-> Status: ✅ 100% — CRUD selesai (tanpa auth sementara). Menunggu authMiddleware + RBAC.
-> Last updated: 2026-06-29
-> Baca juga: `shared/api-conventions.md`, `admin/api.md`
+> Status: ✅ Complete — CRUD + role/company assignment + reset password + bulk import (template upload)
+> Last updated: 2026-07-03 (sesi 30)
+> Baca juga: `shared/api-conventions.md`, `features/roles.md`, `features/permissions.md`, `features/import.md`
 
 ---
 
 ## File Structure
 
 ```
-src/features/users/
+backend/src/features/users/
 ├── user.schema.ts      — Zod DTO (request & response types)
 ├── user.repository.ts  — Drizzle queries (DB layer)
-├── user.service.ts     — Business logic
-└── user.route.ts       — HTTP handlers + route definitions
+├── user.service.ts     — Business logic (create/update/delete/bulk import)
+├── user.handler.ts     — Thin HTTP handler (validate → service → response)
+└── user.route.ts       — Route definitions + requirePermission per endpoint
 ```
 
 ---
@@ -22,8 +23,19 @@ src/features/users/
 
 Base URL: `http://localhost:3000/api/v1/users`
 
-> **Catatan:** Saat ini aktif **tanpa auth** (sementara).
-> Setelah `authMiddleware` selesai, semua endpoint wajib JWT cookie + permission `users:manage`.
+Semua endpoint wajib JWT cookie (`authMiddleware`) + permission `access.user:*` sesuai tabel di bawah.
+
+| Method | Path | Permission | Deskripsi |
+|---|---|---|---|
+| GET | `/` | `access.user:view` | List user (paginated) |
+| GET | `/template` | `access.user:create` | Download template Excel bulk-import |
+| POST | `/import` | `access.user:create` | Bulk-create user dari file (multipart) |
+| GET | `/:id` | `access.user:view` | Detail satu user |
+| POST | `/` | `access.user:create` | Create user satu-satu |
+| PUT | `/:id` | `access.user:update` | Update user (termasuk reset password) |
+| DELETE | `/:id` | `access.user:delete` | Soft-delete user |
+
+> `/template` dan `/import` didaftarkan **sebelum** `/:id` di `user.route.ts` — kalau urutannya kebalik, Hono akan menangkap `"template"`/`"import"` sebagai path param `:id` dan gagal di `userIdParamSchema`.
 
 ---
 
@@ -31,13 +43,7 @@ Base URL: `http://localhost:3000/api/v1/users`
 
 List semua user aktif (soft delete tidak muncul) dengan pagination.
 
-**Query params:**
-
-| Param      | Type    | Default | Keterangan         |
-|------------|---------|---------|--------------------|
-| `page`     | integer | 1       | Halaman (1-based)  |
-| `per_page` | integer | 20      | Max 100            |
-| `sort`     | string  | —       | `field:asc\|desc`  |
+**Query params:** `page` (default 1), `per_page` (default 20, max 100), `sort` (`field:asc|desc`)
 
 **Response 200:**
 ```json
@@ -48,172 +54,158 @@ List semua user aktif (soft delete tidak muncul) dengan pagination.
       "id": 1,
       "name": "Wahyu Prasetyo",
       "email": "wahyu@company.com",
-      "isActive": true,
-      "createdAt": "2026-06-21T08:00:00.000Z",
-      "updatedAt": "2026-06-21T08:00:00.000Z"
+      "is_active": true,
+      "created_at": "...", "updated_at": "...", "last_login_at": null, "deleted_at": null,
+      "roles": [{ "id": 3, "name": "user", "is_system": false }],
+      "companies": [{ "id": 1, "code": "PT MKO", "name": "PT Mesin Kasir Online" }]
     }
   ],
-  "meta": {
-    "page": 1,
-    "per_page": 20,
-    "total": 1,
-    "total_pages": 1
-  }
+  "meta": { "page": 1, "per_page": 20, "total": 1, "total_pages": 1 }
 }
 ```
 
 ---
 
-### `GET /api/v1/users/:id`
-
-Ambil satu user berdasarkan ID.
-
-**Response 200:**
-```json
-{
-  "message": "Success",
-  "data": {
-    "id": 1,
-    "name": "Wahyu Prasetyo",
-    "email": "wahyu@company.com",
-    "isActive": true,
-    "createdAt": "2026-06-21T08:00:00.000Z",
-    "updatedAt": "2026-06-21T08:00:00.000Z"
-  }
-}
-```
-
-**Error:**
-```json
-{ "error": "NOT_FOUND", "message": "User not found" }
-```
-
----
-
-### `POST /api/v1/users`
-
-Buat user baru. Password di-hash otomatis (bcrypt cost=12).
+### `POST /api/v1/users` — Create user satu-satu
 
 **Request body:**
 ```json
 {
   "name": "Sari Dewi",
   "email": "sari@company.com",
-  "password": "minEightChars"
+  "password": "minEightChars",
+  "role_ids": [3],
+  "company_ids": [1, 2]
 }
 ```
 
-| Field      | Type   | Rules                   |
-|------------|--------|-------------------------|
-| `name`     | string | min 2, max 255          |
-| `email`    | string | valid email, unik       |
-| `password` | string | min 8, max 72 chars     |
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | min 2, max 255 |
+| `email` | string | valid email, unik |
+| `password` | string | min 8, max 72 |
+| `role_ids` | number[]? | opsional |
+| `company_ids` | number[]? | opsional |
 
-**Response 201:**
-```json
-{
-  "message": "User created",
-  "data": {
-    "id": 2,
-    "name": "Sari Dewi",
-    "email": "sari@company.com",
-    "isActive": true,
-    "createdAt": "2026-06-21T08:05:00.000Z",
-    "updatedAt": "2026-06-21T08:05:00.000Z"
-  }
-}
-```
+**Response 201:** user lengkap dengan `roles`/`companies` ter-assign (lihat Implementation Notes — ini baru benar sejak sesi ini).
 
-**Error:**
-```json
-{ "error": "DUPLICATE_ENTRY", "message": "Email already in use" }
-```
+**Error:** `409 DUPLICATE_ENTRY` kalau email sudah dipakai.
 
 ---
 
-### `PATCH /api/v1/users/:id`
+### `PUT /api/v1/users/:id` — Update user (termasuk reset password)
 
-Update data user. Semua field opsional.
+Semua field opsional — cuma yang dikirim yang di-update.
 
 **Request body:**
 ```json
 {
   "name": "Sari Dewi Updated",
-  "isActive": false
+  "is_active": false,
+  "role_ids": [2],
+  "company_ids": [1],
+  "password": "newPassword123"
 }
 ```
 
-| Field      | Type    | Rules          |
-|------------|---------|----------------|
-| `name`     | string? | min 2, max 255 |
-| `isActive` | boolean?| —              |
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string? | min 2, max 255 |
+| `is_active` | boolean? | — |
+| `role_ids` | number[]? | replace semua role user ini |
+| `company_ids` | number[]? | replace semua company user ini |
+| `password` | string? | min 8, max 72 — **reset password**, di-hash sebelum simpan |
 
-**Response 200:**
-```json
-{
-  "message": "Success",
-  "data": {
-    "id": 2,
-    "name": "Sari Dewi Updated",
-    "email": "sari@company.com",
-    "isActive": false,
-    "createdAt": "2026-06-21T08:05:00.000Z",
-    "updatedAt": "2026-06-21T09:00:00.000Z"
-  }
-}
-```
-
-**Error:**
-```json
-{ "error": "NOT_FOUND", "message": "User not found" }
-```
+**Response 200:** user lengkap setelah update.
 
 ---
 
 ### `DELETE /api/v1/users/:id`
 
-Soft delete — hanya set `deleted_at`, data tidak hilang dari DB.
+Soft delete — set `deleted_at`, data tidak hilang dari DB. User dengan role `is_system=true` tidak bisa dihapus (`403 FORBIDDEN`).
 
 **Response:** `204 No Content`
 
-**Error:**
+---
+
+### `GET /api/v1/users/template` — Download template bulk-import
+
+Response biner `.xlsx` (`template_user.xlsx`). Kolom: `name` (wajib), `email` (wajib), `role` (opsional, nama role — lihat `GET /roles`), `company_code` (opsional, bisa lebih dari satu dipisah koma, mis. `"PT01,PT02"`).
+
+---
+
+### `POST /api/v1/users/import` — Bulk-create user dari file
+
+**Request:** `multipart/form-data`
+- `file` — `.csv` atau `.xlsx`, max 5MB
+- `default_password` — string, min 8 karakter, **dipakai untuk SEMUA user baru di file ini** (bukan per-baris, bukan disimpan sebagai config server — admin isi manual tiap kali upload)
+
+**Alur per baris:**
+1. `name`/`email` wajib — kosong → error baris
+2. Email sudah terdaftar → **skip** (bukan error)
+3. `role` diisi tapi nama role tidak ditemukan (`findRoleByName`) → error baris
+4. `company_code` diisi tapi ada kode yang tidak ditemukan (`findCompanyByCode`) → error baris
+5. Lolos semua → create user dengan `default_password` (di-hash), assign role/company kalau ada
+
+**Response 200:**
 ```json
-{ "error": "NOT_FOUND", "message": "User not found" }
+{
+  "message": "Import selesai: 2 ditambahkan, 1 di-skip",
+  "data": {
+    "added": 2,
+    "skipped": 1,
+    "errors": [{ "row": 4, "message": "role \"manajer\" tidak ditemukan" }]
+  }
+}
 ```
+
+Frontend: halaman `/import`, dropdown "Tipe Import" → "User Baru" (`UploadFileCard.tsx`, reuse infrastruktur upload yang sama dengan Faktur/Divisi/Klasifikasi).
+
+**Keamanan:** `default_password` tidak pernah masuk audit log — cuma ringkasan `{added, skipped, errors}` yang dicatat (action `user.import`).
 
 ---
 
 ## Error Codes
 
-| HTTP | Code               | Kondisi                          |
-|------|--------------------|----------------------------------|
-| 400  | `VALIDATION_ERROR` | Field tidak valid / body bukan JSON |
-| 404  | `NOT_FOUND`        | User tidak ditemukan / sudah dihapus |
-| 409  | `DUPLICATE_ENTRY`  | Email sudah dipakai user lain    |
-| 500  | `INTERNAL_ERROR`   | Server / DB error                |
+| HTTP | Code | Kondisi |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Field tidak valid |
+| 401 | `UNAUTHORIZED` | Belum login |
+| 403 | `FORBIDDEN` | Hapus user dengan role system, atau permission kurang |
+| 404 | `NOT_FOUND` | User tidak ditemukan / sudah dihapus |
+| 409 | `DUPLICATE_ENTRY` | Email sudah dipakai user lain |
+| 413 | `FILE_TOO_LARGE` | File import > 5MB |
+| 422 | `INVALID_FILE_FORMAT` | File bukan `.csv`/`.xlsx` |
+| 500 | `INTERNAL_ERROR` | Server / DB error |
 
 ---
 
 ## Implementation Notes
 
-**Password tidak pernah keluar dari repository layer.**
-`stripPassword()` di `user.repository.ts` otomatis menghapus field `password` dari setiap hasil query sebelum dikembalikan ke service/handler.
+### Password tidak pernah keluar dari repository layer
+Query di `user.repository.ts` tidak pernah men-select kolom `password` sama sekali untuk `findAllUsers`/`findUserById` — bukan di-strip belakangan, memang tidak pernah diminta ke DB.
 
-**Soft delete.**
-`DELETE` hanya set `deletedAt = now()`. Semua query di repository sudah filter `WHERE deleted_at IS NULL`.
+### Reset password (sesi ini)
+Sebelumnya **tidak ada mekanisme ganti password sama sekali** di aplikasi ini — bukan self-service, bukan admin. `updateUserSchema` sekarang terima `password?` opsional; kalau diisi, di-hash (`hashPassword`) sebelum masuk `users.password`. Audit log cuma catat `passwordReset: true`, tidak pernah catat hash/plaintext password.
 
-**Email duplicate check.**
-Service layer cek email via `findUserByEmail()` sebelum insert — memberikan pesan error yang lebih jelas daripada mengandalkan DB constraint 23505.
+Frontend: `EditUserDialog.tsx` — checkbox "Reset Password" menyembunyikan/menampilkan field password baru, default tersembunyi supaya admin tidak "tidak sengaja" reset password tiap kali edit user.
+
+### Fix: Create User tidak pernah simpan role/company (bug lama, ditemukan & diperbaiki sesi ini)
+`createUserSchema` sebelumnya cuma terima `{name, email, password}` — padahal frontend (`CreateUserDialog.tsx`) sudah lama mengirim `role_ids`/`company_ids` di payload-nya. Karena Zod object schema secara default strip field yang tidak dikenal, kedua field itu diam-diam dibuang, dan **setiap user baru yang dibuat lewat form selalu tanpa role & company** sampai di-edit manual. `createUserService` sekarang assign role/company via `replaceUserRoles`/`replaceUserCompanies` (fungsi yang sama yang sudah dipakai `updateUserService`), lalu re-fetch user lengkap sebelum dikembalikan.
+
+### Fix: Role ter-duplikasi di response (bug lama, ditemukan & diperbaiki sesi ini)
+`findAllUsers`/`findUserById` sebelumnya JOIN `user_roles`+`roles` **dan** `user_companies`+`companies` dalam satu query yang sama dengan `GROUP BY users.id` + `json_agg`. Kalau user itu punya N company, hasil pre-aggregate jadi N baris (cartesian product dari sisi company), sehingga role-nya ikut ter-duplikasi N kali di `json_agg` — kelihatan jelas di user dengan banyak company (mis. superadmin dengan 3 company: role muncul 3x, padahal cuma 1 role).
+
+Fix: dipecah jadi 2 query terpisah (`fetchRolesAndCompaniesByUserIds()` — satu query untuk roles, satu untuk companies, dibatch pakai `inArray(user_id, ids)`), lalu digabung per-user di kode (bukan di SQL). Tidak ada lagi JOIN silang antar dua relasi many-to-many yang berbeda dalam query yang sama.
+
+### Bulk import — pola yang sama dengan Channel Divisions/Classification Rules
+`importUsersService` mengikuti pola identik `importChannelDivisionsService` (`settings/channel-divisions.service.ts`): parse CSV via `papaparse` atau XLSX via `xlsx` (scan baris pertama yang mengandung header `"email"`), validasi + insert per-baris, kumpulkan error per-baris (bukan gagal total di baris pertama yang error).
 
 ---
 
-## Yang Belum (Pending)
+## Referensi File
 
-| Item | Menunggu |
-|------|----------|
-| JWT auth cookie wajib | `authMiddleware` |
-| Permission `users:manage` | `middleware/permission.ts` |
-| Assign role ke user (`role_ids`) | RBAC schema (`user_roles`) |
-| Assign company ke user (`company_ids`) | RBAC schema (`user_companies`) |
-| `GET /users/me` | `authMiddleware` (c.var.user) |
-| Search/filter `?search=&role=` | RBAC schema selesai |
+- **Backend**: `backend/src/features/users/{user.schema,user.repository,user.service,user.handler,user.route}.ts`
+- **Frontend**: `frontend/src/pages/Users/index.tsx` + `components/{CreateUserDialog,EditUserDialog,ViewUserDialog,DeleteUserDialog}.tsx`
+- **Bulk import UI**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `'user'` di `ImportType`)
+- **API client**: `frontend/src/api/users.api.ts`, `frontend/src/hooks/useUsers.ts`

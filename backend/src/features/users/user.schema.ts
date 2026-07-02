@@ -6,6 +6,8 @@ export const createUserSchema = z.object({
   name: z.string().min(2).max(255),
   email: z.string().email(),
   password: z.string().min(8).max(72),
+  role_ids: z.array(z.number().int().positive()).optional(),
+  company_ids: z.array(z.number().int().positive()).optional(),
 })
 
 export const updateUserSchema = z.object({
@@ -13,6 +15,7 @@ export const updateUserSchema = z.object({
   is_active: z.boolean().optional(),
   role_ids: z.array(z.number().int().positive()).optional(),
   company_ids: z.array(z.number().int().positive()).optional(),
+  password: z.string().min(8).max(72).optional(),
 })
 
 export const userIdParamSchema = z.object({

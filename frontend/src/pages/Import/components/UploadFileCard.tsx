@@ -9,6 +9,7 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import TextField from '@mui/material/TextField'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -18,14 +19,16 @@ import { useSnackbar } from 'notistack'
 import { Card, Button, ProgressBar } from '@/components/ui'
 import { useImportFileProgress } from '@/hooks/useImport'
 import { useCan } from '@/hooks/useCan'
+import { usersKeys } from '@/hooks/useUsers'
 import { channelDivisionsApi } from '@/api/channelDivisions.api'
 import { importClassificationRules, downloadClassificationTemplate } from '@/api/classification.api'
 import { downloadFakturTemplate } from '@/api/import.api'
+import { usersApi } from '@/api/users.api'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
 import { ResultBanner } from './ResultBanner'
 import type { Company } from '@/types/users'
 
-type ImportType = 'faktur' | 'divisi' | 'klasifikasi'
+type ImportType = 'faktur' | 'divisi' | 'klasifikasi' | 'user'
 
 interface MasterImportResult {
   added: number
@@ -47,6 +50,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
 
   const [importType, setImportType] = useState<ImportType>('faktur')
   const [companyId, setCompanyId] = useState<number | ''>('')
+  const [defaultPassword, setDefaultPassword] = useState('')
   const [periodMonth, setPeriodMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -89,7 +93,22 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     onError: () => enqueueSnackbar(t('import.form.snackbarKlasifikasiError'), { variant: 'error' }),
   })
 
-  const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending
+  const userMutation = useMutation({
+    mutationFn: ({ file, defaultPassword }: { file: File; defaultPassword: string }) =>
+      usersApi.importUsers(file, defaultPassword),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: usersKeys.all })
+      setMasterResult(res)
+      enqueueSnackbar(t('import.form.snackbarUserSuccess', { added: res.added, skipped: res.skipped }), {
+        variant: res.errors.length > 0 ? 'warning' : 'success',
+      })
+      setFile(null)
+      setDefaultPassword('')
+    },
+    onError: () => enqueueSnackbar(t('import.form.snackbarUserError'), { variant: 'error' }),
+  })
+
+  const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending || userMutation.isPending
   const isPending = isFakturPending || isMasterPending
   const isDisabled = isPending || disabled
 
@@ -101,6 +120,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     setFile(null)
     setFormError(null)
     setMasterResult(null)
+    setDefaultPassword('')
     reset()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -117,6 +137,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     try {
       if (importType === 'faktur') await downloadFakturTemplate()
       else if (importType === 'divisi') await channelDivisionsApi.downloadTemplate()
+      else if (importType === 'user') await usersApi.downloadTemplate()
       else await downloadClassificationTemplate()
     } catch {
       enqueueSnackbar(t('import.form.snackbarTemplateError'), { variant: 'error' })
@@ -128,7 +149,9 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     setFormError(null)
     setMasterResult(null)
 
-    if (!companyId) { setFormError(t('import.form.errorCompany')); return }
+    // 'user' tidak butuh company_id tunggal — company (opsional, bisa banyak)
+    // ditentukan per-baris lewat kolom company_code di template
+    if (importType !== 'user' && !companyId) { setFormError(t('import.form.errorCompany')); return }
 
     if (importType === 'faktur') {
       reset()
@@ -138,6 +161,11 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
       void mutateFaktur({ file, company_id: companyId as number, period_month: periodMonth })
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (phase === 'done') setFile(null)
+    } else if (importType === 'user') {
+      if (!file) { setFormError(t('import.form.errorFile')); return }
+      if (defaultPassword.length < 8) { setFormError(t('import.form.errorDefaultPassword')); return }
+      userMutation.mutate({ file, defaultPassword })
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } else {
       if (!file) { setFormError(t('import.form.errorFile')); return }
       if (importType === 'divisi') divisiMutation.mutate({ file, companyId: companyId as number })
@@ -180,6 +208,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
               <MenuItem value="faktur">{t('import.form.typeFaktur')}</MenuItem>
               <MenuItem value="divisi">{t('import.form.typeDivisi')}</MenuItem>
               <MenuItem value="klasifikasi">{t('import.form.typeKlasifikasi')}</MenuItem>
+              <MenuItem value="user">{t('import.form.typeUser')}</MenuItem>
             </Select>
           </FormControl>
           <Button
@@ -194,7 +223,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
           </Button>
         </Box>
 
-        {/* ── Company (semua tipe) + Period (hanya faktur) ── */}
+        {/* ── Company (faktur/divisi/klasifikasi) + Period (hanya faktur) + Default Password (hanya user) ── */}
         {importType === 'faktur' ? (
           <CompanyPeriodFields
             companies={companies}
@@ -203,6 +232,18 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             onCompany={setCompanyId}
             onPeriod={setPeriodMonth}
             disabled={isDisabled}
+          />
+        ) : importType === 'user' ? (
+          <TextField
+            size="small"
+            fullWidth
+            type="password"
+            label={t('import.form.defaultPasswordLabel')}
+            placeholder={t('import.form.defaultPasswordPlaceholder')}
+            value={defaultPassword}
+            onChange={(e) => setDefaultPassword(e.target.value)}
+            disabled={isDisabled}
+            helperText={t('import.form.defaultPasswordHelp')}
           />
         ) : (
           <FormControl size="small" fullWidth>

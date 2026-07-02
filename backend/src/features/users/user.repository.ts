@@ -1,4 +1,4 @@
-import { eq, isNull, and, count, sql, inArray } from 'drizzle-orm'
+import { eq, isNull, and, count, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { users, userRoles, roles, userCompanies, companies } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
@@ -9,6 +9,52 @@ import type { CreateUserDto, UpdateUserDto } from './user.schema'
 function stripPassword<T extends { password: string }>(user: T): Omit<T, 'password'> {
   const { password: _, ...rest } = user
   return rest
+}
+
+// Ambil roles & companies untuk sekumpulan user_id lewat 2 query terpisah
+// (bukan JOIN ganda dalam satu query) — JOIN userRoles+roles DAN
+// userCompanies+companies sekaligus di query yang sama menyebabkan cartesian
+// product sebelum GROUP BY: user dengan 1 role + 3 company akan menghasilkan
+// 3 baris pre-aggregate, sehingga role-nya ikut ter-duplikasi 3x di json_agg.
+async function fetchRolesAndCompaniesByUserIds(userIds: number[]) {
+  const rolesByUser = new Map<number, Array<{ id: number; name: string; is_system: boolean }>>()
+  const companiesByUser = new Map<number, Array<{ id: number; code: string; name: string }>>()
+
+  if (userIds.length === 0) return { rolesByUser, companiesByUser }
+
+  const [roleRows, companyRows] = await Promise.all([
+    db
+      .select({
+        userId: userRoles.user_id,
+        id: roles.id,
+        name: roles.name,
+        is_system: roles.is_system,
+      })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.role_id, roles.id))
+      .where(inArray(userRoles.user_id, userIds)),
+    db
+      .select({
+        userId: userCompanies.user_id,
+        id: companies.id,
+        code: companies.code,
+        name: companies.name,
+      })
+      .from(userCompanies)
+      .innerJoin(companies, eq(userCompanies.company_id, companies.id))
+      .where(inArray(userCompanies.user_id, userIds)),
+  ])
+
+  for (const { userId, ...role } of roleRows) {
+    if (!rolesByUser.has(userId)) rolesByUser.set(userId, [])
+    rolesByUser.get(userId)!.push(role)
+  }
+  for (const { userId, ...company } of companyRows) {
+    if (!companiesByUser.has(userId)) companiesByUser.set(userId, [])
+    companiesByUser.get(userId)!.push(company)
+  }
+
+  return { rolesByUser, companiesByUser }
 }
 
 export async function findAllUsers(pagination: PaginationQuery) {
@@ -26,29 +72,21 @@ export async function findAllUsers(pagination: PaginationQuery) {
           updated_at: users.updated_at,
           last_login_at: users.last_login_at,
           deleted_at: users.deleted_at,
-          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'is_system', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
-          companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
         })
         .from(users)
-        .leftJoin(userRoles, eq(users.id, userRoles.user_id))
-        .leftJoin(roles, eq(userRoles.role_id, roles.id))
-        .leftJoin(userCompanies, eq(users.id, userCompanies.user_id))
-        .leftJoin(companies, eq(userCompanies.company_id, companies.id))
         .where(isNull(users.deleted_at))
-        .groupBy(users.id)
         .limit(per_page)
         .offset((page - 1) * per_page),
       db.select({ value: count() }).from(users).where(isNull(users.deleted_at)),
     ])
 
-    const rows = usersData.map((row) => {
-      const { rolesJson, companiesJson, ...user } = row
-      return {
-        ...stripPassword({ ...user, password: '' }),
-        roles: (rolesJson as Array<{ id: number; name: string }>) || [],
-        companies: (companiesJson as Array<{ id: number; code: string; name: string }>) || [],
-      }
-    })
+    const { rolesByUser, companiesByUser } = await fetchRolesAndCompaniesByUserIds(usersData.map((u) => u.id))
+
+    const rows = usersData.map((user) => ({
+      ...user,
+      roles: rolesByUser.get(user.id) ?? [],
+      companies: companiesByUser.get(user.id) ?? [],
+    }))
 
     return { rows, total }
   } catch (err) {
@@ -58,35 +96,28 @@ export async function findAllUsers(pagination: PaginationQuery) {
 
 export async function findUserById(id: number) {
   try {
-    const result = await db
+    const [user] = await db
       .select({
         id: users.id,
         name: users.name,
         email: users.email,
-          is_active: users.is_active,
-          created_at: users.created_at,
-          updated_at: users.updated_at,
-          last_login_at: users.last_login_at,
-          deleted_at: users.deleted_at,
-          rolesJson: sql`json_agg(json_build_object('id', ${roles.id}, 'name', ${roles.name}, 'is_system', ${roles.is_system})) FILTER (WHERE ${roles.id} IS NOT NULL)`.as('roles'),
-        companiesJson: sql`json_agg(json_build_object('id', ${companies.id}, 'code', ${companies.code}, 'name', ${companies.name})) FILTER (WHERE ${companies.id} IS NOT NULL)`.as('companies'),
+        is_active: users.is_active,
+        created_at: users.created_at,
+        updated_at: users.updated_at,
+        last_login_at: users.last_login_at,
+        deleted_at: users.deleted_at,
       })
       .from(users)
-      .leftJoin(userRoles, eq(users.id, userRoles.user_id))
-      .leftJoin(roles, eq(userRoles.role_id, roles.id))
-      .leftJoin(userCompanies, eq(users.id, userCompanies.user_id))
-      .leftJoin(companies, eq(userCompanies.company_id, companies.id))
       .where(and(eq(users.id, id), isNull(users.deleted_at)))
-      .groupBy(users.id)
 
-    if (result.length === 0) return null
+    if (!user) return null
 
-    const row = result[0]
-    const { rolesJson, companiesJson, ...user } = row
+    const { rolesByUser, companiesByUser } = await fetchRolesAndCompaniesByUserIds([id])
+
     return {
-      ...stripPassword({ ...user, password: '' }),
-      roles: (rolesJson as Array<{ id: number; name: string }>) || [],
-      companies: (companiesJson as Array<{ id: number; code: string; name: string }>) || [],
+      ...user,
+      roles: rolesByUser.get(id) ?? [],
+      companies: companiesByUser.get(id) ?? [],
     }
   } catch (err) {
     handleDbError(err)

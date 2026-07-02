@@ -12,7 +12,10 @@
   "createdAt": "Created",
   "namePlaceholder": "Full name",
   "emailPlaceholder": "User email",
+  "password": "Password",
   "passwordPlaceholder": "Temporary password",
+  "resetPassword": "Reset Password",
+  "newPassword": "New Password",
   "selectRole": "Select Role",
   "selectCompanies": "Select Companies",
   "permissionsCount": "Permissions ({{count}})",
@@ -20,6 +23,7 @@
     "nameMin": "Name must be at least 2 characters",
     "emailInvalid": "Invalid email format",
     "passwordMin": "Password must be at least 6 characters",
+    "newPasswordMin": "New password must be at least 8 characters",
     "roleRequired": "Please select a role",
     "companiesRequired": "Please select at least 1 company"
   }

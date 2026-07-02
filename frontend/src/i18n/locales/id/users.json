@@ -12,7 +12,10 @@
   "createdAt": "Dibuat",
   "namePlaceholder": "Nama lengkap",
   "emailPlaceholder": "Email pengguna",
+  "password": "Password",
   "passwordPlaceholder": "Kata sandi sementara",
+  "resetPassword": "Reset Password",
+  "newPassword": "Password Baru",
   "selectRole": "Pilih Role",
   "selectCompanies": "Pilih Perusahaan",
   "permissionsCount": "Permissions ({{count}})",
@@ -20,6 +23,7 @@
     "nameMin": "Nama minimal 2 karakter",
     "emailInvalid": "Format email tidak valid",
     "passwordMin": "Password minimal 6 karakter",
+    "newPasswordMin": "Password baru minimal 8 karakter",
     "roleRequired": "Pilih role",
     "companiesRequired": "Pilih minimal 1 perusahaan"
   }
