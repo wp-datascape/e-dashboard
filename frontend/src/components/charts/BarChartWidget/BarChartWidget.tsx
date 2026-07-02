@@ -209,9 +209,7 @@ export const BarChartWidget = ({
                   content={(props) => {
                     const x = Number(props.x ?? 0);
                     const y = Number(props.y ?? 0);
-                    const w = Number(props.width ?? 0);
                     const h = Number(props.height ?? 0);
-                    const name = String(props.value ?? '');
                     const dataIdx = (props as { index?: number }).index ?? 0;
                     const rawVal = (data as Record<string, unknown>[])[dataIdx]?.[s.key];
                     const val = typeof rawVal === 'number' ? rawVal : 0;
