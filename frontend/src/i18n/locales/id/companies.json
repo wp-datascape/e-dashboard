@@ -1,0 +1,36 @@
+{
+  "title": "Perusahaan & Cabang",
+  "code": "Kode",
+  "name": "Nama",
+  "branches": "Cabang",
+  "addCompany": "Tambah Perusahaan",
+  "viewCompany": "Lihat Detail",
+  "editCompany": "Ubah Perusahaan",
+  "deleteCompany": "Hapus Perusahaan",
+  "manageBranches": "Kelola Cabang",
+  "dialog": {
+    "create": {
+      "title": "Tambah Perusahaan Baru",
+      "submit": "Buat"
+    },
+    "edit": {
+      "title": "Ubah Perusahaan",
+      "submit": "Simpan Perubahan"
+    },
+    "delete": {
+      "title": "Hapus Perusahaan",
+      "submit": "Hapus",
+      "confirm": "Yakin ingin menghapus {{name}}?"
+    },
+    "view": {
+      "title": "Detail Perusahaan"
+    }
+  },
+  "branchManagement": {
+    "addNew": "Tambah cabang baru untuk perusahaan ini",
+    "add": "Tambah Cabang",
+    "namePlaceholder": "Nama cabang",
+    "codePlaceholder": "Kode",
+    "deleteConfirm": "Yakin ingin menghapus cabang ini?"
+  }
+}

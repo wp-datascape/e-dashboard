@@ -1,0 +1,43 @@
+{
+  "title": "Audit Log",
+  "description": "Lihat aktivitas sistem dan aksi pengguna",
+  "actor": "Pelaku",
+  "action": "Aksi",
+  "entity": "Entitas",
+  "ipAddress": "IP Address",
+  "timestamp": "Waktu",
+  "item": "Item",
+  "meta": "Detail",
+  "table": "Riwayat Aktivitas",
+  "filterAction": "Filter berdasarkan Aksi",
+  "allActions": "Semua Aksi",
+  "filterDateFrom": "Dari Tanggal",
+  "filterDateTo": "Sampai Tanggal",
+  "actions": {
+    "invoice.import": "Import Faktur",
+    "user.create": "Buat User",
+    "user.update": "Update User",
+    "user.delete": "Hapus User",
+    "role.create": "Buat Role",
+    "role.update": "Update Role",
+    "role.delete": "Hapus Role",
+    "permission.assign": "Assign Permission",
+    "permission.revoke": "Cabut Permission",
+    "user_role.assign": "Assign Role",
+    "user_role.revoke": "Cabut Role",
+    "config.update": "Update Konfigurasi",
+    "category.update": "Update Kategori"
+  },
+  "dialog": {
+    "title": "Detail Audit Log",
+    "errorLoading": "Gagal memuat data",
+    "actor": "Pelaku",
+    "table": "Tabel",
+    "ip": "IP",
+    "dataChanges": "Perubahan Data",
+    "meta": "Meta",
+    "colField": "Field",
+    "colOldValue": "Old Value",
+    "colNewValue": "New Value"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "title": "Daftar Dorong High Margin",
+  "subtitle": "Tingkat penetrasi per kategori high margin dan target upsell",
+  "tabCategories": "Penetrasi Kategori",
+  "tabUpsellTargets": "Target Upsell",
+  "penetrationRate": "Tingkat Penetrasi",
+  "customersBuying": "Pelanggan Membeli",
+  "categoriesBought": "Kategori Dibeli",
+  "missingHighMargin": "Belum Beli High Margin",
+  "summaryCategories": "{{count}} Kategori High Margin",
+  "summaryAvgPenetration": "Rata-rata Penetrasi {{pct}}%",
+  "drawer": {
+    "subtitle": "Riwayat pembelian • window {{window}} bulan",
+    "avgRevenueMonth": "Avg. Revenue/Bulan",
+    "lastTransaction": "Terakhir Transaksi",
+    "productListFiltered": "Produk: {{category}}",
+    "productListAll": "Semua Produk yang Dibeli"
+  }
+}

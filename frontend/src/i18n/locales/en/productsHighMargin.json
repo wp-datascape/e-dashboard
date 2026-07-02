@@ -1,0 +1,19 @@
+{
+  "title": "High Margin Push List",
+  "subtitle": "Penetration rate per high-margin category and upsell targets",
+  "tabCategories": "Category Penetration",
+  "tabUpsellTargets": "Upsell Targets",
+  "penetrationRate": "Penetration Rate",
+  "customersBuying": "Customers Buying",
+  "categoriesBought": "Categories Bought",
+  "missingHighMargin": "Missing High Margin",
+  "summaryCategories": "{{count}} High Margin Categories",
+  "summaryAvgPenetration": "Avg Penetration {{pct}}%",
+  "drawer": {
+    "subtitle": "Purchase history • {{window}} month window",
+    "avgRevenueMonth": "Avg. Revenue/Month",
+    "lastTransaction": "Last Transaction",
+    "productListFiltered": "Products: {{category}}",
+    "productListAll": "All Products Purchased"
+  }
+}

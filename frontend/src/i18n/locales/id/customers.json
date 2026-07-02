@@ -1,0 +1,35 @@
+{
+  "title": "Customer",
+  "subtitle": "Database master customer dengan segmentasi dan metrik performa",
+  "code": "Kode Customer",
+  "name": "Nama Customer",
+  "status": "Status",
+  "firstTransaction": "Transaksi Pertama",
+  "lastTransaction": "Transaksi Terakhir",
+  "totalRevenue": "Total Revenue",
+  "totalInvoices": "Total Faktur",
+  "categories": "Kategori",
+  "searchPlaceholder": "Cari nama atau kode...",
+  "statusLabels": {
+    "active": "Aktif",
+    "dormant": "Dorman",
+    "new": "Baru",
+    "existing": "Existing"
+  },
+  "detail": {
+    "title": "Lihat Customer",
+    "company": "Perusahaan",
+    "businessUnit": "Unit Bisnis",
+    "division": "Divisi",
+    "channel": "Channel",
+    "lifetimeValue": "Nilai Seumur Hidup",
+    "avgMonthly": "Rata-rata Revenue Bulanan",
+    "categoriesBought": "Kategori Dibeli",
+    "revenueTrend": "Tren Revenue & GP (12 Bulan)",
+    "recentInvoices": "Faktur Terbaru",
+    "revenueShort": "Revenue",
+    "gpShort": "GP",
+    "revenueColon": "Revenue: {{value}}",
+    "gpColon": "GP: {{value}}"
+  }
+}

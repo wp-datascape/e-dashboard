@@ -1,0 +1,15 @@
+{
+  "generic": "Terjadi kesalahan yang tidak terduga",
+  "notFound": "Halaman tidak ditemukan",
+  "forbidden": "Anda tidak memiliki akses ke halaman ini",
+  "serverError": "Kesalahan server. Silakan coba lagi.",
+  "networkError": "Tidak dapat terhubung ke server",
+  "sessionExpired": "Sesi Anda telah berakhir",
+  "validationError": "Data yang Anda masukkan tidak valid",
+  "boundary": {
+    "title": "Oops, terjadi kesalahan",
+    "subtitle": "Komponen ini mengalami error. Tim kami telah diberitahu.",
+    "reload": "Muat Ulang Halaman",
+    "goHome": "Ke Beranda"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "Executive Dashboard",
+  "subtitle": "Ringkasan 10 metrik bisnis utama",
+  "selectCompany": "Pilih Entitas",
+  "selectPeriod": "Pilih Periode",
+  "activeWindow": "Jendela Aktif",
+  "months": "bulan",
+  "allCompanies": "Semua Entitas (Holding)",
+  "lastUpdated": "Terakhir diperbarui",
+  "trend": {
+    "up": "Naik",
+    "down": "Turun",
+    "stable": "Stabil"
+  },
+  "vs": "vs bulan lalu",
+  "overviewTitle": "Overview Metrics",
+  "periodStripLabel": "Periode: {{period}}",
+  "activeWindowStripLabel": "Window Aktif: {{months}} bulan",
+  "charts": {
+    "crossSellingRatioLabel": "Cross Selling Ratio (%)",
+    "avgCategoryLabel": "Avg Kategori",
+    "highMarginBought": "Membeli High Margin",
+    "highMarginNotBought": "Tidak Membeli",
+    "highMarginCenterLabel": "High Margin",
+    "expansionRateLabel": "Expansion Rate (%)",
+    "dormantSubtitle": "Area merah = di atas ambang batas 10% (kondisi kritis)",
+    "dormantRateLabel": "Dormant Rate (%)",
+    "dormantThresholdLabel": "Ambang 10%",
+    "reactivationSubtitle": "Target KPI: 15%–20% · Latar berubah warna saat ketercapaian"
+  },
+  "definitions": {
+    "title": "Definisi Kunci",
+    "activeCustomer": {
+      "term": "Customer Aktif",
+      "def": "last_transaction_date ≥ awal periode − {{months}} bulan"
+    },
+    "existingCustomer": {
+      "term": "Existing Customer",
+      "def": "first_transaction_date < awal periode"
+    },
+    "newCustomer": {
+      "term": "New Customer",
+      "def": "first_transaction_date dalam periode ini"
+    },
+    "dormantCustomer": {
+      "term": "Dormant Customer",
+      "def": "last_transaction_date < awal periode − 3 bulan (default)"
+    },
+    "productCategory": {
+      "term": "Kategori Produk",
+      "def": "Hardware + Consumable saja — jasa/service tidak dihitung"
+    },
+    "highMarginProduct": {
+      "term": "High Margin Product",
+      "def": "product_categories.is_high_margin = true"
+    }
+  }
+}

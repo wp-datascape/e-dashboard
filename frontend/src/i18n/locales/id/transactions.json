@@ -1,0 +1,15 @@
+{
+  "title": "Transaksi",
+  "subtitle": "Daftar transaksi faktur dengan filter dan detail drawer",
+  "invoiceNumber": "Faktur #",
+  "invoiceDate": "Tanggal",
+  "company": "Perusahaan",
+  "totalRevenue": "Revenue",
+  "totalGP": "Laba Kotor",
+  "categoryCount": "Kategori",
+  "importSource": "Sumber",
+  "searchPlaceholder": "Cari pelanggan...",
+  "detailTitle": "Detail Faktur",
+  "lineItems": "Item Baris",
+  "gpMargin": "Marjin GP"
+}

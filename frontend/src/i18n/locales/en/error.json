@@ -1,0 +1,15 @@
+{
+  "generic": "An unexpected error occurred",
+  "notFound": "Page not found",
+  "forbidden": "You do not have access to this page",
+  "serverError": "Server error. Please try again.",
+  "networkError": "Cannot connect to server",
+  "sessionExpired": "Your session has expired",
+  "validationError": "The data you entered is invalid",
+  "boundary": {
+    "title": "Oops, something went wrong",
+    "subtitle": "This component encountered an error. Our team has been notified.",
+    "reload": "Reload Page",
+    "goHome": "Go to Home"
+  }
+}

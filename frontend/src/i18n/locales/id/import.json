@@ -1,0 +1,84 @@
+{
+  "title": "Impor Data Faktur",
+  "subtitle": "Simpan data faktur ke database melalui unggah file atau sinkronisasi API Accurate",
+  "file": {
+    "title": "Unggah File",
+    "subtitle": "Impor faktur dari file CSV atau Excel",
+    "submit": "Impor File"
+  },
+  "accurate": {
+    "title": "Sinkronisasi dari Accurate API",
+    "subtitle": "Tarik faktur langsung dari Accurate Online dan simpan ke database",
+    "submit": "Sinkronisasi Sekarang",
+    "info": "Membutuhkan kunci API Accurate yang valid yang dikonfigurasi di Konfigurasi."
+  },
+  "form": {
+    "title": "Impor Baru",
+    "subtitle": "Pilih sumber data, perusahaan, dan periode, lalu mulai impor",
+    "source": "Sumber Data",
+    "sourceFile": "Unggah File",
+    "sourceAccurate": "Accurate Online API",
+    "company": "Perusahaan",
+    "period": "Periode (YYYY-MM)",
+    "dropzone": "Letakkan file di sini atau klik untuk memilih",
+    "dropzoneHint": ".csv atau .xlsx — maks 10 MB",
+    "submit": "Mulai Impor",
+    "loading": "Memproses...",
+    "errorFormat": "Format file harus .csv atau .xlsx",
+    "errorSize": "Ukuran file tidak boleh melebihi 10 MB",
+    "errorCompany": "Silakan pilih perusahaan",
+    "errorPeriod": "Silakan masukkan periode",
+    "errorFile": "Silakan pilih file untuk diunggah",
+    "errorGeneric": "Impor gagal. Silakan coba lagi.",
+    "periodHint": "Pilih tahun dan bulan untuk data faktur",
+    "typeLabel": "Tipe Import",
+    "typeFaktur": "Faktur Invoice",
+    "typeDivisi": "Channel Divisions",
+    "typeKlasifikasi": "Klasifikasi Item",
+    "templateButton": "Template",
+    "snackbarDivisiSuccess": "Import Divisi: {{added}} ditambahkan, {{skipped}} di-skip",
+    "snackbarDivisiError": "Gagal import Channel Divisions",
+    "snackbarKlasifikasiSuccess": "Import Klasifikasi: {{added}} ditambahkan, {{skipped}} di-skip",
+    "snackbarKlasifikasiError": "Gagal import Klasifikasi",
+    "snackbarTemplateError": "Gagal download template",
+    "masterResultSummary": "{{added}} data ditambahkan, {{skipped}} di-skip",
+    "masterResultRowError": "Baris {{row}}: {{message}}",
+    "rowsProcessed": "{{processed}} / {{total}} baris"
+  },
+  "result": {
+    "success": "Impor berhasil",
+    "partial": "Impor berhasil dengan beberapa kesalahan",
+    "failed": "Impor gagal",
+    "summary": "{{total}} total · {{success}} berhasil · {{errors}} gagal"
+  },
+  "status": {
+    "success": "Berhasil",
+    "partial": "Sebagian",
+    "failed": "Gagal"
+  },
+  "logs": {
+    "title": "Riwayat Impor",
+    "subtitle": "Daftar semua impor sebelumnya. Klik baris dengan error untuk melihat detail.",
+    "empty": "Belum ada riwayat impor",
+    "colDate": "Tanggal",
+    "colCompany": "Perusahaan",
+    "colSource": "Sumber",
+    "colFile": "File",
+    "colPeriod": "Periode",
+    "colStatus": "Status",
+    "colTotal": "Total",
+    "colSuccess": "Berhasil",
+    "colErrors": "Error",
+    "colBy": "Diimpor Oleh",
+    "sourceFileShort": "File",
+    "sourceAccurateShort": "Accurate"
+  },
+  "errorDetail": {
+    "title": "Detail Error",
+    "noErrors": "Tidak ada detail error",
+    "colRow": "Baris",
+    "colData": "Data Mentah",
+    "colError": "Error",
+    "accurateFallback": "Accurate API"
+  }
+}

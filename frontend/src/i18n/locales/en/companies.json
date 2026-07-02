@@ -1,0 +1,36 @@
+{
+  "title": "Companies & Branches",
+  "code": "Code",
+  "name": "Name",
+  "branches": "Branches",
+  "addCompany": "Add Company",
+  "viewCompany": "View Details",
+  "editCompany": "Edit Company",
+  "deleteCompany": "Delete Company",
+  "manageBranches": "Manage Branches",
+  "dialog": {
+    "create": {
+      "title": "Add New Company",
+      "submit": "Create"
+    },
+    "edit": {
+      "title": "Edit Company",
+      "submit": "Save Changes"
+    },
+    "delete": {
+      "title": "Delete Company",
+      "submit": "Delete",
+      "confirm": "Are you sure you want to delete {{name}}?"
+    },
+    "view": {
+      "title": "Company Details"
+    }
+  },
+  "branchManagement": {
+    "addNew": "Add a new branch for this company",
+    "add": "Add Branch",
+    "namePlaceholder": "Branch name",
+    "codePlaceholder": "Code",
+    "deleteConfirm": "Are you sure you want to delete this branch?"
+  }
+}

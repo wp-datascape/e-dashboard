@@ -272,6 +272,14 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 
 ## Catatan Sesi Terakhir
 
+### 2026-07-02 (sesi 28): Refactor i18n — Split Locale Jadi Per-Namespace
+
+`frontend/src/i18n/locales/en.json` dan `id.json` sudah tumbuh jadi 992 baris/28 namespace dalam 1 file — susah dinavigasi. Di-split jadi 1 file JSON per namespace: `locales/en/<namespace>.json` + `locales/id/<namespace>.json` (56 file total, terbesar `config.json` 126 baris). `i18n/index.ts` gabung otomatis via `import.meta.glob('./locales/en/*.json', { eager: true })` — hasil merge tetap satu object flat per bahasa, jadi **semua pemanggilan `t('namespace.key')` di komponen tidak berubah sama sekali**, murni reorganisasi file sumber. File `locales/en.json`/`id.json` lama dihapus.
+
+**File yang diubah**: `frontend/src/i18n/index.ts` (merge logic), `frontend/src/i18n/locales/en.json`+`id.json` dihapus → `frontend/src/i18n/locales/{en,id}/*.json` (56 file baru).
+
+---
+
 ### 2026-07-02 (sesi 27): i18n Full Audit (Zero Hardcode) + Dashboard/AppSettings Text Bug Fix
 
 **Audit i18n menyeluruh — seluruh `frontend/src/pages/**` dan `frontend/src/components/**`:**

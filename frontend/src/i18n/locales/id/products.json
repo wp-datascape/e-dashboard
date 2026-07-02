@@ -1,0 +1,31 @@
+{
+  "title": "Buku Besar Kinerja Kategori",
+  "subtitle": "Revenue, GP, dan margin per kategori produk",
+  "categoryName": "Kategori",
+  "totalRevenue": "Revenue",
+  "totalGP": "Laba Kotor",
+  "gpMargin": "Marjin GP",
+  "customerCount": "Pelanggan",
+  "invoiceCount": "Faktur",
+  "lastSoldMonth": "Terakhir Terjual",
+  "highMarginBadge": "High Margin",
+  "searchCategoryLabel": "Cari Kategori",
+  "drawer": {
+    "serviceBadge": "Jasa",
+    "subtitle": "Produk dalam kategori ini • window {{window}} bulan",
+    "statTotalRevenue": "Total Revenue",
+    "statTotalGp": "Total GP",
+    "statMargin": "Margin",
+    "statInvoice": "Faktur",
+    "statCustomer": "Customer",
+    "statLastSold": "Terakhir Jual",
+    "listTitle": "Daftar Produk ({{count}})",
+    "colProductName": "Nama Produk",
+    "colRevenue": "Revenue",
+    "colGp": "GP",
+    "colMargin": "Margin",
+    "colInvoice": "Faktur",
+    "colCustomer": "Customer",
+    "colCategory": "Kategori"
+  }
+}

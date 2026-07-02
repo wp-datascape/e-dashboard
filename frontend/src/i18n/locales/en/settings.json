@@ -1,0 +1,11 @@
+{
+  "threshold": {
+    "subtitle": "Configure dormant threshold per business unit"
+  },
+  "classification": {
+    "subtitle": "Manage item classification rules for import parsing"
+  },
+  "app": {
+    "subtitle": "Language, theme, and display preferences"
+  }
+}

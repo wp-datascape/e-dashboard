@@ -1,0 +1,84 @@
+{
+  "title": "Invoice Data Import",
+  "subtitle": "Bulk-save invoice data to the database via file upload or Accurate API sync",
+  "file": {
+    "title": "Upload File",
+    "subtitle": "Import invoices from a CSV or Excel file",
+    "submit": "Import File"
+  },
+  "accurate": {
+    "title": "Sync from Accurate API",
+    "subtitle": "Pull invoices directly from Accurate Online and save to database",
+    "submit": "Sync Now",
+    "info": "Requires a valid Accurate API key configured in Config."
+  },
+  "form": {
+    "title": "New Import",
+    "subtitle": "Choose a data source, select the company and period, then start the import",
+    "source": "Data Source",
+    "sourceFile": "File Upload",
+    "sourceAccurate": "Accurate Online API",
+    "company": "Company",
+    "period": "Period (YYYY-MM)",
+    "dropzone": "Drop file here or click to browse",
+    "dropzoneHint": ".csv or .xlsx — max 10 MB",
+    "submit": "Start Import",
+    "loading": "Processing...",
+    "errorFormat": "File format must be .csv or .xlsx",
+    "errorSize": "File size must not exceed 10 MB",
+    "errorCompany": "Please select a company",
+    "errorPeriod": "Please enter the period",
+    "errorFile": "Please select a file to upload",
+    "errorGeneric": "Import failed. Please try again.",
+    "periodHint": "Select year and month for invoice data",
+    "typeLabel": "Import Type",
+    "typeFaktur": "Invoice Faktur",
+    "typeDivisi": "Channel Divisions",
+    "typeKlasifikasi": "Item Classification",
+    "templateButton": "Template",
+    "snackbarDivisiSuccess": "Division Import: {{added}} added, {{skipped}} skipped",
+    "snackbarDivisiError": "Failed to import Channel Divisions",
+    "snackbarKlasifikasiSuccess": "Classification Import: {{added}} added, {{skipped}} skipped",
+    "snackbarKlasifikasiError": "Failed to import Classification",
+    "snackbarTemplateError": "Failed to download template",
+    "masterResultSummary": "{{added}} added, {{skipped}} skipped",
+    "masterResultRowError": "Row {{row}}: {{message}}",
+    "rowsProcessed": "{{processed}} / {{total}} rows"
+  },
+  "result": {
+    "success": "Import completed successfully",
+    "partial": "Import completed with some errors",
+    "failed": "Import failed",
+    "summary": "{{total}} total · {{success}} succeeded · {{errors}} errors"
+  },
+  "status": {
+    "success": "Success",
+    "partial": "Partial",
+    "failed": "Failed"
+  },
+  "logs": {
+    "title": "Import History",
+    "subtitle": "List of all previous imports. Click a row with errors to view details.",
+    "empty": "No import history yet",
+    "colDate": "Date",
+    "colCompany": "Company",
+    "colSource": "Source",
+    "colFile": "File",
+    "colPeriod": "Period",
+    "colStatus": "Status",
+    "colTotal": "Total",
+    "colSuccess": "Success",
+    "colErrors": "Errors",
+    "colBy": "Imported By",
+    "sourceFileShort": "File",
+    "sourceAccurateShort": "Accurate"
+  },
+  "errorDetail": {
+    "title": "Error Detail",
+    "noErrors": "No error details available",
+    "colRow": "Row",
+    "colData": "Raw Data",
+    "colError": "Error",
+    "accurateFallback": "Accurate API"
+  }
+}

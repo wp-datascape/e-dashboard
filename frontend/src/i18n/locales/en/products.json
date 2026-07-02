@@ -1,0 +1,31 @@
+{
+  "title": "Category Performance Ledger",
+  "subtitle": "Revenue, GP, and margin by product category",
+  "categoryName": "Category",
+  "totalRevenue": "Revenue",
+  "totalGP": "Gross Profit",
+  "gpMargin": "GP Margin",
+  "customerCount": "Customers",
+  "invoiceCount": "Invoices",
+  "lastSoldMonth": "Last Sold",
+  "highMarginBadge": "High Margin",
+  "searchCategoryLabel": "Search Category",
+  "drawer": {
+    "serviceBadge": "Service",
+    "subtitle": "Products in this category • {{window}} month window",
+    "statTotalRevenue": "Total Revenue",
+    "statTotalGp": "Total GP",
+    "statMargin": "Margin",
+    "statInvoice": "Invoices",
+    "statCustomer": "Customers",
+    "statLastSold": "Last Sold",
+    "listTitle": "Product List ({{count}})",
+    "colProductName": "Product Name",
+    "colRevenue": "Revenue",
+    "colGp": "GP",
+    "colMargin": "Margin",
+    "colInvoice": "Invoices",
+    "colCustomer": "Customers",
+    "colCategory": "Category"
+  }
+}

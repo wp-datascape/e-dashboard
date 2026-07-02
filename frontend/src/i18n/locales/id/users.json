@@ -1,0 +1,26 @@
+{
+  "title": "Manajemen Pengguna",
+  "addUser": "Tambah Pengguna",
+  "editUser": "Ubah Pengguna",
+  "deleteUser": "Hapus Pengguna",
+  "deleteConfirm": "Yakin ingin menghapus pengguna ini?",
+  "name": "Nama",
+  "email": "Email",
+  "role": "Role",
+  "companies": "Perusahaan",
+  "lastLogin": "Terakhir Masuk",
+  "createdAt": "Dibuat",
+  "namePlaceholder": "Nama lengkap",
+  "emailPlaceholder": "Email pengguna",
+  "passwordPlaceholder": "Kata sandi sementara",
+  "selectRole": "Pilih Role",
+  "selectCompanies": "Pilih Perusahaan",
+  "permissionsCount": "Permissions ({{count}})",
+  "validation": {
+    "nameMin": "Nama minimal 2 karakter",
+    "emailInvalid": "Format email tidak valid",
+    "passwordMin": "Password minimal 6 karakter",
+    "roleRequired": "Pilih role",
+    "companiesRequired": "Pilih minimal 1 perusahaan"
+  }
+}

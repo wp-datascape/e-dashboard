@@ -1,0 +1,58 @@
+{
+  "title": "Executive Dashboard",
+  "subtitle": "Summary of 10 key business metrics",
+  "selectCompany": "Select Entity",
+  "selectPeriod": "Select Period",
+  "activeWindow": "Active Window",
+  "months": "months",
+  "allCompanies": "All Entities (Holding)",
+  "lastUpdated": "Last updated",
+  "trend": {
+    "up": "Up",
+    "down": "Down",
+    "stable": "Stable"
+  },
+  "vs": "vs last month",
+  "overviewTitle": "Overview Metrics",
+  "periodStripLabel": "Period: {{period}}",
+  "activeWindowStripLabel": "Active Window: {{months}} months",
+  "charts": {
+    "crossSellingRatioLabel": "Cross Selling Ratio (%)",
+    "avgCategoryLabel": "Avg Category",
+    "highMarginBought": "Bought High Margin",
+    "highMarginNotBought": "Did Not Buy",
+    "highMarginCenterLabel": "High Margin",
+    "expansionRateLabel": "Expansion Rate (%)",
+    "dormantSubtitle": "Red area = above the 10% threshold (critical condition)",
+    "dormantRateLabel": "Dormant Rate (%)",
+    "dormantThresholdLabel": "Threshold 10%",
+    "reactivationSubtitle": "KPI Target: 15%–20% · Background color changes when achieved"
+  },
+  "definitions": {
+    "title": "Key Definitions",
+    "activeCustomer": {
+      "term": "Active Customer",
+      "def": "last_transaction_date ≥ period start − {{months}} months"
+    },
+    "existingCustomer": {
+      "term": "Existing Customer",
+      "def": "first_transaction_date < period start"
+    },
+    "newCustomer": {
+      "term": "New Customer",
+      "def": "first_transaction_date within this period"
+    },
+    "dormantCustomer": {
+      "term": "Dormant Customer",
+      "def": "last_transaction_date < period start − 3 months (default)"
+    },
+    "productCategory": {
+      "term": "Product Category",
+      "def": "Hardware + Consumable only — services are not counted"
+    },
+    "highMarginProduct": {
+      "term": "High Margin Product",
+      "def": "product_categories.is_high_margin = true"
+    }
+  }
+}

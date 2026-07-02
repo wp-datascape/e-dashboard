@@ -1,0 +1,13 @@
+{
+  "title": "Channel Division",
+  "subtitle": "Petakan nama channel (dari Accurate) ke divisi penjualan",
+  "add": "Tambah Mapping",
+  "addMapping": "Tambah Mapping Channel",
+  "editMapping": "Edit Mapping Channel",
+  "channelName": "Nama Channel",
+  "channelNameHelp": "Dipilih dari channel name riil di data faktur yang belum punya mapping divisi.",
+  "division": "Divisi",
+  "scope": "Lingkup",
+  "scopeGlobal": "Global (semua perusahaan)",
+  "searchPlaceholder": "Cari nama channel..."
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Transactions",
+  "subtitle": "Invoice transaction list with filters and detail drawer",
+  "invoiceNumber": "Invoice #",
+  "invoiceDate": "Date",
+  "company": "Company",
+  "totalRevenue": "Revenue",
+  "totalGP": "Gross Profit",
+  "categoryCount": "Categories",
+  "importSource": "Source",
+  "searchPlaceholder": "Search customer...",
+  "detailTitle": "Invoice Detail",
+  "lineItems": "Line Items",
+  "gpMargin": "GP Margin"
+}

@@ -1,0 +1,11 @@
+{
+  "threshold": {
+    "subtitle": "Konfigurasi threshold dorman per unit bisnis"
+  },
+  "classification": {
+    "subtitle": "Kelola aturan klasifikasi item untuk parsing import"
+  },
+  "app": {
+    "subtitle": "Preferensi bahasa, tema, dan tampilan"
+  }
+}

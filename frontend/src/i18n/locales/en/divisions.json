@@ -1,0 +1,13 @@
+{
+  "title": "Channel Divisions",
+  "subtitle": "Map channel names (from Accurate) to sales divisions",
+  "add": "Add Mapping",
+  "addMapping": "Add Channel Mapping",
+  "editMapping": "Edit Channel Mapping",
+  "channelName": "Channel Name",
+  "channelNameHelp": "Selected from real channel names in invoice data that don't have a division mapping yet.",
+  "division": "Division",
+  "scope": "Scope",
+  "scopeGlobal": "Global (all companies)",
+  "searchPlaceholder": "Search channel name..."
+}

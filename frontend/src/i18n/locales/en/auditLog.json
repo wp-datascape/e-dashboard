@@ -1,0 +1,43 @@
+{
+  "title": "Audit Log",
+  "description": "View system activity and user actions",
+  "actor": "Actor",
+  "action": "Action",
+  "entity": "Entity",
+  "ipAddress": "IP Address",
+  "timestamp": "Timestamp",
+  "item": "Item",
+  "meta": "Details",
+  "table": "Activity Log",
+  "filterAction": "Filter by Action",
+  "allActions": "All Actions",
+  "filterDateFrom": "From Date",
+  "filterDateTo": "To Date",
+  "actions": {
+    "invoice.import": "Invoice Import",
+    "user.create": "Create User",
+    "user.update": "Update User",
+    "user.delete": "Delete User",
+    "role.create": "Create Role",
+    "role.update": "Update Role",
+    "role.delete": "Delete Role",
+    "permission.assign": "Assign Permission",
+    "permission.revoke": "Revoke Permission",
+    "user_role.assign": "Assign Role",
+    "user_role.revoke": "Revoke Role",
+    "config.update": "Update Config",
+    "category.update": "Update Category"
+  },
+  "dialog": {
+    "title": "Audit Log Detail",
+    "errorLoading": "Failed to load data",
+    "actor": "Actor",
+    "table": "Table",
+    "ip": "IP",
+    "dataChanges": "Data Changes",
+    "meta": "Meta",
+    "colField": "Field",
+    "colOldValue": "Old Value",
+    "colNewValue": "New Value"
+  }
+}
