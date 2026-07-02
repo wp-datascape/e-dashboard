@@ -16,6 +16,7 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { GridColDef } from '@mui/x-data-grid'
 import { api as axiosInstance } from '@/api/axios'
@@ -35,12 +36,14 @@ interface Rule {
   is_active: boolean
 }
 
-const MATCH_TYPE_LABELS: Record<string, string> = {
-  keyword_item_name: 'Keyword (Item Name)',
-  keyword_category: 'Keyword (Category)',
-  price_range: 'Price Range',
-  exact_item_name: 'Exact (Item Name)',
-  exact_category: 'Exact (Category)',
+function getMatchTypeLabels(t: TFunction): Record<string, string> {
+  return {
+    keyword_item_name: t('classification_rules.matchTypeLabels.keyword_item_name'),
+    keyword_category: t('classification_rules.matchTypeLabels.keyword_category'),
+    price_range: t('classification_rules.matchTypeLabels.price_range'),
+    exact_item_name: t('classification_rules.matchTypeLabels.exact_item_name'),
+    exact_category: t('classification_rules.matchTypeLabels.exact_category'),
+  }
 }
 
 const MATCH_TYPE_ORDER: Record<string, number> = {
@@ -70,6 +73,7 @@ const INITIAL_FORM = {
 
 export default function ClassificationSettings() {
   const { t } = useTranslation()
+  const MATCH_TYPE_LABELS = getMatchTypeLabels(t)
   const can = useCan()
   const qc = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)

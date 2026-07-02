@@ -364,19 +364,19 @@ export default function ProductsHighMargin() {
         <Stack direction="row" spacing={1.5}
           sx={{ width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField
-            select size="small" label="Entitas"
+            select size="small" label={t('common.filters.entity')}
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             sx={{ minWidth: 160 }}
           >
-            <MenuItem value="all">Semua Entitas</MenuItem>
+            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            size="small" label="Bulan" type="month"
+            size="small" label={t('common.filters.month')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             sx={{ minWidth: 150 }}
@@ -384,14 +384,14 @@ export default function ProductsHighMargin() {
           />
 
           <TextField
-            select size="small" label="Window Aktif"
+            select size="small" label={t('common.filters.activeWindow')}
             value={activeWindow}
             onChange={(e) => setActiveWindow(Number(e.target.value))}
             sx={{ minWidth: 130 }}
           >
-            <MenuItem value={3}>3 Bulan</MenuItem>
-            <MenuItem value={6}>6 Bulan</MenuItem>
-            <MenuItem value={12}>12 Bulan</MenuItem>
+            <MenuItem value={3}>{t('common.filters.window3Months')}</MenuItem>
+            <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
+            <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
           </TextField>
         </Stack>
       </Box>

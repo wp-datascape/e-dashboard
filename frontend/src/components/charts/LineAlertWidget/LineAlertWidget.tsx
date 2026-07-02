@@ -2,6 +2,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -39,6 +40,7 @@ export const LineAlertWidget = ({
   height = 220,
 }: LineAlertWidgetProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   // Calculate y-max from data to bound the reference area
   const yMax =
@@ -104,7 +106,7 @@ export const LineAlertWidget = ({
             stroke={theme.palette.error.main}
             strokeDasharray="5 3"
             label={{
-              value: thresholdLabel ?? `Ambang ${threshold}%`,
+              value: thresholdLabel ?? t('common.thresholdLabel', { threshold }),
               position: 'insideTopRight',
               fontSize: 10,
               fill: theme.palette.error.main,

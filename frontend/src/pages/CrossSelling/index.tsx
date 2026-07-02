@@ -102,26 +102,26 @@ export default function CrossSelling() {
     { field: 'customer_name', headerName: t('crossSelling.colCustomerName'), flex: 1, minWidth: 180 },
     {
       field: 'has_unit',
-      headerName: 'Unit',
+      headerName: t('crossSelling.chipUnit'),
       width: 90,
       renderCell: (p) => (
-        <StatusChip label={p.value ? 'Ya' : 'Tidak'} color={p.value ? 'primary' : 'default'} />
+        <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
     },
     {
       field: 'has_consumable',
-      headerName: 'Consumable',
+      headerName: t('crossSelling.chipConsumable'),
       width: 110,
       renderCell: (p) => (
-        <StatusChip label={p.value ? 'Ya' : 'Tidak'} color={p.value ? 'primary' : 'default'} />
+        <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
     },
     {
       field: 'has_sparepart',
-      headerName: 'Sparepart',
+      headerName: t('crossSelling.chipSparepart'),
       width: 110,
       renderCell: (p) => (
-        <StatusChip label={p.value ? 'Ya' : 'Tidak'} color={p.value ? 'primary' : 'default'} />
+        <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
     },
     {
@@ -154,37 +154,37 @@ export default function CrossSelling() {
             {t('crossSelling.pageTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Metrik 1–2 · Window {data?.period.active_months ?? '…'} bulan · Sumber: invoice + item kategori produk
+            {t('crossSelling.subtitleWindow', { months: data?.period.active_months ?? '…' })}
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <TextField
-            select size="small" label="Entitas"
+            select size="small" label={t('common.filters.entity')}
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           >
-            <MenuItem value="all">Semua Entitas</MenuItem>
+            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            select size="small" label="Divisi"
+            select size="small" label={t('common.filters.division')}
             value={division}
             onChange={(e) => setDivision(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
-            <MenuItem value="">Semua Divisi</MenuItem>
+            <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
             {divisionOptions.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            size="small" label="Tanggal Akhir" type="date"
+            size="small" label={t('crossSelling.filterDateEnd')} type="date"
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
@@ -198,9 +198,9 @@ export default function CrossSelling() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label="KPI 1 · Cross-Selling Rate"
+              label={t('crossSelling.kpi1Label')}
               value={`${data?.kpi1.rate ?? 0}%`}
-              sub={`${data?.kpi1.multi_cat_count ?? 0} dari ${data?.kpi1.active_count ?? 0} customer aktif beli >1 kategori`}
+              sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
               color={theme.palette.primary.main}
             />
           )}
@@ -208,9 +208,9 @@ export default function CrossSelling() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label="KPI 2 · Rata-rata Kategori / Customer"
+              label={t('crossSelling.kpi2Label')}
               value={data?.kpi2.avg_categories ?? 0}
-              sub={`${data?.kpi2.total_distinct_cats ?? 0} jenis kategori terjual dalam ${data?.period.active_months ?? '…'} bulan terakhir`}
+              sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, months: data?.period.active_months ?? '…' })}
               color={theme.palette.info.main}
             />
           )}
@@ -218,9 +218,9 @@ export default function CrossSelling() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label={`Customer Aktif (${data?.period.active_months ?? '…'} bulan)`}
+              label={t('crossSelling.activeCustomerLabel', { months: data?.period.active_months ?? '…' })}
               value={data?.kpi1.active_count ?? 0}
-              sub={`Periode ${data?.period.start ?? '—'} s/d ${data?.period.end ?? '—'}`}
+              sub={t('crossSelling.activeCustomerSub', { start: data?.period.start ?? '—', end: data?.period.end ?? '—' })}
               color={theme.palette.success.main}
             />
           )}
@@ -228,9 +228,9 @@ export default function CrossSelling() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label="Cross-Sell Rate — Bulan Ini"
+              label={t('crossSelling.crossSellRateNowLabel')}
               value={`${latestTrend?.ratio ?? 0}%`}
-              sub={`${latestTrend?.multi_product ?? 0}/${latestTrend?.total_active ?? 0} customer (${latestTrend?.month ?? '—'})`}
+              sub={t('crossSelling.crossSellRateNowSub', { multi: latestTrend?.multi_product ?? 0, total: latestTrend?.total_active ?? 0, month: latestTrend?.month ?? '—' })}
               color={theme.palette.warning.main}
             />
           )}
@@ -239,24 +239,24 @@ export default function CrossSelling() {
 
       {/* ── M1: Cross Selling Ratio + Active Count Trend ── */}
       <Box>
-        <SectionLabel label={t('crossSelling.labelM1') + ' · Cross Selling Ratio — Trend 12 Bulan'} />
+        <SectionLabel label={t('crossSelling.m1FullLabel')} />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 8 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={280} />
             ) : (
               <BarChartWidget
-                title="Customer Aktif vs Multi-Kategori (12 Bulan)"
-                subtitle={`Bar abu = total customer aktif · Bar biru = customer beli >1 kategori produk dalam window ${data?.period.active_months ?? '…'} bulan terakhir bulan itu`}
+                title={t('crossSelling.chart1Title')}
+                subtitle={t('crossSelling.chart1Subtitle', { months: data?.period.active_months ?? '…' })}
                 data={data?.trend ?? []}
                 series={[
-                  { key: 'total_active',  label: 'Customer Aktif',      color: theme.palette.text.secondary },
-                  { key: 'multi_product', label: 'Multi-Kategori',       color: theme.palette.primary.main },
+                  { key: 'total_active',  label: t('crossSelling.seriesActiveCustomers'), color: theme.palette.text.secondary },
+                  { key: 'multi_product', label: t('crossSelling.seriesMultiCategory'),    color: theme.palette.primary.main },
                 ]}
                 xKey="month"
                 height={240}
                 tooltipFormatter={(value, name) => [
-                  `${value.toLocaleString('id-ID')} customer`, name
+                  t('crossSelling.tooltipCustomerUnit', { value: value.toLocaleString('id-ID') }), name
                 ]}
               />
             )}
@@ -266,11 +266,11 @@ export default function CrossSelling() {
               <Skeleton variant="rectangular" height={280} />
             ) : (
               <BarChartWidget
-                title="Cross-Selling Ratio (%)"
-                subtitle="% customer aktif yang membeli dari >1 kategori produk"
+                title={t('crossSelling.chart2Title')}
+                subtitle={t('crossSelling.chart2Subtitle')}
                 value={`${latestTrend?.ratio ?? 0}%`}
                 data={data?.trend ?? []}
-                series={[{ key: 'ratio', label: 'Cross-Sell Rate', color: theme.palette.info.main }]}
+                series={[{ key: 'ratio', label: t('crossSelling.seriesCrossSellRateShort'), color: theme.palette.info.main }]}
                 xKey="month"
                 height={240}
                 tooltipFormatter={(v, n) => [`${v}%`, n]}
@@ -282,30 +282,29 @@ export default function CrossSelling() {
 
       {/* ── M1.1: Heatmap — Customer × Product Category ── */}
       <Box>
-        <SectionLabel label={t('crossSelling.labelM11') + ' · Customer Cross Selling Dashboard — Heatmap'} />
+        <SectionLabel label={t('crossSelling.labelM11')} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            Top 20 customer (berdasarkan jumlah kategori) × Top 8 kategori (berdasarkan frekuensi transaksi) ·
-            Periode {data?.period.start ?? '…'} s/d {data?.period.end ?? '…'}
+            {t('crossSelling.heatmapHelperText', { start: data?.period.start ?? '…', end: data?.period.end ?? '…' })}
           </Typography>
           {data?.categories && data.categories.length > 0 && (
-            <Chip label={`${data.categories.length} kategori`} size="small" variant="outlined" />
+            <Chip label={t('crossSelling.categoriesCountChip', { count: data.categories.length })} size="small" variant="outlined" />
           )}
         </Box>
         {isLoading ? (
           <Skeleton variant="rectangular" height={420} />
         ) : (
           <HeatmapWidget
-            title={`Customer Cross-Selling Matrix · ${data?.period.start ?? ''} – ${data?.period.end ?? ''}`}
-            subtitle="Kolom = tipe produk (Unit / Sparepart / Consumable) · Angka = jumlah transaksi · Hijau = ada pembelian"
+            title={t('crossSelling.heatmapMatrixTitleWithPeriod', { start: data?.period.start ?? '', end: data?.period.end ?? '' })}
+            subtitle={t('crossSelling.heatmapSubtitle2')}
             xLabels={(data?.categories ?? []).map((c) =>
-              c === 'unit' ? 'Unit' : c === 'sparepart' ? 'Sparepart' : c === 'consumable' ? 'Consumable' : c
+              c === 'unit' ? t('crossSelling.chipUnit') : c === 'sparepart' ? t('crossSelling.chipSparepart') : c === 'consumable' ? t('crossSelling.chipConsumable') : c
             )}
             data={(data?.heatmap ?? []).map((row) => ({
               customer: row.customer,
               values: Object.fromEntries(
                 Object.entries(row.values).map(([k, v]) => [
-                  k === 'unit' ? 'Unit' : k === 'sparepart' ? 'Sparepart' : k === 'consumable' ? 'Consumable' : k,
+                  k === 'unit' ? t('crossSelling.chipUnit') : k === 'sparepart' ? t('crossSelling.chipSparepart') : k === 'consumable' ? t('crossSelling.chipConsumable') : k,
                   v,
                 ])
               ),
@@ -316,16 +315,16 @@ export default function CrossSelling() {
 
       {/* ── M2: Avg Category per Customer Trend ── */}
       <Box>
-        <SectionLabel label={t('crossSelling.labelM2') + ' · Rata-rata Kategori per Customer Aktif'} />
+        <SectionLabel label={t('crossSelling.labelM2')} />
         {isLoading ? (
           <Skeleton variant="rectangular" height={260} />
         ) : (
           <AreaChartWidget
-            title="Avg Kategori per Customer Aktif — Tren 12 Bulan"
-            subtitle={`Rata-rata berapa banyak kategori produk yang dibeli per customer aktif dalam window ${data?.period.active_months ?? '…'} bulan`}
+            title={t('crossSelling.m2ChartTitle')}
+            subtitle={t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}
             value={`${latestTrend?.avg_category ?? 0}`}
             data={data?.trend ?? []}
-            series={[{ key: 'avg_category', label: 'Avg Kategori', color: theme.palette.success.main }]}
+            series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
             xKey="month"
             height={220}
           />
@@ -336,11 +335,11 @@ export default function CrossSelling() {
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Detail per Customer — Periode {data?.period.start ?? '…'} s/d {data?.period.end ?? '…'}
+            {t('crossSelling.detailTableTitleRange', { start: data?.period.start ?? '…', end: data?.period.end ?? '…' })}
           </Typography>
           {data?.detail && (
             <Chip
-              label={`${data.detail.length} customer`}
+              label={t('crossSelling.detailCountChip', { count: data.detail.length })}
               size="small"
               color="primary"
               variant="outlined"

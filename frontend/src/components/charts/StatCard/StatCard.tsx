@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -38,6 +39,7 @@ export const StatCard = ({
 }: StatCardProps) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const isPositive = trend === 'up';
   const isNeutral = trend === 'stable';
   const color = colorProp ?? theme.palette.primary.main;
@@ -50,7 +52,7 @@ export const StatCard = ({
   const chipColor = isNeutral ? 'default' : isPositive ? 'success' : 'error';
 
   return (
-    <Tooltip title={link ? `Lihat detail ${title}` : ''} placement="top" arrow>
+    <Tooltip title={link ? t('common.viewDetailOf', { title }) : ''} placement="top" arrow>
       <Card
         onClick={() => link && navigate(link)}
         sx={{

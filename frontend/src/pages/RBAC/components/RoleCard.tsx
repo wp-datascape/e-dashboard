@@ -47,7 +47,7 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
 
         {/* Permission count */}
         <StatusChip
-          label={`${(role.permissions ?? []).length} permission`}
+          label={t('rbac.permissionCount', { count: (role.permissions ?? []).length })}
           color="primary"
         />
       </CardContent>

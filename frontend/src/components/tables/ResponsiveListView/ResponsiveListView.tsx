@@ -220,7 +220,7 @@ export function ResponsiveListView({
       <Box>
         {title && (
           <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-            {title} — {rows.length} item
+            {t('common.titleWithItemCount', { title, count: rows.length })}
           </Typography>
         )}
         {rows.map((row, idx) =>

@@ -3,6 +3,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 
 export interface DialogAction {
@@ -43,6 +44,7 @@ export function Dialog({
   contentSx,
   paperSx,
 }: DialogProps) {
+  const { t } = useTranslation();
   return (
     <MuiDialog
       open={open}
@@ -60,7 +62,7 @@ export function Dialog({
         {children}
         {error && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {(error as { message?: string })?.message ?? 'An error occurred'}
+            {(error as { message?: string })?.message ?? t('common.errorOccurred')}
           </Alert>
         )}
       </DialogContent>

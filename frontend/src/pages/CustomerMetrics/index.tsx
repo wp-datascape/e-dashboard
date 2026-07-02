@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
+import { useTranslation } from 'react-i18next';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useCompanies } from '@/hooks/useCompanies';
@@ -16,6 +17,7 @@ import { M6RepeatOrder } from './M6RepeatOrder';
 import { M7Expansion }   from './M7Expansion';
 
 export default function CustomerMetrics() {
+  const { t } = useTranslation();
   const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
   const [division,   setDivision]   = useState<string>('');
@@ -44,40 +46,40 @@ export default function CustomerMetrics() {
       }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Customer Metrics
+            {t('customerMetrics.pageTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Metrik 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion
+            {t('customerMetrics.pageSubtitle')}
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <TextField
-            select size="small" label="Entitas"
+            select size="small" label={t('common.filters.entity')}
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           >
-            <MenuItem value="all">Semua Entitas</MenuItem>
+            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            select size="small" label="Divisi"
+            select size="small" label={t('common.filters.division')}
             value={division}
             onChange={(e) => setDivision(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
-            <MenuItem value="">Semua Divisi</MenuItem>
+            <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
             {divisionOptions.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            type="date" size="small" label="Per Tanggal"
+            type="date" size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}

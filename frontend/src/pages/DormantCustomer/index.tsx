@@ -6,6 +6,7 @@ import Skeleton from '@mui/material/Skeleton';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -47,6 +48,7 @@ function SectionLabel({ label }: { label: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DormantCustomer() {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
@@ -81,40 +83,40 @@ export default function DormantCustomer() {
       }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Dormant Customer
+            {t('dormantCustomer.pageTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Metrik 8–10 — Dormant Rate, Nilai Customer Hilang, dan Reactivation Rate
+            {t('dormantCustomer.pageSubtitle')}
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <TextField
-            select size="small" label="Entitas"
+            select size="small" label={t('common.filters.entity')}
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           >
-            <MenuItem value="all">Semua Entitas</MenuItem>
+            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            select size="small" label="Divisi"
+            select size="small" label={t('common.filters.division')}
             value={division}
             onChange={(e) => setDivision(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
-            <MenuItem value="">Semua Divisi</MenuItem>
+            <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
             {divisionOptions.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            size="small" label="Per Tanggal" type="date"
+            size="small" label={t('common.filters.periodDate')} type="date"
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
@@ -125,21 +127,21 @@ export default function DormantCustomer() {
 
       {/* ── M8: Line Chart + Red Alert Shading — Dormant Customer Rate ── */}
       <Box>
-        <SectionLabel label="M8 · Dormant Customer Rate — Tren 12 Bulan" />
+        <SectionLabel label={t('dormantCustomer.m8SectionLabel')} />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 8 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={280} />
             ) : (
               <LineAlertWidget
-                title="Dormant Customer Rate (12 Bulan)"
-                subtitle={`Area merah = kondisi kritis di atas ambang ${alertPct}% · Garis putus-putus = batas aman`}
+                title={t('dormantCustomer.m8ChartTitle')}
+                subtitle={t('dormantCustomer.m8ChartSubtitle', { alertPct })}
                 data={data?.trend ?? []}
                 lineKey="dormant_rate"
-                lineLabel="Dormant Rate (%)"
+                lineLabel={t('dormantCustomer.lineLabelDormantRate')}
                 xKey="month"
                 threshold={alertPct}
-                thresholdLabel={`Ambang ${alertPct}%`}
+                thresholdLabel={t('dormantCustomer.thresholdLabelPct', { alertPct })}
                 height={240}
               />
             )}
@@ -160,7 +162,7 @@ export default function DormantCustomer() {
             >
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Dormant Rate — Bulan Terakhir
+                  {t('dormantCustomer.dormantRateCurrentLabel')}
                 </Typography>
                 <Typography
                   variant="h3"
@@ -175,24 +177,24 @@ export default function DormantCustomer() {
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
                   {(drc?.value ?? 0) > alertPct
-                    ? `⚠ Di atas ambang kritis ${alertPct}%`
-                    : `✓ Di bawah ambang aman ${alertPct}%`}
+                    ? t('dormantCustomer.aboveAlert', { alertPct })
+                    : t('dormantCustomer.belowAlert', { alertPct })}
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Jumlah Dormant
+                  {t('dormantCustomer.dormantCountLabel')}
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1, mt: 0.25 }}>
-                  {drc?.dormant_count ?? '–'} customer
+                  {t('dormantCustomer.customerCountValue', { count: drc?.dormant_count ?? '–' })}
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Total Customer
+                  {t('dormantCustomer.totalCustomerLabel')}
                 </Typography>
                 <Typography variant="body1" sx={{ fontWeight: 600, lineHeight: 1, mt: 0.25 }}>
-                  {drc?.total_customers ?? '–'} customer
+                  {t('dormantCustomer.customerCountValue', { count: drc?.total_customers ?? '–' })}
                 </Typography>
               </Box>
             </Box>
@@ -202,18 +204,18 @@ export default function DormantCustomer() {
 
       {/* ── M9: Horizontal Bar Ranking — Dormant Customer Value ── */}
       <Box>
-        <SectionLabel label="M9 · Dormant Customer Value — Ranking Potensi Omset Hilang" />
+        <SectionLabel label={t('dormantCustomer.m9SectionLabel')} />
         {isLoading ? (
           <Skeleton variant="rectangular" height={340} />
         ) : (
           <BarChartWidget
-            title="Top Dormant Customer — Ranked by Estimated Lost Value"
-            subtitle="Diurutkan dari nilai kerugian terbesar · Estimasi = avg revenue bulanan × bulan dormant"
+            title={t('dormantCustomer.m9ChartTitle')}
+            subtitle={t('dormantCustomer.m9ChartSubtitle')}
             data={data?.value_ranking ?? []}
             series={[
               {
                 key: 'estimated_lost_value',
-                label: 'Potensi Omset Hilang',
+                label: t('dormantCustomer.m9SeriesLabel'),
                 color: theme.palette.error.main,
               },
             ]}
@@ -232,15 +234,15 @@ export default function DormantCustomer() {
 
       {/* ── M10: Bullet Chart — Customer Reactivation Rate ── */}
       <Box>
-        <SectionLabel label="M10 · Customer Reactivation Rate — vs Target KPI" />
+        <SectionLabel label={t('dormantCustomer.m10SectionLabel')} />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={220} />
             ) : (
               <BulletChartWidget
-                title="Customer Reactivation Rate"
-                subtitle={`Nilai realisasi vs rentang target ${targetLow}%–${targetHigh}% · Latar berubah warna saat tercapai`}
+                title={t('dormantCustomer.m10ChartTitle')}
+                subtitle={t('dormantCustomer.m10ChartSubtitle', { targetLow, targetHigh })}
                 value={rc?.value ?? 0}
                 targetLow={targetLow}
                 targetHigh={targetHigh}
@@ -254,14 +256,14 @@ export default function DormantCustomer() {
               <Skeleton variant="rectangular" height={220} />
             ) : (
               <LineAlertWidget
-                title="Reactivation Rate — Tren 12 Bulan"
-                subtitle={`Target zona: ${targetLow}%–${targetHigh}% · Garis biru = realisasi bulanan`}
+                title={t('dormantCustomer.m10TrendTitle')}
+                subtitle={t('dormantCustomer.m10TrendSubtitle', { targetLow, targetHigh })}
                 data={data?.trend ?? []}
                 lineKey="reactivation_rate"
-                lineLabel="Reactivation Rate (%)"
+                lineLabel={t('dormantCustomer.lineLabelReactivationRate')}
                 xKey="month"
                 threshold={targetLow}
-                thresholdLabel={`Target Min ${targetLow}%`}
+                thresholdLabel={t('dormantCustomer.targetMinLabel', { targetLow })}
                 height={180}
               />
             )}

@@ -6,6 +6,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import IconButton from '@mui/material/IconButton';
 import type { GridColDef } from '@mui/x-data-grid';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -21,21 +23,23 @@ function orderCountColor(n: number): StatusChipColor {
   return 'default';
 }
 
-const rorColumns: GridColDef[] = [
-  { field: 'ranking',       headerName: '#',            width: 56,  sortable: false },
-  { field: 'customer_name', headerName: 'Customer',      flex: 1,    minWidth: 160 },
-  { field: 'customer_code', headerName: 'Kode',          width: 110, sortable: false,
-    renderCell: (p) => p.value ?? '—' },
-  { field: 'invoice_count', headerName: 'Jumlah Order',  width: 140, align: 'right', headerAlign: 'right',
-    renderCell: (p) => (
-      <StatusChip
-        label={`${p.value}x`}
-        color={orderCountColor(p.value as number)}
-      />
-    ) },
-  { field: 'total_revenue', headerName: 'Total Revenue', width: 140, align: 'right', headerAlign: 'right',
-    renderCell: (p) => fmtRp(p.value as number) },
-]
+function useRorColumns(t: TFunction): GridColDef[] {
+  return [
+    { field: 'ranking',       headerName: t('customerMetrics.m6.colRank'),       width: 56,  sortable: false },
+    { field: 'customer_name', headerName: t('customerMetrics.m6.colCustomer'),   flex: 1,    minWidth: 160 },
+    { field: 'customer_code', headerName: t('customerMetrics.m6.colCode'),       width: 110, sortable: false,
+      renderCell: (p) => p.value ?? '—' },
+    { field: 'invoice_count', headerName: t('customerMetrics.m6.colOrderCount'), width: 140, align: 'right', headerAlign: 'right',
+      renderCell: (p) => (
+        <StatusChip
+          label={`${p.value}x`}
+          color={orderCountColor(p.value as number)}
+        />
+      ) },
+    { field: 'total_revenue', headerName: t('customerMetrics.m6.colTotalRevenue'), width: 140, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRp(p.value as number) },
+  ]
+}
 
 interface Props {
   isLoading: boolean
@@ -47,7 +51,9 @@ interface Props {
 }
 
 export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, division, periodEnd }: Props) {
+  const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
+  const rorColumns = useRorColumns(t);
 
   const { data: breakdown, isLoading: breakdownLoading } = useRorBreakdown({
     period_end: drillDate,
@@ -58,13 +64,13 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
   return (
     <>
       <Box>
-        <SectionLabel label="M6 · Repeat Order Rate — Bulan Berjalan" />
+        <SectionLabel label={t('customerMetrics.m6.sectionLabel')} />
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (
           <RadialBarWidget
-            title="Repeat Order Rate"
-            subtitle={`Hijau ≥ ${thresholdPct}% (on target) · Klik untuk lihat daftar customer`}
+            title={t('customerMetrics.m6.chartTitle')}
+            subtitle={t('customerMetrics.m6.chartSubtitle', { thresholdPct })}
             value={value}
             thresholdGreen={thresholdPct}
             height={240}
@@ -87,14 +93,14 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              Repeat Order Buyers — {drillDate}
+              {t('customerMetrics.m6.dialogTitle', { date: drillDate })}
             </Typography>
             {breakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
                 {([
-                  ['Total existing customer',     String(breakdown.total_existing)],
-                  ['Customer repeat order (>1x)', String(breakdown.repeat_count)],
-                  ['Repeat order rate',           `${value}%`],
+                  [t('customerMetrics.m6.dialogTotalExisting'),     String(breakdown.total_existing)],
+                  [t('customerMetrics.m6.dialogRepeatCount'), String(breakdown.repeat_count)],
+                  [t('customerMetrics.m6.dialogRate'),           `${value}%`],
                 ] as [string, string][]).map(([label, val]) => (
                   <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                     <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
@@ -118,7 +124,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
             height={400}
             pageSize={25}
             pageSizeOptions={[25, 50, 100]}
-            emptyMessage="Tidak ada existing customer yang order lebih dari 1x bulan ini"
+            emptyMessage={t('customerMetrics.m6.emptyMessage')}
             mobileFields={['customer_name', 'invoice_count', 'total_revenue']}
           />
         </DialogContent>

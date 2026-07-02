@@ -5,6 +5,7 @@ import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -48,48 +49,50 @@ const fmtDate = (iso: string): string => {
 
 // ─── Column Definitions ────────────────────────────────────────────────────────
 
-const auditColumns: GridColDef[] = [
-  {
-    field: 'created_at',
-    headerName: 'Waktu',
-    width: 180,
-    renderCell: (params) => fmtDate(params.value as string),
-  },
-  {
-    field: 'action',
-    headerName: 'Aksi',
-    width: 150,
-    renderCell: (params) => (
-      <StatusChip label={params.value as string} color={getActionColor(params.value as string)} />
-    ),
-  },
-  {
-    field: 'actor',
-    headerName: 'Pelaku',
-    width: 150,
-    renderCell: (params) => {
-      const actor = params.value as { id: number; name: string } | null
-      return actor?.name ?? '—'
+function getAuditColumns(t: TFunction): GridColDef[] {
+  return [
+    {
+      field: 'created_at',
+      headerName: t('auditLog.timestamp'),
+      width: 180,
+      renderCell: (params) => fmtDate(params.value as string),
     },
-  },
-  {
-    field: 'entity',
-    headerName: 'Tabel',
-    width: 120,
-  },
-  {
-    field: 'entity_key',
-    headerName: 'Item',
-    width: 200,
-    renderCell: (params) => params.value ?? '—',
-  },
-  {
-    field: 'ip_address',
-    headerName: 'IP Address',
-    width: 140,
-    renderCell: (params) => (params.value as string | null) ?? '—',
-  },
-]
+    {
+      field: 'action',
+      headerName: t('auditLog.action'),
+      width: 150,
+      renderCell: (params) => (
+        <StatusChip label={params.value as string} color={getActionColor(params.value as string)} />
+      ),
+    },
+    {
+      field: 'actor',
+      headerName: t('auditLog.actor'),
+      width: 150,
+      renderCell: (params) => {
+        const actor = params.value as { id: number; name: string } | null
+        return actor?.name ?? '—'
+      },
+    },
+    {
+      field: 'entity',
+      headerName: t('auditLog.dialog.table'),
+      width: 120,
+    },
+    {
+      field: 'entity_key',
+      headerName: t('auditLog.item'),
+      width: 200,
+      renderCell: (params) => params.value ?? '—',
+    },
+    {
+      field: 'ip_address',
+      headerName: t('auditLog.ipAddress'),
+      width: 140,
+      renderCell: (params) => (params.value as string | null) ?? '—',
+    },
+  ]
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
@@ -129,7 +132,7 @@ export default function AuditLog() {
   const pageSize = filters.per_page ?? 50
 
   // ── Wrap entity_key column with click handler ──
-  const columnsWithClick = auditColumns.map((col) => {
+  const columnsWithClick = getAuditColumns(t).map((col) => {
     if (col.field === 'entity_key') {
       return {
         ...col,
@@ -187,7 +190,7 @@ export default function AuditLog() {
           <Stack direction="row" spacing={2}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block',mb: 0.5 }}>
-              Tabel
+              {t('auditLog.dialog.table')}
             </Typography>
             <Typography variant="body2">{audit.entity}</Typography>
           </Box>

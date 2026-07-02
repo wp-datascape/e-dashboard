@@ -103,7 +103,7 @@ export default function IntegrationPage() {
         setTimeout(() => setStatus('idle'), 3000)
       } catch (err: unknown) {
         setStatus('error')
-        setStatusMessage(err instanceof Error ? err.message : 'Failed to save credentials')
+        setStatusMessage(err instanceof Error ? err.message : t('config.integration.failedToSaveCredentials'))
       }
     } else {
       setStatus('saved')
@@ -125,10 +125,10 @@ export default function IntegrationPage() {
       if (result.success) {
         setTestResult({ status: 'success', message: result.message, host: result.host, alias: result.alias, userName: result.user_name })
       } else {
-        setTestResult({ status: 'fail', message: result.message || 'Connection failed' })
+        setTestResult({ status: 'fail', message: result.message || t('config.integration.connectionFailed') })
       }
     } catch (err: unknown) {
-      setTestResult({ status: 'fail', message: err instanceof Error ? err.message : 'Connection error' })
+      setTestResult({ status: 'fail', message: err instanceof Error ? err.message : t('config.integration.connectionError') })
     }
   }
 
@@ -160,16 +160,16 @@ export default function IntegrationPage() {
         )}
         {status === 'error' && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
-            {statusMessage || 'Failed to save'}
+            {statusMessage || t('config.integration.failedToSave')}
           </Alert>
         )}
 
         <Alert severity="info" sx={{ mb: 3 }}>
           <strong>{t('config.integration.infoTitle')}</strong> {t('config.integration.infoText')}
           <br />
-          <strong>App Key:</strong> <code>86ed8d58-3d00-487b-8e91-661d8f60e434</code>
+          <strong>{t('config.integration.appKeyLabel')}</strong> <code>86ed8d58-3d00-487b-8e91-661d8f60e434</code>
           <br />
-          <strong>Flow:</strong> API Token + HMAC-SHA256 signature → <code>/api/api-token.do</code> → host → data API
+          <strong>{t('config.integration.flowLabel')}</strong> {t('config.integration.flowDescription')}
         </Alert>
 
         <Stack spacing={3}>

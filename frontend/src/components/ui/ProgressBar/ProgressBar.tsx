@@ -17,6 +17,7 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
 import type { SxProps, Theme } from '@mui/material/styles'
+import { useTranslation } from 'react-i18next'
 
 export type ProgressBarStatus = 'success' | 'partial' | 'failed' | 'loading' | 'idle'
 export type ProgressBarSize   = 'sm' | 'md' | 'lg'
@@ -54,6 +55,7 @@ export function ProgressBar({
   animated  = true,
   sx,
 }: ProgressBarProps) {
+  const { t } = useTranslation()
   const h = HEIGHT[size]
 
   const safeTotal  = total > 0 ? total : 1
@@ -141,15 +143,15 @@ export function ProgressBar({
       {showLabel && !isLoading && total > 0 && (
         <Stack direction="row" sx={{ mt: 0.75, justifyContent: 'space-between' }}>
           <Typography variant="caption" color="text.secondary">
-            {total.toLocaleString()} total
+            {t('common.progressTotal', { count: total.toLocaleString() })}
           </Typography>
           <Stack direction="row" spacing={1.5}>
             <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
-              {success.toLocaleString()} sukses
+              {t('common.progressSuccess', { count: success.toLocaleString() })}
             </Typography>
             {error > 0 && (
               <Typography variant="caption" color="error.main" sx={{ fontWeight: 600 }}>
-                {error.toLocaleString()} error
+                {t('common.progressError', { count: error.toLocaleString() })}
               </Typography>
             )}
           </Stack>

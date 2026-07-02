@@ -125,7 +125,7 @@ export default function RBAC() {
       headerAlign: 'center',
       renderCell: (params) => (
         <StatusChip
-          label={`${((params.value as Permission[]) ?? []).length} permission`}
+          label={t('rbac.permissionCount', { count: ((params.value as Permission[]) ?? []).length })}
           color="primary"
         />
       ),

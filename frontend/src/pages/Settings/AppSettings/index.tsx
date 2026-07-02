@@ -61,8 +61,8 @@ export default function AppSettingsPage() {
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>{isDark ? t('common.darkMode') : t('common.lightMode')}</Typography>
                   <Typography variant="caption" color="text.secondary">
                     {isDark
-                      ? t('theme.darkModeDesc', 'Tema gelap — mengurangi ketegangan mata di lingkungan redup')
-                      : t('theme.lightModeDesc', 'Tema terang — visibilitas lebih baik di lingkungan terang')}
+                      ? t('config.appSettings.darkModeDesc')
+                      : t('config.appSettings.lightModeDesc')}
                   </Typography>
                 </Box>
               </Box>
@@ -81,12 +81,12 @@ export default function AppSettingsPage() {
             </Typography>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
               {[
-                { label: 'Primary', bg: muiTheme.palette.primary.main, text: muiTheme.palette.primary.contrastText },
-                { label: 'Secondary', bg: muiTheme.palette.secondary.main, text: muiTheme.palette.secondary.contrastText },
-                { label: 'Success', bg: muiTheme.palette.success.main, text: muiTheme.palette.getContrastText(muiTheme.palette.success.main) },
-                { label: 'Warning', bg: muiTheme.palette.warning.main, text: muiTheme.palette.getContrastText(muiTheme.palette.warning.main) },
-                { label: 'Error', bg: muiTheme.palette.error.main, text: muiTheme.palette.getContrastText(muiTheme.palette.error.main) },
-                { label: 'Info', bg: muiTheme.palette.info.main, text: muiTheme.palette.getContrastText(muiTheme.palette.info.main) },
+                { label: t('common.colorNames.primary'), bg: muiTheme.palette.primary.main, text: muiTheme.palette.primary.contrastText },
+                { label: t('common.colorNames.secondary'), bg: muiTheme.palette.secondary.main, text: muiTheme.palette.secondary.contrastText },
+                { label: t('common.colorNames.success'), bg: muiTheme.palette.success.main, text: muiTheme.palette.getContrastText(muiTheme.palette.success.main) },
+                { label: t('common.colorNames.warning'), bg: muiTheme.palette.warning.main, text: muiTheme.palette.getContrastText(muiTheme.palette.warning.main) },
+                { label: t('common.colorNames.error'), bg: muiTheme.palette.error.main, text: muiTheme.palette.getContrastText(muiTheme.palette.error.main) },
+                { label: t('common.colorNames.info'), bg: muiTheme.palette.info.main, text: muiTheme.palette.getContrastText(muiTheme.palette.info.main) },
               ].map((color) => (
                 <Box key={color.label} sx={{ width: 72, height: 72, bgcolor: color.bg, border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Typography variant="caption" sx={{ color: color.text, fontWeight: 600, fontSize: '0.65rem', textAlign: 'center' }}>{color.label}</Typography>

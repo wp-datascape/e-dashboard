@@ -8,7 +8,8 @@
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). |
 | Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
-| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. |
+| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). |
+| i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
 
 ## Frontend — Page Status
 
@@ -270,6 +271,23 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-02 (sesi 27): i18n Full Audit (Zero Hardcode) + Dashboard/AppSettings Text Bug Fix
+
+**Audit i18n menyeluruh — seluruh `frontend/src/pages/**` dan `frontend/src/components/**`:**
+- Survei awal (subagent Explore) memetakan ~40 file dengan hardcode string UI (label, placeholder, pesan error/snackbar, kolom DataGrid, konstanta label) — dikerjakan bertahap per grup: Dashboard/DormantCustomer/Forbidden/Projects/CustomerMetrics (full hardcode), drawer & dialog kompleks, chart widget reusable (LineAlertWidget/BulletChartWidget/HeatmapWidget/StatCard/RadialBarWidget), UI dasar (Footer/Alert/ProgressBar/LogoutButton/Dialog/AppBar), menu.tsx+Sidebar+Config Features, lalu 4 batch cleanup partial-hardcode (Products/CrossSelling/AuditLog/RBAC, Users Zod+Threshold+AppSettings, Import+Config Integration/Classification, Customers/Transactions/ProductsHighMargin)
+- Total 54 file diubah, +305 key baru di `en.json`/`id.json`, **parity 841/841 key** (diverifikasi via script — tidak ada key yang timpang antar locale)
+- Pola yang dipakai konsisten dengan precedent existing: factory function `getXxxLabels(t)` untuk konstanta module-level yang butuh `t()` (Zod schema, kolom DataGrid, label map), key shared `common.filters.*` untuk filter bar yang berulang di banyak halaman
+- Verifikasi: `tsc -b` bersih, sapuan grep ulang (2x, oleh subagent independen) untuk pola hardcode tersisa, browser check via Playwright ke 10+ halaman
+
+**Bug ditemukan saat verifikasi manual oleh user (2 kasus, keduanya class bug yang sama — teks Indonesia tampil walau locale di-set English):**
+1. `Settings/AppSettings/index.tsx` — deskripsi Dark/Light Mode pakai `t('theme.darkModeDesc', 'Tema gelap — ...')`. Key `theme.darkModeDesc`/`theme.lightModeDesc` **tidak pernah didaftarkan** di locale manapun → i18next selalu fallback ke default value hardcode Indonesia di argumen ke-2, apa pun bahasa aktif. Fix: daftarkan key asli `config.appSettings.darkModeDesc`/`lightModeDesc` di kedua locale, hapus pola fallback-string.
+2. **Dashboard 10 KPI card** — `metric.title`/`metric.subtitle` dirender apa adanya dari response `GET /dashboard`. Backend (`dashboard.service.ts`, `buildCard()`) generate title/subtitle sebagai literal Indonesia hardcode di kode backend (mis. `'Customer beli >1 kategori / Total customer aktif'`) — field ini **bukan** hasil translasi FE, jadi ganti locale FE ke English tidak berpengaruh ke teks ini. Fix: FE override title/subtitle via mapping lokal `METRIC_LABEL_KEYS: metric_key → {title, desc}` di `Dashboard/index.tsx`, memakai namespace `metrics.*` di locale (10 pasang title+desc yang ternyata sudah ada tapi belum pernah dipakai/orphaned sebelum sesi ini). Response API `GET /dashboard` sendiri **tidak diubah** — field `title`/`subtitle` backend tetap ada apa adanya untuk backward-compat, FE sekarang mengabaikannya dan pakai key i18n sendiri berbasis `metric_key`.
+- Sapuan lanjutan mengonfirmasi pola bug #1 (`t(key, 'literal string')` dengan key hilang) dan #2 (raw `.title`/`.subtitle` dari API tanpa `t()`) **hanya** terjadi di 2 file di atas — halaman lain (CrossSelling, DormantCustomer, CustomerMetrics M3–M7, dst) semuanya sudah generate title/subtitle chart via `t()` FE murni, tidak konsumsi field teks dari API.
+
+**File yang diubah (sesi ini)**: 54 file di `frontend/src/pages/**` + `frontend/src/components/**`, `frontend/src/i18n/locales/{en,id}.json` (+305 key), `docs-v2/features/dashboard.md`, `docs-v2/CURRENT_STATE.md`. Tidak ada perubahan backend.
+
+---
 
 ### 2026-07-02 (sesi 26): Product Trend Backend + Transactions Feature + Dashboard Backend + Sidebar Fix
 

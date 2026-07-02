@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import SecurityIcon from '@mui/icons-material/Security';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '@/components/ui';
 import type { Permission, CreatePermissionPayload, UpdatePermissionPayload } from '@/types/rbac';
 import { useState } from 'react';
@@ -23,6 +24,7 @@ export function PermissionDialog({
   isLoading = false,
   error,
 }: PermissionDialogProps) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<CreatePermissionPayload>({
     name: permission?.name ?? '',
     description: permission?.description ?? '',
@@ -53,10 +55,10 @@ export function PermissionDialog({
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>
-              {isEditMode ? 'Edit Permission' : 'Create Permission'}
+              {isEditMode ? t('rbac.permissionDialog.editTitle') : t('rbac.permissionDialog.createTitle')}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1 }}>
-              {isEditMode ? 'Update permission details' : 'Add new permission to the system'}
+              {isEditMode ? t('rbac.permissionDialog.editSubtitle') : t('rbac.permissionDialog.createSubtitle')}
             </Typography>
           </Box>
         </Box>
@@ -64,51 +66,51 @@ export function PermissionDialog({
       maxWidth="sm"
       contentSx={{ p: 2 }}
       actions={[
-        { label: 'Cancel', onClick: onClose, variant: 'outlined' },
-        { label: isEditMode ? 'Update' : 'Create', onClick: handleSubmit, isLoading },
+        { label: t('common.cancel'), onClick: onClose, variant: 'outlined' },
+        { label: isEditMode ? t('rbac.permissionDialog.updateAction') : t('rbac.permissionDialog.createAction'), onClick: handleSubmit, isLoading },
       ]}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {error && (
           <Box sx={{ p: 1, bgcolor: 'error.light', borderRadius: 1 }}>
             <Typography variant="caption" color="error">
-              {error instanceof Error ? error.message : 'An error occurred'}
+              {error instanceof Error ? error.message : t('common.errorOccurred')}
             </Typography>
           </Box>
         )}
 
         <TextField
-          label="Permission Name"
-          placeholder="e.g., users:manage"
+          label={t('rbac.permissionDialog.fieldName')}
+          placeholder={t('rbac.permissionDialog.fieldNamePlaceholder')}
           fullWidth
           size="small"
           value={formData.name}
           onChange={handleChange('name')}
           disabled={isEditMode}
-          helperText={isEditMode ? 'Permission name cannot be changed' : 'Use format: feature:action'}
+          helperText={isEditMode ? t('rbac.permissionDialog.fieldNameHelperEdit') : t('rbac.permissionDialog.fieldNameHelperCreate')}
           required
         />
 
         <TextField
-          label="Category"
-          placeholder="e.g., users, roles, config"
+          label={t('rbac.permissionDialog.fieldCategory')}
+          placeholder={t('rbac.permissionDialog.fieldCategoryPlaceholder')}
           fullWidth
           size="small"
           value={formData.category}
           onChange={handleChange('category')}
-          helperText="Optional: Group this permission by category"
+          helperText={t('rbac.permissionDialog.fieldCategoryHelper')}
         />
 
         <TextField
-          label="Description"
-          placeholder="What does this permission allow?"
+          label={t('rbac.permissionDialog.fieldDescription')}
+          placeholder={t('rbac.permissionDialog.fieldDescriptionPlaceholder')}
           fullWidth
           size="small"
           multiline
           rows={3}
           value={formData.description}
           onChange={handleChange('description')}
-          helperText="Optional: Brief description of the permission"
+          helperText={t('rbac.permissionDialog.fieldDescriptionHelper')}
         />
       </Box>
     </Dialog>

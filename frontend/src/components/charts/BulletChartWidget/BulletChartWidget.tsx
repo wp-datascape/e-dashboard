@@ -2,6 +2,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 
 export interface BulletChartWidgetProps {
   title: string;
@@ -23,6 +24,7 @@ export const BulletChartWidget = ({
   unit = '%',
 }: BulletChartWidgetProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const clamp = (v: number) => Math.min(Math.max(v, 0), max);
   const pct = (v: number) => `${(clamp(v) / max) * 100}%`;
 
@@ -31,10 +33,10 @@ export const BulletChartWidget = ({
   const bandBg = inTarget ? 'rgba(22,163,74,0.18)' : 'rgba(234,179,8,0.22)';
 
   const statusText = inTarget
-    ? '✓ Dalam Rentang Target'
+    ? t('common.bulletInTarget')
     : value < targetLow
-      ? '↑ Di Bawah Target — Perlu Ditingkatkan'
-      : '↓ Melampaui Target';
+      ? t('common.bulletBelowTarget')
+      : t('common.bulletAboveTarget');
 
   // Tick marks for axis
   const ticks = [0, targetLow, targetHigh, max].filter(
@@ -60,7 +62,7 @@ export const BulletChartWidget = ({
           {value}{unit}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Target: {targetLow}–{targetHigh}{unit}
+          {t('common.targetLabel', { low: targetLow, high: targetHigh, unit })}
         </Typography>
       </Box>
 
@@ -108,12 +110,12 @@ export const BulletChartWidget = ({
 
       {/* Tick axis */}
       <Box sx={{ position: 'relative', height: 18, mt: 0.25 }}>
-        {ticks.map((t) => (
+        {ticks.map((tickValue) => (
           <Box
-            key={t}
+            key={tickValue}
             sx={{
               position: 'absolute',
-              left: pct(t),
+              left: pct(tickValue),
               transform: 'translateX(-50%)',
             }}
           >
@@ -121,11 +123,11 @@ export const BulletChartWidget = ({
               variant="caption"
               sx={{
                 fontSize: '0.62rem',
-                color: t === targetLow || t === targetHigh ? 'warning.main' : 'text.secondary',
-                fontWeight: t === targetLow || t === targetHigh ? 700 : 400,
+                color: tickValue === targetLow || tickValue === targetHigh ? 'warning.main' : 'text.secondary',
+                fontWeight: tickValue === targetLow || tickValue === targetHigh ? 700 : 400,
               }}
             >
-              {t}{unit}
+              {tickValue}{unit}
             </Typography>
           </Box>
         ))}

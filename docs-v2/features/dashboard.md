@@ -1,7 +1,7 @@
 # Feature: Dashboard
 
 > Status: ✅ Complete — GET summary, real DB (sebelumnya MSW mock)
-> Last updated: 2026-07-02
+> Last updated: 2026-07-02 (sesi 27 — FE title/subtitle override, lihat catatan di bawah)
 > Baca juga: `features/metrics.md`, `executive-dashboard/overview.md`, `executive-dashboard/api.md`
 
 ---
@@ -135,6 +135,12 @@ Sebelumnya private (`async function resolveSegmentParams`). Diubah jadi `export 
 ### Titik bulan berjalan bisa 0 — ini bukan bug
 
 Kalau request dilakukan di awal bulan (misal tanggal 2), titik trend bulan berjalan sering menunjukkan `0` (window aktif 30 hari belum terisi penuh) — sehingga `change_percent` bisa muncul `-100%`. Ini perilaku yang **sama** dengan halaman `/cross-selling` asli (`GET /metrics/cross-selling` juga menunjukkan titik bulan berjalan = 0 pada kondisi yang sama) — bukan sesuatu yang diperkenalkan endpoint dashboard ini.
+
+### `title`/`subtitle` di response API adalah teks Indonesia hardcode backend — FE tidak lagi merender apa adanya (sesi 27)
+
+`buildCard()` menyusun `title`/`subtitle` sebagai literal string Indonesia langsung di `dashboard.service.ts` (contoh field response di atas: `"subtitle": "Customer beli >1 kategori / Total customer aktif"`). Field ini **bukan** hasil i18n — backend tidak locale-aware. Awalnya FE (`pages/Dashboard/index.tsx`) merender `metric.title`/`metric.subtitle` apa adanya, sehingga saat locale FE di-set ke English, subtitle 10 KPI card tetap tampil Indonesia (ditemukan saat verifikasi manual, sesi 27).
+
+Fix: FE mengabaikan `metric.title`/`metric.subtitle` dan override via mapping lokal `METRIC_LABEL_KEYS: Record<metric_key, {title, desc}>` di `Dashboard/index.tsx`, memetakan ke namespace `metrics.*` di `i18n/locales/{en,id}.json` (10 pasang `metrics.<key>`/`metrics.<key>Desc` — sudah ada di locale sebelum sesi ini tapi orphaned/tidak pernah dipakai). Response API **tidak diubah** — `title`/`subtitle` backend tetap dikirim apa adanya untuk backward-compat (dipakai contoh di dokumen ini), FE cukup tidak lagi mengonsumsinya untuk teks yang dirender ke UI.
 
 ### Tidak ada company scoping eksplisit
 

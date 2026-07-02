@@ -32,10 +32,10 @@ export interface NavItem {
   icon: ReactNode;
   /** Permission key to check, e.g. 'customers:menu'. Undefined = always visible */
   permissionKey?: string;
-  /** Tampilkan label grup di atas item ini (hanya saat sidebar expanded) */
-  groupLabel?: string;
+  /** i18n key untuk label grup di atas item ini (hanya saat sidebar expanded) */
+  groupLabelKey?: string;
   /** Sub-menu items — render sebagai collapsible nested list */
-  children?: Omit<NavItem, 'groupLabel' | 'children'>[];
+  children?: Omit<NavItem, 'groupLabelKey' | 'children'>[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -49,7 +49,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.dashboard',
     icon: <DashboardIcon fontSize="small" />,
     permissionKey: 'dashboard:menu',
-    groupLabel: 'Executive Dashboard',
+    groupLabelKey: 'nav.groups.executiveDashboard',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.customers',
     icon: <PeopleIcon fontSize="small" />,
     permissionKey: 'customer:menu',
-    groupLabel: 'Customer Workbench',
+    groupLabelKey: 'nav.groups.customerWorkbench',
   },
   {
     key: 'expansion',
@@ -94,7 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.productLedger',
     icon: <InventoryIcon fontSize="small" />,
     permissionKey: 'product:menu',
-    groupLabel: 'Product & Portfolio',
+    groupLabelKey: 'nav.groups.productPortfolio',
   },
   {
     key: 'high-margin',
@@ -120,7 +120,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.transactionLedger',
     icon: <ReceiptLongIcon fontSize="small" />,
     permissionKey: 'transaction:menu',
-    groupLabel: 'Transaction & Revenue',
+    groupLabelKey: 'nav.groups.transactionRevenue',
   },
   {
     key: 'project',
@@ -140,7 +140,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/settings/app',
     labelKey: 'nav.settings',
     icon: <TuneIcon fontSize="small" />,
-    groupLabel: 'Administration',
+    groupLabelKey: 'nav.groups.administration',
     children: [
       {
         key: 'settings-app',

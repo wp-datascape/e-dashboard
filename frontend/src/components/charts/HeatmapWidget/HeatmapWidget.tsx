@@ -5,6 +5,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 import { StatusChip } from '@/components/ui/StatusChip';
 
 export interface HeatmapRow {
@@ -28,10 +29,12 @@ function MobileCustomerListView({
   xLabels: string[];
   data: HeatmapRow[];
 }) {
+  const { t } = useTranslation();
+
   return (
     <Box>
       <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mb: 1.5, display: 'block' }}>
-        {data.length} customer · chip hijau = ada transaksi
+        {t('common.heatmap.summaryLine', { count: data.length })}
       </Typography>
 
       {data.map((row, idx) => {
@@ -65,7 +68,7 @@ function MobileCustomerListView({
                   {row.customer}
                 </Typography>
                 <StatusChip
-                  label={`${boughtLabels.length}/${xLabels.length} produk`}
+                  label={t('common.heatmap.productsCount', { bought: boughtLabels.length, total: xLabels.length })}
                   color={boughtLabels.length > 0 ? 'primary' : 'default'}
                 />
               </Box>
@@ -88,7 +91,7 @@ function MobileCustomerListView({
               {/* Total transaksi */}
               {totalTx > 0 && (
                 <Typography variant="caption" color="text.secondary">
-                  Total {totalTx} transaksi
+                  {t('common.heatmap.totalTransactions', { count: totalTx })}
                 </Typography>
               )}
             </Box>
@@ -110,6 +113,7 @@ function DesktopHeatmapView({
   xLabels: string[];
   data: HeatmapRow[];
 }) {
+  const { t } = useTranslation();
   const innerMinWidth = ROW_LABEL_WIDTH + xLabels.length * COL_MIN_WIDTH;
 
   return (
@@ -168,7 +172,11 @@ function DesktopHeatmapView({
             return (
               <Tooltip
                 key={label}
-                title={`${row.customer} — ${label}: ${bought ? `Ya (${val} transaksi)` : 'Tidak ada transaksi'}`}
+                title={t('common.heatmap.cellTooltip', {
+                  customer: row.customer,
+                  label,
+                  status: bought ? t('common.heatmap.statusYes', { count: val }) : t('common.heatmap.statusNo'),
+                })}
                 arrow
                 placement="top"
               >
@@ -203,13 +211,13 @@ function DesktopHeatmapView({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box sx={{ width: 14, height: 14, bgcolor: 'success.main', borderRadius: 0.5 }} />
           <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
-            Beli (nilai = jumlah transaksi)
+            {t('common.heatmap.legendBought')}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box sx={{ width: 14, height: 14, bgcolor: 'action.hover', borderRadius: 0.5 }} />
           <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
-            Tidak beli
+            {t('common.heatmap.legendNotBought')}
           </Typography>
         </Box>
       </Box>
@@ -220,6 +228,7 @@ function DesktopHeatmapView({
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
@@ -232,7 +241,7 @@ export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetP
         {subtitle && (
           <Typography variant="caption" color="text.secondary">
             {isMobile
-              ? 'Tampilan mobile: produk yang dibeli per customer'
+              ? t('common.heatmap.mobileSubtitle')
               : subtitle}
           </Typography>
         )}

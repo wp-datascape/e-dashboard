@@ -41,7 +41,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
           edge="start"
           onClick={onToggleSidebar}
           color="inherit"
-          aria-label="toggle sidebar"
+          aria-label={t('common.toggleSidebar')}
           sx={{ mr: 1 }}
         >
           <MenuIcon />

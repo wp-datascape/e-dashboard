@@ -46,41 +46,41 @@ export function ImportLogsTable() {
   const columns: GridColDef[] = [
     {
       field: 'created_at',
-      headerName: 'Tanggal',
+      headerName: t('import.logs.colDate'),
       width: 160,
       renderCell: (params) => formatDate(params.value as string),
     },
     {
       field: 'company',
-      headerName: 'Perusahaan',
+      headerName: t('import.logs.colCompany'),
       width: 150,
       renderCell: (params) => (params.value as { name: string })?.name ?? '—',
     },
     {
       field: 'source',
-      headerName: 'Sumber',
+      headerName: t('import.logs.colSource'),
       width: 110,
       renderCell: (params) => (
         <StatusChip
-          label={params.value === 'file' ? 'File' : 'Accurate'}
+          label={params.value === 'file' ? t('import.logs.sourceFileShort') : t('import.logs.sourceAccurateShort')}
           color={params.value === 'file' ? 'primary' : 'info'}
         />
       ),
     },
     {
       field: 'filename',
-      headerName: 'File',
+      headerName: t('import.logs.colFile'),
       width: 140,
       renderCell: (params) => (params.value as string | null) ?? '—',
     },
     {
       field: 'period_month',
-      headerName: 'Periode',
+      headerName: t('import.logs.colPeriod'),
       width: 100,
     },
     {
       field: 'status',
-      headerName: 'Status',
+      headerName: t('import.logs.colStatus'),
       width: 120,
       renderCell: (params) => {
         const status = params.value as ImportLog['status']
@@ -88,21 +88,21 @@ export function ImportLogsTable() {
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <StatusIcon status={status} />
-            <StatusChip label={status} color={color} />
+            <StatusChip label={t(`import.status.${status}`)} color={color} />
           </Box>
         )
       },
     },
     {
       field: 'total_invoices',
-      headerName: 'Total',
+      headerName: t('import.logs.colTotal'),
       width: 90,
       align: 'right',
       renderCell: (params) => (params.value as number).toLocaleString('id-ID'),
     },
     {
       field: 'success_invoices',
-      headerName: 'Berhasil',
+      headerName: t('import.logs.colSuccess'),
       width: 100,
       align: 'right',
       renderCell: (params) => (
@@ -113,7 +113,7 @@ export function ImportLogsTable() {
     },
     {
       field: 'error_rows',
-      headerName: 'Error',
+      headerName: t('import.logs.colErrors'),
       width: 80,
       align: 'right',
       renderCell: (params) => {
@@ -135,7 +135,7 @@ export function ImportLogsTable() {
     },
     {
       field: 'imported_by',
-      headerName: 'Oleh',
+      headerName: t('import.logs.colBy'),
       width: 130,
       renderCell: (params) => (params.value as { name: string })?.name ?? '—',
     },
@@ -179,7 +179,7 @@ export function ImportLogsTable() {
                 {t('import.logs.colSource')}
               </Typography>
               <StatusChip
-                label={log.source === 'file' ? 'File' : 'Accurate'}
+                label={log.source === 'file' ? t('import.logs.sourceFileShort') : t('import.logs.sourceAccurateShort')}
                 color={log.source === 'file' ? 'primary' : 'info'}
               />
             </Box>

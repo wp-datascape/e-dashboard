@@ -2,6 +2,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 import {
   RadialBarChart,
   RadialBar,
@@ -27,6 +28,7 @@ export const RadialBarWidget = ({
   onChartClick,
 }: RadialBarWidgetProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   // Proporsi nilai terhadap target (0–100+%)
   const pct = thresholdGreen > 0 ? (value / thresholdGreen) * 100 : 0;
   const color =
@@ -35,9 +37,9 @@ export const RadialBarWidget = ({
     : theme.palette.error.main;
 
   const statusLabel =
-    pct >= 100 ? '✓ Sesuai Target'
-    : pct >= 75 ? '⚠ Mendekati Target'
-    : '✗ Di Bawah Target';
+    pct >= 100 ? t('common.radialOnTarget')
+    : pct >= 75 ? t('common.radialNearTarget')
+    : t('common.radialBelowTarget');
 
   // Domain [0, thresholdGreen] — lingkaran penuh = target
   const fillValue = Math.min(value, thresholdGreen);
@@ -113,7 +115,7 @@ export const RadialBarWidget = ({
             color="text.secondary"
             sx={{ fontSize: '0.6rem' }}
           >
-            Target ≥ {thresholdGreen}%
+            {t('common.radialTargetLabel', { threshold: thresholdGreen })}
           </Typography>
         </Box>
       </Box>

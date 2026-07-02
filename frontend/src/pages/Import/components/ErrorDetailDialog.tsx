@@ -33,7 +33,7 @@ export function ErrorDetailDialog({ log, onClose }: ErrorDetailDialogProps) {
         {t('import.errorDetail.title')}
         {log && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            {log.filename ?? 'Accurate API'} — {log.period_month}
+            {log.filename ?? t('import.errorDetail.accurateFallback')} — {log.period_month}
           </Typography>
         )}
       </DialogTitle>

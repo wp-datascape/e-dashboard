@@ -7,22 +7,26 @@ import DialogContent from '@mui/material/DialogContent';
 import IconButton from '@mui/material/IconButton';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
 import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
 
-const hmColumns: GridColDef[] = [
-  { field: 'ranking',       headerName: '#',          width: 56,  sortable: false },
-  { field: 'customer_name', headerName: 'Customer',    flex: 1,    minWidth: 160 },
-  { field: 'customer_code', headerName: 'Kode',        width: 110, sortable: false,
-    renderCell: (p) => p.value ?? '—' },
-  { field: 'hm_revenue', headerName: 'Revenue HM',  width: 140, align: 'right', headerAlign: 'right',
-    renderCell: (p) => fmtRp(p.value as number) },
-  { field: 'hm_pct', headerName: '% Total HM', width: 110, align: 'right', headerAlign: 'right',
-    renderCell: (p) => `${p.value}%` },
-]
+function useHmColumns(t: TFunction): GridColDef[] {
+  return [
+    { field: 'ranking',       headerName: t('customerMetrics.m5.colRank'),     width: 56,  sortable: false },
+    { field: 'customer_name', headerName: t('customerMetrics.m5.colCustomer'), flex: 1,    minWidth: 160 },
+    { field: 'customer_code', headerName: t('customerMetrics.m5.colCode'),     width: 110, sortable: false,
+      renderCell: (p) => p.value ?? '—' },
+    { field: 'hm_revenue', headerName: t('customerMetrics.m5.colRevenueHm'), width: 140, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRp(p.value as number) },
+    { field: 'hm_pct', headerName: t('customerMetrics.m5.colPctHm'), width: 110, align: 'right', headerAlign: 'right',
+      renderCell: (p) => `${p.value}%` },
+  ]
+}
 
 interface Props {
   isLoading: boolean
@@ -34,7 +38,9 @@ interface Props {
 
 export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: Props) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [hmDrillDate, setHmDrillDate] = useState<string | null>(null);
+  const hmColumns = useHmColumns(t);
 
   const { data: hmBreakdown, isLoading: hmBreakdownLoading } = useHmBreakdown({
     period_end: hmDrillDate,
@@ -45,19 +51,19 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: 
   return (
     <>
       <Box>
-        <SectionLabel label="M5 · High Margin Product Penetration — Bulan Berjalan" />
+        <SectionLabel label={t('customerMetrics.m5.sectionLabel')} />
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (
           <DonutChartWidget
-            title="Penetrasi Produk High Margin"
-            subtitle="Klik chart untuk melihat daftar customer — snapshot bulan berjalan"
+            title={t('customerMetrics.m5.chartTitle')}
+            subtitle={t('customerMetrics.m5.chartSubtitle')}
             data={[
-              { name: 'Membeli High Margin', value: hm?.bought_pct ?? 0,       color: theme.palette.success.main },
-              { name: 'Tidak Membeli',       value: hm?.not_bought_pct ?? 100, color: theme.palette.action.disabledBackground },
+              { name: t('customerMetrics.m5.boughtLabel'), value: hm?.bought_pct ?? 0,       color: theme.palette.success.main },
+              { name: t('customerMetrics.m5.notBoughtLabel'), value: hm?.not_bought_pct ?? 100, color: theme.palette.action.disabledBackground },
             ]}
             centerValue={`${hm?.bought_pct ?? 0}%`}
-            centerLabel="High Margin"
+            centerLabel={t('customerMetrics.m5.centerLabel')}
             height={240}
             onChartClick={() => setHmDrillDate(monthToEndDate(periodEnd))}
           />
@@ -78,15 +84,15 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: 
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              High Margin Buyers — {hmDrillDate}
+              {t('customerMetrics.m5.dialogTitle', { date: hmDrillDate })}
             </Typography>
             {hmBreakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
                 {([
-                  ['Total existing customer',    String(hmBreakdown.total_existing)],
-                  ['Membeli produk high margin', String(hmBreakdown.hm_buyer_count)],
-                  ['Penetrasi',                  `${hm?.bought_pct ?? 0}%`],
-                  ['Total revenue produk HM',    fmtRp(hmBreakdown.total_hm_revenue)],
+                  [t('customerMetrics.m5.dialogTotalExisting'),    String(hmBreakdown.total_existing)],
+                  [t('customerMetrics.m5.dialogBought'), String(hmBreakdown.hm_buyer_count)],
+                  [t('customerMetrics.m5.dialogPenetration'),                  `${hm?.bought_pct ?? 0}%`],
+                  [t('customerMetrics.m5.dialogRevenue'),    fmtRp(hmBreakdown.total_hm_revenue)],
                 ] as [string, string][]).map(([label, val]) => (
                   <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                     <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
@@ -110,7 +116,7 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: 
             height={400}
             pageSize={25}
             pageSizeOptions={[25, 50, 100]}
-            emptyMessage="Tidak ada existing customer yang membeli produk high margin bulan ini"
+            emptyMessage={t('customerMetrics.m5.emptyMessage')}
             mobileFields={['customer_name', 'hm_revenue', 'hm_pct']}
           />
         </DialogContent>

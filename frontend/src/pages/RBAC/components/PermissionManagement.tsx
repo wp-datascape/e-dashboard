@@ -51,7 +51,7 @@ export function PermissionManagement({
       minWidth: 120,
       renderCell: (params) => (
         <StatusChip
-          label={params.value || 'uncategorized'}
+          label={params.value || t('rbac.uncategorized')}
           color="info"
         />
       ),
@@ -143,7 +143,7 @@ export function PermissionManagement({
                     {permission.name}
                   </Typography>
                   <StatusChip
-                    label={permission.category || 'uncategorized'}
+                    label={permission.category || t('rbac.uncategorized')}
                     color="info"
                     sx={{ mt: 0.5 }}
                   />

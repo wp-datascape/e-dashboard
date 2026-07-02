@@ -20,16 +20,19 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useConfig, useUpdateConfig } from '@/hooks/usePageSettings'
 import type { ConfigItem } from '@/types/page'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
 
-const BU_LABELS: Record<string, string> = {
-  b2b_dc: 'B2B DC',
-  b2b_project: 'B2B Project',
-  b2c: 'B2C',
-  manufacturing: 'Manufacturing',
+function getBuLabels(t: TFunction): Record<string, string> {
+  return {
+    b2b_dc: t('config.buThreshold.b2bDc'),
+    b2b_project: t('config.buThreshold.b2bProject'),
+    b2c: t('config.buThreshold.b2c'),
+    manufacturing: t('config.buThreshold.manufacturing'),
+  }
 }
 const DORMANT_PREFIX = 'dormant_threshold_months.'
 const KPI_TARGET_KEYS = [
@@ -38,17 +41,21 @@ const KPI_TARGET_KEYS = [
   'reactivation_target_low_pct',
   'reactivation_target_high_pct',
 ]
-const KPI_TARGET_LABELS: Record<string, string> = {
-  repeat_order_target_pct:      'M6 · Target Repeat Order Rate',
-  dormant_rate_alert_pct:       'M8 · Ambang Batas Dormant Rate',
-  reactivation_target_low_pct:  'M10 · Target Reactivation Rate (Min)',
-  reactivation_target_high_pct: 'M10 · Target Reactivation Rate (Ideal)',
+function getKpiTargetLabels(t: TFunction): Record<string, string> {
+  return {
+    repeat_order_target_pct:      t('config.kpiTarget.repeatOrderLabel'),
+    dormant_rate_alert_pct:       t('config.kpiTarget.dormantAlertLabel'),
+    reactivation_target_low_pct:  t('config.kpiTarget.reactivationMinLabel'),
+    reactivation_target_high_pct: t('config.kpiTarget.reactivationIdealLabel'),
+  }
 }
-const KPI_TARGET_DESC: Record<string, string> = {
-  repeat_order_target_pct:      'Persentase minimum existing customer yang harus repeat order dalam 30 hari',
-  dormant_rate_alert_pct:       'Jika Dormant Rate di atas nilai ini, grafik M8 tampil dalam zona merah (peringatan)',
-  reactivation_target_low_pct:  'Batas bawah target M10 — BulletChart zona kuning mulai dari nilai ini',
-  reactivation_target_high_pct: 'Batas atas target M10 — BulletChart zona hijau mulai dari nilai ini',
+function getKpiTargetDesc(t: TFunction): Record<string, string> {
+  return {
+    repeat_order_target_pct:      t('config.kpiTarget.repeatOrderDesc'),
+    dormant_rate_alert_pct:       t('config.kpiTarget.dormantAlertDesc'),
+    reactivation_target_low_pct:  t('config.kpiTarget.reactivationMinDesc'),
+    reactivation_target_high_pct: t('config.kpiTarget.reactivationIdealDesc'),
+  }
 }
 
 function EditablePctCell({ item }: { item: ConfigItem }) {
@@ -79,6 +86,7 @@ function EditablePctCell({ item }: { item: ConfigItem }) {
 }
 
 function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: string, value: string) => void }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
   const can = useCan()
@@ -87,7 +95,7 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
   if (editing) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus sx={{ width: 100 }} slotProps={{ input: { endAdornment: <InputAdornment position="end">bln</InputAdornment> } }} />
+        <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus sx={{ width: 100 }} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('config.buThreshold.monthsUnit')}</InputAdornment> } }} />
         <IconButton size="small" onClick={handleSave} color="primary"><CheckIcon fontSize="small" /></IconButton>
         <IconButton size="small" onClick={handleCancel}><CloseIcon fontSize="small" /></IconButton>
       </Box>
@@ -95,7 +103,7 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
   }
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Chip label={`${item.value} bulan`} size="small" color="primary" variant="outlined" />
+      <Chip label={t('config.buThreshold.monthsChip', { value: item.value })} size="small" color="primary" variant="outlined" />
       {can('settings.threshold:update') && (
         <IconButton size="small" onClick={() => setEditing(true)}><EditIcon fontSize="small" /></IconButton>
       )}
@@ -104,6 +112,7 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
 }
 
 function ConfigRow({ item }: { item: ConfigItem }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
   const { mutate, isPending } = useUpdateConfig()
@@ -118,8 +127,8 @@ function ConfigRow({ item }: { item: ConfigItem }) {
       </Box>
       <Box sx={{ flex: 1 }}>
         {editing
-          ? <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus fullWidth slotProps={{ input: { endAdornment: <InputAdornment position="end">bln</InputAdornment> } }} />
-          : <Chip label={`${item.value} bulan`} size="small" variant="outlined" />}
+          ? <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus fullWidth slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('config.buThreshold.monthsUnit')}</InputAdornment> } }} />
+          : <Chip label={t('config.buThreshold.monthsChip', { value: item.value })} size="small" variant="outlined" />}
       </Box>
       <Box>
         {editing ? (
@@ -137,6 +146,9 @@ function ConfigRow({ item }: { item: ConfigItem }) {
 
 export default function ThresholdSettings() {
   const { t } = useTranslation()
+  const BU_LABELS = getBuLabels(t)
+  const KPI_TARGET_LABELS = getKpiTargetLabels(t)
+  const KPI_TARGET_DESC = getKpiTargetDesc(t)
   const { data: configs, isLoading, error } = useConfig()
   const { mutate } = useUpdateConfig()
   const allItems: ConfigItem[] = configs ?? []
@@ -215,20 +227,20 @@ export default function ThresholdSettings() {
           {kpiTargetItems.length > 0 && (
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Target KPI</Typography>
-                <Tooltip title="Target persentase minimum untuk setiap KPI. Dipakai sebagai acuan warna indikator di dashboard." placement="right" arrow>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{t('config.kpiTarget.sectionTitle')}</Typography>
+                <Tooltip title={t('config.kpiTarget.tooltip')} placement="right" arrow>
                   <InfoOutlinedIcon fontSize="small" color="action" sx={{ cursor: 'help' }} />
                 </Tooltip>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Nilai target yang digunakan sebagai threshold warna hijau / kuning / merah pada indikator KPI.
+                {t('config.kpiTarget.sectionSubtitle')}
               </Typography>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700, width: '40%' }}>KPI</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '25%' }}>Target</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Keterangan</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: '40%' }}>{t('config.kpiTarget.colKpi')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: '25%' }}>{t('config.kpiTarget.colTarget')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{t('config.buThreshold.colNote')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

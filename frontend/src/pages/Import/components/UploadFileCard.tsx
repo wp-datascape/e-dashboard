@@ -67,12 +67,12 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['channel-divisions'] })
       setMasterResult(res)
-      enqueueSnackbar(`Import Divisi: ${res.added} ditambahkan, ${res.skipped} di-skip`, {
+      enqueueSnackbar(t('import.form.snackbarDivisiSuccess', { added: res.added, skipped: res.skipped }), {
         variant: res.errors.length > 0 ? 'warning' : 'success',
       })
       setFile(null)
     },
-    onError: () => enqueueSnackbar('Gagal import Channel Divisions', { variant: 'error' }),
+    onError: () => enqueueSnackbar(t('import.form.snackbarDivisiError'), { variant: 'error' }),
   })
 
   const klasifikasiMutation = useMutation({
@@ -81,12 +81,12 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['classification-rules'] })
       setMasterResult(res)
-      enqueueSnackbar(`Import Klasifikasi: ${res.added} ditambahkan, ${res.skipped} di-skip`, {
+      enqueueSnackbar(t('import.form.snackbarKlasifikasiSuccess', { added: res.added, skipped: res.skipped }), {
         variant: res.errors.length > 0 ? 'warning' : 'success',
       })
       setFile(null)
     },
-    onError: () => enqueueSnackbar('Gagal import Klasifikasi', { variant: 'error' }),
+    onError: () => enqueueSnackbar(t('import.form.snackbarKlasifikasiError'), { variant: 'error' }),
   })
 
   const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending
@@ -119,7 +119,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
       else if (importType === 'divisi') await channelDivisionsApi.downloadTemplate()
       else await downloadClassificationTemplate()
     } catch {
-      enqueueSnackbar('Gagal download template', { variant: 'error' })
+      enqueueSnackbar(t('import.form.snackbarTemplateError'), { variant: 'error' })
     }
   }
 
@@ -170,16 +170,16 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
         {/* ── Import type + download template ── */}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end' }}>
           <FormControl size="small" fullWidth>
-            <InputLabel>Tipe Import</InputLabel>
+            <InputLabel>{t('import.form.typeLabel')}</InputLabel>
             <Select
               value={importType}
-              label="Tipe Import"
+              label={t('import.form.typeLabel')}
               disabled={isDisabled}
               onChange={(e) => handleTypeChange(e.target.value as ImportType)}
             >
-              <MenuItem value="faktur">Faktur Invoice</MenuItem>
-              <MenuItem value="divisi">Channel Divisions</MenuItem>
-              <MenuItem value="klasifikasi">Klasifikasi Item</MenuItem>
+              <MenuItem value="faktur">{t('import.form.typeFaktur')}</MenuItem>
+              <MenuItem value="divisi">{t('import.form.typeDivisi')}</MenuItem>
+              <MenuItem value="klasifikasi">{t('import.form.typeKlasifikasi')}</MenuItem>
             </Select>
           </FormControl>
           <Button
@@ -190,7 +190,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             disabled={isDisabled}
             sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            Template
+            {t('import.form.templateButton')}
           </Button>
         </Box>
 
@@ -282,7 +282,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
               {phase === 'uploading'
                 ? t('import.form.loading')
-                : `${progress.processed.toLocaleString()} / ${progress.total.toLocaleString()} baris`}
+                : t('import.form.rowsProcessed', { processed: progress.processed.toLocaleString(), total: progress.total.toLocaleString() })}
             </Typography>
           </Box>
         )}
@@ -293,11 +293,11 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             severity={masterResult.errors.length > 0 ? 'warning' : 'success'}
             onClose={() => setMasterResult(null)}
           >
-            {masterResult.added} data ditambahkan, {masterResult.skipped} di-skip
+            {t('import.form.masterResultSummary', { added: masterResult.added, skipped: masterResult.skipped })}
             {masterResult.errors.length > 0 && (
               <Box component="ul" sx={{ m: 0, pl: 2, mt: 0.5 }}>
                 {masterResult.errors.slice(0, 5).map((e, i) => (
-                  <li key={i}><Typography variant="caption">Baris {e.row}: {e.message}</Typography></li>
+                  <li key={i}><Typography variant="caption">{t('import.form.masterResultRowError', { row: e.row, message: e.message })}</Typography></li>
                 ))}
               </Box>
             )}

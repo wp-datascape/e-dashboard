@@ -2,6 +2,8 @@ import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Card } from '@/components/ui';
 
 import { StatCard } from '@/components/charts/StatCard';
@@ -20,6 +22,29 @@ import { ClickableChart } from './components/ClickableChart';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const METRIC_LABEL_KEYS: Record<string, { title: string; desc: string }> = {
+  cross_selling_ratio: { title: 'metrics.crossSelling', desc: 'metrics.crossSellingDesc' },
+  avg_category: { title: 'metrics.avgCategory', desc: 'metrics.avgCategoryDesc' },
+  avg_revenue: { title: 'metrics.avgRevenue', desc: 'metrics.avgRevenueDesc' },
+  avg_gross_profit: { title: 'metrics.avgGrossProfit', desc: 'metrics.avgGrossProfitDesc' },
+  high_margin_penetration: { title: 'metrics.highMargin', desc: 'metrics.highMarginDesc' },
+  repeat_order_rate: { title: 'metrics.repeatOrder', desc: 'metrics.repeatOrderDesc' },
+  expansion_rate: { title: 'metrics.expansion', desc: 'metrics.expansionDesc' },
+  dormant_rate: { title: 'metrics.dormantRate', desc: 'metrics.dormantRateDesc' },
+  dormant_value: { title: 'metrics.dormantValue', desc: 'metrics.dormantValueDesc' },
+  reactivation_rate: { title: 'metrics.reactivation', desc: 'metrics.reactivationDesc' },
+};
+
+function metricTitle(card: MetricCard, t: TFunction): string {
+  const keys = METRIC_LABEL_KEYS[card.metric_key];
+  return keys ? t(keys.title) : card.title;
+}
+
+function metricSubtitle(card: MetricCard, t: TFunction): string {
+  const keys = METRIC_LABEL_KEYS[card.metric_key];
+  return keys ? t(keys.desc) : card.subtitle;
+}
+
 function formatMetricValue(card: MetricCard): string {
   const v = card.summary.current_value;
   if (card.format === 'percent') return `${v.toFixed(1)}%`;
@@ -35,6 +60,7 @@ function formatMetricValue(card: MetricCard): string {
 
 export default function Dashboard() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { data, isLoading } = useDashboard();
 
   const metrics = data?.metrics ?? [];
@@ -62,7 +88,7 @@ export default function Dashboard() {
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Overview Metrics
+          {t('dashboard.overviewTitle')}
         </Typography>
         {!isLoading && data && (
           <PeriodStrip
@@ -86,8 +112,8 @@ export default function Dashboard() {
                 size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}
               >
                 <StatCard
-                  title={metric.title}
-                  subtitle={metric.subtitle}
+                  title={metricTitle(metric, t)}
+                  subtitle={metricSubtitle(metric, t)}
                   value={formatMetricValue(metric)}
                   change={metric.summary.change_percent}
                   trend={metric.summary.trend}
@@ -107,12 +133,12 @@ export default function Dashboard() {
           ) : mCrossRatio ? (
             <ClickableChart link={mCrossRatio.link}>
               <BarChartWidget
-                title={mCrossRatio.title}
-                subtitle={mCrossRatio.subtitle}
+                title={metricTitle(mCrossRatio, t)}
+                subtitle={metricSubtitle(mCrossRatio, t)}
                 value={formatMetricValue(mCrossRatio)}
                 change={mCrossRatio.summary.change_percent}
                 data={mCrossRatio.monthly_trend}
-                series={[{ key: 'value', label: 'Cross Selling Ratio (%)', color: mCrossRatio.color }]}
+                series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: mCrossRatio.color }]}
                 xKey="month"
                 height={180}
                 tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
@@ -127,12 +153,12 @@ export default function Dashboard() {
           ) : mAvgCategory ? (
             <ClickableChart link={mAvgCategory.link}>
               <AreaChartWidget
-                title={mAvgCategory.title}
-                subtitle={mAvgCategory.subtitle}
+                title={metricTitle(mAvgCategory, t)}
+                subtitle={metricSubtitle(mAvgCategory, t)}
                 value={formatMetricValue(mAvgCategory)}
                 change={mAvgCategory.summary.change_percent}
                 data={mAvgCategory.monthly_trend}
-                series={[{ key: 'value', label: 'Avg Kategori', color: theme.palette.success.main }]}
+                series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
                 xKey="month"
                 height={180}
               />
@@ -146,14 +172,14 @@ export default function Dashboard() {
           ) : mHighMargin ? (
             <ClickableChart link={mHighMargin.link}>
               <DonutChartWidget
-                title={mHighMargin.title}
-                subtitle={mHighMargin.subtitle}
+                title={metricTitle(mHighMargin, t)}
+                subtitle={metricSubtitle(mHighMargin, t)}
                 data={[
-                  { name: 'Membeli High Margin', value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
-                  { name: 'Tidak Membeli', value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
+                  { name: t('dashboard.charts.highMarginBought'), value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
+                  { name: t('dashboard.charts.highMarginNotBought'), value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
                 ]}
                 centerValue={formatMetricValue(mHighMargin)}
-                centerLabel="High Margin"
+                centerLabel={t('dashboard.charts.highMarginCenterLabel')}
                 height={200}
               />
             </ClickableChart>
@@ -166,8 +192,8 @@ export default function Dashboard() {
           ) : mRepeatOrder ? (
             <ClickableChart link={mRepeatOrder.link}>
               <RadialBarWidget
-                title={mRepeatOrder.title}
-                subtitle={mRepeatOrder.subtitle}
+                title={metricTitle(mRepeatOrder, t)}
+                subtitle={metricSubtitle(mRepeatOrder, t)}
                 value={parseFloat(mRepeatOrder.summary.current_value.toFixed(1))}
                 thresholdGreen={80}
                 height={200}
@@ -182,12 +208,12 @@ export default function Dashboard() {
           ) : mExpansion ? (
             <ClickableChart link={mExpansion.link}>
               <BarChartWidget
-                title={mExpansion.title}
-                subtitle={mExpansion.subtitle}
+                title={metricTitle(mExpansion, t)}
+                subtitle={metricSubtitle(mExpansion, t)}
                 value={formatMetricValue(mExpansion)}
                 change={mExpansion.summary.change_percent}
                 data={mExpansion.monthly_trend}
-                series={[{ key: 'value', label: 'Expansion Rate (%)', color: theme.palette.success.main }]}
+                series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
                 xKey="month"
                 height={200}
                 tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
@@ -202,14 +228,14 @@ export default function Dashboard() {
           ) : mDormantRate ? (
             <ClickableChart link={mDormantRate.link}>
               <LineAlertWidget
-                title={mDormantRate.title}
-                subtitle="Area merah = di atas ambang batas 10% (kondisi kritis)"
+                title={metricTitle(mDormantRate, t)}
+                subtitle={t('dashboard.charts.dormantSubtitle')}
                 data={mDormantRate.monthly_trend}
                 lineKey="value"
-                lineLabel="Dormant Rate (%)"
+                lineLabel={t('dashboard.charts.dormantRateLabel')}
                 xKey="month"
                 threshold={10}
-                thresholdLabel="Ambang 10%"
+                thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
                 height={180}
               />
             </ClickableChart>
@@ -222,8 +248,8 @@ export default function Dashboard() {
           ) : mReactivation ? (
             <ClickableChart link={mReactivation.link}>
               <BulletChartWidget
-                title={mReactivation.title}
-                subtitle="Target KPI: 15%–20% · Latar berubah warna saat ketercapaian"
+                title={metricTitle(mReactivation, t)}
+                subtitle={t('dashboard.charts.reactivationSubtitle')}
                 value={parseFloat(mReactivation.summary.current_value.toFixed(1))}
                 targetLow={15}
                 targetHigh={20}
@@ -238,16 +264,16 @@ export default function Dashboard() {
       {/* ── Row 3: Definitions Reference ── */}
       <Card sx={{ p: 2 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
-          Definisi Kunci
+          {t('dashboard.definitions.title')}
         </Typography>
         <Grid container spacing={1}>
           {[
-            { term: 'Customer Aktif', def: `last_transaction_date ≥ awal periode − ${data?.active_window ?? 6} bulan` },
-            { term: 'Existing Customer', def: 'first_transaction_date < awal periode' },
-            { term: 'New Customer', def: 'first_transaction_date dalam periode ini' },
-            { term: 'Dormant Customer', def: 'last_transaction_date < awal periode − 3 bulan (default)' },
-            { term: 'Kategori Produk', def: 'Hardware + Consumable saja — jasa/service tidak dihitung' },
-            { term: 'High Margin Product', def: 'product_categories.is_high_margin = true' },
+            { term: t('dashboard.definitions.activeCustomer.term'), def: t('dashboard.definitions.activeCustomer.def', { months: data?.active_window ?? 6 }) },
+            { term: t('dashboard.definitions.existingCustomer.term'), def: t('dashboard.definitions.existingCustomer.def') },
+            { term: t('dashboard.definitions.newCustomer.term'), def: t('dashboard.definitions.newCustomer.def') },
+            { term: t('dashboard.definitions.dormantCustomer.term'), def: t('dashboard.definitions.dormantCustomer.def') },
+            { term: t('dashboard.definitions.productCategory.term'), def: t('dashboard.definitions.productCategory.def') },
+            { term: t('dashboard.definitions.highMarginProduct.term'), def: t('dashboard.definitions.highMarginProduct.def') },
           ].map(({ term, def }) => (
             <Grid key={term} size={{ xs: 12, sm: 6, md: 4 }}>
               <Box sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>

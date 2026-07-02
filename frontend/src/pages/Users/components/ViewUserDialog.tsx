@@ -123,7 +123,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
           <Divider />
           <Box>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
-              Permissions ({user.permissions.length})
+              {t('users.permissionsCount', { count: user.permissions.length })}
             </Typography>
             {user.permissions.length === 0 ? (
               <Typography variant="body2" color="text.disabled">—</Typography>

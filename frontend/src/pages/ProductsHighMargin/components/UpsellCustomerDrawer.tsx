@@ -7,6 +7,7 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
 import CloseIcon from '@mui/icons-material/Close'
+import { useTranslation } from 'react-i18next'
 import { StatusChip } from '@/components/ui'
 import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { useCustomerProducts } from '@/hooks/useProducts'
@@ -39,6 +40,7 @@ export function UpsellCustomerDrawer({
   activeWindow,
   onClose,
 }: Props) {
+  const { t } = useTranslation()
   const { data, isLoading } = useCustomerProducts(
     customer
       ? {
@@ -55,20 +57,20 @@ export function UpsellCustomerDrawer({
   const columns: GridColDef<CustomerProductRow>[] = [
     ...(!filterCategory ? [{
       field: 'category_name',
-      headerName: 'Kategori',
+      headerName: t('products.drawer.colCategory'),
       width: 140,
       sortable: false,
     } as GridColDef<CustomerProductRow>] : []),
     {
       field: 'product_name',
-      headerName: 'Nama Produk',
+      headerName: t('products.drawer.colProductName'),
       flex: 1,
       minWidth: 160,
       sortable: false,
     },
     {
       field: 'total_revenue',
-      headerName: 'Revenue',
+      headerName: t('products.drawer.colRevenue'),
       width: 130,
       type: 'number',
       sortable: false,
@@ -76,7 +78,7 @@ export function UpsellCustomerDrawer({
     },
     {
       field: 'total_gp',
-      headerName: 'GP',
+      headerName: t('products.drawer.colGp'),
       width: 110,
       type: 'number',
       sortable: false,
@@ -84,14 +86,14 @@ export function UpsellCustomerDrawer({
     },
     {
       field: 'gp_margin_percent',
-      headerName: 'Margin',
+      headerName: t('products.drawer.colMargin'),
       width: 90,
       sortable: false,
       renderCell: ({ row }) => <MarginChip pct={row.gp_margin_percent} />,
     },
     {
       field: 'invoice_count',
-      headerName: 'Faktur',
+      headerName: t('products.drawer.colInvoice'),
       width: 70,
       type: 'number',
       sortable: false,
@@ -121,7 +123,7 @@ export function UpsellCustomerDrawer({
                 <BuChip bu={customer.business_unit as BusinessUnit} />
               )}
               <Typography variant="caption" color="text.secondary">
-                Riwayat pembelian • window {activeWindow} bulan
+                {t('productsHighMargin.drawer.subtitle', { window: activeWindow })}
               </Typography>
             </Box>
           </Box>
@@ -135,7 +137,7 @@ export function UpsellCustomerDrawer({
           <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
             <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, flex: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                Avg. Revenue/Bulan
+                {t('productsHighMargin.drawer.avgRevenueMonth')}
               </Typography>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                 {formatIDR(customer.avg_monthly_revenue)}
@@ -143,7 +145,7 @@ export function UpsellCustomerDrawer({
             </Box>
             <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, flex: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                Terakhir Transaksi
+                {t('productsHighMargin.drawer.lastTransaction')}
               </Typography>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                 {customer.last_invoice_date ?? '—'}
@@ -153,7 +155,7 @@ export function UpsellCustomerDrawer({
         )}
 
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-          {filterCategory ? `Produk: ${filterCategory.name}` : 'Semua Produk yang Dibeli'}
+          {filterCategory ? t('productsHighMargin.drawer.productListFiltered', { category: filterCategory.name }) : t('productsHighMargin.drawer.productListAll')}
           {' '}({data?.meta.total ?? '…'})
         </Typography>
 

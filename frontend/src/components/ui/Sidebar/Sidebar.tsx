@@ -48,7 +48,7 @@ function NavButton({
   indented = false,
   onNav,
 }: {
-  item: Omit<NavItem, 'groupLabel' | 'children'>
+  item: Omit<NavItem, 'groupLabelKey' | 'children'>
   collapsed: boolean
   indented?: boolean
   onNav: (path: string) => void
@@ -205,11 +205,11 @@ function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boole
 }
 
 /** Kelompokkan NAV_ITEMS menjadi sections berdasarkan groupLabel boundary */
-type NavSection = { groupLabel?: string; items: NavItem[] }
+type NavSection = { groupLabelKey?: string; items: NavItem[] }
 function buildNavSections(items: NavItem[]): NavSection[] {
   return items.reduce<NavSection[]>((acc, item) => {
-    if (item.groupLabel) {
-      acc.push({ groupLabel: item.groupLabel, items: [item] })
+    if (item.groupLabelKey) {
+      acc.push({ groupLabelKey: item.groupLabelKey, items: [item] })
     } else {
       if (acc.length === 0) acc.push({ items: [] })
       acc[acc.length - 1].items.push(item)
@@ -220,6 +220,7 @@ function buildNavSections(items: NavItem[]): NavSection[] {
 
 export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { permissions } = useAuth()
   const collapsed = !open
   const drawerWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH
@@ -273,14 +274,14 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
           if (!hasVisible) return null
 
           return (
-            <span key={section.groupLabel ?? '__root__'}>
-              {section.groupLabel && (
+            <span key={section.groupLabelKey ?? '__root__'}>
+              {section.groupLabelKey && (
                 <>
                   <Divider sx={{ mt: 0.5, mb: 0 }} />
                   {!collapsed && (
                     <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
                       <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
-                        {section.groupLabel}
+                        {section.groupLabelKey && t(section.groupLabelKey)}
                       </Typography>
                     </Box>
                   )}

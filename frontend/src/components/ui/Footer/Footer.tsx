@@ -1,7 +1,9 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useTranslation } from 'react-i18next';
 
 export const Footer = () => {
+  const { t } = useTranslation();
   const year = new Date().getFullYear();
 
   return (
@@ -26,10 +28,10 @@ export const Footer = () => {
         }}
       >
         <Typography variant="caption" color="text.disabled">
-          © {year} Executive Dashboard. All rights reserved.
+          {t('common.copyright', { year })}
         </Typography>
         <Typography variant="caption" color="text.disabled">
-          v1.0.0
+          {t('common.appVersion')}
         </Typography>
       </Box>
     </Box>

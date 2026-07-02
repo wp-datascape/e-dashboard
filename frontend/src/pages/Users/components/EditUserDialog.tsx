@@ -25,14 +25,14 @@ import type { ApiError } from '@/types/api';
 import type { Role } from '@/types/rbac';
 import type { Company, User, UpdateUserPayload } from '@/types/users';
 
-const editSchema = z.object({
-  name: z.string().min(2, 'Nama minimal 2 karakter'),
-  role_id: z.number().int().min(1, 'Pilih role'),
-  company_ids: z.array(z.number()).min(1, 'Pilih minimal 1 perusahaan'),
+const editSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('users.validation.nameMin')),
+  role_id: z.number().int().min(1, t('users.validation.roleRequired')),
+  company_ids: z.array(z.number()).min(1, t('users.validation.companiesRequired')),
   is_active: z.boolean(),
 });
 
-type EditFormData = z.infer<typeof editSchema>;
+type EditFormData = z.infer<ReturnType<typeof editSchema>>;
 
 interface EditUserDialogProps {
   open: boolean;
@@ -63,7 +63,7 @@ export function EditUserDialog({
     reset,
     formState: { errors },
   } = useForm<EditFormData>({
-    resolver: zodResolver(editSchema),
+    resolver: zodResolver(editSchema(t)),
     defaultValues: { name: '', role_id: 0, company_ids: [], is_active: true },
   });
 

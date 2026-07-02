@@ -21,15 +21,15 @@ import type { ApiError } from '@/types/api';
 import type { Role } from '@/types/rbac';
 import type { Company, CreateUserPayload } from '@/types/users';
 
-const createSchema = z.object({
-  name: z.string().min(2, 'Nama minimal 2 karakter'),
-  email: z.string().email('Format email tidak valid'),
-  password: z.string().min(6, 'Password minimal 6 karakter'),
-  role_id: z.number().int().min(1, 'Pilih role'),
-  company_ids: z.array(z.number()).min(1, 'Pilih minimal 1 perusahaan'),
+const createSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(2, t('users.validation.nameMin')),
+  email: z.string().email(t('users.validation.emailInvalid')),
+  password: z.string().min(6, t('users.validation.passwordMin')),
+  role_id: z.number().int().min(1, t('users.validation.roleRequired')),
+  company_ids: z.array(z.number()).min(1, t('users.validation.companiesRequired')),
 });
 
-type CreateFormData = z.infer<typeof createSchema>;
+type CreateFormData = z.infer<ReturnType<typeof createSchema>>;
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -58,7 +58,7 @@ export function CreateUserDialog({
     reset,
     formState: { errors },
   } = useForm<CreateFormData>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(createSchema(t)),
     defaultValues: { name: '', email: '', password: '', role_id: 0, company_ids: [] },
   });
 

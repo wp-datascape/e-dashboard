@@ -76,7 +76,7 @@ export default function Products() {
     },
     {
       field: 'is_high_margin',
-      headerName: 'Status',
+      headerName: t('common.status'),
       width: 120,
       sortable: false,
       renderCell: ({ row }) => row.is_high_margin
@@ -151,26 +151,26 @@ export default function Products() {
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, alignItems: 'center' }}>
           <TextField
-            size="small" label="Cari Kategori"
+            size="small" label={t('products.searchCategoryLabel')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPaginationModel((p) => ({ ...p, page: 0 })) }}
             sx={{ minWidth: { xs: '100%', sm: 180 } }}
           />
 
           <TextField
-            select size="small" label="Entitas"
+            select size="small" label={t('common.filters.entity')}
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           >
-            <MenuItem value="all">Semua Entitas</MenuItem>
+            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
             ))}
           </TextField>
 
           <TextField
-            size="small" label="Bulan" type="month"
+            size="small" label={t('common.filters.month')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
@@ -178,14 +178,14 @@ export default function Products() {
           />
 
           <TextField
-            select size="small" label="Window Aktif"
+            select size="small" label={t('common.filters.activeWindow')}
             value={activeWindow}
             onChange={(e) => setActiveWindow(Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 130 } }}
           >
-            <MenuItem value={3}>3 Bulan</MenuItem>
-            <MenuItem value={6}>6 Bulan</MenuItem>
-            <MenuItem value={12}>12 Bulan</MenuItem>
+            <MenuItem value={3}>{t('common.filters.window3Months')}</MenuItem>
+            <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
+            <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
           </TextField>
 
           <FormControlLabel
@@ -197,7 +197,7 @@ export default function Products() {
                 size="small"
               />
             }
-            label="High Margin"
+            label={t('products.highMarginBadge')}
             sx={{ ml: 0, whiteSpace: 'nowrap' }}
           />
         </Box>

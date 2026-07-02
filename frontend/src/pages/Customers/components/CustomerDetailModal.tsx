@@ -116,10 +116,10 @@ export function CustomerDetailModal({ customerId, onClose }: Props) {
               title=""
               data={detail.monthly_revenue_trend}
               barKey="revenue"
-              barLabel="Revenue"
+              barLabel={t('customers.detail.revenueShort')}
               barColor="#3B82F6"
               lineKey="gp"
-              lineLabel="GP"
+              lineLabel={t('customers.detail.gpShort')}
               lineColor="#10B981"
               xKey="month"
               height={180}
@@ -142,8 +142,8 @@ export function CustomerDetailModal({ customerId, onClose }: Props) {
                       <Typography variant="body2" color="text.secondary">{inv.invoice_date}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">Revenue: {formatIDR(inv.total_revenue)}</Typography>
-                      <Typography variant="caption" color="text.secondary">GP: {formatIDR(inv.total_gp)}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatIDR(inv.total_revenue) })}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t('customers.detail.gpColon', { value: formatIDR(inv.total_gp) })}</Typography>
                     </Box>
                   </Box>
                 ))}

@@ -7,6 +7,7 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
 import CloseIcon from '@mui/icons-material/Close'
+import { useTranslation } from 'react-i18next'
 import { StatusChip } from '@/components/ui'
 import { useCategoryProducts } from '@/hooks/useProducts'
 import { formatIDR } from '@/utils/format'
@@ -48,6 +49,7 @@ export function CategoryProductsDrawer({
   activeWindow,
   onClose,
 }: Props) {
+  const { t } = useTranslation()
   const { data, isLoading } = useCategoryProducts(
     category
       ? {
@@ -63,14 +65,14 @@ export function CategoryProductsDrawer({
   const columns: GridColDef<CategoryProductRow>[] = [
     {
       field: 'product_name',
-      headerName: 'Nama Produk',
+      headerName: t('products.drawer.colProductName'),
       flex: 1,
       minWidth: 200,
       sortable: false,
     },
     {
       field: 'total_revenue',
-      headerName: 'Revenue',
+      headerName: t('products.drawer.colRevenue'),
       width: 130,
       type: 'number',
       sortable: false,
@@ -78,7 +80,7 @@ export function CategoryProductsDrawer({
     },
     {
       field: 'total_gp',
-      headerName: 'GP',
+      headerName: t('products.drawer.colGp'),
       width: 120,
       type: 'number',
       sortable: false,
@@ -86,21 +88,21 @@ export function CategoryProductsDrawer({
     },
     {
       field: 'gp_margin_percent',
-      headerName: 'Margin',
+      headerName: t('products.drawer.colMargin'),
       width: 100,
       sortable: false,
       renderCell: ({ row }) => <MarginChip pct={row.gp_margin_percent} />,
     },
     {
       field: 'invoice_count',
-      headerName: 'Faktur',
+      headerName: t('products.drawer.colInvoice'),
       width: 80,
       type: 'number',
       sortable: false,
     },
     {
       field: 'customer_count',
-      headerName: 'Customer',
+      headerName: t('products.drawer.colCustomer'),
       width: 90,
       type: 'number',
       sortable: false,
@@ -125,14 +127,14 @@ export function CategoryProductsDrawer({
                 {category?.category_name ?? '—'}
               </Typography>
               {category?.is_high_margin && (
-                <StatusChip label="High Margin" color="info" />
+                <StatusChip label={t('products.highMarginBadge')} color="info" />
               )}
               {category?.is_service && (
-                <StatusChip label="Jasa" color="info" />
+                <StatusChip label={t('products.drawer.serviceBadge')} color="info" />
               )}
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Produk dalam kategori ini • window {activeWindow} bulan
+              {t('products.drawer.subtitle', { window: activeWindow })}
             </Typography>
           </Box>
           <IconButton onClick={onClose} size="small" sx={{ mt: -0.5 }}>
@@ -152,12 +154,12 @@ export function CategoryProductsDrawer({
             }}
           >
             {[
-              { label: 'Total Revenue', value: formatIDR(category.total_revenue ?? 0) },
-              { label: 'Total GP',      value: formatIDR(category.total_gp ?? 0) },
-              { label: 'Margin',        value: `${(category.gp_margin_percent ?? 0).toFixed(1)}%` },
-              { label: 'Faktur',        value: String(category.invoice_count ?? '—') },
-              { label: 'Customer',      value: String(category.customer_count ?? '—') },
-              { label: 'Terakhir Jual', value: category.last_sold_month ?? '—' },
+              { label: t('products.drawer.statTotalRevenue'), value: formatIDR(category.total_revenue ?? 0) },
+              { label: t('products.drawer.statTotalGp'),      value: formatIDR(category.total_gp ?? 0) },
+              { label: t('products.drawer.statMargin'),        value: `${(category.gp_margin_percent ?? 0).toFixed(1)}%` },
+              { label: t('products.drawer.statInvoice'),        value: String(category.invoice_count ?? '—') },
+              { label: t('products.drawer.statCustomer'),      value: String(category.customer_count ?? '—') },
+              { label: t('products.drawer.statLastSold'), value: category.last_sold_month ?? '—' },
             ].map(({ label, value }) => (
               <Box key={label} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -175,7 +177,7 @@ export function CategoryProductsDrawer({
 
         {/* Product list */}
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Daftar Produk ({data?.meta.total ?? '…'})
+          {t('products.drawer.listTitle', { count: data?.meta.total ?? '…' })}
         </Typography>
 
         {isLoading ? (

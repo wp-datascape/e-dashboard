@@ -10,6 +10,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { TooltipContentProps } from 'recharts';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
@@ -22,6 +24,7 @@ import { fmtRp, fmtRpDetail, SectionLabel, Row, monthToEndDate } from './helpers
 
 function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
   const d = payload[0].payload as CustomerMetricsTrendPoint;
   const totalGp = d.gp_tier1 + d.gp_tier2 + d.gp_tier3;
@@ -39,19 +42,19 @@ function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
       </Typography>
       <Divider sx={{ mb: 1 }} />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Row label="Total GP Existing" value={fmtRp(totalGp)} />
-        <Row label="Avg GP / Customer" value={fmtRp(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
+        <Row label={t('customerMetrics.m4.tooltipTotalGp')} value={fmtRp(totalGp)} />
+        <Row label={t('customerMetrics.m4.tooltipAvgGp')} value={fmtRp(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
         <Divider sx={{ my: 0.75 }} />
-        <Row label="Atas (GP > median)"        value={fmtRp(d.gp_tier1)} />
-        <Row label="Tengah (50%–100% median)"  value={fmtRp(d.gp_tier2)} />
-        <Row label="Bawah (< 50% median)"      value={fmtRp(d.gp_tier3)} />
+        <Row label={t('customerMetrics.m4.tierTop')}    value={fmtRp(d.gp_tier1)} />
+        <Row label={t('customerMetrics.m4.tierMid')}    value={fmtRp(d.gp_tier2)} />
+        <Row label={t('customerMetrics.m4.tierBottom')} value={fmtRp(d.gp_tier3)} />
       </Box>
       {d.top_gp_customer_name && (
         <>
           <Divider sx={{ my: 1 }} />
           <Row
-            label={`Top: ${d.top_gp_customer_name}`}
-            value={`${fmtRp(d.top_gp_revenue)} · ${d.top_gp_pct}%`}
+            label={t('customerMetrics.m4.topLabel', { name: d.top_gp_customer_name })}
+            value={t('customerMetrics.m4.topValue', { revenue: fmtRp(d.top_gp_revenue), pct: d.top_gp_pct })}
             highlight={d.is_gp_concentrated}
             icon={d.is_gp_concentrated ? '⚠ ' : undefined}
           />
@@ -61,24 +64,36 @@ function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   );
 }
 
+// Nilai `tier` dari backend (GpBreakdownRow.tier) selalu literal 'Atas'/'Tengah'/'Bawah' —
+// data API, bukan chrome UI, jadi perbandingan tetap pakai string asli. Hanya label
+// tampilan (StatusChip) yang di-translate.
 function tierChipColor(tier: string): 'primary' | 'info' | 'default' {
   if (tier === 'Atas')   return 'primary';
   if (tier === 'Tengah') return 'info';
   return 'default';
 }
 
-const gpColumns: GridColDef[] = [
-  { field: 'ranking',       headerName: '#',       width: 56,  sortable: false },
-  { field: 'customer_name', headerName: 'Customer', flex: 1,   minWidth: 160 },
-  { field: 'customer_code', headerName: 'Kode',     width: 110, sortable: false,
-    renderCell: (p) => p.value ?? '—' },
-  { field: 'gp',     headerName: 'GP',      width: 130, align: 'right', headerAlign: 'right',
-    renderCell: (p) => fmtRpDetail(p.value as number) },
-  { field: 'gp_pct', headerName: '% Total', width: 90,  align: 'right', headerAlign: 'right',
-    renderCell: (p) => `${p.value}%` },
-  { field: 'tier', headerName: 'Tier', width: 100, align: 'center', headerAlign: 'center', sortable: false,
-    renderCell: (p) => <StatusChip label={p.value as string} color={tierChipColor(p.value as string)} /> },
-]
+function tierLabel(tier: string, t: TFunction): string {
+  if (tier === 'Atas')   return t('customerMetrics.m4.tierTop');
+  if (tier === 'Tengah') return t('customerMetrics.m4.tierMid');
+  if (tier === 'Bawah')  return t('customerMetrics.m4.tierBottom');
+  return tier;
+}
+
+function useGpColumns(t: TFunction): GridColDef[] {
+  return [
+    { field: 'ranking',       headerName: t('customerMetrics.m4.colRank'),     width: 56,  sortable: false },
+    { field: 'customer_name', headerName: t('customerMetrics.m4.colCustomer'), flex: 1,   minWidth: 160 },
+    { field: 'customer_code', headerName: t('customerMetrics.m4.colCode'),     width: 110, sortable: false,
+      renderCell: (p) => p.value ?? '—' },
+    { field: 'gp',     headerName: t('customerMetrics.m4.colGp'),     width: 130, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRpDetail(p.value as number) },
+    { field: 'gp_pct', headerName: t('customerMetrics.m4.colGpPct'), width: 90,  align: 'right', headerAlign: 'right',
+      renderCell: (p) => `${p.value}%` },
+    { field: 'tier', headerName: t('customerMetrics.m4.colTier'), width: 100, align: 'center', headerAlign: 'center', sortable: false,
+      renderCell: (p) => <StatusChip label={tierLabel(p.value as string, t)} color={tierChipColor(p.value as string)} /> },
+  ]
+}
 
 interface Props {
   trend: CustomerMetricsTrendPoint[]
@@ -89,7 +104,9 @@ interface Props {
 
 export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
+  const gpColumns = useGpColumns(t);
 
   const { data: breakdown, isLoading: breakdownLoading } = useGpBreakdown({
     period_end: drillDate,
@@ -100,18 +117,18 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
   return (
     <>
       <Box>
-        <SectionLabel label="M4 · Average Gross Profit per Existing Customer" />
+        <SectionLabel label={t('customerMetrics.m4.sectionLabel')} />
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (
           <BarChartWidget
-            title="Total GP Existing Customer — Kontribusi per Tier (12 Bulan)"
-            subtitle="Tier ditentukan tiap bulan: Atas = GP > median · Tengah = 50%–100% median · Bawah = < 50% median · ⚠ = top GP customer > 25%"
+            title={t('customerMetrics.m4.chartTitle')}
+            subtitle={t('customerMetrics.m4.chartSubtitle')}
             data={trend}
             series={[
-              { key: 'gp_tier1', label: 'Atas (GP > median)',        color: theme.palette.primary.dark },
-              { key: 'gp_tier2', label: 'Tengah (50%–100% median)',  color: theme.palette.primary.main },
-              { key: 'gp_tier3', label: 'Bawah (< 50% median)',      color: theme.palette.primary.light },
+              { key: 'gp_tier1', label: t('customerMetrics.m4.tierTop'),    color: theme.palette.primary.dark },
+              { key: 'gp_tier2', label: t('customerMetrics.m4.tierMid'),    color: theme.palette.primary.main },
+              { key: 'gp_tier3', label: t('customerMetrics.m4.tierBottom'), color: theme.palette.primary.light },
             ]}
             xKey="month"
             height={240}
@@ -139,16 +156,16 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
         }}>
           <Box>
             <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              GP Breakdown — {drillDate}
+              {t('customerMetrics.m4.dialogTitle', { date: drillDate })}
             </Typography>
             {breakdown && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
                 {([
-                  ['Gross Profit Existing Customer',  fmtRpDetail(breakdown.total_gp)],
-                  ['Total Established (Active+Existing)', String(breakdown.total_existing)],
-                  ['Avg GP/Customer',                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
-                  ['Median threshold',                 fmtRpDetail(breakdown.median_threshold)],
-                  ['Existing bertransaksi bulan ini',  String(breakdown.rows.length)],
+                  [t('customerMetrics.m4.dialogGpExisting'),  fmtRpDetail(breakdown.total_gp)],
+                  [t('customerMetrics.m4.dialogTotalExisting'), String(breakdown.total_existing)],
+                  [t('customerMetrics.m4.dialogAvgGp'),                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
+                  [t('customerMetrics.m4.dialogMedianThreshold'),                 fmtRpDetail(breakdown.median_threshold)],
+                  [t('customerMetrics.m4.dialogExistingTx'),  String(breakdown.rows.length)],
                 ] as [string, string][]).map(([label, val]) => (
                   <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                     <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
@@ -161,7 +178,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5, ml: 1, mt: -0.5 }}>
             {breakdown && (
-              <MuiTooltip title="Export PDF" placement="top">
+              <MuiTooltip title={t('customerMetrics.m4.exportPdf')} placement="top">
                 <IconButton
                   size="small"
                   sx={{ color: 'text.secondary' }}
@@ -185,7 +202,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
             height={420}
             pageSize={25}
             pageSizeOptions={[25, 50, 100]}
-            emptyMessage="Tidak ada data GP bulan ini"
+            emptyMessage={t('customerMetrics.m4.emptyMessage')}
             mobileFields={['customer_name', 'gp', 'gp_pct', 'tier']}
           />
         </DialogContent>

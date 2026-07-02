@@ -11,6 +11,7 @@ import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
 import { useTheme } from '@mui/material/styles'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/api/axios'
 import { Dialog } from '@/components/ui/Dialog'
 import { StatusChip } from '@/components/ui/StatusChip'
@@ -58,6 +59,7 @@ function toVal(v: unknown): string {
 
 function DiffTable({ oldData, newData }: { oldData: Record<string, unknown> | null; newData: Record<string, unknown> | null }) {
   const theme = useTheme()
+  const { t } = useTranslation()
   const mono = theme.typography.caption.fontFamily
 
   if (!oldData && !newData) return null
@@ -68,9 +70,9 @@ function DiffTable({ oldData, newData }: { oldData: Record<string, unknown> | nu
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontWeight: 700, width: 140 }}>Field</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Old Value</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>New Value</TableCell>
+            <TableCell sx={{ fontWeight: 700, width: 140 }}>{t('auditLog.dialog.colField')}</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>{t('auditLog.dialog.colOldValue')}</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>{t('auditLog.dialog.colNewValue')}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -97,6 +99,7 @@ function DiffTable({ oldData, newData }: { oldData: Record<string, unknown> | nu
 }
 
 export function ViewAuditLogDialog({ open, onClose, logId }: Props) {
+  const { t } = useTranslation()
   const { data: log, isLoading, isError, error } = useQuery({
     queryKey: ['auditLog', logId],
     queryFn: async () => {
@@ -111,13 +114,13 @@ export function ViewAuditLogDialog({ open, onClose, logId }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title="Detail Audit Log"
+      title={t('auditLog.dialog.title')}
       maxWidth="md"
-      actions={[{ label: 'Tutup', onClick: onClose, variant: 'text' }]}
+      actions={[{ label: t('common.close'), onClick: onClose, variant: 'text' }]}
     >
-      {isLoading && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">Memuat...</Typography></Box>}
-      {isError && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="error">{error instanceof Error ? error.message : 'Gagal memuat data'}</Typography></Box>}
-      {!isLoading && !isError && !log && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">Tidak ada data</Typography></Box>}
+      {isLoading && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">{t('common.loading')}</Typography></Box>}
+      {isError && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="error">{error instanceof Error ? error.message : t('auditLog.dialog.errorLoading')}</Typography></Box>}
+      {!isLoading && !isError && !log && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">{t('common.noData')}</Typography></Box>}
 
       {log && (
         <Stack spacing={2} sx={{ pt: 1 }}>
@@ -130,19 +133,19 @@ export function ViewAuditLogDialog({ open, onClose, logId }: Props) {
           </Stack>
 
           <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
-            <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Pelaku</Typography><Typography variant="body2">{log.actor?.name ?? '—'}</Typography></Box>
-            <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Tabel</Typography><Chip label={log.entity} size="small" variant="outlined" /></Box>
-            {log.ip_address && <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>IP</Typography><Typography variant="body2">{log.ip_address}</Typography></Box>}
+            <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{t('auditLog.dialog.actor')}</Typography><Typography variant="body2">{log.actor?.name ?? '—'}</Typography></Box>
+            <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{t('auditLog.dialog.table')}</Typography><Chip label={log.entity} size="small" variant="outlined" /></Box>
+            {log.ip_address && <Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{t('auditLog.dialog.ip')}</Typography><Typography variant="body2">{log.ip_address}</Typography></Box>}
           </Stack>
 
           <Typography variant="subtitle2" sx={{ color: 'text.secondary', mt: 1 }}>
-            Perubahan Data
+            {t('auditLog.dialog.dataChanges')}
           </Typography>
           <DiffTable oldData={log.old_value ?? null} newData={log.new_value ?? null} />
 
           {log.meta && (
             <>
-              <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>Meta</Typography>
+              <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>{t('auditLog.dialog.meta')}</Typography>
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, whiteSpace: 'pre-wrap' }}>
                 {JSON.stringify(log.meta, null, 2)}
               </Paper>

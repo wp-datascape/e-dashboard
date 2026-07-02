@@ -57,14 +57,14 @@ export function CustomerDetailDrawer({ customerId, onClose }: CustomerDetailDraw
               </Box>
             )}
             <Box><Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{t('customers.detail.revenueTrend')}</Typography>
-              <ComboChartWidget title="" data={detail.monthly_revenue_trend} barKey="revenue" barLabel="Revenue" barColor="#3B82F6" lineKey="gp" lineLabel="GP" lineColor="#10B981" xKey="month" height={180} formatBar={(v: number) => formatIDR(v)} formatLine={(v: number) => formatIDR(v)} />
+              <ComboChartWidget title="" data={detail.monthly_revenue_trend} barKey="revenue" barLabel={t('customers.detail.revenueShort')} barColor="#3B82F6" lineKey="gp" lineLabel={t('customers.detail.gpShort')} lineColor="#10B981" xKey="month" height={180} formatBar={(v: number) => formatIDR(v)} formatLine={(v: number) => formatIDR(v)} />
             </Box>
             {detail.recent_invoices.length > 0 && (
               <Box><Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{t('customers.detail.recentInvoices')}</Typography>
                 <Stack spacing={1}>{detail.recent_invoices.map((inv: { invoice_number: string; invoice_date: string; total_revenue: number; total_gp: number }) => (
                   <Box key={inv.invoice_number} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography variant="body2" sx={{ fontWeight: 600 }}>{inv.invoice_number}</Typography><Typography variant="body2" color="text.secondary">{inv.invoice_date}</Typography></Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}><Typography variant="caption" color="text.secondary">Revenue: {formatIDR(inv.total_revenue)}</Typography><Typography variant="caption" color="text.secondary">GP: {formatIDR(inv.total_gp)}</Typography></Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}><Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatIDR(inv.total_revenue) })}</Typography><Typography variant="caption" color="text.secondary">{t('customers.detail.gpColon', { value: formatIDR(inv.total_gp) })}</Typography></Box>
                   </Box>
                 ))}</Stack>
               </Box>

@@ -8,6 +8,7 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import Box from '@mui/material/Box';
+import { useTranslation } from 'react-i18next';
 
 interface AlertProps {
   open: boolean;
@@ -17,8 +18,10 @@ interface AlertProps {
   showButton?: boolean; // Prop baru untuk menentukan apakah tombol bawah muncul
 }
 
-export const AppAlert = ({ open, title, message, onClose, showButton = false }: AlertProps) => (
-  <Dialog 
+export const AppAlert = ({ open, title, message, onClose, showButton = false }: AlertProps) => {
+  const { t } = useTranslation();
+  return (
+  <Dialog
     open={open} 
     onClose={onClose} 
     fullWidth 
@@ -50,9 +53,10 @@ export const AppAlert = ({ open, title, message, onClose, showButton = false }: 
     {showButton && (
       <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
         <Button onClick={onClose} variant="contained" size="medium" sx={{ borderRadius: 0 }}>
-          OK
+          {t('common.ok')}
         </Button>
       </DialogActions>
     )}
   </Dialog>
-);
+  );
+};

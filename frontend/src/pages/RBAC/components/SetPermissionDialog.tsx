@@ -12,16 +12,20 @@ import Divider from '@mui/material/Divider';
 import SearchIcon from '@mui/icons-material/Search';
 import SecurityIcon from '@mui/icons-material/Security';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Dialog, StatusChip } from '@/components/ui';
 import type { Role, Permission } from '@/types/rbac';
 
-const ACTION_COLUMNS = [
-  { key: 'menu',   label: 'Menu' },
-  { key: 'view',   label: 'View' },
-  { key: 'input',  label: 'Input' },
-  { key: 'update', label: 'Update' },
-  { key: 'delete', label: 'Delete' },
-];
+function getActionColumns(t: TFunction) {
+  return [
+    { key: 'menu',   label: t('rbac.setPermissionDialog.actionMenu') },
+    { key: 'view',   label: t('rbac.setPermissionDialog.actionView') },
+    { key: 'input',  label: t('rbac.setPermissionDialog.actionInput') },
+    { key: 'update', label: t('rbac.setPermissionDialog.actionUpdate') },
+    { key: 'delete', label: t('rbac.setPermissionDialog.actionDelete') },
+  ];
+}
 
 interface SetPermissionDialogProps {
   open: boolean;
@@ -40,6 +44,8 @@ export function SetPermissionDialog({
   onTogglePermission,
   isMobile,
 }: SetPermissionDialogProps) {
+  const { t } = useTranslation();
+  const actionColumns = getActionColumns(t);
   const [permSearch, setPermSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [activePermIds, setActivePermIds] = useState<Set<number>>(() => 
@@ -72,10 +78,10 @@ export function SetPermissionDialog({
   };
 
   const getGroupActiveCount = (group: string): number =>
-    ACTION_COLUMNS.filter((col) => groupHasAction(group, col.key) && hasPermission(group, col.key)).length;
+    actionColumns.filter((col) => groupHasAction(group, col.key) && hasPermission(group, col.key)).length;
 
   const getGroupTotalCount = (group: string): number =>
-    ACTION_COLUMNS.filter((col) => groupHasAction(group, col.key)).length;
+    actionColumns.filter((col) => groupHasAction(group, col.key)).length;
 
   const handleToggle = (group: string, action: string) => {
     const perm = findPerm(group, action);
@@ -114,27 +120,27 @@ export function SetPermissionDialog({
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>
-              Set Permission
+              {t('rbac.setPermissionDialog.title')}
             </Typography>
             {role && (
               <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1 }}>
-                Role:&nbsp;
+                {t('rbac.setPermissionDialog.rolePrefix')}&nbsp;
                 <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{role.name}</Box>
               </Typography>
             )}
           </Box>
-          <StatusChip label={`${activePermIds.size} aktif`} color="primary" />
+          <StatusChip label={t('rbac.setPermissionDialog.activeCount', { count: activePermIds.size })} color="primary" />
         </Box>
       }
       maxWidth="sm"
       contentSx={{ p: 0 }}
-      actions={[{ label: 'Selesai', onClick: onClose }]}
+      actions={[{ label: t('rbac.setPermissionDialog.done'), onClick: onClose }]}
     >
       {/* Search bar */}
       <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
         <TextField
           size="small"
-          placeholder="Filter kategori..."
+          placeholder={t('rbac.setPermissionDialog.searchPlaceholder')}
           fullWidth
           value={permSearch}
           onChange={(e) => setPermSearch(e.target.value)}
@@ -201,7 +207,7 @@ export function SetPermissionDialog({
 
                 <Collapse in={isOpen} unmountOnExit>
                   <Box sx={{ bgcolor: 'action.hover', px: 2.5, py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, borderLeft: '3px solid', borderColor: 'primary.main' }}>
-                    {ACTION_COLUMNS.map((col) => {
+                    {actionColumns.map((col) => {
                       const exists = groupHasAction(group, col.key);
                       const checked = hasPermission(group, col.key);
                       return (
@@ -222,7 +228,7 @@ export function SetPermissionDialog({
                             </Typography>
                             {!exists && (
                               <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
-                                (tidak tersedia)
+                                {t('rbac.setPermissionDialog.notAvailable')}
                               </Typography>
                             )}
                           </Box>
@@ -240,7 +246,7 @@ export function SetPermissionDialog({
 
         {filteredGroups.length === 0 && (
           <Box sx={{ py: 6, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.disabled">Tidak ada kategori yang cocok</Typography>
+            <Typography variant="body2" color="text.disabled">{t('rbac.setPermissionDialog.noMatch')}</Typography>
           </Box>
         )}
       </Box>

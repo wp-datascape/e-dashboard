@@ -2,10 +2,12 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 
 export default function Forbidden() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   return (
     <Box
@@ -23,15 +25,15 @@ export default function Forbidden() {
       <LockOutlinedIcon sx={{ fontSize: 64, color: 'warning.main' }} />
 
       <Typography variant="h5" sx={{ fontWeight: 700 }}>
-        403 — Akses Ditolak
+        {t('forbidden.title')}
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400 }}>
-        Anda tidak memiliki izin untuk mengakses halaman ini. Hubungi administrator jika ini adalah kesalahan.
+        {t('forbidden.subtitle')}
       </Typography>
 
       <Button variant="contained" onClick={() => navigate('/dashboard')}>
-        Kembali ke Dashboard
+        {t('forbidden.backToDashboard')}
       </Button>
     </Box>
   )

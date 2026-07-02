@@ -16,62 +16,63 @@ import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
 import { Card, StatusChip } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
 
-const PAGE_LABELS: Record<string, string> = {
-  dashboard: 'Executive Dashboard',
-  customers: 'Customer 360',
-  'customers-expansion': 'Expansion Targets',
-  'dormant-customer': 'Churn Risk',
-  'cross-selling': 'Cross Selling',
-  products: 'Products',
-  'products-high-margin': 'Product (High Margin)',
-  'products-trend': 'Product Trend',
-  transactions: 'Orders',
-  projects: 'Project Milestone',
-  'settings-app': 'App Settings',
-  companies: 'Companies',
-  'settings-high-margin': 'Product',
-  'settings-threshold': 'Threshold',
-  'settings-classification': 'Classification',
-  import: 'Import',
-  'config-integration': 'Integration',
-  'config-features': 'Fitur',
-  users: 'Users',
-  rbac: 'Roles',
-  'audit-log': 'Audit Log',
+// page_key -> i18n key (reuse label yang sama dengan Sidebar, SSOT di locale nav.*)
+const PAGE_LABEL_KEYS: Record<string, string> = {
+  dashboard: 'nav.dashboard',
+  customers: 'nav.customers',
+  'customers-expansion': 'nav.expansionTargets',
+  'dormant-customer': 'nav.churnRisk',
+  'cross-selling': 'nav.crossSellMatrix',
+  products: 'nav.productLedger',
+  'products-high-margin': 'nav.highMarginPush',
+  'products-trend': 'nav.productTrend',
+  transactions: 'nav.transactionLedger',
+  projects: 'nav.projectMilestone',
+  'settings-app': 'nav.settingsApp',
+  companies: 'nav.companies',
+  'settings-high-margin': 'nav.settingsHighMargin',
+  'settings-threshold': 'nav.settingsThreshold',
+  'settings-classification': 'nav.settingsClassification',
+  import: 'nav.import',
+  'config-integration': 'nav.configIntegration',
+  'config-features': 'nav.configFeatures',
+  users: 'nav.users',
+  rbac: 'nav.rbac',
+  'audit-log': 'nav.auditLog',
 }
 
-const GROUP_MAP: Record<string, string> = {
-  dashboard: 'Executive Dashboard',
-  customers: 'Customer Workbench',
-  'customers-expansion': 'Customer Workbench',
-  'dormant-customer': 'Customer Workbench',
-  'cross-selling': 'Customer Workbench',
-  products: 'Product & Portfolio',
-  'products-high-margin': 'Product & Portfolio',
-  'products-trend': 'Product & Portfolio',
-  transactions: 'Transaction & Revenue',
-  projects: 'Transaction & Revenue',
-  'settings-app': 'Settings',
-  companies: 'Settings',
-  'settings-high-margin': 'Settings',
-  'settings-threshold': 'Settings',
-  'settings-classification': 'Config',
-  import: 'Config',
-  'config-integration': 'Config',
-  'config-features': 'Config',
-  users: 'Config',
-  rbac: 'Config',
-  'audit-log': 'Admin',
+const GROUP_KEY_MAP: Record<string, string> = {
+  dashboard: 'nav.groups.executiveDashboard',
+  customers: 'nav.groups.customerWorkbench',
+  'customers-expansion': 'nav.groups.customerWorkbench',
+  'dormant-customer': 'nav.groups.customerWorkbench',
+  'cross-selling': 'nav.groups.customerWorkbench',
+  products: 'nav.groups.productPortfolio',
+  'products-high-margin': 'nav.groups.productPortfolio',
+  'products-trend': 'nav.groups.productPortfolio',
+  transactions: 'nav.groups.transactionRevenue',
+  projects: 'nav.groups.transactionRevenue',
+  'settings-app': 'nav.groups.settings',
+  companies: 'nav.groups.settings',
+  'settings-high-margin': 'nav.groups.settings',
+  'settings-threshold': 'nav.groups.settings',
+  'settings-classification': 'nav.groups.config',
+  import: 'nav.groups.config',
+  'config-integration': 'nav.groups.config',
+  'config-features': 'nav.groups.config',
+  users: 'nav.groups.config',
+  rbac: 'nav.groups.config',
+  'audit-log': 'nav.groups.admin',
 }
 
-const GROUP_ORDER = [
-  'Executive Dashboard',
-  'Customer Workbench',
-  'Product & Portfolio',
-  'Transaction & Revenue',
-  'Settings',
-  'Config',
-  'Admin',
+const GROUP_KEY_ORDER = [
+  'nav.groups.executiveDashboard',
+  'nav.groups.customerWorkbench',
+  'nav.groups.productPortfolio',
+  'nav.groups.transactionRevenue',
+  'nav.groups.settings',
+  'nav.groups.config',
+  'nav.groups.admin',
 ]
 
 const ITEM_ORDER: Record<string, number> = {
@@ -137,14 +138,14 @@ export default function FeaturesPage() {
     )
   }
 
-  const items = (pageSettings ?? []).filter((item) => item.page_key in GROUP_MAP)
+  const items = (pageSettings ?? []).filter((item) => item.page_key in GROUP_KEY_MAP)
   const grouped = items.reduce<Record<string, typeof items>>((acc, item) => {
-    const group = GROUP_MAP[item.page_key]!
-    if (!acc[group]) acc[group] = []
-    acc[group].push(item)
+    const groupKey = GROUP_KEY_MAP[item.page_key]!
+    if (!acc[groupKey]) acc[groupKey] = []
+    acc[groupKey].push(item)
     return acc
   }, {})
-  const orderedGroups = GROUP_ORDER.filter((g) => g in grouped).map((g) => [g, grouped[g]] as const)
+  const orderedGroups = GROUP_KEY_ORDER.filter((g) => g in grouped).map((g) => [g, grouped[g]] as const)
 
   return (
     <Box sx={{ p: 3 }}>
@@ -152,12 +153,12 @@ export default function FeaturesPage() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('config.features.subtitle')}</Typography>
 
       <Card sx={{ p: 3 }}>
-        {orderedGroups.map(([group, pages]) => {
+        {orderedGroups.map(([groupKey, pages]) => {
           const sortedPages = [...pages].sort((a, b) => (ITEM_ORDER[a.page_key] ?? 99) - (ITEM_ORDER[b.page_key] ?? 99))
           return (
-          <Box key={group} sx={{ mb: 3 }}>
+          <Box key={groupKey} sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
-              {group}
+              {t(groupKey)}
             </Typography>
 
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
@@ -172,7 +173,8 @@ export default function FeaturesPage() {
                 </TableHead>
                 <TableBody>
                   {sortedPages.map((item) => {
-                    const label = PAGE_LABELS[item.page_key] ?? item.page_key
+                    const labelKey = PAGE_LABEL_KEYS[item.page_key]
+                    const label = labelKey ? t(labelKey) : item.page_key
                     const isBusy = isPending && busyKey === item.page_key
                     return (
                       <TableRow key={item.page_key} hover>
@@ -193,7 +195,8 @@ export default function FeaturesPage() {
 
             <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
               {sortedPages.map((item) => {
-                const label = PAGE_LABELS[item.page_key] ?? item.page_key
+                const labelKey = PAGE_LABEL_KEYS[item.page_key]
+                const label = labelKey ? t(labelKey) : item.page_key
                 const isBusy = isPending && busyKey === item.page_key
                 return (
                   <Card key={item.page_key} sx={{ p: 2 }}>
