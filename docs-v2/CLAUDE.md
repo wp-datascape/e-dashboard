@@ -31,6 +31,7 @@ Status   : Frontend ~97% | Backend ~80%
 | Product Workbench     | `product-workbench/overview.md`        |
 | Transaction Workbench | `transaction-workbench/overview.md`    |
 | Admin pages           | `admin/overview.md`                    |
+| Dashboard feature (backend `/dashboard`) | `features/dashboard.md`  |
 | Companies feature          | `features/companies.md`                |
 | Customers feature          | `features/customers.md`                |
 | Roles feature              | `features/roles.md`                    |
