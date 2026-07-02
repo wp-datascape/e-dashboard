@@ -43,7 +43,7 @@ audit.log:export          — export audit log
 | Product | `product` | menu, view, export |
 | High Margin | `high.margin` | menu, view, export |
 | Product Trend | `product.trend` | menu, view, export |
-| Order | `order` | menu, view, export |
+| Transaction | `transaction` | menu, view, export |
 | Project | `project` | menu, view |
 | App Settings | `settings.app` | menu, view, update |
 | Company | `settings.company` | menu, view, create, update, delete |

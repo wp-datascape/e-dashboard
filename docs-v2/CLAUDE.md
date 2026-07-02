@@ -42,7 +42,8 @@ Status   : Frontend ~97% | Backend ~80%
 | Classification Rules       | `features/classification.md`           |
 | Channel Divisions          | `features/channel-divisions.md`        |
 | High Margin Products       | `features/high-margin-products.md`     |
-| Metrics / KPI (M1–M10)    | `features/metrics.md`                  |
+| Metrics / KPI (M1–M10), Product Trend | `features/metrics.md`       |
+| Transactions (Order Ledger) | `features/transactions.md`             |
 | Formula detail M3–M5      | `shared/metrics_docs.md`               |
 | Audit Log                  | `features/audit.md`                    |
 | Accurate Integration       | `features/accurate.md`                 |

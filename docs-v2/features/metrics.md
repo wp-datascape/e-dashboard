@@ -1,8 +1,8 @@
 # Feature: Metrics (KPI 1–10)
 
-> Status: 🟢 M1–M2 & M8–M10 backend live · M3–M7 backend live
-> Last updated: 2026-06-30
-> Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`
+> Status: 🟢 M1–M2 & M8–M10 backend live · M3–M7 backend live · Product Trend (avg-category) backend live
+> Last updated: 2026-07-02
+> Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`, `product-workbench/api.md`
 
 ---
 
@@ -20,24 +20,34 @@ Sumber data: `invoices` + `invoice_items` + `customers` + `product_categories` +
 ```
 backend/src/features/metrics/
   metrics.schema.ts     ← Zod schemas: semua query params (company_id, period_end, division, dll)
-  metrics.repository.ts ← Raw SQL (CTE): fetchCrossSellingKPI/Trend/Detail/Heatmap,
-                           fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown,
-                           fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking
+  metrics.repository.ts ← Barrel re-export dari repository/*.ts
   metrics.service.ts    ← Business logic + catch → AppError
   metrics.types.ts      ← TypeScript interfaces response
   metrics.handler.ts    ← Thin handlers (validate → service → success)
   metrics.route.ts      ← GET /api/v1/metrics/*
   segment.helper.ts     ← SegmentParams interface, CTE builder (sqlExistingCustomers,
                            sqlDormantCustomers), monthEndDate()
+  repository/
+    m1.repository.ts                    ← fetchCrossSellingKPI/Trend/Detail/Heatmap (M1, M1.1, M2)
+    m3m7.repository.ts                  ← fetchCustomerMetricsTrend (M3–M7)
+    m4.repository.ts, m5.repository.ts, m6.repository.ts ← fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown
+    m8m10.repository.ts                 ← fetchDormantTrend, fetchDormantValueRanking
+    category-performance.repository.ts  ← fetchCategoryPerformance (3.1)
+    category-products.repository.ts     ← fetchCategoryProducts (drill-down 3.1)
+    high-margin-penetration.repository.ts ← fetchHmDetail, fetchUpsellTargets (3.2)
+    customer-products.repository.ts     ← fetchCustomerProducts (drill-down customer)
+    avg-category.repository.ts          ← fetchAvgCategoryTrend (3.3 Product Trend)
 
 frontend/src/
-  api/metrics.api.ts              ← axios calls (semua params sudah dikirim)
-  hooks/useMetrics.ts             ← React Query hooks (params → queryKey reaktif)
-  types/metrics.ts                ← Frontend interface types
+  api/metrics.api.ts, api/products.api.ts ← axios calls (semua params sudah dikirim)
+  hooks/useMetrics.ts, hooks/useProducts.ts ← React Query hooks (params → queryKey reaktif)
+  types/metrics.ts, types/products.ts     ← Frontend interface types
   pages/CrossSelling/             ← Halaman M1–M2 (real backend)
   pages/CustomerMetrics/          ← Halaman M3–M7 (real backend)
   pages/DormantCustomer/          ← Halaman M8–M10 (real backend)
+  pages/ProductsTrend/            ← Halaman 3.3 Product Trend (real backend, avg-category)
   mocks/handlers/metrics.handler.ts ← Semua handler DISABLED (komentar)
+  mocks/handlers/products.handler.ts ← avgCategoryHandlers DISABLED (tidak lagi di-spread ke productsHandlers)
 ```
 
 ---
@@ -128,6 +138,35 @@ Response shape:
 **M10** = reactivation_current.value (% reactivation bulan terakhir)
 
 Dormant threshold (dormantDays) dibaca dari `business_configs.dormant_threshold_months.*` via `resolveSegmentParams()`.
+
+---
+
+### `GET /api/v1/metrics/avg-category` — 3.3 Product Trend (reuse M2)
+
+Query params:
+| Param | Tipe | Default | Keterangan |
+|---|---|---|---|
+| `company_id` | integer \| `"all"` | `"all"` | Filter per entitas |
+| `period_month` | `YYYY-MM` | Bulan berjalan | Dinormalisasi ke akhir bulan (pola sama dengan `category-performance`) |
+| `active_window` | integer (1–24) | 6 | Rolling window bulan untuk hitung avg kategori per customer |
+
+Permission: `product.trend:view` ATAU `metrics:view` (`requirePermission('product.trend:view', 'metrics:view')` — `metrics:view` sudah usang/dihapus dari seed, lihat `features/permissions.md`).
+
+Response shape:
+```ts
+{
+  company_id:   number | 'all'
+  period_month: string
+  trend:        { month: string; avg_category: number }[]  // 12 titik bulan
+  current_avg:  number        // trend[-1].avg_category
+  prev_avg:     number | null // trend[-2].avg_category, null jika trend < 2 titik
+  change_pct:   number | null // (current - prev) / prev * 100, null jika prev null/0
+}
+```
+
+Query rolling-window sama pola dengan `fetchCrossSellingTrend` (M2 di `m1.repository.ts`) — per titik bulan, hitung `COUNT(DISTINCT product_category_id)` per customer dalam window `active_window` bulan ke belakang, lalu `AVG()` across customer aktif. **Beda dari M2 asli**: tidak ada filter `division`/`channel_divisions`, karena `ProductTrendParams` di frontend tidak punya field itu — endpoint ini murni turunan M2 tanpa filter tambahan.
+
+Reuse relationship: dulu 3.3 direncanakan "reuse M2 endpoint" (`GET /metrics/cross-selling`), tapi karena frontend sudah terlanjur memanggil path `/metrics/avg-category` dengan shape response berbeda (bukan bagian dari `CrossSellingMetricsData`), dibuat endpoint terpisah dengan logic query yang mirip, bukan literal reuse endpoint yang sama.
 
 ---
 
@@ -223,6 +262,17 @@ Filter: **Entitas** + **Divisi** + **Periode** (month picker)
 
 Semua threshold (alert_pct, target_low, target_high) dibaca dari response backend — bukan hardcode.
 
+### `/products/trend` — 3.3 Product Trend
+
+Filter: **Entitas** (default `'all'`), `period_month` default bulan berjalan (`todayMonth()`, sebelumnya hardcode `'2024-01'`), `active_window` default 6.
+
+| Section | Widget | Data |
+|---|---|---|
+| KPI Current Avg | StatCard | `current_avg` |
+| KPI Prev Avg | StatCard | `prev_avg` |
+| KPI Change % | StatCard + trend icon | `change_pct` |
+| Trend Chart | AreaChartWidget | `trend[].avg_category`, xKey `month` |
+
 ---
 
 ## MSW Mock Status
@@ -231,3 +281,4 @@ Semua handler dinonaktifkan (komentar `// DISABLED`):
 - `crossSellingHandlers` — real backend aktif
 - `customerMetricsHandlers` — real backend aktif
 - `dormantHandlers` — real backend aktif
+- `avgCategoryHandlers` (di `mocks/handlers/products.handler.ts`) — real backend aktif (`GET /metrics/avg-category`)
