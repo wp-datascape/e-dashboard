@@ -6,7 +6,7 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). **Fix logout tidak invalidasi sesi server (sesi 29)**. |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) pilot 6 endpoint (sesi 29). |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) lengkap 83 operasi/63 path — seluruh protectedApi (sesi 29). |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
 | Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). api-docs.md (baru, sesi 29). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
@@ -292,6 +292,13 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 - `backend/src/router.ts` — mount `/docs` di dalam `protectedApi`, gated `NODE_ENV !== 'production'`
 - `backend/package.json`, `backend/bun.lock` — tambah `swagger-ui-dist`
 - `frontend/src/components/ui/AppBar/AppBar.tsx`, `frontend/src/components/ui/LogoutButton/LogoutButton.tsx` — logout pakai `useLogoutMutation()`
+
+**Susulan (sesi 29, dilengkapi): pilot 6 endpoint → 83 operasi/63 path, seluruh `protectedApi`.**
+- Ditambah: Users, Page Settings, Companies (+branches), Roles, Permissions, Config (+Accurate credentials/test-connection), Audit Log, Customers, Products (lokal + proxy live Accurate), Import (upload multipart + SSE stream), Classification Rules, Settings High Margin, Settings Channel Divisions, 10 endpoint Metrics tambahan (customer-metrics, gp/hm/ror-breakdown, dormant-customer, category-performance/products, high-margin-penetration/detail+customers, customer-products, avg-category), Transactions (invoices)
+- File download (.xlsx template ×3), multipart upload (×4), dan SSE stream (`/import/csv/stream`) didokumentasikan bentuk request/response-nya sesuai kemampuan OpenAPI 3.1, bukan lewat auto-generate
+- Ditemukan & dicatat apa adanya saat menulis spec (bukan diperbaiki di sesi ini): `GET /config/accurate/credentials/:branchId` return `api_token`/`signature_secret` plaintext; `POST /settings/high-margin` ambil `created_by` dari header `x-user-id` bukan session; delete di `settings/high-margin` & `settings/channel-divisions` return `200 {id}` sedangkan fitur lain `204`
+- Diverifikasi live: login via curl → `GET /api/v1/docs/openapi.yaml` (200, isi identik file sumber) → `GET /api/v1/docs` (200, Swagger UI HTML)
+- Detail lengkap: `features/api-docs.md`
 
 ---
 

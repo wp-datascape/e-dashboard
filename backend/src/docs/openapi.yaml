@@ -4,8 +4,11 @@ info:
   version: "1.0.0"
   description: >
     Internal API — holding company executive dashboard.
-    Spec ini ditulis manual (bukan auto-generate), pilot cakupan awal:
-    Auth + Dashboard + Metrics (Cross Selling). Endpoint lain menyusul.
+    Spec ini ditulis manual (bukan auto-generate). Cakupan: seluruh endpoint
+    protected (di bawah protectedApi di router.ts) kecuali endpoint proxy
+    live ke Accurate Online (GET /products/accurate, /products/accurate/categories)
+    dan endpoint upload/download biner (didokumentasikan bentuknya, bukan
+    "try it out" penuh karena Swagger UI kurang nyaman untuk file besar).
 servers:
   - url: /api/v1
     description: Current server
@@ -14,6 +17,20 @@ tags:
   - name: Auth
   - name: Dashboard
   - name: Metrics
+  - name: Users
+  - name: Page Settings
+  - name: Companies
+  - name: Roles
+  - name: Permissions
+  - name: Config
+  - name: Audit Log
+  - name: Customers
+  - name: Products
+  - name: Import
+  - name: Classification Rules
+  - name: Settings — High Margin
+  - name: Settings — Channel Divisions
+  - name: Transactions
 
 components:
   securitySchemes:
@@ -32,6 +49,76 @@ components:
         Wajib untuk request mutasi (POST/PUT/PATCH/DELETE).
         Nilainya dari cookie csrf_token (di-set saat login), Swagger UI di halaman ini
         otomatis membaca & mengisi header ini lewat requestInterceptor.
+
+  parameters:
+    CompanyIdParam:
+      name: company_id
+      in: query
+      schema:
+        oneOf:
+          - { type: integer, minimum: 1 }
+          - { type: string, enum: [all] }
+        default: all
+      description: ID company, atau "all" untuk semua company (holding view)
+    CompanyIdRequiredParam:
+      name: company_id
+      in: query
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: ID company — wajib diisi (tidak ada opsi "all" di endpoint ini)
+    DivisionParam:
+      name: division
+      in: query
+      schema:
+        type: string
+        enum: [distribution, project, e_commerce, intercompany, freelancer, support]
+    PeriodMonthParam:
+      name: period_month
+      in: query
+      schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+      example: "2026-07"
+      description: Format YYYY-MM, default bulan berjalan
+    PeriodEndParam:
+      name: period_end
+      in: query
+      schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+      example: "2026-07-31"
+      description: Format YYYY-MM-DD, default akhir bulan berjalan
+    ActiveWindowParam:
+      name: active_window
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 24, default: 6 }
+      description: Rentang lookback dalam bulan
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPageParam:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    IdPathParam:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    Unauthorized:
+      description: Belum login / cookie access_token tidak valid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Query/body tidak valid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource tidak ditemukan
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   schemas:
     ErrorResponse:
@@ -168,6 +255,1115 @@ components:
                   multi_product: { type: integer }
                   ratio: { type: number }
                   avg_category: { type: number }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+
+    # ─── Users ──────────────────────────────────────────────────────────────
+    RoleRef:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        is_system: { type: boolean }
+    CompanyRef:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        name: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/RoleRef' }
+        companies:
+          type: array
+          items: { $ref: '#/components/schemas/CompanyRef' }
+    UserListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    UserResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/User' }
+    CreateUserRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 255 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72 }
+    UpdateUserRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 255 }
+        is_active: { type: boolean }
+        role_ids:
+          type: array
+          items: { type: integer }
+        company_ids:
+          type: array
+          items: { type: integer }
+
+    # ─── Page Settings ──────────────────────────────────────────────────────
+    PageSetting:
+      type: object
+      properties:
+        id: { type: integer }
+        page_key: { type: string }
+        ready: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PageSettingListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PageSetting' }
+    PageSettingResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/PageSetting' }
+    UpdatePageSettingRequest:
+      type: object
+      required: [ready]
+      properties:
+        ready: { type: boolean }
+
+    # ─── Companies ──────────────────────────────────────────────────────────
+    Company:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CompanyListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Company' }
+    CompanyResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/Company' }
+    CreateCompanyRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 2, maxLength: 50, description: "Otomatis di-uppercase" }
+        name: { type: string, minLength: 2, maxLength: 255 }
+    UpdateCompanyRequest:
+      type: object
+      properties:
+        code: { type: string, minLength: 2, maxLength: 50 }
+        name: { type: string, minLength: 2, maxLength: 255 }
+    CompanyBranch:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer }
+        name: { type: string }
+        code: { type: string }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CompanyBranchListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CompanyBranch' }
+    CompanyBranchResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/CompanyBranch' }
+    CreateCompanyBranchRequest:
+      type: object
+      required: [name, code, is_active]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        code: { type: string, minLength: 2, maxLength: 50, description: "Otomatis di-uppercase" }
+        is_active: { type: boolean }
+    UpdateCompanyBranchRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        code: { type: string, minLength: 2, maxLength: 50 }
+        is_active: { type: boolean }
+
+    # ─── Roles & Permissions ────────────────────────────────────────────────
+    Permission:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PermissionRef:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    Role:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        is_system: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        permissions:
+          type: array
+          items: { $ref: '#/components/schemas/PermissionRef' }
+          description: "Hanya ada di GET /roles (list) — GET /roles/:id (single) tidak menyertakan field ini"
+    RoleListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+    RoleResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/Role' }
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100, description: "Otomatis di-lowercase" }
+        description: { type: string, maxLength: 500 }
+    UpdateRoleRequest:
+      type: object
+      properties:
+        description: { type: string, maxLength: 500 }
+      description: >
+        Hanya `description` — `name` immutable lewat endpoint ini. Kalau role
+        `is_system=true`, service tetap hanya izinkan update description
+        (tidak divalidasi Zod, dicek di service layer).
+    UpdateRolePermissionsRequest:
+      type: object
+      required: [permission_ids]
+      properties:
+        permission_ids:
+          type: array
+          items: { type: integer, minimum: 1 }
+          minItems: 1
+    PermissionListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Permission' }
+    PermissionResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/Permission' }
+    CreatePermissionRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 100, pattern: '^[a-z0-9.:_-]+$', example: "metrics:view" }
+        description: { type: string }
+        category: { type: string, minLength: 1, maxLength: 50 }
+    UpdatePermissionRequest:
+      type: object
+      properties:
+        description: { type: string }
+        category: { type: string, minLength: 1, maxLength: 50 }
+
+    # ─── Config ─────────────────────────────────────────────────────────────
+    BusinessConfig:
+      type: object
+      properties:
+        key: { type: string }
+        value: { type: string }
+        description: { type: string, nullable: true }
+    BusinessConfigListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/BusinessConfig' }
+    BusinessConfigResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/BusinessConfig' }
+    UpdateBusinessConfigRequest:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string, minLength: 1 }
+    AccurateCredential:
+      type: object
+      description: >
+        PERHATIAN: `api_token` dan `signature_secret` dikembalikan dalam
+        bentuk PLAINTEXT (di-decrypt server-side) — ini perilaku production
+        yang sudah ada, bukan sesuatu yang diperbaiki di dokumentasi ini,
+        dicatat di sini supaya konsumen API sadar dan tidak sembarangan
+        log/expose response ini.
+      properties:
+        id: { type: integer }
+        branch_id: { type: integer }
+        auth_method: { type: string, enum: [api_token, oauth] }
+        api_token: { type: string, nullable: true, description: "PLAINTEXT — lihat catatan di atas" }
+        app_key: { type: string, nullable: true }
+        signature_secret: { type: string, nullable: true, description: "PLAINTEXT — lihat catatan di atas" }
+        subdomain: { type: string }
+        company_db_id: { type: string, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AccurateCredentialResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          oneOf:
+            - { $ref: '#/components/schemas/AccurateCredential' }
+            - { type: "null" }
+    SaveAccurateCredentialsRequest:
+      type: object
+      required: [branch_id, subdomain]
+      properties:
+        branch_id: { type: integer }
+        auth_method: { type: string, enum: [api_token, oauth], default: api_token }
+        api_token: { type: string }
+        signature_secret: { type: string }
+        app_key: { type: string }
+        signature_secret_oauth: { type: string }
+        client_id: { type: string }
+        client_secret: { type: string }
+        callback_url: { type: string, format: uri }
+        subdomain: { type: string }
+        company_db_id: { type: string }
+    AccurateTestConnectionRequest:
+      type: object
+      required: [subdomain, api_token, signature_secret]
+      properties:
+        subdomain: { type: string }
+        api_token: { type: string }
+        signature_secret: { type: string }
+    AccurateTestResult:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            success: { type: boolean }
+            host: { type: string }
+            alias: { type: string }
+            db_id: { type: string }
+            user_name: { type: string }
+            message: { type: string }
+
+    # ─── Audit Log ──────────────────────────────────────────────────────────
+    AuditLog:
+      type: object
+      properties:
+        id: { type: integer }
+        actor:
+          oneOf:
+            - type: object
+              properties:
+                id: { type: integer }
+                name: { type: string }
+            - { type: "null" }
+        action: { type: string, example: "high_margin.create" }
+        entity: { type: string }
+        entity_id: { type: string }
+        entity_key: { type: string }
+        company_id: { type: integer, nullable: true }
+        old_value: { type: object, nullable: true, additionalProperties: true }
+        new_value: { type: object, nullable: true, additionalProperties: true }
+        meta: { type: object, nullable: true, additionalProperties: true }
+        ip_address: { type: string, nullable: true }
+        request_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    AuditLogListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AuditLog' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    AuditLogResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/AuditLog' }
+    AuditActionsResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { type: string }
+          example: ["channel_division.create", "high_margin.update", "user.create"]
+
+    # ─── Customers ──────────────────────────────────────────────────────────
+    CustomerRow:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_code: { type: string, nullable: true }
+        name: { type: string }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        business_unit: { type: string, nullable: true }
+        division: { type: string, nullable: true }
+        status: { type: string, enum: [new, active, dormant, existing] }
+        first_invoice_date: { type: string, format: date, nullable: true }
+        last_invoice_date: { type: string, format: date, nullable: true }
+        category_count: { type: integer }
+        avg_monthly_revenue: { type: number }
+        lifetime_value: { type: number }
+        total_invoices: { type: integer }
+    CustomerListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CustomerRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CustomerDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_code: { type: string, nullable: true }
+        name: { type: string }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        business_unit: { type: string, nullable: true }
+        division: { type: string, nullable: true }
+        channel: { type: string, nullable: true }
+        status: { type: string, enum: [new, active, dormant, existing] }
+        first_invoice_date: { type: string, format: date, nullable: true }
+        last_invoice_date: { type: string, format: date, nullable: true }
+        lifetime_value: { type: number }
+        avg_monthly_revenue: { type: number }
+        category_count: { type: integer }
+        categories_bought:
+          type: array
+          items: { type: string }
+        monthly_revenue_trend:
+          type: array
+          items:
+            type: object
+            properties:
+              month: { type: string }
+              revenue: { type: number }
+              gp: { type: number }
+        recent_invoices:
+          type: array
+          items:
+            type: object
+            properties:
+              invoice_number: { type: string }
+              invoice_date: { type: string, format: date }
+              total_revenue: { type: number }
+              total_gp: { type: number }
+    CustomerDetailResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/CustomerDetail' }
+
+    # ─── Products (settings/local + Accurate proxy) ────────────────────────
+    LocalProduct:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer }
+        product_name: { type: string }
+        product_category_id: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    LocalProductListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/LocalProduct' }
+    ProductCategory:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer }
+        name: { type: string }
+        item_type: { type: string, enum: [unit, consumable, sparepart, service] }
+        avg_margin_percent: { type: number }
+        is_service: { type: boolean, deprecated: true, description: "Deprecated — pakai item_type" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProductCategoryListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProductCategory' }
+    AccurateCategoriesResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            categories:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  isService: { type: boolean }
+            branch_id: { type: integer }
+            branch_name: { type: string }
+            company_name: { type: string }
+    AccurateProductsResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  no: { type: string }
+                  name: { type: string }
+                  unitPrice: { type: number }
+                  itemCategoryId: { type: integer, nullable: true }
+                  itemCategoryName: { type: string, nullable: true }
+                  itemType: { type: string }
+                  unit1Name: { type: string, nullable: true }
+                  upcNo: { type: string, nullable: true }
+                  notes: { type: string, nullable: true }
+                  minimumQuantity: { type: number }
+                  usePpn: { type: boolean }
+                  controlQuantity: { type: boolean }
+                  manageSN: { type: boolean }
+            total: { type: integer }
+            page: { type: integer }
+            per_page: { type: integer }
+            branch_id: { type: integer }
+            branch_name: { type: string }
+            company_name: { type: string }
+
+    # ─── Import ─────────────────────────────────────────────────────────────
+    ImportResult:
+      type: object
+      properties:
+        import_log_id: { type: integer }
+        status: { type: string, enum: [success, partial, failed] }
+        total_invoices: { type: integer }
+        success_invoices: { type: integer }
+        error_rows: { type: integer }
+        error_summary: { type: string, nullable: true }
+    ImportResultResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ImportResult' }
+    ImportLog:
+      type: object
+      properties:
+        id: { type: integer }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        source: { type: string, enum: [file, accurate] }
+        filename: { type: string, nullable: true }
+        period_month: { type: string }
+        status: { type: string, enum: [success, partial, failed] }
+        total_invoices: { type: integer }
+        success_invoices: { type: integer }
+        error_rows: { type: integer }
+        imported_by:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        created_at: { type: string, format: date-time }
+    ImportLogListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ImportLog' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ImportErrorRow:
+      type: object
+      properties:
+        id: { type: integer }
+        row_number: { type: integer }
+        raw_data: { type: object, additionalProperties: true }
+        error_message: { type: string }
+    ImportLogDetailResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            log: { $ref: '#/components/schemas/ImportLog' }
+            errors:
+              type: array
+              items: { $ref: '#/components/schemas/ImportErrorRow' }
+
+    # ─── Classification Rules ───────────────────────────────────────────────
+    ClassificationRule:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer, nullable: true }
+        match_type: { type: string, enum: [keyword_item_name, keyword_category, price_range, exact_item_name, exact_category] }
+        match_pattern: { type: string }
+        item_type: { type: string, enum: [unit, consumable, sparepart, service] }
+        priority: { type: integer }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ClassificationRuleListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ClassificationRule' }
+    ClassificationRuleResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ClassificationRule' }
+    CreateClassificationRuleRequest:
+      type: object
+      required: [match_type, match_pattern, item_type]
+      properties:
+        company_id: { type: integer, nullable: true }
+        match_type: { type: string, enum: [keyword_item_name, keyword_category, price_range, exact_item_name, exact_category] }
+        match_pattern: { type: string, minLength: 1, maxLength: 255 }
+        item_type: { type: string, enum: [unit, consumable, sparepart, service] }
+        priority: { type: integer, minimum: 0, maximum: 1000, description: "Auto-derived dari match_type kalau tidak diisi" }
+        is_active: { type: boolean, default: true }
+    UpdateClassificationRuleRequest:
+      type: object
+      properties:
+        company_id: { type: integer, nullable: true }
+        match_type: { type: string, enum: [keyword_item_name, keyword_category, price_range, exact_item_name, exact_category] }
+        match_pattern: { type: string, minLength: 1, maxLength: 255 }
+        item_type: { type: string, enum: [unit, consumable, sparepart, service] }
+        priority: { type: integer, minimum: 0, maximum: 1000 }
+        is_active: { type: boolean }
+    ImportGenericResult:
+      type: object
+      properties:
+        added: { type: integer }
+        skipped: { type: integer }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer }
+              message: { type: string }
+    ImportGenericResultResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ImportGenericResult' }
+
+    # ─── Settings: High Margin ──────────────────────────────────────────────
+    HighMarginMapping:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer }
+        product_id: { type: integer, nullable: true }
+        product_name: { type: string, nullable: true }
+        product_category_id: { type: integer, nullable: true }
+        category_name: { type: string, nullable: true }
+        effective_from: { type: string, format: date }
+        effective_until: { type: string, format: date, nullable: true }
+        note: { type: string, nullable: true }
+        created_by: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    HighMarginMappingListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/HighMarginMapping' }
+    HighMarginMappingResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/HighMarginMapping' }
+    CreateHighMarginRequest:
+      type: object
+      required: [company_id, effective_from]
+      description: "Minimal salah satu dari product_id / product_category_id wajib diisi"
+      properties:
+        company_id: { type: integer }
+        product_id: { type: integer }
+        product_category_id: { type: integer }
+        effective_from: { type: string, format: date }
+        effective_until: { type: string, format: date, description: "Harus >= effective_from kalau diisi" }
+        note: { type: string, maxLength: 500 }
+    UpdateHighMarginRequest:
+      type: object
+      required: [effective_until]
+      properties:
+        effective_until: { type: string, format: date, nullable: true }
+        note: { type: string, maxLength: 500 }
+
+    # ─── Settings: Channel Divisions ────────────────────────────────────────
+    ChannelDivisionRow:
+      type: object
+      properties:
+        id: { type: integer }
+        channel_name: { type: string }
+        division: { type: string, enum: [distribution, project, e_commerce, intercompany, freelancer, support] }
+        company_id: { type: integer, nullable: true }
+        company_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ChannelDivisionListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ChannelDivisionRow' }
+    ChannelDivisionResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ChannelDivisionRow' }
+    CreateChannelDivisionRequest:
+      type: object
+      required: [channel_name, division]
+      properties:
+        channel_name: { type: string, minLength: 1, maxLength: 255, description: "Otomatis di-uppercase & trim" }
+        division: { type: string, enum: [distribution, project, e_commerce, intercompany, freelancer, support] }
+        company_id: { type: integer, nullable: true, description: "null = global rule (berlaku semua company)" }
+    UpdateChannelDivisionRequest:
+      type: object
+      properties:
+        channel_name: { type: string, minLength: 1, maxLength: 255 }
+        division: { type: string, enum: [distribution, project, e_commerce, intercompany, freelancer, support] }
+        company_id: { type: integer, nullable: true }
+    UnmappedChannelsResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { type: string }
+          description: "Distinct channel_name dari invoices yang belum punya mapping di channel_divisions"
+
+    # ─── Metrics (tambahan di luar cross-selling) ──────────────────────────
+    CustomerMetricsTrendPoint:
+      type: object
+      properties:
+        month: { type: string }
+        existing_customers: { type: integer }
+        total_revenue_existing: { type: number }
+        avg_revenue: { type: number }
+        avg_gross_profit: { type: number }
+        gp_tier1: { type: number }
+        gp_tier2: { type: number }
+        gp_tier3: { type: number }
+        top_gp_customer_id: { type: integer, nullable: true }
+        top_gp_customer_name: { type: string, nullable: true }
+        top_gp_revenue: { type: number }
+        top_gp_pct: { type: number }
+        is_gp_concentrated: { type: boolean }
+        high_margin_ratio: { type: number }
+        repeat_order_rate: { type: number }
+        expansion_rate: { type: number }
+        up_rate: { type: number }
+        flat_down_rate: { type: number }
+        active_existing_count: { type: integer }
+        active_new_count: { type: integer }
+        median_revenue: { type: number }
+        top_customer_id: { type: integer, nullable: true }
+        top_customer_name: { type: string, nullable: true }
+        top_customer_revenue: { type: number }
+        top_customer_pct: { type: number }
+        is_concentrated: { type: boolean }
+    CustomerMetricsResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            trend:
+              type: array
+              items: { $ref: '#/components/schemas/CustomerMetricsTrendPoint' }
+            detail:
+              type: array
+              items: { type: object, additionalProperties: true }
+            high_margin_current:
+              type: object
+              properties:
+                bought_pct: { type: number }
+                not_bought_pct: { type: number }
+            repeat_order_current:
+              type: object
+              properties:
+                value: { type: number }
+                target_pct: { type: number }
+    GpBreakdownResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            period_end: { type: string, format: date }
+            total_gp: { type: number }
+            median_threshold: { type: number }
+            total_existing: { type: integer }
+            rows:
+              type: array
+              items:
+                type: object
+                properties:
+                  ranking: { type: integer }
+                  customer_code: { type: string, nullable: true }
+                  customer_name: { type: string }
+                  gp: { type: number }
+                  gp_pct: { type: number }
+                  tier: { type: string, enum: [Atas, Tengah, Bawah] }
+    HmBreakdownResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            period_end: { type: string, format: date }
+            total_hm_revenue: { type: number }
+            hm_buyer_count: { type: integer }
+            total_existing: { type: integer }
+            rows:
+              type: array
+              items:
+                type: object
+                properties:
+                  ranking: { type: integer }
+                  customer_name: { type: string }
+                  customer_code: { type: string, nullable: true }
+                  hm_revenue: { type: number }
+                  hm_pct: { type: number }
+    RorBreakdownResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            period_end: { type: string, format: date }
+            repeat_count: { type: integer }
+            total_existing: { type: integer }
+            rows:
+              type: array
+              items:
+                type: object
+                properties:
+                  ranking: { type: integer }
+                  customer_name: { type: string }
+                  customer_code: { type: string, nullable: true }
+                  invoice_count: { type: integer }
+                  total_revenue: { type: number }
+    DormantResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            trend:
+              type: array
+              items:
+                type: object
+                properties:
+                  month: { type: string }
+                  total_customers: { type: integer }
+                  dormant_count: { type: integer }
+                  dormant_rate: { type: number }
+                  prev_dormant_count: { type: integer }
+                  reactivated_count: { type: integer }
+                  reactivation_rate: { type: number }
+            value_ranking:
+              type: array
+              items:
+                type: object
+                properties:
+                  customer_id: { type: integer }
+                  customer_name: { type: string }
+                  customer_code: { type: string, nullable: true }
+                  last_invoice_date: { type: string, format: date }
+                  months_dormant: { type: integer }
+                  avg_monthly_revenue: { type: number }
+                  estimated_lost_value: { type: number }
+            dormant_rate_current:
+              type: object
+              properties:
+                value: { type: number }
+                dormant_count: { type: integer }
+                total_customers: { type: integer }
+                alert_pct: { type: number }
+            reactivation_current:
+              type: object
+              properties:
+                value: { type: number }
+                target_low: { type: number }
+                target_high: { type: number }
+    CategoryPerformanceRow:
+      type: object
+      properties:
+        id: { type: integer }
+        category_id: { type: integer }
+        category_name: { type: string }
+        is_high_margin: { type: boolean }
+        is_service: { type: boolean }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        gp_margin_percent: { type: number }
+        invoice_count: { type: integer }
+        customer_count: { type: integer }
+        last_sold_month: { type: string, nullable: true }
+    CategoryPerformanceListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CategoryPerformanceRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CategoryProductRow:
+      type: object
+      properties:
+        id: { type: integer }
+        product_id: { type: integer }
+        product_name: { type: string }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        gp_margin_percent: { type: number }
+        invoice_count: { type: integer }
+        customer_count: { type: integer }
+    CategoryProductListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CategoryProductRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    HighMarginCategoryRow:
+      type: object
+      properties:
+        id: { type: integer }
+        category_id: { type: integer }
+        category_name: { type: string }
+        is_high_margin: { type: boolean }
+        customer_count: { type: integer }
+        total_active_customers: { type: integer }
+        penetration_rate: { type: number }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        gp_margin_percent: { type: number }
+    HighMarginCategoryListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/HighMarginCategoryRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CategoryRef:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    UpsellTargetRow:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_code: { type: string, nullable: true }
+        customer_name: { type: string }
+        business_unit: { type: string, nullable: true }
+        last_invoice_date: { type: string, format: date }
+        avg_monthly_revenue: { type: number }
+        categories_bought:
+          type: array
+          items: { $ref: '#/components/schemas/CategoryRef' }
+        missing_high_margin_categories:
+          type: array
+          items: { $ref: '#/components/schemas/CategoryRef' }
+    UpsellTargetListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/UpsellTargetRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CustomerProductRow:
+      type: object
+      properties:
+        id: { type: integer }
+        product_id: { type: integer }
+        product_name: { type: string }
+        category_id: { type: integer }
+        category_name: { type: string }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        gp_margin_percent: { type: number }
+        invoice_count: { type: integer }
+    CustomerProductListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CustomerProductRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ProductTrendResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            company_id:
+              oneOf:
+                - { type: integer }
+                - { type: string, enum: [all] }
+            period_month: { type: string }
+            trend:
+              type: array
+              items:
+                type: object
+                properties:
+                  month: { type: string }
+                  avg_category: { type: number }
+            current_avg: { type: number }
+            prev_avg: { type: number, nullable: true }
+            change_pct: { type: number, nullable: true }
+
+    # ─── Transactions (Invoices) ────────────────────────────────────────────
+    InvoiceRow:
+      type: object
+      properties:
+        id: { type: integer }
+        invoice_number: { type: string }
+        invoice_date: { type: string, format: date }
+        customer:
+          type: object
+          properties:
+            id: { type: integer }
+            code: { type: string, nullable: true }
+            name: { type: string }
+            business_unit: { type: string, nullable: true }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        gp_margin_percent: { type: number }
+        category_count: { type: integer }
+        import_source: { type: string, nullable: true }
+    InvoiceListResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/InvoiceRow' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    InvoiceDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        invoice_number: { type: string }
+        invoice_date: { type: string, format: date }
+        customer:
+          type: object
+          properties:
+            id: { type: integer }
+            code: { type: string, nullable: true }
+            name: { type: string }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        total_revenue: { type: number }
+        total_gp: { type: number }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              product_name: { type: string }
+              category:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  is_high_margin: { type: boolean }
+              revenue: { type: number }
+              gross_profit: { type: number }
+    InvoiceDetailResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data: { $ref: '#/components/schemas/InvoiceDetail' }
 
 paths:
   /auth/login:
@@ -309,3 +1505,1593 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ─── Users ────────────────────────────────────────────────────────────────
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: sort
+          in: query
+          schema: { type: string, pattern: '^[a-z_]+:(asc|desc)$' }
+          example: "created_at:desc"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Users]
+      summary: Buat user baru
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Email sudah terdaftar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Detail user
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Users]
+      summary: Update user (profil, status, roles, companies)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Users]
+      summary: Soft-delete user
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Page Settings ───────────────────────────────────────────────────────
+  /page-settings:
+    get:
+      tags: [Page Settings]
+      summary: List status kesiapan semua halaman
+      description: Tidak ada permission check spesifik — semua user yang sudah login bisa akses.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageSettingListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /page-settings/{pageKey}:
+    put:
+      tags: [Page Settings]
+      summary: Update status ready sebuah halaman
+      description: Tidak ada permission check spesifik — semua user yang sudah login bisa akses.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters:
+        - name: pageKey
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          example: "products-high-margin"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePageSettingRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageSettingResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Companies ───────────────────────────────────────────────────────────
+  /companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      description: Discoped ke company milik user (kecuali superadmin) — tidak ada permission check spesifik.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Companies]
+      summary: Buat company baru
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCompanyRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /companies/{id}:
+    get:
+      tags: [Companies]
+      summary: Detail company
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Companies]
+      summary: Update company
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCompanyRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Companies]
+      summary: Hapus company
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /companies/{id}/branches:
+    get:
+      tags: [Companies]
+      summary: List cabang milik company
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyBranchListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Companies]
+      summary: Tambah cabang
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCompanyBranchRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyBranchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /companies/branches/{branchId}:
+    patch:
+      tags: [Companies]
+      summary: Update cabang
+      description: >
+        `company_id` wajib dikirim sebagai QUERY PARAM (bukan body) — dipakai
+        murni untuk validasi scope, cabang ini benar milik company tersebut.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: company_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCompanyBranchRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyBranchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Companies]
+      summary: Hapus cabang
+      description: "`company_id` wajib sebagai query param (sama seperti PATCH)."
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: company_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Roles & Permissions ─────────────────────────────────────────────────
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List roles (dengan permissions ter-agregasi)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Roles]
+      summary: Buat role baru
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoleRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Nama role sudah ada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /roles/{id}:
+    get:
+      tags: [Roles]
+      summary: Detail role (tanpa permissions ter-agregasi)
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Roles]
+      summary: Update role (hanya description)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRoleRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Roles]
+      summary: Hapus role
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /roles/{id}/permissions:
+    get:
+      tags: [Roles]
+      summary: List permission milik sebuah role
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /permissions:
+    get:
+      tags: [Permissions]
+      summary: List semua permission
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Permissions]
+      summary: Buat permission baru
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePermissionRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Nama permission sudah ada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /permissions/{id}:
+    put:
+      tags: [Permissions]
+      summary: Update permission (description, category)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePermissionRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Permissions]
+      summary: Hapus permission
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /permissions/roles/{id}/permissions:
+    put:
+      tags: [Permissions]
+      summary: Assign/replace permission milik role
+      description: >
+        Endpoint assignment role-permission, sengaja dipasang di bawah
+        /permissions (bukan /roles/{id}/permissions yang GET-only di atas) —
+        struktur route asli, bukan salah ketik dokumentasi.
+        `id` di path = role id, bukan permission id.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRolePermissionsRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Config (business thresholds + Accurate credentials) ───────────────
+  /config:
+    get:
+      tags: [Config]
+      summary: List business config (threshold settings)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BusinessConfigListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /config/{key}:
+    put:
+      tags: [Config]
+      summary: Update nilai satu business config
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+          example: "dormant_threshold_months.b2b_dc"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBusinessConfigRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BusinessConfigResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /config/accurate/credentials/{branchId}:
+    get:
+      tags: [Config]
+      summary: Ambil kredensial Accurate sebuah branch
+      description: >
+        PERHATIAN: response menyertakan api_token & signature_secret dalam
+        bentuk plaintext (lihat deskripsi schema AccurateCredential).
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK (null kalau belum ada kredensial tersimpan)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccurateCredentialResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Config]
+      summary: Simpan/update kredensial Accurate sebuah branch
+      description: "Permission: config.integration:create ATAU config.integration:update (cukup salah satu)."
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveAccurateCredentialsRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccurateCredentialResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /config/accurate/test-connection:
+    post:
+      tags: [Config]
+      summary: Test koneksi Accurate dengan kredensial yang diberikan
+      description: Live call ke Accurate Online API — tidak menyimpan apa pun, murni test.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccurateTestConnectionRequest' }
+      responses:
+        '200':
+          description: OK (cek field success di body untuk hasil sebenarnya)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccurateTestResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502':
+          description: Accurate API tidak bisa dihubungi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ─── Audit Log ───────────────────────────────────────────────────────────
+  /audit-logs:
+    get:
+      tags: [Audit Log]
+      summary: List audit log (mutasi tercatat di seluruh sistem)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: action
+          in: query
+          schema: { type: string }
+          example: "high_margin.create"
+        - name: actor_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /audit-logs/actions:
+    get:
+      tags: [Audit Log]
+      summary: Distinct action yang pernah tercatat
+      description: Dipakai untuk isi opsi dropdown filter Action di halaman Audit Log — bukan daftar statis.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditActionsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /audit-logs/{id}:
+    get:
+      tags: [Audit Log]
+      summary: Detail satu audit log
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Customers ───────────────────────────────────────────────────────────
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers (Customer Workbench)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [new, active, dormant, existing] }
+        - name: business_unit
+          in: query
+          schema:
+            type: string
+            enum: [distribution, project, e_commerce, intercompany, freelancer, support]
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [avg_monthly_revenue, lifetime_value, category_count, last_invoice_date]
+            default: last_invoice_date
+        - name: sort_dir
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: as_of_date
+          in: query
+          schema: { type: string, format: date }
+          description: "Hitung status/agregat seolah-olah 'hari ini' adalah tanggal ini (simulasi periode lampau)"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Detail customer (drawer profil lengkap)
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Products (master data lokal + proxy live Accurate) ─────────────────
+  /products:
+    get:
+      tags: [Products]
+      summary: List produk lokal (hasil import, bukan live Accurate)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdRequiredParam'
+        - name: category_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocalProductListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /products/categories:
+    get:
+      tags: [Products]
+      summary: List kategori produk lokal
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdRequiredParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductCategoryListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /products/accurate/categories:
+    get:
+      tags: [Products]
+      summary: "[Proxy live] Kategori produk langsung dari Accurate Online"
+      description: >
+        Live call ke Accurate API (HMAC auth) tiap request — bukan dari DB lokal.
+        Bisa lambat/gagal kalau Accurate down. Dipakai saat setup mapping
+        kategori awal, bukan operasional harian.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: branch_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccurateCategoriesResponse' }
+        '400':
+          description: Kredensial branch belum lengkap/tidak valid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: Belum ada kredensial Accurate aktif untuk branch ini
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: Accurate API tidak bisa dihubungi/error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /products/accurate:
+    get:
+      tags: [Products]
+      summary: "[Proxy live] Cari produk langsung dari Accurate Online"
+      description: Live call ke Accurate API tiap request, sama seperti /products/accurate/categories.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: branch_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: keywords
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccurateProductsResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502':
+          description: Accurate API tidak bisa dihubungi/error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ─── Import ──────────────────────────────────────────────────────────────
+  /import/template:
+    get:
+      tags: [Import]
+      summary: Download template Excel faktur penjualan
+      description: Response biner (.xlsx), bukan JSON envelope.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: File .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /import/csv:
+    post:
+      tags: [Import]
+      summary: Upload & proses file faktur (CSV/XLSX)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, company_id, period_month]
+              properties:
+                file: { type: string, format: binary, description: ".csv atau .xlsx, max 10MB" }
+                company_id: { type: string, description: "Dikirim sebagai form field, di-parse jadi integer" }
+                period_month: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        '200':
+          description: OK (cek field status di body — bisa 'partial' meski HTTP 200)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportResultResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: File terlalu besar (>10MB)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Error saat memproses isi file
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /import/csv/stream:
+    post:
+      tags: [Import]
+      summary: Upload & proses file faktur dengan progress streaming (SSE)
+      description: >
+        Field form sama persis dengan POST /import/csv. Response BUKAN JSON
+        biasa — Content-Type text/event-stream, kirim event berulang:
+        `{event:'progress', processed, total, success, errors}` selama proses
+        berjalan, lalu sekali `{event:'done', result: <ImportResult>}` di
+        akhir, atau `{event:'error', message}` kalau gagal. Swagger UI "Try it
+        out" akan menampilkan raw stream, bukan format SSE yang di-parse.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, company_id, period_month]
+              properties:
+                file: { type: string, format: binary }
+                company_id: { type: string }
+                period_month: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        '200':
+          description: text/event-stream — lihat deskripsi di atas untuk bentuk tiap event
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /import/logs:
+    get:
+      tags: [Import]
+      summary: List riwayat import
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: company_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportLogListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /import/logs/{id}:
+    get:
+      tags: [Import]
+      summary: Detail satu riwayat import + baris error-nya
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportLogDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Classification Rules ────────────────────────────────────────────────
+  /classification-rules:
+    get:
+      tags: [Classification Rules]
+      summary: List aturan klasifikasi item_type
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: company_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClassificationRuleListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Classification Rules]
+      summary: Buat aturan klasifikasi baru
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateClassificationRuleRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClassificationRuleResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /classification-rules/template:
+    get:
+      tags: [Classification Rules]
+      summary: Download template Excel aturan klasifikasi
+      description: Response biner (.xlsx), bukan JSON envelope.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: File .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /classification-rules/import:
+    post:
+      tags: [Classification Rules]
+      summary: Import aturan klasifikasi massal dari file
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, company_id]
+              properties:
+                file: { type: string, format: binary, description: ".xlsx/.csv, max 5MB" }
+                company_id: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportGenericResultResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: File terlalu besar (>5MB)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /classification-rules/{id}:
+    put:
+      tags: [Classification Rules]
+      summary: Update aturan klasifikasi
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateClassificationRuleRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClassificationRuleResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Classification Rules]
+      summary: Hapus aturan klasifikasi
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '204': { description: "No Content" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Settings: High Margin ───────────────────────────────────────────────
+  /settings/high-margin:
+    get:
+      tags: [Settings — High Margin]
+      summary: List mapping produk/kategori High Margin
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdRequiredParam'
+        - name: period
+          in: query
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+        - name: active_only
+          in: query
+          schema: { type: string, enum: ["true", "false"], default: "false" }
+          description: "String literal 'true'/'false', bukan native boolean — dipakai apa adanya oleh Zod transform."
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HighMarginMappingListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Settings — High Margin]
+      summary: Tambah mapping High Margin baru
+      description: >
+        `created_by` diambil dari header `x-user-id` (default 1) di backend,
+        BUKAN dari session JWT yang sedang login — pola berbeda dari fitur
+        lain di sistem ini, dicatat apa adanya untuk transparansi audit trail.
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateHighMarginRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HighMarginMappingResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /settings/high-margin/{id}:
+    patch:
+      tags: [Settings — High Margin]
+      summary: Update mapping (effective_until, note)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateHighMarginRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HighMarginMappingResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Settings — High Margin]
+      summary: Hapus mapping
+      description: "Response 200 dengan { id } di body — BUKAN 204, beda dari kebanyakan delete lain di API ini."
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /settings/high-margin/{id}/deactivate:
+    patch:
+      tags: [Settings — High Margin]
+      summary: Deactivate mapping (set effective_until = hari ini)
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HighMarginMappingResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Settings: Channel Divisions ─────────────────────────────────────────
+  /settings/channel-divisions:
+    get:
+      tags: [Settings — Channel Divisions]
+      summary: List mapping channel_name → division
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DivisionParam'
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelDivisionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Settings — Channel Divisions]
+      summary: Tambah mapping channel_name → division
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateChannelDivisionRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelDivisionResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: channel_name sudah punya mapping
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /settings/channel-divisions/template:
+    get:
+      tags: [Settings — Channel Divisions]
+      summary: Download template Excel channel divisions
+      description: Response biner (.xlsx), bukan JSON envelope.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: File .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /settings/channel-divisions/unmapped-channels:
+    get:
+      tags: [Settings — Channel Divisions]
+      summary: Channel name riil dari invoices yang belum ada mapping-nya
+      description: >
+        Dipakai untuk isi opsi dropdown "Add Channel Mapping" di frontend —
+        hanya channel_name yang benar-benar ada di data invoice hasil import,
+        bukan input bebas.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnmappedChannelsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /settings/channel-divisions/import:
+    post:
+      tags: [Settings — Channel Divisions]
+      summary: Import mapping channel divisions massal dari file
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, company_id]
+              properties:
+                file: { type: string, format: binary, description: ".xlsx/.csv, max 5MB" }
+                company_id: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportGenericResultResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: File terlalu besar (>5MB)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /settings/channel-divisions/{id}:
+    patch:
+      tags: [Settings — Channel Divisions]
+      summary: Update mapping
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateChannelDivisionRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelDivisionResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Settings — Channel Divisions]
+      summary: Hapus mapping
+      description: "Response 200 dengan { id } di body — BUKAN 204, sama seperti Settings High Margin delete."
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─── Metrics (tambahan di luar cross-selling) ──────────────────────────
+  /metrics/customer-metrics:
+    get:
+      tags: [Metrics]
+      summary: M3-M7 gabungan (Revenue, GP, High Margin, Repeat Order, Expansion)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodEndParam'
+        - $ref: '#/components/parameters/DivisionParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerMetricsResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/gp-breakdown:
+    get:
+      tags: [Metrics]
+      summary: M4 detail — ranking Gross Profit per customer
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodEndParam'
+        - $ref: '#/components/parameters/DivisionParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GpBreakdownResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/hm-breakdown:
+    get:
+      tags: [Metrics]
+      summary: M5 detail — buyer High Margin per customer
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodEndParam'
+        - $ref: '#/components/parameters/DivisionParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HmBreakdownResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/ror-breakdown:
+    get:
+      tags: [Metrics]
+      summary: M6 detail — Repeat Order Rate per customer
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodEndParam'
+        - $ref: '#/components/parameters/DivisionParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RorBreakdownResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/dormant-customer:
+    get:
+      tags: [Metrics]
+      summary: M8-M10 — Dormant Rate trend, value ranking, Reactivation Rate
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodEndParam'
+        - $ref: '#/components/parameters/DivisionParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DormantResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/category-performance:
+    get:
+      tags: [Metrics]
+      summary: Product Workbench — performa per kategori produk
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - $ref: '#/components/parameters/ActiveWindowParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: search
+          in: query
+          schema: { type: string, default: "" }
+        - name: high_margin_only
+          in: query
+          schema: { type: string, enum: ["true", "false"], default: "false" }
+          description: "String literal, bukan native boolean — sama seperti active_only di High Margin."
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [total_revenue, total_gp, gp_margin_percent, customer_count]
+            default: total_revenue
+        - name: sort_dir
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryPerformanceListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/category-products:
+    get:
+      tags: [Metrics]
+      summary: Daftar produk dalam satu kategori (drawer detail)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: category_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - $ref: '#/components/parameters/ActiveWindowParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryProductListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/high-margin-penetration/detail:
+    get:
+      tags: [Metrics]
+      summary: Penetrasi kategori High Margin per periode
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - $ref: '#/components/parameters/ActiveWindowParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HighMarginCategoryListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/high-margin-penetration/customers:
+    get:
+      tags: [Metrics]
+      summary: Upsell Targets — customer yang belum beli semua kategori High Margin
+      description: >
+        Ranking internal (relevance_score, berdasar affinity business_unit
+        vs kategori HM yang belum dibeli) di-strip dari response — hanya
+        dipakai untuk ORDER BY di server.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - $ref: '#/components/parameters/ActiveWindowParam'
+        - name: business_unit
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpsellTargetListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/customer-products:
+    get:
+      tags: [Metrics]
+      summary: Riwayat produk yang dibeli seorang customer
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - name: customer_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: category_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - $ref: '#/components/parameters/ActiveWindowParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProductListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /metrics/avg-category:
+    get:
+      tags: [Metrics]
+      summary: M2 — Product Trend, rata-rata kategori per customer (12 bulan)
+      description: "Permission: product.trend:view ATAU metrics:view (cukup salah satu)."
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/PeriodMonthParam'
+        - name: active_window
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 24 }
+          description: "Tidak ada default hardcode di endpoint ini — beda dari endpoint metrics lain, nilainya dari business_config kalau tidak dikirim."
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductTrendResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─── Transactions (Order Ledger / invoices) ─────────────────────────────
+  /invoices:
+    get:
+      tags: [Transactions]
+      summary: List faktur (Order Ledger)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CompanyIdParam'
+        - $ref: '#/components/parameters/DivisionParam'
+        - name: customer_search
+          in: query
+          schema: { type: string }
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+        - name: sort_by
+          in: query
+          schema: { type: string, enum: [invoice_date, total_revenue, total_gp], default: invoice_date }
+        - name: sort_dir
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /invoices/{id}:
+    get:
+      tags: [Transactions]
+      summary: Detail faktur + item baris
+      description: >
+        Scope company di-resolve ke 'all' di level query lalu diverifikasi
+        row-level di dalam service — bukan difilter di WHERE clause company_id
+        seperti kebanyakan endpoint lain.
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPathParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }

@@ -1,7 +1,7 @@
 # Feature: API Docs (Swagger UI)
 
-> Status: ✅ Complete — pilot 6 endpoint (Auth + Dashboard + Metrics/cross-selling)
-> Last updated: 2026-07-02 (sesi 29)
+> Status: ✅ Complete — 83 operasi / 63 path terdokumentasi (seluruh route di bawah protectedApi)
+> Last updated: 2026-07-02 (sesi 29, dilengkapi)
 > Baca juga: `shared/api-conventions.md`
 
 ---
@@ -51,6 +51,26 @@ Semua response docs dikirim dengan header `Cache-Control: no-store` — halaman 
 
 ---
 
+## Cakupan Spec
+
+Awalnya pilot 6 endpoint (Auth + Dashboard + Metrics/cross-selling). Dilengkapi sesi ini jadi **83 operasi / 63 path** — seluruh feature route di bawah `protectedApi` (lihat `router.ts`):
+
+Auth, Dashboard, Metrics (10 endpoint: cross-selling, customer-metrics, gp/hm/ror-breakdown, dormant-customer, category-performance, category-products, high-margin-penetration/detail+customers, customer-products, avg-category), Users, Page Settings, Companies (+ branches), Roles, Permissions, Config (+ Accurate credentials/test-connection), Audit Log, Customers, Products (lokal + proxy live Accurate), Import (termasuk upload multipart & SSE stream), Classification Rules, Settings — High Margin, Settings — Channel Divisions, Transactions (invoices).
+
+**Catatan cara dokumentasi untuk bentuk response non-JSON-biasa:**
+- **File download** (`GET /import/template`, `/classification-rules/template`, `/settings/channel-divisions/template`) — didokumentasikan sebagai `content: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, schema: {type: string, format: binary}`. Swagger UI bisa "Try it out" dan browser akan download file-nya.
+- **Multipart upload** (`POST /import/csv`, `/import/csv/stream`, `/classification-rules/import`, `/settings/channel-divisions/import`) — `requestBody.content: multipart/form-data` dengan field `file: {type: string, format: binary}`. Swagger UI render sebagai file picker asli.
+- **SSE stream** (`POST /import/csv/stream`) — didokumentasikan `content: text/event-stream, schema: {type: string}`, dengan deskripsi bentuk tiap event (`progress`/`done`/`error`) di teks karena OpenAPI 3.1 tidak punya construct native untuk event-stream typing. "Try it out" akan menampilkan raw stream text, bukan event yang di-parse.
+- **Proxy live ke Accurate** (`GET /products/accurate`, `/products/accurate/categories`) — didokumentasikan penuh (query params, response shape), tapi dicatat di description bahwa ini live call ke API eksternal tiap request (bisa lambat/gagal kalau Accurate down), bukan baca dari DB lokal.
+
+**Ditemukan & dicatat apa adanya selama menulis spec** (bukan bug yang diperbaiki di sesi ini, murni dokumentasi transparan):
+- `GET /config/accurate/credentials/:branchId` mengembalikan `api_token` & `signature_secret` dalam bentuk **plaintext** (di-decrypt server-side).
+- `POST /settings/high-margin` mengambil `created_by` dari header `x-user-id` (default `1`), bukan dari session JWT yang login — beda pola dari fitur lain.
+- Delete di `settings/high-margin` dan `settings/channel-divisions` return `200 {id}`, sedangkan delete di fitur lain (users, companies, roles, dll) return `204 No Content` — inkonsisten, didokumentasikan sesuai kode asli.
+- Beberapa query param boolean (`active_only`, `high_margin_only`) menerima string literal `"true"`/`"false"`, bukan native boolean — hand-rolled karena `Boolean("false") === true` di JS.
+
+---
+
 ## Implementation Notes
 
 ### "Try it out" pakai cookie & CSRF ASLI dari login sungguhan
@@ -80,4 +100,4 @@ Fix: `AppBar.tsx` dan `LogoutButton.tsx` diganti pakai `useLogoutMutation()` (`h
 ---
 
 **Last Updated**: 2026-07-02
-**Status**: ✅ Pilot — 6/40+ endpoint terdokumentasi (Auth lengkap, Dashboard, Metrics/cross-selling)
+**Status**: ✅ Complete — 83 operasi / 63 path terdokumentasi (seluruh route protectedApi)
