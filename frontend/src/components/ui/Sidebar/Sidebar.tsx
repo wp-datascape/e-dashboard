@@ -12,6 +12,8 @@ import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
@@ -114,23 +116,51 @@ function NavGroup({
     (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
   )
   const [expanded, setExpanded] = useState(anyChildActive)
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   if (visibleChildren.length === 0) return null
 
   if (collapsed) {
-    const firstChild = visibleChildren[0]
     return (
-      <Tooltip title={t(item.labelKey)} placement="right" arrow>
-        <ListItemButton
-          onClick={() => firstChild && onNav(firstChild.path)}
-          selected={anyChildActive}
-          sx={{ ...NAV_ITEM_SX, justifyContent: 'center' }}
+      <>
+        <Tooltip title={t(item.labelKey)} placement="right" arrow>
+          <ListItemButton
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+            selected={anyChildActive}
+            sx={{ ...NAV_ITEM_SX, justifyContent: 'center' }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+              {item.icon}
+            </ListItemIcon>
+          </ListItemButton>
+        </Tooltip>
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={() => setAnchorEl(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
-          <ListItemIcon sx={{ minWidth: 0, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
-            {item.icon}
-          </ListItemIcon>
-        </ListItemButton>
-      </Tooltip>
+          {visibleChildren.map((child) => {
+            const active = location.pathname === child.path || location.pathname.startsWith(child.path)
+            return (
+              <MenuItem
+                key={child.key}
+                selected={active}
+                onClick={() => {
+                  setAnchorEl(null)
+                  onNav(child.path)
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 32, color: active ? 'primary.main' : 'text.secondary' }}>
+                  {child.icon}
+                </ListItemIcon>
+                {t(child.labelKey)}
+              </MenuItem>
+            )
+          })}
+        </Menu>
+      </>
     )
   }
 

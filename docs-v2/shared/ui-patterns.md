@@ -527,6 +527,43 @@ Implementasi di `Sidebar.tsx`:
 
 > **Rule**: Enable `customers:menu` HANYA menampilkan Customer List. Sub-pages Expansion, Churn Risk, Cross Selling masing-masing butuh permission sendiri.
 
+## Sidebar — Submenu Flyout saat Collapsed/Mini (fix 2026-07-02)
+
+`NavGroup` (item dengan `children`, misal grup Settings/Config/Access Control) dulunya, saat sidebar collapsed, cuma render satu ikon dan **hardcode navigasi ke `visibleChildren[0]`** — child ke-2 dst tidak bisa diakses sama sekali (tidak ada mekanisme lain untuk expose-nya).
+
+Fix: saat collapsed, klik ikon grup membuka MUI `Menu` (popover flyout) berisi seluruh `visibleChildren`, bukan langsung navigasi:
+
+```tsx
+// Sidebar.tsx — NavGroup, cabang collapsed
+const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+
+if (collapsed) {
+  return (
+    <>
+      <Tooltip title={t(item.labelKey)} placement="right" arrow>
+        <ListItemButton onClick={(e) => setAnchorEl(e.currentTarget)} selected={anyChildActive} ...>
+          <ListItemIcon>{item.icon}</ListItemIcon>
+        </ListItemButton>
+      </Tooltip>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}>
+        {visibleChildren.map((child) => (
+          <MenuItem key={child.key} selected={...} onClick={() => { setAnchorEl(null); onNav(child.path) }}>
+            <ListItemIcon>{child.icon}</ListItemIcon>
+            {t(child.labelKey)}
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
+  )
+}
+```
+
+Mode full (sidebar terbuka) tidak berubah — tetap pakai `Collapse` inline (`expanded` state, toggle on click) seperti sebelumnya. Flyout `Menu` cuma untuk mode collapsed karena tidak ada ruang untuk expand inline.
+
+**Rule**: kalau nambah `NavItem` baru dengan `children` (grup submenu), fitur flyout ini otomatis berlaku — tidak perlu setup tambahan, cukup pastikan tiap child punya `icon` (dipakai sebagai `ListItemIcon` di dalam `MenuItem`).
+
 ## New Page Checklist (wajib untuk setiap halaman baru)
 1. Daftarkan route di `src/route/routeConstants.tsx` (routeRegistry) — gunakan `permissionKey` yang spesifik untuk halaman tersebut (`<key>:view`)
 2. Tambahkan permission baru di `backend/src/db/seed.ts` (`<key>:menu` + `<key>:view`)
