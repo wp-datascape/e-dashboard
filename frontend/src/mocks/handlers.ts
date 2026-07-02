@@ -10,7 +10,7 @@ import { metricsHandlers } from './handlers/metrics.handler';
 // import { importHandlers } from './handlers/import.handler';
 import { productsHandlers } from './handlers/products.handler';
 // import { accurateHandlers } from './handlers/accurate.handler';
-import { transactionsHandlers } from './handlers/transactions.handler';
+// import { transactionsHandlers } from './handlers/transactions.handler'; // DISABLED — transactions now from real backend API
 
 // Menggabungkan seluruh domain handler secara bersih menggunakan spread operator
 // NOTE: authHandlers DISABLED — auth now from real backend (features/auth)
@@ -25,6 +25,6 @@ export const handlers = [
   // ...customersHandlers, // DISABLED — customers now from real backend API
   // ...importHandlers, // DISABLED — import now from real backend API (backend/src/features/import)
   ...productsHandlers,
-  ...transactionsHandlers,
+  // ...transactionsHandlers, // DISABLED — transactions now from real backend API
   // ...auditHandlers, // DISABLED — audit logs now from real DB API (backend/src/features/audit)
 ];

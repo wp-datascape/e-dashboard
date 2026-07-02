@@ -33,7 +33,7 @@ import { rolesRoutes } from '@/features/roles/roles.route'
 import { permissionsRoutes } from '@/features/permissions/permissions.route'
 import { customersRoutes } from '@/features/customers/customers.route'
 import { productsRoutes } from '@/features/products/products.route'
-// import { transactionsRoutes } from '@/features/transactions/transactions.route'
+import { transactionsRoutes } from '@/features/transactions/transactions.route'
 import { configRoutes } from '@/features/config/config.route'
 import { auditRoutes } from '@/features/audit/audit.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
@@ -92,6 +92,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/settings/high-margin', highMarginRoutes)
   protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
   protectedApi.route('/metrics', metricsRoutes)
+  protectedApi.route('/invoices', transactionsRoutes)
 
   app.route('/api/v1', protectedApi)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────

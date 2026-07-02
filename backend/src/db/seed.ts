@@ -52,6 +52,7 @@ const OLD_PERMISSION_NAMES = [
   'settings-divisions:menu', 'settings-divisions:view', 'settings-divisions:input', 'settings-divisions:update', 'settings-divisions:delete',
   'settings-high-margin:menu', 'settings-high-margin:view', 'settings-high-margin:input', 'settings-high-margin:update', 'settings-high-margin:delete',
   'settings-threshold:menu', 'settings-threshold:view', 'settings-threshold:update',
+  'order:menu', 'order:view', 'order:export',
 ]
 
 const defaultPermissions = [
@@ -84,9 +85,9 @@ const defaultPermissions = [
   { name: 'product.trend:export', description: 'Export Product Trend',     category: 'Product Trend' },
 
   // ── Transaction & Revenue ──────────────────────────────────────────────
-  { name: 'order:menu',    description: 'Menu Order Ledger',         category: 'Order' },
-  { name: 'order:view',    description: 'View Order Ledger',         category: 'Order' },
-  { name: 'order:export',  description: 'Export Order Ledger',       category: 'Order' },
+  { name: 'transaction:menu',    description: 'Menu Transactions',         category: 'Transaction' },
+  { name: 'transaction:view',    description: 'View Transactions',         category: 'Transaction' },
+  { name: 'transaction:export',  description: 'Export Transactions',       category: 'Transaction' },
   { name: 'project:menu',  description: 'Menu Project Milestone',    category: 'Project' },
   { name: 'project:view',  description: 'View Project Milestone',    category: 'Project' },
   { name: 'project:export', description: 'Export Project Milestone', category: 'Project' },

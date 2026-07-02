@@ -115,11 +115,11 @@ export const NAV_ITEMS: NavItem[] = [
   // GROUP 4: TRANSACTION & REVENUE
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'order',
+    key: 'transaction',
     path: '/transactions',
-    labelKey: 'nav.orderLedger',
+    labelKey: 'nav.transactionLedger',
     icon: <ReceiptLongIcon fontSize="small" />,
-    permissionKey: 'order:menu',
+    permissionKey: 'transaction:menu',
     groupLabel: 'Transaction & Revenue',
   },
   {

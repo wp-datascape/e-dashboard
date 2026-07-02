@@ -55,7 +55,7 @@
     "productLedger": "Products",
     "highMarginPush": "High Margin",
     "productTrend": "Product Trend",
-    "orderLedger": "Orders",
+    "transactionLedger": "Transactions",
     "projectMilestone": "Projects",
     "import": "Import",
     "users": "Users",
@@ -529,7 +529,7 @@
     "seriesLabel": "Avg Category"
   },
   "transactions": {
-    "title": "Order Ledger",
+    "title": "Transactions",
     "subtitle": "Invoice transaction list with filters and detail drawer",
     "invoiceNumber": "Invoice #",
     "invoiceDate": "Date",

@@ -53,7 +53,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'products-high-margin': { path: '/products/high-margin',   element: withLayout(<ProductsHighMargin />),    protected: true, permissionKey: 'high.margin:view' },
   'products-trend':       { path: '/products/trend',         element: withLayout(<ProductsTrend />),         protected: true, permissionKey: 'product.trend:view' },
   // ── Transaction & Revenue ────────────────────────────────────────────────
-  'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'order:view' },
+  'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },
   // ── Administration — Settings ────────────────────────────────────────────
   'settings-app':         { path: '/settings/app',           element: withLayout(<AppSettings />),           protected: true, permissionKey: 'settings.app:view' },

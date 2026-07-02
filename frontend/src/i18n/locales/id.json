@@ -55,7 +55,7 @@
     "productLedger": "Produk",
     "highMarginPush": "High Margin",
     "productTrend": "Tren Produk",
-    "orderLedger": "Pesanan",
+    "transactionLedger": "Transaksi",
     "projectMilestone": "Proyek",
     "import": "Impor",
     "users": "Pengguna",
@@ -529,7 +529,7 @@
     "seriesLabel": "Rata-rata Kategori"
   },
   "transactions": {
-    "title": "Buku Besar Pesanan",
+    "title": "Transaksi",
     "subtitle": "Daftar transaksi faktur dengan filter dan detail drawer",
     "invoiceNumber": "Faktur #",
     "invoiceDate": "Tanggal",
