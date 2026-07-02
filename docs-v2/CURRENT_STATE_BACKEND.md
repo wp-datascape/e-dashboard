@@ -2,7 +2,13 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-06-29 (sesi 25)
+> Last updated: 2026-07-02 (sesi 26)
+>
+> **Catatan**: bagian "Setup & Infrastructure", "DB Schema", "Middleware", "Features — Not Started"
+> di bawah ini adalah skeleton perencanaan awal proyek yang SUDAH TIDAK AKURAT — item-item yang
+> ditandai "Not Started" di situ sebagian besar sudah lama selesai (lihat tabel "Overall Backend
+> Progress" di bawah untuk status yang benar). Belum dibersihkan/disinkron ulang — jangan jadikan acuan, cek
+> `docs-v2/features/*.md` per fitur untuk status akurat.
 
 ---
 
@@ -30,9 +36,10 @@
 | Feature: Audit   | Done    | list + detail + handler — docs: `features/audit.md` |
 | Feature: Products | Done   | GET categories + products dari Accurate API + handler |
 | Feature: Import  | ~95%    | File upload + SSE streaming + template validation + branch_name. Sisa: auth guard, rollback endpoint |
-| Feature: Metrics | ~70%    | M3–M7 LIVE dari real DB (customer metrics: Revenue, GP, High Margin, Repeat Order, Expansion). M1–M2 & M8–M10 masih MSW. Threshold config + segment helper baru. |
+| Feature: Metrics | ✅ ~98%  | M1–M2, M3–M7, M8–M10 LIVE dari real DB. Endpoint produk (category-performance, high-margin-penetration, customer-products, avg-category/Product Trend) juga live. `avg-category` `active_window` sekarang default dari `business_configs.active_window_months` (sesi 26), bukan hardcode. |
 | Feature: Customers | ✅ 100% | GET / + GET /:id, status logic, channel division filter aktif |
-| Feature: Transactions | 0%  | Belum dibuat                              |
+| Feature: Transactions | ✅ Done (sesi 26) | GET /invoices + GET /invoices/:id real backend — docs: `features/transactions.md`. Menu/permission di-rename Order → Transaction. |
+| Feature: Dashboard | ✅ Done (sesi 26) | GET /dashboard — agregator 10 metric card dari service metrics existing — docs: `features/dashboard.md` |
 
 ---
 
@@ -241,13 +248,21 @@ Read-only, paginated, filter by action/date
 4. [MEDIUM] Import: Rollback       — DELETE /import/logs/:id (hapus invoice batch gagal)
 5. [MEDIUM] Import: Auth Guard     — pasang authMiddleware di import routes
 6. [DONE]   Customers Feature      — list + detail + channel division filter ✅
-7. [MEDIUM] Transactions Feature   — invoice list + detail
+7. [DONE]   Transactions Feature   — invoice list + detail ✅ (sesi 26)
 8. [LOW]    Import Classification  — CRUD endpoint + seed rules
 ```
 
 ---
 
 ## Catatan Sesi
+
+### 2026-07-02 (sesi 26 — Product Trend + Transactions + Dashboard backend)
+
+Detail lengkap ada di `CURRENT_STATE.md` § "2026-07-02 (sesi 26)" (satu log gabungan FE+BE). Ringkasan sisi backend:
+- `GET /metrics/avg-category` (Product Trend) — real backend baru, `active_window` default dari `business_configs.active_window_months`
+- `GET /invoices` + `GET /invoices/:id` (Transactions) — real backend baru, permission `order:*` → `transaction:*`
+- `GET /dashboard` — real backend baru, agregator dari service metrics existing + 1 query baru (`fetchDormantValueTrend`)
+- `resolveSegmentParams` di-export dari `metrics.service.ts`
 
 ### 2026-06-29 (sesi 25 — requirePermission Middleware)
 

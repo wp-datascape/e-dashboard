@@ -5,17 +5,17 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. |
-| Backend  | ~95%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10 sekarang live (real backend)**. Transactions masih belum. |
-| Database | ~80%   | 21 tabel aktif + 88 permissions. `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
-| Docs     | ✅ ~100%   | metrics.md diupdate total — semua endpoint live, threshold config, pattern division filter. |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. |
+| Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
+| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. |
 
 ## Frontend — Page Status
 
 ### Done
 | Page             | Route               | Notes                        |
 |------------------|---------------------|------------------------------|
-| Dashboard        | `/dashboard`        | 10 MetricCards + 9 charts    |
+| Dashboard        | `/dashboard`        | 10 MetricCards + 9 charts — **real backend (sesi 26)**, agregator dari 3 service metrics existing + 1 query baru (dormant_value) |
 | Cross Selling    | `/cross-selling`    | M1 ratio + M1.1 heatmap (item_type) + M2 — **real backend, filter Entitas+Divisi+Tanggal** |
 | Customer Metrics | `/customer-metrics` | M3 Revenue, M4 Gross Profit, M5 High Margin, M6 Repeat Order, M7 Expansion — **real API from DB** |
 | Classification Rules | `/settings/classification` | CRUD classification rules, backend real API |
@@ -31,8 +31,8 @@
 | Customer         | `/customers`        | DataGrid + detail modal (responsive) + ComboChart trend, **real API** |
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
-| Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) |
-| Order Ledger     | `/orders`           | DataGrid invoice + BU filter + detail drawer, mock API |
+| Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) — **real backend `GET /metrics/avg-category` (sesi 26)**, `active_window` dari `business_configs.active_window_months` (bukan hardcode) |
+| Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail drawer — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*` |
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
 | High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API |
@@ -270,6 +270,50 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-02 (sesi 26): Product Trend Backend + Transactions Feature + Dashboard Backend + Sidebar Fix
+
+**Product Trend — endpoint `GET /metrics/avg-category` real backend:**
+- Sebelumnya cuma mock MSW, route belum ada di backend sama sekali
+- Tambah `repository/avg-category.repository.ts` (`fetchAvgCategoryTrend`, pola CTE sama dengan `fetchCrossSellingTrend` tapi tanpa filter division), service `getAvgCategoryTrend`, handler, route — mount di `metrics.route.ts`
+- Frontend: hapus hardcode `period_month: '2024-01'` → `todayMonth()`; matikan mock di `products.handler.ts`
+- **Fix lanjutan**: `active_window` awalnya hardcode `6` (Zod default + FE) → bikin titik trend rolling 6-bulan, bulan berjalan tanpa transaksi tetap nunjuk angka lama. Diganti fallback ke `business_configs.active_window_months` (SSOT sama dengan cross-selling/dormant) — sekarang tiap titik self-contained per bulan kalender, bulan berjalan tanpa transaksi tampil `0`. Override manual via query param masih didukung.
+
+**Transactions feature — endpoint `GET/invoices` + `GET /invoices/:id` real backend:**
+- `backend/src/features/transactions/` sebelumnya kosong total, route di-comment di `router.ts`
+- List: join `customers`/`companies`/`channel_divisions`/`import_logs`, `category_count` via `COUNT(DISTINCT invoice_items.product_category_id)`, filter `business_unit`/`customer_search`/`date_from`/`date_to`, sort `invoice_date`/`total_revenue`/`total_gp`
+- Detail: line items + `is_high_margin` per item (EXISTS subquery ke `high_margin_products`, window `effective_from`/`effective_until` relatif ke `invoice_date`, match `product_id` ATAU `product_category_id`)
+- Detail endpoint di-scope ke company user (`resolveCompanyScope(c, 'all')`) untuk cegah IDOR walau FE tidak kirim `company_id`
+- **Rename Order → Transaction**: menu label, permission key (`order:menu/view/export` → `transaction:menu/view/export`, kategori "Order" → "Transaction"). Permission lama dipindah ke `OLD_PERMISSION_NAMES` di `seed.ts` (auto-dibersihkan saat reseed). Aman karena cuma `superadmin` yang punya `order:*` sebelumnya.
+- Mock `transactionsHandlers` dimatikan
+
+**Dashboard — endpoint `GET /dashboard` real backend (agregator):**
+- `backend/src/features/dashboard/` baru — bukan sumber kalkulasi baru, murni agregasi 10 metric card dari 3 service metrics yang sudah live (`getCrossSellingMetrics`, `getCustomerMetrics`, `getDormantCustomerMetrics`)
+- Satu-satunya query baru: `fetchDormantValueTrend` (total nilai dormant SEMUA customer per bulan — versi lama `fetchDormantValueRanking` di-`LIMIT 20`, tidak cocok untuk agregat)
+- `resolveSegmentParams` di-export dari `metrics.service.ts` (sebelumnya private) supaya bisa direuse
+- Tidak ada company scoping eksplisit — mewarisi keterbatasan arsitektur metrics existing (`resolveCompanyScope` di handler lain juga cuma buat cek otorisasi, hasilnya tidak dipakai membatasi query)
+- Mock `dashboardHandlers` dimatikan
+
+**Fix — Sidebar submenu tidak bisa dipilih saat collapsed/mini:**
+- `NavGroup` (grup menu dengan children) saat collapsed sebelumnya hardcode navigasi ke `visibleChildren[0]`, child ke-2 dst sama sekali tidak bisa diakses
+- Fix: flyout MUI `Menu` popover berisi seluruh `visibleChildren` saat ikon grup diklik dalam mode collapsed. Mode full (sidebar terbuka) tidak berubah.
+- Diverifikasi via Playwright: popover muncul dengan 5 item grup Settings, klik item ke-2 ("Companies") berhasil navigasi
+
+**Dokumentasi baru/diupdate**: `features/transactions.md` (baru), `features/dashboard.md` (baru), `features/metrics.md`, `features/permissions.md`, `shared/ui-patterns.md`, `CLAUDE.md`
+
+**File yang diubah (sesi ini):**
+- `backend/src/features/metrics/repository/avg-category.repository.ts` (NEW), `metrics.schema.ts`, `metrics.service.ts` (export `resolveSegmentParams`, `getAvgCategoryTrend` fallback threshold), `metrics.handler.ts`, `metrics.route.ts`, `metrics.types.ts`, `metrics.repository.ts`
+- `backend/src/features/transactions/` (NEW: schema, repository, service, handler, route)
+- `backend/src/features/dashboard/` (NEW: types, repository, service, handler, route)
+- `backend/src/router.ts` — mount `/invoices`, `/dashboard`
+- `backend/src/db/seed.ts` — rename `order:*` → `transaction:*`, `OLD_PERMISSION_NAMES`
+- `frontend/src/pages/ProductsTrend/index.tsx` — `todayMonth()`, hapus hardcode `active_window`
+- `frontend/src/components/ui/Sidebar/Sidebar.tsx` — flyout `Menu` untuk `NavGroup` collapsed
+- `frontend/src/config/menu.tsx`, `frontend/src/route/routeConstants.tsx` — rename Order → Transaction
+- `frontend/src/i18n/locales/{en,id}.json` — label "Orders"/"Pesanan" → "Transactions"/"Transaksi"
+- `frontend/src/mocks/handlers.ts`, `frontend/src/mocks/handlers/products.handler.ts` — matikan mock avg-category, transactions, dashboard
+
+---
 
 ### 2026-06-29–30 (sesi 25): Import Terpusat + Template XLSX + Auth Fix
 
