@@ -19,11 +19,15 @@ import * as schema from '@/db/schema'
 // postgres-js client
 // max: jumlah koneksi pool — sesuaikan dengan kebutuhan production
 // onnotice: suppress noisy notices from Drizzle migrations / schema introspection
+// ssl: kebanyakan managed Postgres (Render Postgres, Neon, Supabase, dll) wajib
+//   SSL untuk koneksi eksternal — 'require' cukup untuk itu (tidak perlu bundle
+//   CA cert). Dev lokal (docker postgres) biasanya tidak listen SSL, jadi off.
 const client = postgres(env.DATABASE_URL, {
   max: env.NODE_ENV === 'production' ? 20 : 5,
   idle_timeout: 30,
   connect_timeout: 10,
   onnotice: () => {},
+  ssl: env.NODE_ENV === 'production' ? 'require' : false,
   // Paksa timezone WIB agar CURRENT_DATE konsisten dengan server (UTC+7)
   connection: { TimeZone: 'Asia/Jakarta' },
 })

@@ -9,9 +9,16 @@ import { loginService, refreshService, getMeService } from './auth.service'
 
 const SECURE = env.NODE_ENV === 'production'
 
+// Production = deploy cross-site (backend Render, frontend Vercel, beda domain)
+// → cookie WAJIB SameSite=None (Lax tidak pernah terkirim di request fetch/axios
+// cross-site) — dan SameSite=None mewajibkan Secure=true, yang di production
+// sudah otomatis true lewat SECURE di atas.
+// Dev = sama-sama localhost (beda port saja) → masih dianggap same-site, Lax cukup.
+const SAME_SITE = SECURE ? ('None' as const) : ('Lax' as const)
+
 const HTTPONLY_OPTS = {
   httpOnly: true,
-  sameSite: 'Lax' as const,
+  sameSite: SAME_SITE,
   path: '/',
   secure: SECURE,
 }
@@ -19,7 +26,7 @@ const HTTPONLY_OPTS = {
 // CSRF cookie — sengaja TIDAK httpOnly agar JS bisa baca saat page refresh
 const CSRF_COOKIE_OPTS = {
   httpOnly: false,
-  sameSite: 'Lax' as const,
+  sameSite: SAME_SITE,
   path: '/',
   secure: SECURE,
 }

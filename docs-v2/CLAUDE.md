@@ -48,6 +48,7 @@ Status   : Frontend ~97% | Backend ~80%
 | Formula detail M3–M5      | `shared/metrics_docs.md`               |
 | Audit Log                  | `features/audit.md`                    |
 | Accurate Integration       | `features/accurate.md`                 |
+| Deployment (Render/Vercel) | `shared/deployment.md`                 |
 
 ## Core Business Flow
 Admin imports invoices (CSV/Excel upload OR Accurate API fetch)
