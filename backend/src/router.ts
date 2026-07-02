@@ -39,6 +39,7 @@ import { configRoutes } from '@/features/config/config.route'
 import { auditRoutes } from '@/features/audit/audit.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
+import { docsRoutes } from '@/features/docs/docs.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
 
@@ -95,6 +96,11 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)
+  // Docs sengaja DI DALAM protectedApi — wajib login utk buka Swagger UI.
+  // Non-aktif di production by default.
+  if (env.NODE_ENV !== 'production') {
+    protectedApi.route('/docs', docsRoutes)
+  }
 
   app.route('/api/v1', protectedApi)
   // ─── Health check — selalu aktif, tanpa auth ────────────────────────────────

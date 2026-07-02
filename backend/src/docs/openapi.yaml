@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: Executive Dashboard API
+  version: "1.0.0"
+  description: >
+    Internal API — holding company executive dashboard.
+    Spec ini ditulis manual (bukan auto-generate), pilot cakupan awal:
+    Auth + Dashboard + Metrics (Cross Selling). Endpoint lain menyusul.
+servers:
+  - url: /api/v1
+    description: Current server
+
+tags:
+  - name: Auth
+  - name: Dashboard
+  - name: Metrics
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: >
+        JWT httpOnly cookie, didapat dari response POST /auth/login.
+        Browser mengirimnya otomatis pada request berikutnya ke origin yang sama.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: >
+        Wajib untuk request mutasi (POST/PUT/PATCH/DELETE).
+        Nilainya dari cookie csrf_token (di-set saat login), Swagger UI di halaman ini
+        otomatis membaca & mengisi header ini lewat requestInterceptor.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@mail.com
+        password:
+          type: string
+          format: password
+          example: "123456"
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Login berhasil
+        data:
+          type: object
+          properties:
+            csrf_token:
+              type: string
+            data:
+              type: object
+              properties:
+                token:
+                  type: string
+                user:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    email: { type: string }
+                    role: { type: string }
+                permissions:
+                  type: array
+                  items: { type: string }
+
+    MeResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string }
+            role: { type: string }
+
+    MonthlyTrendPoint:
+      type: object
+      properties:
+        month: { type: string, example: "2026-07" }
+        value: { type: number }
+
+    MetricCard:
+      type: object
+      properties:
+        metric_key: { type: string, example: cross_selling_ratio }
+        title: { type: string }
+        subtitle: { type: string }
+        link: { type: string }
+        format: { type: string, enum: [percent, number, currency] }
+        color: { type: string, example: "#3B82F6" }
+        summary:
+          type: object
+          properties:
+            current_value: { type: number }
+            previous_value: { type: number }
+            change_percent: { type: number }
+            trend: { type: string, enum: [up, down, stable] }
+        monthly_trend:
+          type: array
+          items: { $ref: '#/components/schemas/MonthlyTrendPoint' }
+
+    DashboardResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            period_month: { type: string, example: "2026-07" }
+            active_window: { type: integer, example: 1 }
+            metrics:
+              type: array
+              items: { $ref: '#/components/schemas/MetricCard' }
+
+    CrossSellingResponse:
+      type: object
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            period:
+              type: object
+              properties:
+                start: { type: string, format: date }
+                end: { type: string, format: date }
+                active_months: { type: integer }
+            kpi1:
+              type: object
+              properties:
+                multi_cat_count: { type: integer }
+                active_count: { type: integer }
+                rate: { type: number }
+            kpi2:
+              type: object
+              properties:
+                avg_categories: { type: number }
+                total_distinct_cats: { type: integer }
+            trend:
+              type: array
+              items:
+                type: object
+                properties:
+                  month: { type: string }
+                  total_active: { type: integer }
+                  multi_product: { type: integer }
+                  ratio: { type: number }
+                  avg_category: { type: number }
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: >
+        Endpoint publik (tidak butuh auth). Berhasil login akan set 3 cookie
+        (access_token, refresh_token, csrf_token) — dipakai otomatis oleh
+        Swagger UI ini untuk request selanjutnya di halaman yang sama.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Email/password salah
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429':
+          description: Rate limited (10x/15 menit per IP)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: Hapus 3 cookie auth. Butuh CSRF header (mutasi).
+      security: [{ cookieAuth: [], csrfHeader: [] }]
+      responses:
+        '200':
+          description: Logout berhasil
+        '401':
+          description: Belum login
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Pakai refresh_token cookie, tidak butuh CSRF header.
+      security: []
+      responses:
+        '200':
+          description: Token diperbarui
+        '401':
+          description: Refresh token tidak ada/invalid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Data user yang sedang login
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401':
+          description: Belum login
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Ringkasan 10 KPI (M1-M10)
+      description: >
+        Agregator — selalu company scope 'all', tanggal referensi hari ini.
+        Tidak ada query params.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardResponse' }
+        '401':
+          description: Belum login
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /metrics/cross-selling:
+    get:
+      tags: [Metrics]
+      summary: Cross Selling Ratio (M1) & Avg Category (M2)
+      description: Trend 12 bulan cross-selling ratio dan rata-rata kategori produk per customer aktif.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: company_id
+          in: query
+          schema:
+            oneOf:
+              - { type: integer, minimum: 1 }
+              - { type: string, enum: [all] }
+            default: all
+          description: ID company, atau "all" untuk semua company (holding view)
+        - name: period_end
+          in: query
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+          example: "2026-07-31"
+          description: Format YYYY-MM-DD, default akhir bulan berjalan
+        - name: division
+          in: query
+          schema:
+            type: string
+            enum: [distribution, project, e_commerce, intercompany, freelancer, support]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrossSellingResponse' }
+        '400':
+          description: Query tidak valid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Belum login
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

@@ -11,7 +11,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useTranslation } from 'react-i18next';
 import { useThemeMode } from '@/theme/theme.context';
-import { useAuth } from '@/context/auth.context';
+import { useLogoutMutation } from '@/hooks/useAuth';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -21,7 +21,7 @@ interface AppBarProps {
 export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
   const { t } = useTranslation();
   const { toggleTheme, isDark } = useThemeMode();
-  const { logout } = useAuth();
+  const logoutMutation = useLogoutMutation();
 
   return (
     <MuiAppBar
@@ -67,7 +67,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
         </Tooltip>
 
         <Tooltip title={t('common.logout')}>
-          <IconButton color="inherit" onClick={() => logout()} size="small">
+          <IconButton color="inherit" onClick={() => logoutMutation.mutate()} size="small">
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Tooltip>

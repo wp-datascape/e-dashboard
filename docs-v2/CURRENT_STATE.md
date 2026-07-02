@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). **Fix logout tidak invalidasi sesi server (sesi 29)**. |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) pilot 6 endpoint (sesi 29). |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
-| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). |
+| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). api-docs.md (baru, sesi 29). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
 
 ## Frontend — Page Status
@@ -271,6 +271,29 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-02 (sesi 29): API Docs (Swagger UI, spec statis) + Fix Logout Tidak Invalidasi Sesi
+
+**API Docs — Swagger UI di `/api/v1/docs`, spec statis manual (bukan auto-generate):**
+- Sempat coba `hono-openapi`+`zod-openapi` (auto-generate dari Zod schema existing) — di-rollback karena peer-dependency rapuh (`zod-openapi` v6 butuh Zod v4, project masih Zod v3) dan `validator()` middleware-nya ternyata selalu bisa blokir request (tidak bisa dibuat read-only untuk docs doang)
+- Pindah ke pendekatan spec statis: `src/docs/openapi.yaml` ditulis manual (pilot 6 endpoint: Auth lengkap + Dashboard + Metrics/cross-selling), di-serve via `features/docs/docs.route.ts` pakai `swagger-ui-dist` (cuma static assets, 1 dependency ringan tanpa peer-dependency Zod)
+- Route **di dalam `protectedApi`** — wajib login utk akses (`authMiddleware()`), non-aktif kalau `NODE_ENV=production`. Response docs pakai `Cache-Control: no-store` supaya browser tidak cache halaman protected ini
+- "Try it out" pakai cookie & CSRF **asli** dari login sungguhan — `requestInterceptor` custom baca cookie `csrf_token` (non-httpOnly) dan pasang ke header `X-CSRF-Token` otomatis. Diverifikasi end-to-end: login → GET protected endpoint (data asli) → POST mutasi (CSRF tervalidasi server)
+- Catatan (bukan bug, disengaja): karena `POST /auth/login` didokumentasikan, user yang sudah pernah masuk `/api/v1/docs` bisa re-login lewat form Swagger kapan saja tanpa buka app utama — akses ke docs itu sendiri tetap terkunci di belakang auth normal
+
+**Fix — tombol Logout tidak invalidasi sesi server (ditemukan saat testing docs protected):**
+- `AppBar.tsx` & `LogoutButton.tsx` sebelumnya panggil `useAuth().logout()` (`AuthContext.tsx`) — cuma clear state React + localStorage, **tidak pernah** panggil `POST /auth/logout`. Cookie httpOnly (`access_token`/`refresh_token`/`csrf_token`) tetap valid di server walau UI sudah redirect ke `/login`
+- Fix: ganti ke `useLogoutMutation()` (`hooks/useAuth.ts`) — hook yang sudah ada tapi belum pernah dipakai di mana pun. Sekarang benar-benar memanggil endpoint logout (hapus 3 cookie server-side) sebelum clear state lokal
+
+**Dokumentasi baru**: `features/api-docs.md`
+
+**File yang diubah (sesi ini):**
+- `backend/src/docs/openapi.yaml` (NEW), `backend/src/features/docs/docs.route.ts` (NEW)
+- `backend/src/router.ts` — mount `/docs` di dalam `protectedApi`, gated `NODE_ENV !== 'production'`
+- `backend/package.json`, `backend/bun.lock` — tambah `swagger-ui-dist`
+- `frontend/src/components/ui/AppBar/AppBar.tsx`, `frontend/src/components/ui/LogoutButton/LogoutButton.tsx` — logout pakai `useLogoutMutation()`
+
+---
 
 ### 2026-07-02 (sesi 28): Refactor i18n — Split Locale Jadi Per-Namespace
 
