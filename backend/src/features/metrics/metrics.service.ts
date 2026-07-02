@@ -367,10 +367,15 @@ export async function getAvgCategoryTrend(params: AvgCategoryQuery): Promise<Pro
     const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
     const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
+    // Default active_window dari business_configs.active_window_months (SSOT, sama dengan
+    // cross-selling/dormant) — bukan hardcode, supaya tiap titik trend self-contained per bulan
+    // kalender (bukan rolling multi-bulan) kecuali caller eksplisit override.
+    const activeWindow = params.active_window ?? (await loadThresholds()).activeMonths
+
     const trend = await fetchAvgCategoryTrend({
       cid,
       periodEnd,
-      activeWindow: params.active_window,
+      activeWindow,
     })
 
     const current = trend.at(-1)

@@ -23,7 +23,6 @@ export default function ProductsTrend() {
   const { data, isLoading } = useProductTrend({
     company_id: 'all',
     period_month: todayMonth(),
-    active_window: 6,
   })
 
   const changePct = data?.change_pct ?? null

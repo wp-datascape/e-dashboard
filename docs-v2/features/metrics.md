@@ -148,7 +148,7 @@ Query params:
 |---|---|---|---|
 | `company_id` | integer \| `"all"` | `"all"` | Filter per entitas |
 | `period_month` | `YYYY-MM` | Bulan berjalan | Dinormalisasi ke akhir bulan (pola sama dengan `category-performance`) |
-| `active_window` | integer (1–24) | 6 | Rolling window bulan untuk hitung avg kategori per customer |
+| `active_window` | integer (1–24) | `business_configs.active_window_months` | Window bulan untuk hitung avg kategori per customer — lihat catatan di bawah |
 
 Permission: `product.trend:view` ATAU `metrics:view` (`requirePermission('product.trend:view', 'metrics:view')` — `metrics:view` sudah usang/dihapus dari seed, lihat `features/permissions.md`).
 
@@ -167,6 +167,14 @@ Response shape:
 Query rolling-window sama pola dengan `fetchCrossSellingTrend` (M2 di `m1.repository.ts`) — per titik bulan, hitung `COUNT(DISTINCT product_category_id)` per customer dalam window `active_window` bulan ke belakang, lalu `AVG()` across customer aktif. **Beda dari M2 asli**: tidak ada filter `division`/`channel_divisions`, karena `ProductTrendParams` di frontend tidak punya field itu — endpoint ini murni turunan M2 tanpa filter tambahan.
 
 Reuse relationship: dulu 3.3 direncanakan "reuse M2 endpoint" (`GET /metrics/cross-selling`), tapi karena frontend sudah terlanjur memanggil path `/metrics/avg-category` dengan shape response berbeda (bukan bagian dari `CrossSellingMetricsData`), dibuat endpoint terpisah dengan logic query yang mirip, bukan literal reuse endpoint yang sama.
+
+### `active_window` — default dari business config, bukan hardcode (fix 2026-07-02)
+
+Awalnya `active_window` default `6` (hardcode di Zod schema DAN di frontend `ProductsTrend/index.tsx`). Ini bikin titik trend jadi **rolling 6-bulan** — misal titik "2026-07" isinya rata-rata Feb–Jun (karena Juli belum ada data), bukan murni aktivitas Juli. User bingung karena label bulan terlihat seperti "hasil bulan itu" padahal representasinya rolling window.
+
+Fix: `avgCategoryQuerySchema.active_window` sekarang cuma `.optional()` (tanpa `.default(6)`), dan `getAvgCategoryTrend()` fallback ke `(await loadThresholds()).activeMonths` (`business_configs.active_window_months`) kalau caller tidak eksplisit kirim `active_window`. Frontend `ProductsTrend/index.tsx` juga sudah hapus hardcode `active_window: 6` dari pemanggilan `useProductTrend()`.
+
+Efeknya: dengan `active_window_months` default `1`, tiap titik trend sekarang **self-contained per bulan kalender** (sama seperti M2 di halaman Cross Selling), bukan rolling multi-bulan — titik bulan berjalan yang belum ada transaksi akan benar-benar tampil `0`, bukan angka dari bulan-bulan sebelumnya. Kalau admin ubah `active_window_months` di **Settings → Threshold**, chart Product Trend otomatis ikut berubah tanpa redeploy. Override manual via query param `?active_window=N` masih didukung (dipakai kalau suatu saat ada UI dropdown window seperti di halaman Category Performance).
 
 ---
 
@@ -264,7 +272,7 @@ Semua threshold (alert_pct, target_low, target_high) dibaca dari response backen
 
 ### `/products/trend` — 3.3 Product Trend
 
-Filter: **Entitas** (default `'all'`), `period_month` default bulan berjalan (`todayMonth()`, sebelumnya hardcode `'2024-01'`), `active_window` default 6.
+Filter: **Entitas** (default `'all'`), `period_month` default bulan berjalan (`todayMonth()`, sebelumnya hardcode `'2024-01'`). `active_window` tidak dikirim dari FE — backend fallback ke `business_configs.active_window_months` (lihat catatan "default dari business config" di atas).
 
 | Section | Widget | Data |
 |---|---|---|

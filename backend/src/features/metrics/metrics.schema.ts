@@ -187,6 +187,6 @@ export const avgCategoryQuerySchema = z.object({
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
     .optional()
     .default(currentMonth),
-  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  active_window: z.coerce.number().int().min(1).max(24).optional(),
 })
 export type AvgCategoryQuery = z.infer<typeof avgCategoryQuerySchema>
