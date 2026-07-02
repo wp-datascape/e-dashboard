@@ -1,13 +1,16 @@
 // frontend/src/hooks/usePageSettings.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pageApi } from '@/api/page.api';
+import { useAuth } from '@/context/auth.context';
 
 // Used in App.tsx with no args: data = PageSetting[] (via select)
 export function usePageSettings() {
+  const { token } = useAuth();
   return useQuery({
     queryKey: ['page-settings'],
     queryFn: () => pageApi.getPageSettings(),
     select: (response) => response.data,
+    enabled: !!token,
   });
 }
 
