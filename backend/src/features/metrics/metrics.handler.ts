@@ -2,8 +2,8 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCustomerMetrics, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 
 export async function handleGetCrossSelling(c: Context) {
   const query = validateQuery(c, crossSellingQuerySchema)
@@ -80,4 +80,11 @@ export async function handleGetUpsellTargets(c: Context) {
   resolveCompanyScope(c, query.company_id)
   const { data, total } = await getUpsellTargets(query)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+export async function handleGetAvgCategory(c: Context) {
+  const query = validateQuery(c, avgCategoryQuerySchema)
+  resolveCompanyScope(c, query.company_id)
+  const data = await getAvgCategoryTrend(query)
+  return success(c, data)
 }

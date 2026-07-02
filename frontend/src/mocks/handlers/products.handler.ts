@@ -295,17 +295,21 @@ export const customerProductHandlers = [
   }),
 ]
 
-export const productsHandlers = [
-  // categoryPerformanceHandlers — DISABLED: real backend at GET /api/v1/metrics/category-performance
-  // hmDetailHandlers       — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/detail
-  // upsellTargetHandlers   — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/customers
-  // customerProductHandlers — DISABLED: real backend at GET /api/v1/metrics/customer-products
-
-  // GET /metrics/avg-category — 3.3 (product trend / M2)
+// GET /metrics/avg-category — DISABLED: real backend at GET /api/v1/metrics/avg-category
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const avgCategoryHandlers = [
   http.get(`${BASE_URL}/metrics/avg-category`, () => {
     return HttpResponse.json<ApiResponse<ProductTrendData>>({
       message: 'Success',
       data: mockProductTrend,
     })
   }),
+]
+
+export const productsHandlers = [
+  // categoryPerformanceHandlers — DISABLED: real backend at GET /api/v1/metrics/category-performance
+  // hmDetailHandlers       — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/detail
+  // upsellTargetHandlers   — DISABLED: real backend at GET /api/v1/metrics/high-margin-penetration/customers
+  // customerProductHandlers — DISABLED: real backend at GET /api/v1/metrics/customer-products
+  // avgCategoryHandlers     — DISABLED: real backend at GET /api/v1/metrics/avg-category
 ]

@@ -176,3 +176,17 @@ export const customerProductsQuerySchema = z.object({
   per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
 })
 export type CustomerProductsQuery = z.infer<typeof customerProductsQuerySchema>
+
+export const avgCategoryQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+})
+export type AvgCategoryQuery = z.infer<typeof avgCategoryQuerySchema>

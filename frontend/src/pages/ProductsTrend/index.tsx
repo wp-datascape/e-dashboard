@@ -11,13 +11,18 @@ import { useTranslation } from 'react-i18next'
 import { useProductTrend } from '@/hooks/useProducts'
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget'
 
+function todayMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function ProductsTrend() {
   const theme = useTheme()
   const { t } = useTranslation()
 
   const { data, isLoading } = useProductTrend({
     company_id: 'all',
-    period_month: '2024-01',
+    period_month: todayMonth(),
     active_window: 6,
   })
 

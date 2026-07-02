@@ -1,10 +1,10 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
-import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData } from './metrics.types'
+import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
+import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
 
 function todayDate(): string {
   const now = new Date()
@@ -355,5 +355,42 @@ export async function getUpsellTargets(
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil upsell targets', 500)
+  }
+}
+
+export async function getAvgCategoryTrend(params: AvgCategoryQuery): Promise<ProductTrendData> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+
+    // Normalisasi period_month ke akhir bulan (sama dengan pola cross-selling / category-performance)
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const trend = await fetchAvgCategoryTrend({
+      cid,
+      periodEnd,
+      activeWindow: params.active_window,
+    })
+
+    const current = trend.at(-1)
+    const prev    = trend.at(-2)
+    const currentAvg = current?.avg_category ?? 0
+    const prevAvg     = prev?.avg_category ?? null
+    const changePct   = prevAvg !== null && prevAvg !== 0
+      ? parseFloat((((currentAvg - prevAvg) / prevAvg) * 100).toFixed(1))
+      : null
+
+    return {
+      company_id:   params.company_id,
+      period_month: params.period_month,
+      trend,
+      current_avg:  currentAvg,
+      prev_avg:     prevAvg,
+      change_pct:   changePct,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil tren rata-rata kategori produk', 500)
   }
 }

@@ -168,3 +168,19 @@ export interface CrossSellingMetricsData {
   heatmap: CrossSellingHeatmapRow[]
   categories: string[]
 }
+
+// ── 3.3 Product Trend (avg-category) ──────────────────────────────────────────
+
+export interface AvgCategoryTrendPoint {
+  month: string
+  avg_category: number
+}
+
+export interface ProductTrendData {
+  company_id: number | 'all'
+  period_month: string
+  trend: AvgCategoryTrendPoint[]
+  current_avg: number
+  prev_avg: number | null
+  change_pct: number | null
+}

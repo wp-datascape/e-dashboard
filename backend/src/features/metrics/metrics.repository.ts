@@ -19,3 +19,5 @@ export { fetchHmDetail, fetchUpsellTargets } from './repository/high-margin-pene
 export type { HmDetailDbRow, UpsellTargetDbRow, CategoryRef } from './repository/high-margin-penetration.repository'
 export { fetchCustomerProducts } from './repository/customer-products.repository'
 export type { CustomerProductDbRow } from './repository/customer-products.repository'
+export { fetchAvgCategoryTrend } from './repository/avg-category.repository'
+export type { AvgCategoryTrendRow } from './repository/avg-category.repository'
