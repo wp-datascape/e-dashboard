@@ -167,6 +167,54 @@ const defaultPermissions = [
   { name: 'audit.log:export', description: 'Export Audit Log', category: 'Audit Log' },
 ]
 
+// Baseline permission untuk role 'admin' — akses penuh (menu+view+create+update+
+// delete+export bila ada) di semua menu bisnis inti (Dashboard, Customer Workbench,
+// Product & Portfolio, Transaction & Revenue). Untuk grup Administration: cuma
+// sampai Settings (beberapa di antaranya view+update saja, TANPA create/delete —
+// Company/Branch, Channel Division, Product Settings — karena hapus data master
+// ini berdampak besar ke data transaksi/riwayat). Configuration (Classification,
+// Import, Integration, Features) sengaja TIDAK dimasukkan — hak khusus superadmin.
+// Access Control (Users/Roles/Permissions) & Audit Log: view-only, admin bisa
+// lihat tapi tidak bisa memanipulasi data.
+const ADMIN_PERMISSION_NAMES = [
+  'dashboard:menu', 'dashboard:view',
+  'customer:menu', 'customer:view',
+  'expansion:menu', 'expansion:view', 'expansion:export',
+  'churn.risk:menu', 'churn.risk:view', 'churn.risk:export',
+  'cross.selling:menu', 'cross.selling:view', 'cross.selling:export',
+  'product:menu', 'product:view', 'product:export',
+  'high.margin:menu', 'high.margin:view', 'high.margin:export',
+  'product.trend:menu', 'product.trend:view', 'product.trend:export',
+  'transaction:menu', 'transaction:view', 'transaction:export',
+  'project:menu', 'project:view', 'project:export',
+  'settings.app:menu', 'settings.app:view', 'settings.app:update',
+  'settings.company:menu', 'settings.company:view', 'settings.company:update',
+  'settings.branch:view', 'settings.branch:update',
+  'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
+  'settings.product:menu', 'settings.product:view', 'settings.product:update',
+  'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
+  'access.user:menu', 'access.user:view',
+  'access.role:menu', 'access.role:view',
+  'access.permission:view',
+  'audit.log:menu', 'audit.log:view',
+]
+
+// Baseline permission untuk role 'user' — view + export saja di menu bisnis inti,
+// tidak ada create/update/delete apa pun, dan TIDAK ADA satu pun menu Administration
+// (Settings/Configuration/Access Control/Audit Log semuanya di luar jangkauan).
+const USER_PERMISSION_NAMES = [
+  'dashboard:menu', 'dashboard:view',
+  'customer:menu', 'customer:view',
+  'expansion:menu', 'expansion:view', 'expansion:export',
+  'churn.risk:menu', 'churn.risk:view', 'churn.risk:export',
+  'cross.selling:menu', 'cross.selling:view', 'cross.selling:export',
+  'product:menu', 'product:view', 'product:export',
+  'high.margin:menu', 'high.margin:view', 'high.margin:export',
+  'product.trend:menu', 'product.trend:view', 'product.trend:export',
+  'transaction:menu', 'transaction:view', 'transaction:export',
+  'project:menu', 'project:view', 'project:export',
+]
+
 const defaultUsers = [
   { name: 'Super Admin', email: 'admin@mail.com', password: '123456' },
   { name: 'Executive Admin', email: 'executif@mail.com', password: '123456' },
@@ -303,6 +351,36 @@ async function seedRolePermissions() {
     }
     console.log(`  ok    ${allPerms.length} perms -> superadmin`)
   } catch (err) { console.error('  error:', err) }
+
+  await seedRoleDefaultPermissions('admin', ADMIN_PERMISSION_NAMES)
+  await seedRoleDefaultPermissions('user', USER_PERMISSION_NAMES)
+}
+
+/**
+ * Assign baseline permission (by name) ke role tertentu — cuma nambah yang belum
+ * ada (idempotent, sama seperti pola superadmin di atas), TIDAK PERNAH mencabut
+ * permission yang sudah di-assign manual lewat RBAC UI. Aman dijalankan ulang
+ * kapan saja tanpa menimpa kustomisasi yang sudah dibuat admin.
+ */
+async function seedRoleDefaultPermissions(roleName: string, permissionNames: string[]) {
+  const [role] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, roleName)).limit(1)
+  if (!role) { console.log(`  skip  ${roleName} not found`); return }
+
+  const perms = await db
+    .select({ id: permissions.id })
+    .from(permissions)
+    .where(inArray(permissions.name, permissionNames))
+
+  let added = 0
+  for (const p of perms) {
+    const [ex] = await db
+      .select({ roleId: rolePermissions.role_id })
+      .from(rolePermissions)
+      .where(and(eq(rolePermissions.role_id, role.id), eq(rolePermissions.permission_id, p.id)))
+      .limit(1)
+    if (!ex) { await db.insert(rolePermissions).values({ role_id: role.id, permission_id: p.id }); added++ }
+  }
+  console.log(`  ok    ${added} perms baru -> ${roleName} (total target: ${perms.length}/${permissionNames.length} ditemukan)`)
 }
 
 async function seedUserAssignments() {
