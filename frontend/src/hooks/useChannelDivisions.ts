@@ -8,11 +8,25 @@ import type {
 
 const KEY = 'channel-divisions'
 const UNMAPPED_KEY = 'channel-divisions-unmapped'
+const VALUES_KEY = 'channel-divisions-values'
 
 export function useChannelDivisions(params?: ListChannelDivisionsParams) {
   return useQuery({
     queryKey: [KEY, params],
     queryFn: () => channelDivisionsApi.list(params),
+  })
+}
+
+/**
+ * Nilai divisi unik saja (bukan mapping channel_name lengkap) — dipakai
+ * useDivisionOptions() untuk dropdown filter. Endpoint ini tidak butuh
+ * permission khusus (lihat channel-divisions.route.ts), beda dari
+ * useChannelDivisions() di atas yang tetap perlu settings.channel.division:view.
+ */
+export function useDivisionValues(companyId: number | 'all') {
+  return useQuery({
+    queryKey: [VALUES_KEY, companyId],
+    queryFn: () => channelDivisionsApi.listDivisionValues(companyId),
   })
 }
 

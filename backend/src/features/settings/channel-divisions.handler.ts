@@ -17,11 +17,18 @@ import {
   importChannelDivisionsService,
   getChannelDivisionsTemplate,
   listUnmappedChannelsService,
+  listDivisionValuesService,
 } from './channel-divisions.service'
 
 export async function handleListChannelDivisions(c: Context) {
   const query = validateQuery(c, listChannelDivisionsQuerySchema)
   const result = await listChannelDivisionsService(query)
+  return success(c, result)
+}
+
+export async function handleListDivisionValues(c: Context) {
+  const query = validateQuery(c, unmappedChannelsQuerySchema)
+  const result = await listDivisionValuesService(query.company_id)
   return success(c, result)
 }
 

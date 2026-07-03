@@ -35,6 +35,13 @@ export const channelDivisionsApi = {
     return res.data.data
   },
 
+  listDivisionValues: async (companyId: number | 'all'): Promise<string[]> => {
+    const res = await api.get<ApiResponse<string[]>>('/settings/channel-divisions/values', {
+      params: { company_id: companyId },
+    })
+    return res.data.data
+  },
+
   listUnmappedChannels: async (companyId: number | 'all'): Promise<string[]> => {
     const res = await api.get<ApiResponse<string[]>>('/settings/channel-divisions/unmapped-channels', {
       params: { company_id: companyId },

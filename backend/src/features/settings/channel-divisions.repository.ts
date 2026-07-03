@@ -40,6 +40,29 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
     .orderBy(channel_divisions.channel_name)
 }
 
+/**
+ * Nilai divisi unik yang benar-benar punya mapping untuk company ini (rule
+ * company + rule global) — dipakai dropdown filter divisi (useDivisionOptions)
+ * yang tersebar di banyak halaman. Sengaja TIDAK ikut channel_name di sini
+ * (beda dari findChannelDivisions) supaya endpoint ini bisa dibuka tanpa
+ * requirePermission('settings.channel.division:view') — nama channel penjualan
+ * asli tetap hanya kelihatan lewat endpoint mapping penuh yang tetap terproteksi.
+ */
+export async function findDistinctDivisions(companyId: number | 'all'): Promise<string[]> {
+  const conditions = []
+  if (companyId !== 'all') {
+    conditions.push(or(eq(channel_divisions.company_id, companyId), isNull(channel_divisions.company_id))!)
+  }
+
+  const rows = await db
+    .selectDistinct({ division: channel_divisions.division })
+    .from(channel_divisions)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(channel_divisions.division)
+
+  return rows.map((r) => r.division)
+}
+
 export async function findChannelDivisionById(id: number) {
   const [row] = await db
     .select()
