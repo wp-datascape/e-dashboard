@@ -9,18 +9,18 @@
     <meta name="description" content="Business stats dashboard for holding company" />
     <meta name="application-name" content="Executive Dashboard" />
 
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- PWA Manifest — di-generate & di-inject otomatis oleh vite-plugin-pwa saat build -->
 
     <!-- Theme Color (also used for PWA title bar) -->
     <meta name="theme-color" content="#863bff" />
     <meta name="msapplication-TileColor" content="#863bff" />
 
-    <!-- iOS PWA -->
+    <!-- iOS PWA — Safari abaikan manifest.icons, wajib pakai apple-touch-icon (PNG, bukan SVG) -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="E-Dashboard" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
