@@ -71,6 +71,8 @@ interface SetPermissionDialogProps {
   role: Role | null;
   permissionsGrouped: Record<string, Permission[]> | null;
   onTogglePermission: (group: string, action: string, currentIds: Set<number>) => void;
+  /** true kalau user cuma punya access.permission:view (bukan :update) — dialog kebuka tapi semua toggle dikunci. */
+  readOnly?: boolean;
   isMobile: boolean;
 }
 
@@ -80,6 +82,7 @@ export function SetPermissionDialog({
   role,
   permissionsGrouped,
   onTogglePermission,
+  readOnly = false,
   isMobile,
 }: SetPermissionDialogProps) {
   const { t } = useTranslation();
@@ -122,6 +125,7 @@ export function SetPermissionDialog({
     actionColumns.filter((col) => groupHasAction(group, col.key)).length;
 
   const handleToggle = (group: string, action: string) => {
+    if (readOnly) return;
     const perm = findPerm(group, action);
     if (!perm) return;
     
@@ -167,6 +171,9 @@ export function SetPermissionDialog({
               </Typography>
             )}
           </Box>
+          {readOnly && (
+            <StatusChip label={t('rbac.setPermissionDialog.readOnly')} color="warning" />
+          )}
           <StatusChip label={t('rbac.setPermissionDialog.activeCount', { count: activePermIds.size })} color="primary" />
         </Box>
       }
@@ -270,7 +277,7 @@ export function SetPermissionDialog({
                               </Typography>
                             )}
                           </Box>
-                          <Switch checked={checked} onChange={() => exists && handleToggle(group, col.key)} disabled={!exists} size="small" color="primary" />
+                          <Switch checked={checked} onChange={() => exists && handleToggle(group, col.key)} disabled={!exists || readOnly} size="small" color="primary" />
                         </Box>
                       );
                     })}

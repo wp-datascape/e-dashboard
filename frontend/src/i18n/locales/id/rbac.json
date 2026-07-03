@@ -39,6 +39,7 @@
     "title": "Set Permission",
     "rolePrefix": "Role:",
     "activeCount": "{{count}} aktif",
+    "readOnly": "Lihat saja",
     "searchPlaceholder": "Filter kategori...",
     "done": "Selesai",
     "notAvailable": "(tidak tersedia)",

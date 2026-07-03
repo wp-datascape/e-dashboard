@@ -39,6 +39,7 @@
     "title": "Set Permission",
     "rolePrefix": "Role:",
     "activeCount": "{{count}} active",
+    "readOnly": "Read only",
     "searchPlaceholder": "Filter category...",
     "done": "Done",
     "notAvailable": "(not available)",

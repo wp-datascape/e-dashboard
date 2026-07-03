@@ -16,9 +16,11 @@ interface RoleCardProps {
   role: Role;
   onPermissions: (role: Role) => void;
   onDelete: (role: Role) => void;
+  canManagePermissions: boolean;
+  canDelete: boolean;
 }
 
-export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
+export function RoleCard({ role, onPermissions, onDelete, canManagePermissions, canDelete }: RoleCardProps) {
   const { t } = useTranslation();
 
   return (
@@ -52,28 +54,34 @@ export function RoleCard({ role, onPermissions, onDelete }: RoleCardProps) {
         />
       </CardContent>
 
-      <CardActions sx={{ pt: 0, px: 2, pb: 1.5, gap: 1 }}>
-        <Button
-          size="small"
-          startIcon={<SecurityIcon sx={{ fontSize: 15 }} />}
-          onClick={() => onPermissions(role)}
-          sx={{ flex: 1 }}
-        >
-          {t('rbac.assignPermissions')}
-        </Button>
-        <Tooltip title={role.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
-          <span>
-            <IconButton
+      {(canManagePermissions || canDelete) && (
+        <CardActions sx={{ pt: 0, px: 2, pb: 1.5, gap: 1 }}>
+          {canManagePermissions && (
+            <Button
               size="small"
-              color="error"
-              disabled={role.is_system}
-              onClick={() => onDelete(role)}
+              startIcon={<SecurityIcon sx={{ fontSize: 15 }} />}
+              onClick={() => onPermissions(role)}
+              sx={{ flex: 1 }}
             >
-              <DeleteIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </CardActions>
+              {t('rbac.assignPermissions')}
+            </Button>
+          )}
+          {canDelete && (
+            <Tooltip title={role.is_system ? t('rbac.cannotDeleteSystem') : t('common.delete')}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="error"
+                  disabled={role.is_system}
+                  onClick={() => onDelete(role)}
+                >
+                  <DeleteIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+        </CardActions>
+      )}
     </Card>
   );
 }

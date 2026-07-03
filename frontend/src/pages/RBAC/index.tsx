@@ -139,7 +139,7 @@ export default function RBAC() {
       headerAlign: 'center',
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {can('access.permission:update') && (
+          {(can('access.permission:view') || can('access.permission:update')) && (
             <Tooltip title={t('rbac.assignPermissions')}>
               <IconButton size="small" color="primary" onClick={() => openPermDialog(params.row as Role)}>
                 <SecurityIcon sx={{ fontSize: 16 }} />
@@ -194,6 +194,8 @@ export default function RBAC() {
             role={row as unknown as Role}
             onPermissions={openPermDialog}
             onDelete={openDeleteDialog}
+            canManagePermissions={can('access.permission:view') || can('access.permission:update')}
+            canDelete={can('access.role:delete')}
           />
         )}
         mobileFields={['name', 'description', 'permissions']}
@@ -225,6 +227,7 @@ export default function RBAC() {
         role={selectedRole}
         permissionsGrouped={permissionsGrouped ?? null}
         onTogglePermission={handleTogglePermission}
+        readOnly={!can('access.permission:update')}
         isMobile={false}
       />
     </Box>
