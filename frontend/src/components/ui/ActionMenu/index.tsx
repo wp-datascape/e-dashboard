@@ -72,6 +72,11 @@ export function ActionMenu({ items, label }: ActionMenuProps) {
 
   const visible = items.filter((item) => !item.hidden)
 
+  // Tidak ada action yang boleh diakses sama sekali (mis. role cuma punya
+  // permission :view, create/update/delete semua off) — sembunyikan tombolnya,
+  // jangan render tombol "Actions" yang begitu diklik cuma buka dropdown kosong.
+  if (visible.length === 0) return null
+
   return (
     <>
       <MuiButton
