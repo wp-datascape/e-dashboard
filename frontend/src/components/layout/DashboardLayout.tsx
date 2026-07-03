@@ -51,8 +51,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           overflow: 'hidden',
         }}
       >
-        {/* Spacer for fixed AppBar */}
-        <Toolbar />
+        {/* Spacer for fixed AppBar — AppBar tinggi bertambah env(safe-area-inset-top)
+            di iOS standalone PWA (lihat AppBar.tsx), spacer ini ikut menyesuaikan
+            supaya konten tidak ketutup/ada celah di bawah AppBar */}
+        <Toolbar sx={{ mb: 'env(safe-area-inset-top)' }} />
 
         {/* ── Page content (scrollable) ───────────────── */}
         <Box

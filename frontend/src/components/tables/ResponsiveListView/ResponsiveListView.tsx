@@ -175,7 +175,11 @@ export function ResponsiveListView({
 }: ResponsiveListViewProps) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // 'md' (900px, bukan 'sm'/600px) — tablet portrait (mis. iPad ~768-820px logical
+  // width) masih di atas 600px tapi tabel DataGrid multi-kolom tetap tidak muat
+  // tanpa scroll horizontal yang canggung. Sama dengan breakpoint yang sudah
+  // dipakai DashboardLayout untuk switch sidebar temporary/permanent.
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const effectiveMobileFields =
     mobileFields ?? columns.filter((c) => c.headerName).map((c) => c.field);

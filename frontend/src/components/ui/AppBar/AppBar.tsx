@@ -33,6 +33,11 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
         borderBottom: '1px solid',
         borderColor: 'divider',
         color: 'text.primary',
+        // iOS standalone PWA (apple-mobile-web-app-status-bar-style: black-translucent
+        // di index.html) bikin status bar jadi overlay transparan, bukan mendorong
+        // konten ke bawah — tanpa ini, tombol menu di Toolbar ketutup status bar dan
+        // tidak bisa di-tap. env() resolve ke 0 di browser biasa/Android, aman di semua platform.
+        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       <Toolbar sx={{ gap: 1 }}>

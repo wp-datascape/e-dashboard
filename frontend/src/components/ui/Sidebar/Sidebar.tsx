@@ -264,7 +264,10 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
         },
       }}
     >
-      <Toolbar />
+      {/* variant="temporary" Drawer render dari y=0 (di atas AppBar) — sama seperti
+          spacer di DashboardLayout, item nav pertama bisa ketutup status bar iOS
+          tanpa penyesuaian ini */}
+      <Toolbar sx={{ mb: 'env(safe-area-inset-top)' }} />
       <Divider />
 
       <List dense disablePadding sx={{ pt: 0.5 }}>
