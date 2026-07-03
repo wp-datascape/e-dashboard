@@ -5,7 +5,7 @@ import { authApi, LoginInput } from '@/api/auth.api';
 import { useAuth } from '@/context/auth.context';
 import { LoginResponse } from '@/types/auth';
 import { ApiError } from '@/types/api';
-import { enqueueSnackbar } from 'notistack';
+import { queryClient } from '@/lib/queryClient';
 
 export function useLoginMutation() {
   const navigate = useNavigate();
@@ -30,7 +30,6 @@ export function useLoginMutation() {
 }
 
 export function useLogoutMutation() {
-  const navigate = useNavigate();
   const { logout } = useAuth();
 
   return useMutation<void, ApiError, void>({
@@ -38,13 +37,14 @@ export function useLogoutMutation() {
     onSuccess: () => {
       // 1. Clear state lokal dan localStorage
       logout();
-      
+
       // 2. Bersihkan seluruh cache React Query agar tidak ada data bocor (stale data)
-      // Catatan: Jika ingin menggunakan queryClient.clear(), Anda bisa mengimport queryClient global Anda
-      
-      // 3. Redirect ke login
-      navigate('/login', { replace: true });
-      enqueueSnackbar('Sesi Anda telah berakhir.', { variant: 'info' });
+      queryClient.clear();
+
+      // 3. Hard redirect (bukan navigate SPA) — memory JS di-reset total (state
+      // komponen, closure, cache), bukan cuma unmount, supaya data lama benar-benar
+      // hilang dari browser saat logout
+      window.location.href = '/login';
     },
   });
 }

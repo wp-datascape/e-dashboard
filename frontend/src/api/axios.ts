@@ -1,5 +1,6 @@
 import axios, { InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { ApiError } from '@/types/api';
+import { queryClient } from '@/lib/queryClient';
 
 let csrfToken: string | null = null;
 
@@ -192,6 +193,7 @@ function forceLogout(): Promise<never> {
   localStorage.removeItem('auth_token');
   localStorage.removeItem('auth_user');
   localStorage.removeItem('auth_permissions');
+  queryClient.clear();
   if (!window.location.pathname.startsWith('/login')) {
     window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(window.location.pathname)}`;
   }
