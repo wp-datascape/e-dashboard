@@ -83,7 +83,10 @@ function AppRouter() {
         />
 
         {/* Root Trailing Redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/"
+          element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
+        />
 
         {/* Dynamic Generated Routes Mapping Berdasarkan Kontrol DB */}
         {pageSettings?.map(({ page_key, ready }) => {
