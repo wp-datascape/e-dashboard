@@ -17,29 +17,48 @@ Implikasi lain dari cross-site: cookie tidak akan pernah bisa dibaca kalau diaks
 
 ## 2. Docker atau PM2?
 
-**Tidak perlu keduanya untuk Render.** Render adalah PaaS dengan process supervisor sendiri (auto-restart, health check, scaling) — PM2 jadi redundant dan berpotensi konflik dengan graceful shutdown yang sudah ada (`SIGTERM`/`SIGINT` handler di `backend/src/index.ts`).
+PM2 **tidak perlu** — Render adalah PaaS dengan process supervisor sendiri (auto-restart, health check, scaling), PM2 jadi redundant dan berpotensi konflik dengan graceful shutdown yang sudah ada (`SIGTERM`/`SIGINT` handler di `backend/src/index.ts`).
 
-Docker **opsional** — Render punya native runtime Bun, cukup Build Command + Start Command tanpa Dockerfile. Pakai Docker kalau nanti butuh portabilitas ke provider lain atau dependency sistem non-standar.
+Docker **wajib dipakai, bukan opsional** — dicek langsung di dashboard Render: dropdown "Language" cuma ada Docker, Elixir, Node, Go, Python 3, Ruby, Rust. Tidak ada Bun native. Jadi Web Service backend ini pakai Language **Docker**, dengan `backend/Dockerfile` (image resmi `oven/bun`, multi-stage — lihat §2a).
 
 ### Soal `Makefile` di root repo
 
 Repo ini sudah punya `Makefile` (git workflow shortcuts, dev server, docker/db management) — **jangan** arahkan Build/Start Command Render ke situ langsung. Sebagian besar target-nya (`commit`, `feature`, `finish`, `db-reset`, `generate-key`) pakai `read -p` (prompt interaktif) yang bakal hang di environment non-interaktif kayak Render, dan belum ada target "start backend versi production" (yang ada cuma `dev-backend`, itu mode watch).
 
-Yang aman & relevan dipakai dari `Makefile` ini buat proses deploy (dijalankan manual dari lokal, bukan sebagai Start Command Render):
+Yang aman & relevan dipakai dari `Makefile` ini buat proses deploy (dijalankan manual dari lokal, bukan sebagai Start/Build Command Render):
 - `make db-migrate` — jalankan migration ke DB manapun (lihat §3)
 - `make db-seed` — seed data awal (lihat §3)
 
-Untuk Build/Start Command Render sendiri, langsung pakai `bun install` / `bun run start` (lihat §3) — simpel, tidak ada risiko hang.
+Untuk service Render sendiri, cukup Dockerfile yang sudah disiapkan (lihat §2a dan §3) — tidak ada risiko hang, dan source `.ts` tidak ikut ke image final.
+
+---
+
+## 2a. Proteksi Source Code (Obfuscation)
+
+**Kenapa:** staff yang punya akses shell ke container yang jalan di Render TAPI tidak jadi collaborator di git repo — tanpa langkah ini mereka bisa `cat` file `.ts` apa saja di `src/` dan baca business logic mentah-mentah. Ini bukan proteksi terhadap orang yang memang punya akses ke repo (kalau iya, benahi permission repo, bukan build backend).
+
+**Cara kerja** (`backend/Dockerfile`, multi-stage):
+1. Stage `builder` (`oven/bun:1`) — `bun install`, lalu `bun run build` yang menjalankan `backend/scripts/build-prod.ts`:
+   - `Bun.build` — bundle `src/index.ts` + semua import jadi **satu file** `dist/index.js` (target `bun`, minify, tanpa sourcemap)
+   - `javascript-obfuscator` — obfuscate file hasil bundling itu (rename identifier ke hex, encode string ke base64, dst — sama seperti frontend, lihat `frontend/vite.config.ts`)
+2. Stage final (`oven/bun:1`) — cuma `COPY --from=builder /app/dist/index.js ./index.js`. Source `.ts`, `node_modules`, devDependencies **tidak pernah ikut** ke image final sama sekali (bukan dihapus belakangan lewat `rm -rf` — memang tidak pernah di-`COPY` ke stage ini).
+
+Sudah diverifikasi: `docker build` jalan sukses, dan container hasil build itu bisa serve `/health` + login end-to-end (bcrypt + JWT + query permission asli) padahal image final tidak punya `src/` maupun `node_modules/` sama sekali.
+
+**Trade-off sengaja diambil:** `controlFlowFlattening` dan `deadCodeInjection` (dipakai di frontend) **dimatikan** di backend. Keduanya bagus untuk kode yang jalan sekali per page-load, tapi backend ini dieksekusi ulang di hot path tiap request masuk — kedua opsi itu dikenal menambah overhead signifikan (bisa 2-10x) tiap kali code path itu dieksekusi. Proteksi yang didapat tidak sepadan dengan risiko regresi latency API.
+
+`selfDefending`/`debugProtection` juga OFF — alasan sama dengan frontend (rawan crash kalau bundle disentuh ulang, mempersulit debug production lewat log).
 
 ---
 
 ## 3. Checklist — Backend (Render)
 
 ### Setup awal
-- [ ] Buat **Web Service** baru di Render, connect ke repo ini, root directory `backend/`
-- [ ] Environment: **Bun** (native) — bukan Docker
-- [ ] Build Command: `bun install`
-- [ ] Start Command: `bun run start` (= `bun run src/index.ts`, sudah ada di `package.json`)
+- [ ] Buat **Web Service** baru di Render, connect ke repo ini
+- [ ] Language: **Docker** (bukan Node — dropdown Render tidak punya Bun native, lihat §2)
+- [ ] Root Directory: `backend` (repo ini monorepo, `backend/` + `frontend/`)
+- [ ] Dockerfile Path / Docker Build Context: pastikan mengarah ke `backend/Dockerfile` dengan context `backend/` — field persisnya bisa beda-beda tergantung versi UI Render, screenshot dulu kalau ragu
+- [ ] Build/Start Command: **tidak perlu diisi** — sudah didefinisikan di dalam `backend/Dockerfile` (`RUN bun run build` saat build, `CMD ["bun", "index.js"]` saat start)
 - [ ] Health Check Path: `/health` (endpoint sudah ada, cek koneksi DB juga)
 
 ### Environment Variables (Render dashboard → Environment)
@@ -60,7 +79,7 @@ Generate secret cepat: `openssl rand -hex 32` (jalankan 3x untuk `JWT_SECRET`, `
 
 ### Database
 - [ ] Provision Postgres (Render Postgres, atau eksternal — Neon/Supabase juga bisa)
-- [ ] SSL ke Postgres **sudah dihandle di kode** (`backend/src/config/db.ts` — `ssl: 'require'` otomatis saat `NODE_ENV=production`), tidak perlu utak-atik `DATABASE_URL`
+- [ ] SSL ke Postgres **sudah dihandle di kode** (`backend/src/config/db.ts` — dideteksi dari hostname `DATABASE_URL`: `localhost`/`127.0.0.1` → SSL off, host lain → `ssl: 'require'`), tidak perlu utak-atik `DATABASE_URL`. Sengaja **bukan** dari `NODE_ENV` — `make db-migrate`/`make db-seed` dijalankan dari lokal (`NODE_ENV=development`) tapi target ke DB production, jadi deteksi berbasis `NODE_ENV` bikin migration lokal→production gagal "connection is insecure"
 - [ ] Jalankan migration sekali sebelum service pertama kali live — pakai target `Makefile` yang sudah ada, timpa `DATABASE_URL` sementara ke connection string production:
   ```bash
   DATABASE_URL="<connection-string-production>" make db-migrate
