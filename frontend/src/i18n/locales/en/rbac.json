@@ -45,8 +45,12 @@
     "noMatch": "No matching category",
     "actionMenu": "Menu",
     "actionView": "View",
-    "actionInput": "Input",
+    "actionCreate": "Create",
     "actionUpdate": "Update",
-    "actionDelete": "Delete"
+    "actionDelete": "Delete",
+    "actionExport": "Export",
+    "actionImport": "Import",
+    "actionReset": "Reset",
+    "actionTest": "Test"
   }
 }

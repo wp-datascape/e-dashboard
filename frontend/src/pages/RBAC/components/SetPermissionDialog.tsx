@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -15,16 +15,54 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Dialog, StatusChip } from '@/components/ui';
+import { formatEnumLabel } from '@/utils/format';
 import type { Role, Permission } from '@/types/rbac';
 
-function getActionColumns(t: TFunction) {
-  return [
-    { key: 'menu',   label: t('rbac.setPermissionDialog.actionMenu') },
-    { key: 'view',   label: t('rbac.setPermissionDialog.actionView') },
-    { key: 'input',  label: t('rbac.setPermissionDialog.actionInput') },
-    { key: 'update', label: t('rbac.setPermissionDialog.actionUpdate') },
-    { key: 'delete', label: t('rbac.setPermissionDialog.actionDelete') },
-  ];
+// Urutan tampilan action yang dikenal — action di luar daftar ini (kalau ada
+// suffix permission baru di masa depan) tetap muncul lewat fallback label,
+// cuma urutannya di akhir.
+const KNOWN_ACTION_ORDER = ['menu', 'view', 'create', 'update', 'delete', 'export', 'import', 'reset', 'test'];
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  menu: 'actionMenu',
+  view: 'actionView',
+  create: 'actionCreate',
+  update: 'actionUpdate',
+  delete: 'actionDelete',
+  export: 'actionExport',
+  import: 'actionImport',
+  reset: 'actionReset',
+  test: 'actionTest',
+};
+
+/**
+ * Kolom action dihitung dari suffix permission yang BENAR-BENAR ada di data
+ * (permissionsGrouped), bukan daftar hardcode — supaya kalau skema permission
+ * berubah (suffix baru ditambah/lama dihapus), dialog ini otomatis ikut,
+ * tidak diam-diam menyembunyikan permission seperti kasus 'input' vs 'create'
+ * sebelumnya (permission :create ada di data tapi dialog cuma cek :input).
+ */
+function getActionColumns(t: TFunction, permissionsGrouped: Record<string, Permission[]> | null) {
+  const found = new Set<string>();
+  for (const perms of Object.values(permissionsGrouped ?? {})) {
+    for (const p of perms) {
+      const action = p.name.split(/[.:]/).pop();
+      if (action) found.add(action);
+    }
+  }
+
+  const ordered = [...found].sort((a, b) => {
+    const ia = KNOWN_ACTION_ORDER.indexOf(a);
+    const ib = KNOWN_ACTION_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+
+  return ordered.map((key) => ({
+    key,
+    label: ACTION_LABEL_KEYS[key] ? t(`rbac.setPermissionDialog.${ACTION_LABEL_KEYS[key]}`) : formatEnumLabel(key),
+  }));
 }
 
 interface SetPermissionDialogProps {
@@ -45,7 +83,7 @@ export function SetPermissionDialog({
   isMobile,
 }: SetPermissionDialogProps) {
   const { t } = useTranslation();
-  const actionColumns = getActionColumns(t);
+  const actionColumns = useMemo(() => getActionColumns(t, permissionsGrouped), [t, permissionsGrouped]);
   const [permSearch, setPermSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [activePermIds, setActivePermIds] = useState<Set<number>>(() => 
