@@ -1,7 +1,7 @@
 # Feature: Permissions
 
-> Status: ✅ Complete — CRUD + Category management + Button-level guards
-> Last updated: 2026-06-29
+> Status: ✅ Complete — CRUD + Category management + Button-level guards + read-only view mode
+> Last updated: 2026-07-04
 > Baca juga: `roles.md`, `shared/api-conventions.md`
 
 ---
@@ -19,7 +19,7 @@ Setiap permission mengikuti format `module.submodule:action` (dot-notation):
 
 **Contoh:**
 ```
-metrics:menu           — sidebar visibility Dashboard
+dashboard:menu         — sidebar visibility Dashboard
 customer:view          — membuka halaman Customer list
 settings.company:create   — tombol Add Company
 settings.branch:delete    — hapus branch
@@ -35,7 +35,7 @@ audit.log:export          — export audit log
 
 | Kategori | Prefix Key | Actions Tersedia |
 |----------|-----------|-----------------|
-| Dashboard | `metrics` | menu, view |
+| Dashboard | `dashboard` | menu, view |
 | Customer | `customer` | menu, view, export |
 | Expansion | `expansion` | menu, view, export |
 | Churn Risk | `churn.risk` | menu, view, export |
@@ -52,7 +52,7 @@ audit.log:export          — export audit log
 | Product Settings | `settings.product` | menu, view, create, update, delete |
 | Threshold | `settings.threshold` | menu, view, update |
 | Classification | `config.classification` | menu, view, create, update, delete |
-| Import | `config.import` | menu, view, import, export |
+| Import | `config.import` | menu, view, import |
 | Integration | `config.integration` | menu, view, create, update, test, reset |
 | Features | `config.features` | menu, view, update |
 | Users | `access.user` | menu, view, create, update, delete |
@@ -109,6 +109,28 @@ const can = useCan()
 
 ---
 
+## Mode Read-Only Dialog "Set Permission" (RBAC UI)
+
+Tombol shield "Assign Permissions" di halaman RBAC tampil untuk `access.permission:view` **atau** `:update`:
+- Cuma `:view` → dialog kebuka dengan badge "Read only", semua toggle di-disable
+- Punya `:update` → bisa lihat & ubah seperti biasa
+
+Sebelumnya tombol cuma tampil untuk `:update` — role dengan `:view` saja sama sekali tidak bisa lihat permission suatu role (fixed sesi 32). `RoleCard.tsx` (versi mobile list) sempat tidak ada pengecekan permission sama sekali untuk tombol Assign Permissions/Delete — sudah disamakan dengan versi desktop.
+
+## SetPermissionDialog — Kolom Action Dihitung Dinamis
+
+`getActionColumns()` di `SetPermissionDialog.tsx` dulu hardcode 5 action (`menu, view, input, update, delete`). `input` adalah nama action skema **lama** (pra dot-notation, ada di `OLD_PERMISSION_NAMES`) — skema sekarang pakai `create`, bukan `input`. Akibatnya 21 dari 88 permission (semua `:create`, `:export`, `:import`, `:reset`, `:test`) tidak bisa ditoggle dari dialog ini sama sekali walau ada di database dan di-enforce backend.
+
+**Fix (sesi 32):** kolom action dihitung dari suffix permission yang **benar-benar ada** di data (`permissionsGrouped`), bukan daftar hardcode. Kalau skema berubah lagi nanti (action baru ditambah/dihapus), dialog otomatis menyesuaikan.
+
+## ⚠️ Pitfall: Permission Deprecated Tapi Masih Dirujuk di Kode
+
+Dua kejadian terpisah (skema lama `metrics:view` dan `input` di atas) sama-sama root cause dari migrasi permission granular (sesi 24) yang tidak lengkap — nama permission diganti di `seed.ts`/`OLD_PERMISSION_NAMES`, tapi **konsumen lama tidak ikut di-grep & di-update**. Akibat paling parah: `metrics.route.ts` (12 endpoint metrics) masih `requirePermission('metrics:view')` — permission yang sudah tidak pernah di-seed lagi, jadi **mustahil di-assign ke role manapun lewat RBAC UI**. Semua role non-superadmin selalu 403 di halaman manapun yang datanya lewat endpoint itu, apa pun permission yang sudah diberikan (fixed sesi 32, lihat `features/metrics.md`).
+
+**Pelajaran untuk perubahan skema permission berikutnya:** setelah rename/hapus permission key di `seed.ts`, wajib `grep -rn "requirePermission\|can(" backend/ frontend/` untuk nama key lama sebelum menganggap migrasi selesai.
+
+---
+
 ## File Structure
 
 ```
@@ -125,7 +147,7 @@ src/features/permissions/
 
 Base URL: `http://localhost:3000/api/v1/permissions`
 
-> **Catatan:** Saat ini aktif **tanpa auth** (sementara).
+> **Catatan:** `GET /` dan `PUT /roles/:id/permissions` butuh `access.permission:view` **atau** `:update` (lihat §Mode Read-Only di bawah); create/update/delete permission definition butuh `access.permission:update`.
 
 ---
 
@@ -266,5 +288,5 @@ Hapus permission. Otomatis remove dari semua role_permissions (CASCADE).
 
 ---
 
-**Last Updated**: 2026-06-29 (sesi 24)
-**Status**: ✅ Production Ready — 88 permissions, 24 categories, button guards on all pages
+**Last Updated**: 2026-07-04 (sesi 32/35)
+**Status**: ✅ Production Ready — 88 permissions, 24 categories, button guards on all pages, read-only view mode, dynamic action columns

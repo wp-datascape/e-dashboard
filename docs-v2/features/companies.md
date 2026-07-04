@@ -1,7 +1,7 @@
 # Feature: Companies
 
-> Status: ✅ Complete — CRUD backend live + Branch Management
-> Last updated: 2026-06-24
+> Status: ✅ Complete — CRUD backend live + Branch Management. `GET /` dilonggarkan (cukup login) sesi 32.
+> Last updated: 2026-07-04 (sesi 32)
 > Baca juga: `shared/data-model.md`, `shared/api-conventions.md`
 
 ---
@@ -18,7 +18,7 @@ Setiap perusahaan dapat memiliki satu atau lebih **cabang (branches)**. Cabang d
 **Saat ini ada 3 perusahaan + 5 cabang (seed):**
 | Company | Cabang | Status |
 |---------|--------|--------|
-| PT Mesin Kasri Online (MKO) | Pusat | ✅ Aktif |
+| PT Mesin Kasir Online (MKO) | Pusat | ✅ Aktif |
 | PT Kode Niaga Tama (KNT) | Surabaya, Jakarta, Semarang | ✅ Aktif |
 | PT Solusi Kartu Indonesia (SKI) | Pusat | ✅ Aktif |
 
@@ -43,13 +43,15 @@ src/features/companies/
 
 Base URL: `http://localhost:3000/api/v1/companies`
 
-> **Catatan:** Saat ini aktif **tanpa auth** (sementara).
+> **Catatan:** `GET /:id`, `POST`, `PATCH`, `DELETE` butuh `settings.company:view`/`create`/`update`/`delete`. `GET /` (list) **tidak wajib permission apa pun** selain login — lihat catatan sesi 32 di bawah.
 
 ---
 
 ### `GET /api/v1/companies`
 
 List semua perusahaan dengan jumlah cabang.
+
+**Permission (fix sesi 32):** sebelumnya wajib `settings.company:view` — dipakai 12+ halaman sebagai dropdown filter perusahaan (`useCompanies()`), sehingga role dengan permission halaman yang benar tetap 403 begitu halaman itu coba isi dropdown company. Dilonggarkan jadi cukup login (authMiddleware) — aman karena handler sudah filter hasil ke `companyIds` user dari JWT (`isSuperAdmin ? undefined : companyIds`), tidak ada company di luar akses user yang pernah bocor. `GET /:id` dan mutasi CRUD tetap terproteksi `settings.company:*` seperti biasa (`GET /:id` tidak di-scope ke `companyIds`, jadi tetap perlu permission eksplisit untuk mencegah probing company lain).
 
 **Response 200:**
 ```json
@@ -59,7 +61,7 @@ List semua perusahaan dengan jumlah cabang.
     {
       "id": 1,
       "code": "PT MKO",
-      "name": "PT Mesin Kasri Online",
+      "name": "PT Mesin Kasir Online",
       "created_at": "2026-06-21T08:00:00.000Z",
       "updated_at": "2026-06-21T08:00:00.000Z",
       "branch_count": 1
@@ -81,7 +83,7 @@ Ambil satu perusahaan berdasarkan ID.
   "data": {
     "id": 1,
     "code": "PT MKO",
-    "name": "PT Mesin Kasri Online",
+    "name": "PT Mesin Kasir Online",
     "created_at": "2026-06-21T08:00:00.000Z",
     "updated_at": "2026-06-21T08:00:00.000Z"
   }
@@ -275,5 +277,5 @@ Hapus cabang.
 
 ---
 
-**Last Updated**: 2026-06-24
+**Last Updated**: 2026-07-04 (sesi 32)
 **Status**: ✅ Production Ready

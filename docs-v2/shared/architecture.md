@@ -198,13 +198,14 @@ metrics   — per-metric endpoints
 - Feature-based folder structure — setiap domain punya folder sendiri dengan semua layer-nya
 - Router Orchestrator (`router.ts`) — satu file yang mengatur middleware chain + route mounting
 - Permission di feature route — granularity per endpoint, bukan per group
-- Monolith modular — single repo, single deploy, split by domain folders
+- Monolith modular — single repo (monorepo `backend/`+`frontend/`), split by domain folders. **Deploy sendiri terpisah** (bukan single deploy) sejak production: backend di-Dockerize → Railway, frontend → Vercel, di-proxy same-origin (lihat `shared/deployment.md`)
 - No separate microservices for MVP
 - Single PostgreSQL DB, company isolation via company_id column
 - Metrics computed on-demand, cached in metric_cache table
 - Accurate API fetched server-side only — API key never sent to frontend
-- Auth cookie: httpOnly; Secure; SameSite=Strict
-- Dev auth: localStorage + MSW — migrate to httpOnly cookie when backend ready
+- Auth cookie: httpOnly; Secure; `SameSite=None` di production (frontend & backend beda domain/cross-site), `Lax` di dev
+- Auth: httpOnly cookie (JWT + CSRF) sudah live di production sejak lama — baris "migrate to httpOnly cookie when backend ready" di versi lama catatan ini sudah selesai, localStorage+MSW cuma dipakai saat `import.meta.env.DEV`
+- PWA installable (`vite-plugin-pwa`) — manifest + service worker digenerate otomatis saat `vite build`, tidak cache `/api/*` (data selalu network-fresh)
 
 ## Permission Strategy Decision
 

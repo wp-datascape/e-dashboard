@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-07-02 (sesi 26)
+> Last updated: 2026-07-04 (sesi 32)
 >
 > **Catatan**: bagian "Setup & Infrastructure", "DB Schema", "Middleware", "Features — Not Started"
 > di bawah ini adalah skeleton perencanaan awal proyek yang SUDAH TIDAK AKURAT — item-item yang
@@ -36,10 +36,15 @@
 | Feature: Audit   | Done    | list + detail + handler — docs: `features/audit.md` |
 | Feature: Products | Done   | GET categories + products dari Accurate API + handler |
 | Feature: Import  | ~95%    | File upload + SSE streaming + template validation + branch_name. Sisa: auth guard, rollback endpoint |
-| Feature: Metrics | ✅ ~98%  | M1–M2, M3–M7, M8–M10 LIVE dari real DB. Endpoint produk (category-performance, high-margin-penetration, customer-products, avg-category/Product Trend) juga live. `avg-category` `active_window` sekarang default dari `business_configs.active_window_months` (sesi 26), bukan hardcode. |
+| Feature: Metrics | ✅ ~98%  | M1–M2, M3–M7, M8–M10 LIVE dari real DB. Endpoint produk (category-performance, high-margin-penetration, customer-products, avg-category/Product Trend) juga live. `avg-category` `active_window` sekarang default dari `business_configs.active_window_months` (sesi 26), bukan hardcode. **Fix sesi 32: 12 endpoint di `metrics.route.ts` pakai permission `metrics:view` yang sudah deprecated (tidak pernah bisa di-assign lewat RBAC UI) — semua role non-superadmin selalu 403. Diganti permission granular per halaman (`cross.selling:view`, `expansion:view`, `churn.risk:view`, `product:view`, `high.margin:view`, `product.trend:view`).** |
 | Feature: Customers | ✅ 100% | GET / + GET /:id, status logic, channel division filter aktif |
 | Feature: Transactions | ✅ Done (sesi 26) | GET /invoices + GET /invoices/:id real backend — docs: `features/transactions.md`. Menu/permission di-rename Order → Transaction. |
 | Feature: Dashboard | ✅ Done (sesi 26) | GET /dashboard — agregator 10 metric card dari service metrics existing — docs: `features/dashboard.md` |
+| Feature: Companies | ✅ Done (sesi 32) | `GET /companies` tidak lagi wajib `settings.company:view` — cukup login, sudah difilter ke `companyIds` user dari JWT. `GET /:id` + CRUD tetap terproteksi. |
+| Feature: Channel Divisions | ✅ Done (sesi 32) | Endpoint baru `GET /settings/channel-divisions/values` — nilai divisi unik tanpa `channel_name`, tanpa permission (dipakai dropdown filter di 8 halaman). Mapping lengkap (`GET /`) tetap `settings.channel.division:view`. |
+| Feature: High Margin Settings | ✅ Done (sesi 34) | `company_id: number\|'all'` (default `'all'`) di LIST, pakai `resolveCompanyScope()` — superadmin+`all` lihat semua, non-superadmin+`all` auto-scope ke company sendiri. Scope check ditambah juga di CREATE (sebelumnya bisa create ke company mana pun tanpa validasi). Response tambah `company_name` (join `companies`). |
+| Deploy Infra | ✅ Done (sesi 31) | `backend/Dockerfile` multi-stage (`oven/bun`) + `scripts/build-prod.ts` (Bun.build + javascript-obfuscator) — Railway/Render tidak punya runtime Bun native. SSL Postgres dideteksi dari hostname `DATABASE_URL`, bukan `NODE_ENV` (migration lokal→production butuh SSL walau `NODE_ENV=development`). |
+| RBAC Seed | ✅ Done (sesi 32) | `seedRoleDefaultPermissions()` — baseline permission otomatis utk role `admin` (full akses bisnis inti + Settings view/update, Access Control & Audit Log view-only, Configuration eksklusif superadmin) dan `user` (view+export bisnis inti saja). Idempotent & aditif, tidak mencabut kustomisasi manual. |
 
 ---
 
@@ -181,19 +186,19 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 | `src/features/config/config.service.ts` | Not Started |
 | `src/features/config/config.repository.ts` | Not Started |
 
-### Feature: Metrics (Priority: HIGH — core business value) — ✅ ~70% LIVE
+### Feature: Metrics (Priority: HIGH — core business value) — ✅ ~98% LIVE (update sesi 32)
 | File | Status | Notes |
 |------|--------|-------|
-| `src/features/metrics/metrics.route.ts` | ✅ Done | 4 endpoints: customer-metrics, gp-breakdown, hm-breakdown, ror-breakdown |
+| `src/features/metrics/metrics.route.ts` | ✅ Done | Semua endpoint M1-M10 + avg-category (Product Trend) live. Permission per endpoint diperbaiki sesi 32 (lihat Catatan Sesi). |
 | `src/features/metrics/metrics.handler.ts` | ✅ Done | Thin handler pattern — validasi + service call |
-| `src/features/metrics/metrics.service.ts` | ✅ Done | M3 (Revenue), M4 (Gross Profit), M5 (High Margin), M6 (Repeat Order), M7 (Expansion) |
-| `src/features/metrics/metrics.repository.ts` | ✅ Done | 567 lines — query kompleks dari invoices + invoice_items + customers |
+| `src/features/metrics/metrics.service.ts` | ✅ Done | M1-M2 (Cross Selling), M3-M7 (Customer Metrics), M8-M10 (Dormant), avg-category (Product Trend) |
+| `src/features/metrics/metrics.repository.ts` + `repository/*.ts` | ✅ Done | Query kompleks dari invoices + invoice_items + customers, dipecah per-metrik ke `repository/` sejak sesi 26 |
 | `src/features/metrics/metrics.schema.ts` | ✅ Done | Zod schemas untuk query params |
 | `src/features/metrics/metrics.types.ts` | ✅ Done | Type definitions untuk metrics results |
 | `src/features/metrics/segment.helper.ts` | ✅ Done | Helper untuk segmentasi data metrik |
 | `src/features/config/threshold.ts` | ✅ Done | Threshold business_configs untuk metrik |
 
-**M1–M2 & M8–M10:** masih via MSW mock di frontend.
+**Semua M1-M10 sudah live dari real DB sejak sesi 26** — baris "masih via MSW mock" di versi lama catatan ini sudah tidak akurat, dibiarkan sempat tertinggal sampai audit sesi 35.
 
 ### Feature: Customers (Priority: MEDIUM) — ✅ 100% LIVE
 | File | Status |
@@ -219,8 +224,8 @@ Detail endpoint & implementation notes → `docs-v2/features/users.md`
 - Classification: CRUD classification rules ✅
 - Threshold: Config threshold metrik ✅
 
-### Feature: Transactions (Priority: MEDIUM) — ❌ Not Started
-Belum dibuat — masih commented out di router.ts
+### Feature: Transactions (Priority: MEDIUM) — ✅ Done (sesi 26)
+GET /invoices + GET /invoices/:id, docs: `features/transactions.md`. Baris "belum dibuat" di versi lama catatan ini sudah tidak akurat.
 
 ### Feature: Audit (Priority: LOW) — ✅ Done
 Read-only, paginated, filter by action/date
@@ -255,6 +260,28 @@ Read-only, paginated, filter by action/date
 ---
 
 ## Catatan Sesi
+
+### 2026-07-04 (sesi 32 — RBAC Bug Hunt: Permission Deprecated + Scope Fix)
+
+Detail lengkap FE+BE gabungan ada di `CURRENT_STATE.md` § "sesi 32". Ringkasan sisi backend:
+- `metrics.route.ts` — 12 endpoint pakai `metrics:view` (permission deprecated, sudah dipindah ke `OLD_PERMISSION_NAMES` sejak sesi 24 tapi routing-nya tidak ikut di-update) → semua role non-superadmin selalu 403. Diganti permission granular per halaman.
+- `companies.route.ts` — `GET /` dilonggarkan (tidak wajib `settings.company:view` lagi, cukup authMiddleware) karena `handleGetCompanies` sudah difilter ke `companyIds` JWT.
+- `channel-divisions.route.ts` — endpoint baru `GET /values` (nilai divisi unik, tanpa permission) untuk dropdown filter, terpisah dari mapping lengkap yang tetap terproteksi.
+- `db/seed.ts` — `seedRoleDefaultPermissions()` baru, dipanggil untuk role `admin` dan `user` dengan daftar permission masing-masing (`ADMIN_PERMISSION_NAMES`, `USER_PERMISSION_NAMES`). Idempotent (skip yang sudah ada), tidak mencabut kustomisasi manual.
+
+### 2026-07-03/04 (sesi 31 — Dockerize + SSL Fix, deploy Railway)
+
+Detail lengkap di `CURRENT_STATE.md` § "sesi 31". Ringkasan sisi backend:
+- `backend/Dockerfile` (NEW) — multi-stage, `oven/bun:1`, source `.ts`/`node_modules` tidak ikut image final
+- `backend/scripts/build-prod.ts` (NEW) — `Bun.build` + `javascript-obfuscator`, `controlFlowFlattening`/`deadCodeInjection` OFF (beda dari frontend) karena backend jalan di hot path tiap request
+- `backend/src/config/db.ts` — SSL Postgres dideteksi dari hostname `DATABASE_URL` (bukan `NODE_ENV`) — migration/seed dari lokal ke DB production butuh SSL walau `NODE_ENV=development`
+
+### 2026-07-04 (sesi 34 — High Margin Settings default filter 'all')
+
+Detail lengkap di `CURRENT_STATE.md` § "sesi 34". Ringkasan sisi backend:
+- `high-margin.schema.ts` — `company_id: number|'all'` (default `'all'`)
+- `high-margin.handler.ts` — pakai `resolveCompanyScope()` di LIST dan CREATE (CREATE sebelumnya tidak ada validasi company sama sekali)
+- `high-margin.repository.ts` — `findHighMargins` terima `scopeIds?: number[]` (bukan `company_id: number` wajib), join `companies` untuk `company_name`
 
 ### 2026-07-02 (sesi 26 — Product Trend + Transactions + Dashboard backend)
 

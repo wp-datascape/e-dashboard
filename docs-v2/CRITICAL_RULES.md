@@ -93,7 +93,7 @@ Import logger only via `utils/logger` wrapper — never import winston directly.
 - **Linting**: ESLint + Prettier enforced (no commits if linting fails).
 - **Pre-commit**: Husky + lint-staged.
 - **Testing**: `bun test` (preferred) or Vitest. Tests must pass before merge.
-- **API Docs**: Auto-generate OpenAPI/Swagger documentation from Zod schemas — keep docs in sync with code.
+- **API Docs**: `src/docs/openapi.yaml` ditulis manual, di-serve via Swagger UI (`swagger-ui-dist`) di `/api/v1/docs` (mati di production). Auto-generate dari Zod schema (`hono-openapi`+`zod-openapi`) sudah dicoba dan di-rollback — peer-dependency Zod v4 vs project Zod v3, dan validator middleware-nya tidak bisa dibuat read-only. Detail: `features/api-docs.md`.
 
 ### Audit Log (DB — not file)
 Write to `audit_logs` table for: create, update, delete.
@@ -215,7 +215,7 @@ await sql.end()
 ## Security Rules
 | Aspect           | Rule                                              |
 |------------------|---------------------------------------------------|
-| Auth             | JWT httpOnly; Secure; SameSite=Strict             |
+| Auth             | JWT httpOnly; Secure; `SameSite=None` di production (cross-site FE↔BE), `Lax` di dev |
 | CSRF             | `X-CSRF-Token` header on ALL mutations            |
 | Input            | zod schema in every handler                       |
 | Password         | bcryptjs cost ≥ 12                                |
@@ -257,5 +257,5 @@ await sql.end()
 - No external queue system (Redis, RabbitMQ, etc.) — out of MVP scope.
 
 ## MVP Scope
-✅ In scope: Auth + RBAC, invoice import (file + API), 10 metrics, filters, monthly trends, customer detail, audit log, dynamic config
-❌ Out of scope: PDF/Excel export, realtime notifications, scheduled Accurate sync, mobile app, AI forecasting, multi-DB
+✅ In scope: Auth + RBAC, invoice import (file + API), 10 metrics, filters, monthly trends, customer detail, audit log, dynamic config, PWA (installable, `vite-plugin-pwa`), PDF export drill-down tertentu (`utils/pdf/`, mis. GP breakdown), Excel import/export template per fitur
+❌ Out of scope: realtime notifications, scheduled Accurate sync, native mobile app, AI forecasting, multi-DB

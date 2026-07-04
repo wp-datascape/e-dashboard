@@ -1,7 +1,7 @@
 # Feature: Roles
 
-> Status: ✅ Complete — CRUD + Role-Permission mapping
-> Last updated: 2026-06-22
+> Status: ✅ Complete — CRUD + Role-Permission mapping + baseline seed admin/user
+> Last updated: 2026-07-04
 > Baca juga: `permissions.md`, `shared/api-conventions.md`
 
 ---
@@ -10,14 +10,16 @@
 
 Roles adalah kumpulan permissions yang bisa di-assign ke user. Setiap role memiliki N:M relationship dengan permissions dan users.
 
-**System Roles (built-in via seed):**
+**System Roles (built-in via seed, `backend/src/db/seed.ts`):**
 | Role | isSystem | Default Permissions |
 |------|----------|-------------------|
-| **superadmin** | true | Semua (35) permissions |
-| **admin** | true | Configurable |
-| **user** | true | Configurable |
+| **superadmin** | true | Semua 88 permissions (`seedRolePermissions()` — assign otomatis SEMUA row di tabel `permissions`, bukan angka hardcode) |
+| **admin** | false | Baseline otomatis (sesi 32, `ADMIN_PERMISSION_NAMES`): full akses menu bisnis inti (Dashboard, Customer Workbench, Product & Portfolio, Transaction & Revenue). Grup Administration cuma sampai Settings — Company/Branch, Channel Division, Product Settings hanya view+update (TANPA create/delete). Configuration sama sekali tidak termasuk (eksklusif superadmin). Access Control (Users/Roles/Permissions) & Audit Log cuma view. |
+| **user** | false | Baseline otomatis (sesi 32, `USER_PERMISSION_NAMES`): view+export saja di menu bisnis inti, nol menu Administration. |
 
-System roles tidak bisa dihapus, hanya bisa update description & permissions.
+Baseline `admin`/`user` di-seed via `seedRoleDefaultPermissions()` — **idempotent & aditif** (cuma menambah yang belum ada, tidak pernah mencabut kustomisasi manual lewat RBAC UI). Sebelum sesi 32, kedua role ini kosong total dari seed — instalasi baru butuh setup manual dari nol.
+
+System roles (`is_system=true`, cuma `superadmin`) tidak bisa dihapus. `admin`/`user` **bukan** system role (bisa dihapus/di-rename) tapi tetap dapat baseline permission otomatis di atas.
 
 ---
 
@@ -37,7 +39,7 @@ src/features/roles/
 
 Base URL: `http://localhost:3000/api/v1/roles`
 
-> **Catatan:** Saat ini aktif **tanpa auth** (sementara).
+> **Catatan:** butuh `access.role:view` (GET), `access.role:create/update/delete` (mutasi masing-masing). `PUT /:id/permissions` butuh `access.permission:update` (lihat `permissions.md` §Mode Read-Only untuk kenapa bukan `access.role:update`).
 
 ---
 
@@ -58,8 +60,8 @@ List semua roles dengan permissions embedded.
       "createdAt": "2026-06-21T08:00:00.000Z",
       "updatedAt": "2026-06-21T08:00:00.000Z",
       "permissions": [
-        { "id": 1, "name": "metrics:menu" },
-        { "id": 2, "name": "metrics:view" }
+        { "id": 1, "name": "dashboard:menu" },
+        { "id": 2, "name": "dashboard:view" }
       ]
     }
   ]
@@ -84,7 +86,7 @@ Ambil satu role dengan permissions.
     "createdAt": "2026-06-21T08:00:00.000Z",
     "updatedAt": "2026-06-21T08:00:00.000Z",
     "permissions": [
-      { "id": 1, "name": "metrics:menu" }
+      { "id": 1, "name": "dashboard:menu" }
     ]
   }
 }
@@ -103,9 +105,9 @@ List permissions untuk role tertentu, lengkap dengan detail permission.
   "data": [
     {
       "id": 1,
-      "name": "metrics:menu",
+      "name": "dashboard:menu",
       "description": "Menu Dashboard",
-      "category": "Dashboard & Metrics"
+      "category": "Dashboard"
     }
   ]
 }
@@ -232,15 +234,20 @@ Assign permissions ke role (replace existing).
 
 ---
 
+## Sudah Selesai (dulu tercatat Pending di sini)
+
+| Item | Selesai sejak | Catatan |
+|------|---------------|---------|
+| Middleware `requirePermission()` | sesi 25 | `backend/src/middleware/permission.ts` — OR logic, superadmin bypass, dipasang di semua route |
+| User role assignment | — | Bukan endpoint terpisah — `role_ids`/`company_ids` dikirim langsung di `POST /users` dan `PUT /users/:id` (lihat `features/users.md`) |
+
 ## Yang Belum (Pending)
 
 | Item | Menunggu | Catatan |
 |------|----------|---------|
-| Middleware `requirePermission()` | auth system | Validasi JWT + check permission |
-| User role assignment endpoint | — | PATCH /users/:id/roles |
-| Permission inheritance | design decision | Sub-permissions (users:view includes users:menu) |
+| Permission inheritance | design decision | Sub-permissions (`users:view` includes `users:menu`) — belum diputuskan, saat ini setiap action independen |
 
 ---
 
-**Last Updated**: 2026-06-22
-**Status**: ✅ Production Ready
+**Last Updated**: 2026-07-04 (sesi 32/35)
+**Status**: ✅ Production Ready — baseline permission otomatis utk admin/user (sesi 32)

@@ -5,10 +5,10 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). **Fix logout tidak invalidasi sesi server (sesi 29)**. |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. **M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard sekarang live (real backend)**. API Docs (Swagger UI) lengkap 83 operasi/63 path — seluruh protectedApi (sesi 29). **Users: bulk import (template upload), reset password, fix role/company tidak tersimpan saat create, fix duplikasi role di response (sesi 30)**. |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). Fix logout tidak invalidasi sesi server (sesi 29). PWA installable (service worker + icon, sesi 31), fix status bar iOS + tabel tablet (sesi 33). **Semua dialog konsisten pakai komponen `Dialog` bersama — 6 raw MUI Dialog + 4 drawer detail dimigrasikan (sesi 34)**. |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
-| Docs     | ✅ ~100%   | metrics.md, transactions.md (baru), dashboard.md (baru), permissions.md, ui-patterns.md diupdate sesi 26. dashboard.md diupdate lagi sesi 27 (metric title/subtitle override). api-docs.md (baru, sesi 29). deployment.md (baru, Render+Vercel). users.md diupdate menyeluruh (sesi 30). |
+| Docs     | ✅ ~100%   | metrics.md, transactions.md, dashboard.md, permissions.md, ui-patterns.md, deployment.md, users.md — lihat riwayat sesi untuk detail per-file. Diaudit & disinkronkan menyeluruh sesi 35 (2026-07-04). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
 
 ## Frontend — Page Status
@@ -33,10 +33,10 @@
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) — **real backend `GET /metrics/avg-category` (sesi 26)**, `active_window` dari `business_configs.active_window_months` (bukan hardcode) |
-| Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail drawer — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*` |
+| Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail dialog (dulu drawer, dikonversi sesi 34) — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*` |
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
-| High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API |
+| High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API. Filter default "All Companies" (sesi 34), di-scope `resolveCompanyScope` — buka halaman langsung tampil data sesuai company yang jadi hak akses user |
 | Channel Divisions    | `/settings/divisions`   | CRUD mapping channel_name → division, filter + search, backend real API |
 
 ### Partial / Needs Refactor
@@ -271,6 +271,134 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-04 (sesi 35): Audit & Sinkronisasi Dokumentasi Menyeluruh
+
+Update dokumentasi `docs-v2/` untuk menyusul seluruh pekerjaan sesi 31-34 yang belum tercatat, plus perbaikan beberapa klaim usang di `CRITICAL_RULES.md` yang sudah tidak sesuai kode sejak sebelum sesi ini (`SameSite=Strict` → sudah `None` di production sejak sesi deployment; "auto-generate OpenAPI dari Zod" → sudah diputuskan pakai spec statis manual sejak sesi 29; MVP scope bilang PDF/Excel export "out of scope" padahal `utils/pdf/` dan banyak template Excel sudah ada).
+
+**File yang diubah:** `CRITICAL_RULES.md`, `CURRENT_STATE.md`, `CURRENT_STATE_BACKEND.md`, `features/permissions.md`, `features/roles.md`, `features/high-margin-products.md`, `features/channel-divisions.md`, `features/companies.md`, `features/metrics.md`, `shared/ui-patterns.md`, `shared/deployment.md`.
+
+---
+
+### 2026-07-04 (sesi 34): Konsistensi Dialog — Refactor Modal + Konversi Drawer
+
+**Refactor komponen `Dialog` bersama (`@/components/ui/Dialog`):**
+Audit menemukan 6 dialog masih pakai MUI `Dialog` langsung dengan style berbeda-beda (sudut persegi vs bulat, border title-content ada/tidak, padding action tidak seragam, tombol close pakai karakter "✕" manual). `Dialog.tsx` diperluas 3 prop baru tanpa mengubah perilaku 13 dialog existing yang sudah pakai komponen ini:
+- `subtitle?: ReactNode` — konten sekunder di title bar (statistik ringkasan drill-down)
+- `headerActions?: ReactNode` — icon button tambahan di title bar (mis. export PDF)
+- `showCloseButton?: boolean` — tombol X asli (`CloseIcon`), default `false` (dialog dengan tombol Cancel/Close di footer tidak berubah)
+
+6 dialog dimigrasikan: `CustomerMetrics/{M4GrossProfit,M5HighMargin,M6RepeatOrder}.tsx`, `Config/Classification/index.tsx` (Add/Edit + Delete Confirm — Delete sebelumnya tanpa teks konfirmasi sama sekali, sekarang ikut pola `DeleteRoleDialog`), `Import/components/ErrorDetailDialog.tsx`, `Settings/Divisions/components/DivisionMappingDialog.tsx`.
+
+**Konversi drawer detail → dialog:**
+4 komponen pakai MUI `Drawer` (`anchor="right"`) untuk tampilan detail — bermasalah di mobile (lebar dipaksa 100% viewport, ketutup keyboard virtual saat ada input, scroll berbeda dari dialog biasa):
+- `Transactions/InvoiceDetailDrawer.tsx` → `InvoiceDetailDialog.tsx`
+- `Products/CategoryProductsDrawer.tsx` → `CategoryProductsDialog.tsx` (dipakai juga dari `ProductsHighMargin`)
+- `ProductsHighMargin/UpsellCustomerDrawer.tsx` → `UpsellCustomerDialog.tsx`
+- `Customers/CustomerDetailDrawer.tsx` — **dihapus**, ternyata kode mati (tidak diimport di mana pun), sudah lama digantikan `CustomerDetailModal.tsx` yang sudah pakai `Dialog`
+
+`CustomerDetailModal.tsx` sendiri (sudah pakai `Dialog` sebelumnya, jadi tidak ikut migrasi drawer) ternyata gayanya beda sendiri (`fullScreen` di mobile + tombol Close di footer) dari 3 dialog yang baru dikonversi (ukuran normal + tombol X header) — disamakan ke pola baru, sekaligus rename jadi `CustomerDetailDialog.tsx`.
+
+**High Margin Settings — filter default "all":**
+Filter company sebelumnya default `''` (kosong) — `useHighMargins` di-disable total (`enabled: !!company_id`) sampai user pilih company manual, buka halaman langsung kosong. Backend (`listHighMarginQuerySchema`) juga belum punya mode `'all'` sama sekali (`company_id` wajib angka). Fix pakai helper `resolveCompanyScope()` (sudah dipakai endpoint lain: customers, transactions, metrics, products) — `company_id: number | 'all'`, default `'all'`; superadmin+`'all'` → tanpa filter, non-superadmin+`'all'` → otomatis di-scope ke company miliknya sendiri, `company_id` spesifik di luar akses → 403. Endpoint **create** juga ditambah scope check yang sama (sebelumnya bisa create mapping untuk company mana pun tanpa validasi). Repository join ke `companies` untuk `company_name` (kolom baru di tabel, dibutuhkan saat tampilkan data gabungan lintas company). Tombol "Add Mapping" otomatis disabled saat "All Companies" dipilih.
+
+**Diverifikasi:** visual Playwright (M6 dialog, Classification Add Rule, Invoice Detail, Category Products, Customer Detail — semua konsisten sekarang), curl end-to-end untuk High Margin scoping (superadmin+`all` lihat semua, user ter-scope company lain dapat hasil kosong/403 sesuai kasus, create ke company di luar akses → 403).
+
+**File yang diubah:**
+- `frontend/src/components/ui/Dialog/Dialog.tsx` — 3 prop baru
+- `frontend/src/pages/CustomerMetrics/{M4GrossProfit,M5HighMargin,M6RepeatOrder}.tsx`
+- `frontend/src/pages/Config/Classification/index.tsx`
+- `frontend/src/pages/Import/components/ErrorDetailDialog.tsx`
+- `frontend/src/pages/Settings/Divisions/components/DivisionMappingDialog.tsx`
+- `frontend/src/pages/Transactions/components/InvoiceDetailDialog.tsx` (NEW, gantikan Drawer)
+- `frontend/src/pages/Products/components/CategoryProductsDialog.tsx` (NEW, gantikan Drawer)
+- `frontend/src/pages/ProductsHighMargin/components/UpsellCustomerDialog.tsx` (NEW, gantikan Drawer)
+- `frontend/src/pages/Customers/components/CustomerDetailDialog.tsx` (rename dari CustomerDetailModal.tsx)
+- `frontend/src/pages/Customers/components/CustomerDetailDrawer.tsx` — DELETED (dead code)
+- `frontend/src/pages/{Transactions,Products,ProductsHighMargin,Customers}/index.tsx` — update import
+- `frontend/src/i18n/locales/{en,id}/transactions.json` — subtitle "...detail drawer" → "...detail dialog"
+- `backend/src/features/settings/high-margin.{schema,handler,service,repository}.ts` — `company_id: number|'all'`, `resolveCompanyScope`, join `companies`
+- `frontend/src/pages/Settings/HighMargin/index.tsx`, `frontend/src/types/highMargin.ts`, i18n `highMargin.json` — filter default 'all', kolom Company
+
+---
+
+### 2026-07-04 (sesi 33): PWA Responsive Fixes — Status Bar iOS + Tabel Tablet + KPI Card Mobile
+
+**iOS: tombol menu ketutup status bar.**
+`apple-mobile-web-app-status-bar-style: black-translucent` (di-set sesi 31) bikin status bar iOS jadi overlay transparan di PWA standalone, bukan mendorong konten ke bawah — `AppBar` (`position="fixed"`) tanpa padding jadi ketutup status bar, termasuk tombol buka-sidebar di dalamnya, sama sekali tidak bisa di-tap. Fix: `paddingTop: env(safe-area-inset-top)` di `AppBar`, plus spacer `Toolbar` di `DashboardLayout` & `Sidebar` (drawer mobile) disamakan tingginya. `env()` resolve ke 0 di browser/Android biasa — tidak ada perubahan visual di luar iOS PWA.
+
+**Tablet: tabel tidak responsive.**
+`ResponsiveListView` switch ke tampilan kartu di breakpoint `sm` (600px) — tablet portrait (mis. iPad ~768px) masih di atas itu, tetap render `DataGrid` multi-kolom lebar yang tidak muat tanpa scroll horizontal canggung. Breakpoint dinaikkan ke `md` (900px), disamakan dengan breakpoint yang sudah dipakai `DashboardLayout` untuk switch sidebar temporary/permanent. Diverifikasi di viewport 768×1024 (iPad portrait) — render kartu, bukan tabel kepotong.
+
+**Threshold Settings — section "KPI Target" overflow di mobile.**
+Section "BU Threshold" di halaman yang sama sudah punya fallback kartu untuk mobile (`Table` di `sm`+, `Stack` kartu di `xs`), tapi section "KPI Target" cuma render `<Table>` polos — kolom Notes (deskripsi panjang) meluber keluar batas card di layar sempit. Fix: terapkan pola fallback kartu yang sama.
+
+**File yang diubah:**
+- `frontend/src/components/ui/AppBar/AppBar.tsx` — `paddingTop: env(safe-area-inset-top)`
+- `frontend/src/components/layout/DashboardLayout.tsx`, `frontend/src/components/ui/Sidebar/Sidebar.tsx` — spacer Toolbar disesuaikan
+- `frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx` — breakpoint `sm` → `md`
+- `frontend/src/pages/Settings/Threshold/index.tsx` — fallback kartu mobile utk section KPI Target
+
+---
+
+### 2026-07-04 (sesi 32): RBAC Bug Hunt — Permission Deprecated, Scope Fix, UI Dialog Fix
+
+Rangkaian bug ditemukan lewat laporan user langsung (bukan audit terjadwal), semuanya root-cause dari migrasi skema permission granular (sesi 24) yang tidak lengkap — beberapa tempat masih rujuk skema/permission lama.
+
+**`metrics.route.ts` pakai `metrics:view` yang sudah deprecated.**
+`metrics:view` ada di `OLD_PERMISSION_NAMES` (`db/seed.ts`) — sudah digantikan permission granular per-halaman (`expansion:view`, `cross.selling:view`, dst) dan **tidak pernah di-seed lagi** ke tabel `permissions`. Tapi 12 endpoint di `metrics.route.ts` masih `requirePermission('metrics:view')` — permission yang mustahil di-assign lewat RBAC UI ke role manapun. Akibatnya **semua role non-superadmin selalu 403** di halaman Customer/Product Workbench manapun yang datanya lewat `/metrics/*`, apa pun permission yang sudah diberikan. Dashboard tidak kena (endpoint sendiri pakai `dashboard:view`), jadi kelihatan seolah cuma halaman lain yang bermasalah. Fix: permission tiap endpoint disamakan dengan `permissionKey` halaman frontend yang memakainya (ditelusuri dari kode, bukan tebakan) — `cross.selling:view`, `expansion:view` (customer-metrics + gp/hm/ror-breakdown, drill-down M4/M5/M6 sama-sama di halaman Customer Metrics), `churn.risk:view`, `product:view`, `high.margin:view`, `product.trend:view`.
+
+**`GET /companies` terlalu ketat.**
+Dipakai 12+ halaman sebagai dropdown filter perusahaan (`useCompanies()`), tapi mewajibkan `settings.company:view` (permission "kelola company", bukan "lihat dropdown"). Role dengan permission halaman yang benar tetap 403 begitu halaman itu coba isi dropdown company. Dilonggarkan jadi cuma butuh login — `handleGetCompanies` sudah difilter ke `companyIds` user dari JWT, jadi aman. `GET /:id` dan CRUD tetap terproteksi seperti biasa.
+
+**`GET /settings/channel-divisions` — pola sama, solusi beda.**
+Dipakai 8 halaman sebagai dropdown filter divisi, mewajibkan `settings.channel.division:view`. Beda dari companies, endpoint ini balikin `channel_name` **asli** (nama channel penjualan riil), jadi tidak bisa dilonggarkan langsung. Solusi: endpoint baru `GET /settings/channel-divisions/values` — cuma balikin nilai divisi unik tanpa `channel_name`, tanpa permission khusus. Endpoint mapping lengkap (`GET /`) tetap terproteksi seperti semula.
+
+**Dialog "Set Permission" tidak punya kolom "Create".**
+`getActionColumns()` hardcode 5 action (`menu, view, input, update, delete`) — `input` adalah nama action lama (skema deprecated sama seperti `metrics:view`), skema sekarang pakai `create`. 21 dari 88 permission (semua `:create`, `:export`, `:import`, `:reset`, `:test`) sama sekali tidak bisa ditoggle dari dialog ini walau ada di database. Fix: kolom action dihitung dinamis dari suffix permission yang benar-benar ada di data, bukan daftar hardcode — otomatis menyesuaikan kalau skema berubah lagi nanti.
+
+**`ActionMenu` tidak hilang walau semua item hidden.**
+Item di dalam dropdown sudah difilter per permission (`hidden: !can(...)`), tapi tombol "Actions" itu sendiri selalu dirender — role yang cuma punya `:view` tetap lihat tombol, begitu diklik dropdown-nya kosong. Fix: `ActionMenu` return `null` kalau tidak ada item visible sama sekali. Berlaku otomatis di 6 halaman yang pakai komponen ini.
+
+**RBAC — mode read-only untuk `access.permission:view`.**
+Tombol shield "Assign Permissions" di list Role sebelumnya cuma tampil untuk `access.permission:update` — role dengan `:view` saja sama sekali tidak bisa lihat permission suatu role. Fix: tombol tampil untuk `view` **atau** `update`; kalau cuma `view`, dialog kebuka dengan badge "Read only", semua toggle di-disable. Sekalian dibenahi: `RoleCard` (versi mobile) ternyata sama sekali tidak ada pengecekan permission untuk tombol Assign Permissions/Delete (selalu tampil ke siapa saja) — disamakan dengan versi desktop yang sudah benar pakai `can()`.
+
+**Seed baseline permission otomatis untuk role `admin` & `user`.**
+Role `admin`/`user` sebelumnya kosong total dari seed (cuma `superadmin` yang di-assign semua permission) — instalasi baru manapun butuh setup RBAC manual dari nol. Baseline `admin`: akses penuh menu bisnis inti (Dashboard, Customer Workbench, Product & Portfolio, Transaction & Revenue); grup Administration cuma sampai Settings (Company/Branch, Channel Division, Product Settings hanya view+update TANPA delete — hapus data master ini berdampak besar ke data transaksi); Configuration sama sekali tidak termasuk (eksklusif superadmin); Access Control (Users/Roles/Permissions) & Audit Log cuma view. Baseline `user`: view+export saja di menu bisnis inti, nol menu Administration. `seedRoleDefaultPermissions()` idempotent & aditif (pola sama seperti superadmin) — cuma nambah yang belum ada, **tidak pernah** mencabut permission yang sudah di-assign manual lewat RBAC UI.
+
+**File yang diubah:**
+- `backend/src/features/metrics/metrics.route.ts` — permission per endpoint disamakan dengan frontend
+- `backend/src/features/companies/companies.route.ts` — `GET /` tanpa requirePermission
+- `backend/src/features/settings/channel-divisions.{route,handler,service,repository}.ts` — endpoint `/values` baru
+- `frontend/src/api/channelDivisions.api.ts`, `frontend/src/hooks/useChannelDivisions.ts`, `frontend/src/hooks/useDivisionOptions.ts` — pakai endpoint `/values`
+- `frontend/src/pages/RBAC/components/SetPermissionDialog.tsx` — kolom action dinamis
+- `frontend/src/components/ui/ActionMenu/index.tsx` — return null kalau semua item hidden
+- `frontend/src/pages/RBAC/{index.tsx,components/RoleCard.tsx,components/SetPermissionDialog.tsx}` — mode read-only + fix RoleCard permission check
+- `frontend/src/i18n/locales/{en,id}/rbac.json` — key action baru + "Read only"
+- `backend/src/db/seed.ts` — `ADMIN_PERMISSION_NAMES`, `USER_PERMISSION_NAMES`, `seedRoleDefaultPermissions()`
+
+---
+
+### 2026-07-03/04 (sesi 31): Rollback Riwayat Git + Rewrite Deploy Infra (Docker, PWA, Proxy Railway)
+
+**Konteks:** 8 commit hasil sesi Claude Code lain (di luar percakapan ini) mengandung trailer `Co-Authored-By: Claude Sonnet 5` di pesan commit — bertentangan dengan instruksi permanen user untuk proyek ini (tidak boleh ada atribusi AI). Commit di-rollback (`git reset` ke commit terakhir yang bersih) lalu isi fungsionalnya ditulis ulang manual dari nol (bukan cherry-pick) sebagai commit baru tanpa trailer AI, diverifikasi ulang satu-satu, baru di-force-push menggantikan history lama.
+
+**Fix SSL Postgres:** dideteksi dari hostname `DATABASE_URL` (`localhost`/`127.0.0.1` → off, host lain → `require`), bukan dari `NODE_ENV` — `make db-migrate`/`db-seed` dijalankan dari lokal (`NODE_ENV=development`) tapi target ke DB production, deteksi berbasis `NODE_ENV` bikin migration lokal→production gagal "connection is insecure".
+
+**Fix root `/` redirect:** cek `isAuthenticated` dulu sebelum redirect ke `/dashboard` (sebelumnya unconditional, visitor tanpa token kena 404 karena tabel route dinamis kosong saat belum login — root cause sama dengan fix `usePageSettings` sebelumnya).
+
+**Fix cache React Query saat logout:** `queryClient.clear()` dipanggil + hard redirect (`window.location.href`, bukan `navigate()` SPA) di logout manual maupun auto-logout sesi expired — sebelumnya data KPI user lama bisa sempat kelihatan kalau user lain login di browser yang sama tanpa reload penuh.
+
+**Dockerize backend + obfuscate untuk deploy Railway:**
+Railway/Render tidak punya runtime Bun native di dropdown Language — pakai `backend/Dockerfile` multi-stage (image `oven/bun`). Stage builder bundle (`Bun.build`) + obfuscate (`javascript-obfuscator`) jadi satu file `dist/index.js`; stage final cuma `COPY` file itu, source `.ts`/`node_modules`/devDependencies tidak pernah ikut ke image final. `controlFlowFlattening`/`deadCodeInjection` (dipakai di frontend) sengaja OFF di backend — backend jalan di hot path tiap request, overhead 2-10x tidak sepadan.
+
+**PWA — installable di iOS/Android:** `vite-plugin-pwa` (workbox `generateSW`), manifest+service-worker digenerate otomatis saat build. Icon PNG (192/512/maskable-512/apple-touch-icon) digenerate dari logo SVG existing. Workbox sengaja **tidak** cache `/api/*` — data KPI sensitif harus selalu network-fresh. `start_url` manifest `/` (bukan `/dashboard`, yang cuma ada sebagai route dinamis dan kosong kalau dibuka tanpa token dari icon home-screen iOS).
+
+**Proxy Vercel → Railway:** `vercel.json` rewrite `/api/*` ke domain backend Railway supaya request FE tetap same-origin dari sisi klien (URL/infra backend sebelumnya kelihatan langsung di DevTools Network tab).
+
+**File yang diubah:** `backend/src/config/db.ts`, `backend/Dockerfile` (NEW), `backend/scripts/build-prod.ts` (NEW), `backend/package.json`, `frontend/src/App.tsx`, `frontend/src/api/axios.ts`, `frontend/src/hooks/useAuth.ts`, `frontend/vite.config.ts` (VitePWA), `frontend/index.html`, `frontend/public/icons/*` (PNG baru, SVG lama dihapus), `frontend/public/manifest.json` (dihapus, digantikan plugin), `frontend/vercel.json`, `docs-v2/shared/deployment.md` (Docker wajib, bukan opsional; §2a Proteksi Source Code baru).
+
+---
 
 ### 2026-07-03 (sesi 30): Users — Bulk Import Template + Reset Password + 2 Bug Fix
 

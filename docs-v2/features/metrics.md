@@ -1,8 +1,28 @@
 # Feature: Metrics (KPI 1–10)
 
-> Status: 🟢 M1–M2 & M8–M10 backend live · M3–M7 backend live · Product Trend (avg-category) backend live
-> Last updated: 2026-07-02
-> Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`, `product-workbench/api.md`
+> Status: 🟢 Semua endpoint live (real DB). Permission per endpoint diperbaiki sesi 32 (lihat §Permission).
+> Last updated: 2026-07-04 (sesi 32)
+> Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`, `features/permissions.md`, `product-workbench/api.md`
+
+---
+
+## ⚠️ Permission per Endpoint (fix sesi 32)
+
+Sebelum sesi 32, **semua 12 endpoint** di file ini pakai `requirePermission('metrics:view')` — permission yang sudah dipindah ke `OLD_PERMISSION_NAMES` (deprecated) sejak migrasi skema granular sesi 24 dan **tidak pernah di-seed lagi** ke tabel `permissions`. Akibatnya `metrics:view` mustahil di-assign ke role manapun lewat RBAC UI, dan **semua role non-superadmin selalu 403** di halaman manapun yang datanya lewat endpoint-endpoint ini — apa pun permission yang sudah diberikan. Dashboard (`GET /dashboard`, fitur terpisah) tidak kena karena pakai permission sendiri (`dashboard:view`), jadi gejalanya kelihatan seolah cuma sebagian halaman yang bermasalah.
+
+Fix: permission tiap endpoint disamakan dengan `permissionKey` halaman frontend yang benar-benar memakainya (ditelusuri dari kode, bukan tebakan):
+
+| Endpoint | Permission (baru) | Halaman frontend |
+|---|---|---|
+| `GET /cross-selling` | `cross.selling:view` | CrossSelling |
+| `GET /customer-metrics` | `expansion:view` | CustomerMetrics |
+| `GET /gp-breakdown`, `/hm-breakdown`, `/ror-breakdown` | `expansion:view` | CustomerMetrics (drill-down M4/M5/M6 — halaman yang sama) |
+| `GET /dormant-customer` | `churn.risk:view` | DormantCustomer |
+| `GET /category-performance`, `/category-products` | `product:view` | Products |
+| `GET /high-margin-penetration/detail`, `/high-margin-penetration/customers`, `/customer-products` | `high.margin:view` | ProductsHighMargin |
+| `GET /avg-category` | `product.trend:view` | ProductsTrend |
+
+`avg-category` sebelumnya punya OR-fallback ke `metrics:view` (`requirePermission('product.trend:view', 'metrics:view')`) — fallback yang mati ini dihapus, sekarang cuma `product.trend:view`.
 
 ---
 
@@ -150,7 +170,7 @@ Query params:
 | `period_month` | `YYYY-MM` | Bulan berjalan | Dinormalisasi ke akhir bulan (pola sama dengan `category-performance`) |
 | `active_window` | integer (1–24) | `business_configs.active_window_months` | Window bulan untuk hitung avg kategori per customer — lihat catatan di bawah |
 
-Permission: `product.trend:view` ATAU `metrics:view` (`requirePermission('product.trend:view', 'metrics:view')` — `metrics:view` sudah usang/dihapus dari seed, lihat `features/permissions.md`).
+Permission: `product.trend:view` (lihat §Permission per Endpoint di atas — OR-fallback lama ke `metrics:view` sudah dihapus sesi 32).
 
 Response shape:
 ```ts

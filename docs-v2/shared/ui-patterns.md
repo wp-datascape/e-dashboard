@@ -93,6 +93,8 @@ import { ActionMenu } from '@/components/ui'
 
 **Lokasi:** `src/components/ui/ActionMenu/index.tsx`
 
+**Auto-hide kalau semua item hidden (fix sesi 32):** `ActionMenu` menghitung `visible = items.filter(!item.hidden)` — kalau `visible.length === 0`, komponen `return null` (tombol "Actions" sama sekali tidak dirender). Sebelum fix ini, tombol tetap muncul walau dropdown-nya bakal kosong (role yang cuma punya `:view`, tanpa `create/update/delete`) — begitu diklik user cuma lihat dropdown hampa, UX membingungkan. Behavior ini otomatis berlaku di semua pemakaian `ActionMenu`, tidak perlu setup tambahan per halaman.
+
 Anti-pattern:
 ```typescript
 // ❌ Jangan pakai IconButton manual
@@ -107,6 +109,62 @@ const [anchor, setAnchor] = useState(null)
 // ✅ Cukup satu komponen
 <ActionMenu items={[...]} />
 ```
+
+---
+
+## Dialog — Satu-satunya Komponen Modal yang Boleh Dipakai
+
+**Wajib** — semua modal/dialog di aplikasi harus pakai `Dialog` dari `@/components/ui`, jangan import `Dialog`/`DialogTitle`/`DialogContent`/`DialogActions` langsung dari MUI. Sebelum audit sesi 34, ada 6 dialog dan 4 drawer detail yang pakai MUI langsung dengan style beda-beda (sudut persegi vs bulat, border title-content ada/tidak, padding action tidak seragam) — semua sudah dimigrasikan.
+
+```tsx
+import { Dialog } from '@/components/ui'
+
+<Dialog
+  open={open}
+  onClose={onClose}
+  title={t('feature.dialogTitle')}
+  maxWidth="sm"
+  actions={[
+    { label: t('common.cancel'), onClick: onClose, variant: 'text' },
+    { label: t('common.save'), onClick: handleSave, isLoading: isPending },
+  ]}
+>
+  {/* form fields / content */}
+</Dialog>
+```
+
+**Props tambahan (sesi 34) untuk kasus dialog "detail/drill-down" yang butuh header lebih kaya:**
+
+| Prop | Type | Default | Kapan dipakai |
+|------|------|---------|----------------|
+| `subtitle` | `ReactNode` | — | Konten sekunder di title bar (mis. ringkasan statistik di dialog drill-down M4/M5/M6, atau baris info tambahan di bawah judul) |
+| `headerActions` | `ReactNode` | — | Icon button tambahan di title bar, di sebelah kiri tombol close (mis. tombol export PDF) |
+| `showCloseButton` | `boolean` | `false` | Tampilkan tombol X (`CloseIcon`) di title bar. **Default `false`** — dialog yang sudah punya tombol Cancel/Close di footer (`actions` prop) biasanya tidak butuh X juga, supaya tidak ada dua cara redundan untuk menutup dialog |
+
+```tsx
+// Pola dialog "lihat info, tidak ada form" (dulu drawer) — showCloseButton, tanpa actions footer
+<Dialog
+  open={!!selectedId}
+  onClose={onClose}
+  maxWidth="md"
+  title={t('feature.detailTitle')}
+  subtitle={<Typography variant="body2" color="text.secondary">{summary}</Typography>}
+  headerActions={<IconButton size="small" onClick={handleExportPdf}><DownloadOutlinedIcon /></IconButton>}
+  showCloseButton
+>
+  <ResponsiveListView rows={rows} columns={columns} />
+</Dialog>
+```
+
+**Lokasi:** `src/components/ui/Dialog/Dialog.tsx`
+
+### Drawer → Dialog untuk Tampilan Detail (fix sesi 34)
+
+**Jangan pakai MUI `Drawer` (`anchor="right"`) untuk menampilkan detail satu row/item** (invoice, customer, kategori produk, dst). Drawer full-height dari tepi kanan bermasalah di mobile: lebar dipaksa 100% viewport (`slotProps={{ paper: { sx: { width: { xs: '100%', sm: 480 } } } }}`), ketutup keyboard virtual saat ada input di dalamnya, dan pengalaman scroll berbeda dari dialog biasa. 4 drawer detail (`InvoiceDetailDrawer`, `CategoryProductsDrawer`, `UpsellCustomerDrawer`, `CustomerDetailDrawer`) sudah dikonversi ke `Dialog` — 3 jadi `*Dialog.tsx` baru, 1 (`CustomerDetailDrawer`) ternyata kode mati (tidak diimport di mana pun, sudah lama digantikan `CustomerDetailDialog.tsx`) dan dihapus.
+
+Pola konversi: `<Drawer anchor="right">` dengan header custom (`Box` flex + `IconButton` close manual pakai karakter `✕`) → `<Dialog>` dengan `title`+`subtitle`+`showCloseButton`, isi drawer (`DialogContent`/`ResponsiveListView`) jadi `children` Dialog langsung.
+
+**Kalau butuh panel slide-in yang genuinely bukan "detail satu item"** (misalnya navigasi sidebar mobile), `Drawer` tetap komponen yang tepat — larangan ini spesifik untuk pola "tampilkan detail row yang diklik".
 
 ---
 
@@ -329,9 +387,11 @@ Props convention: gunakan token `theme.palette.*` — jangan hardcode hex. Untuk
 
 **`ResponsiveListView`** adalah satu-satunya komponen tabel yang digunakan. Komponen `DataTable` (lama) sudah dihapus.
 
-- **Desktop** (`>= sm`): render `MUI X DataGrid` — pagination, sorting, filter
-- **Mobile** (`< sm`): render card list auto-generated dari column definitions
+- **Desktop** (`>= md`, 900px — dinaikkan dari `sm`/600px sesi 33): render `MUI X DataGrid` — pagination, sorting, filter
+- **Mobile/tablet** (`< md`): render card list auto-generated dari column definitions
 - **Semua state built-in**: loading skeleton (responsive), error alert, empty state
+
+**Breakpoint `sm`→`md` (fix sesi 33):** tablet portrait (mis. iPad ~768px logical width) masih di atas breakpoint `sm` (600px) tapi `DataGrid` multi-kolom tetap tidak muat tanpa scroll horizontal canggung. Breakpoint dinaikkan ke `md` (900px), disamakan dengan breakpoint yang sudah dipakai `DashboardLayout` untuk switch sidebar temporary/permanent — supaya konsisten "apa yang dianggap tablet" di seluruh app.
 Server-side pagination wajib untuk dataset besar -- jangan paginate di client.
 Column definition diletakkan dekat halaman pemakainya, baru dipindah ke shared jika dipakai >= 2 halaman.
 
@@ -340,7 +400,7 @@ Column definition diletakkan dekat halaman pemakainya, baru dipindah ke shared j
 Gunakan `ResponsiveListView` dari `@/components/tables/ResponsiveListView` — satu komponen yang secara otomatis:
 
 - **Desktop** → render `DataGrid` (sama seperti `DataTable`)
-- **Mobile** (`< sm` breakpoint) → render daftar `Card`, auto-generate dari column definitions
+- **Mobile/tablet** (`< md` breakpoint) → render daftar `Card`, auto-generate dari column definitions
 
 ```typescript
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -410,6 +470,33 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 - Jika hanya satu kolom flex, seluruh sisa ruang diserap. Dua kolom flex berbagi sisa ruang proporsional.
 
 **Lokasi:** `src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
+
+### Table Manual (bukan ResponsiveListView) — Wajib Fallback Kartu Mobile Sendiri
+
+Beberapa halaman (mis. `Settings/Threshold`) render tabel ringkas manual (`<Table>` MUI langsung) untuk data non-tabular besar seperti daftar konfigurasi — bukan pakai `ResponsiveListView`. Tabel manual **tidak otomatis dapat fallback mobile** seperti `ResponsiveListView` — kalau dibiarkan render `<Table>` di semua breakpoint, kolom deskripsi panjang meluber keluar batas card di layar sempit (ditemukan sesi 33 di section "KPI Target" Threshold Settings — section "BU Threshold" di halaman yang sama sudah benar pakai pola ini).
+
+**Pola wajib:**
+```tsx
+<Box sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
+  <Table size="small">...</Table>
+</Box>
+
+<Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+  {items.map((item) => (
+    <Card key={item.key} sx={{ p: 2 }}>
+      <Stack spacing={1.5}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.label}</Typography>
+          {/* editable cell / chip di sini */}
+        </Box>
+        <Typography variant="caption" color="text.secondary">{item.description}</Typography>
+      </Stack>
+    </Card>
+  ))}
+</Stack>
+```
+
+Table dan Stack-kartu sama-sama dirender di JSX (bukan conditional JS `isMobile ? ... : ...`) — CSS `display` yang switch, konsisten dengan pola breakpoint lain di app.
 
 ## ProgressBar — Segmented Import Progress
 
@@ -563,6 +650,21 @@ if (collapsed) {
 Mode full (sidebar terbuka) tidak berubah — tetap pakai `Collapse` inline (`expanded` state, toggle on click) seperti sebelumnya. Flyout `Menu` cuma untuk mode collapsed karena tidak ada ruang untuk expand inline.
 
 **Rule**: kalau nambah `NavItem` baru dengan `children` (grup submenu), fitur flyout ini otomatis berlaku — tidak perlu setup tambahan, cukup pastikan tiap child punya `icon` (dipakai sebagai `ListItemIcon` di dalam `MenuItem`).
+
+## PWA — Safe Area Inset (Status Bar iOS) — fix sesi 33
+
+`apple-mobile-web-app-status-bar-style: black-translucent` (di `index.html`) bikin status bar iOS jadi **overlay transparan** saat PWA dibuka standalone dari home screen — konten web meng-extend ke bawah status bar, bukan didorong turun otomatis. Elemen `position: fixed` di top (seperti `AppBar`) jadi ketutup status bar kalau tidak diberi padding.
+
+**Pola wajib** untuk elemen fixed-top yang baru:
+```tsx
+sx={{
+  // env() resolve ke 0 di browser/Android biasa — aman ditambah di mana saja,
+  // tidak ada perubahan visual di luar konteks iOS PWA standalone
+  paddingTop: 'env(safe-area-inset-top)',
+}}
+```
+
+Kalau elemen fixed itu punya spacer terpisah untuk mendorong konten di bawahnya (pola umum MUI `AppBar` + `<Toolbar />` spacer), spacer-nya juga harus disesuaikan tinggi tambahannya (lihat `DashboardLayout.tsx`, `Sidebar.tsx` — `<Toolbar sx={{ mb: 'env(safe-area-inset-top)' }} />`), supaya tidak ada celah/tabrakan konten.
 
 ## New Page Checklist (wajib untuk setiap halaman baru)
 1. Daftarkan route di `src/route/routeConstants.tsx` (routeRegistry) — gunakan `permissionKey` yang spesifik untuk halaman tersebut (`<key>:view`)

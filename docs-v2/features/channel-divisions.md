@@ -1,7 +1,7 @@
 # Feature: Channel Divisions
 
-> Status: ✅ Complete — Full CRUD, company-scoped import via XLSX template, division filter
-> Last updated: 2026-06-30
+> Status: ✅ Complete — Full CRUD, company-scoped import via XLSX template, division filter, endpoint `/values` tanpa permission (sesi 32)
+> Last updated: 2026-07-04 (sesi 32)
 > Baca juga: `features/customers.md`, `features/import.md`, `shared/data-model.md`
 
 ---
@@ -44,10 +44,10 @@ Saat query dengan `company_id` tertentu, endpoint mengembalikan:
 ```
 src/features/settings/
 ├── channel-divisions.schema.ts      — Zod DTOs + DIVISION_VALUES constant
-├── channel-divisions.repository.ts  — findChannelDivisions, findByName, findByNameAndCompany, CRUD
-├── channel-divisions.service.ts     — CRUD + importChannelDivisionsService + getChannelDivisionsTemplate
-├── channel-divisions.handler.ts     — thin handler: CRUD + handleImportChannelDivisions + handleDownloadChannelDivisionsTemplate
-└── channel-divisions.route.ts       — GET / POST / PATCH /:id / DELETE /:id / POST /import / GET /template
+├── channel-divisions.repository.ts  — findChannelDivisions, findDistinctDivisions (baru), findByName, findByNameAndCompany, CRUD
+├── channel-divisions.service.ts     — CRUD + listDivisionValuesService (baru) + importChannelDivisionsService + getChannelDivisionsTemplate
+├── channel-divisions.handler.ts     — thin handler: CRUD + handleListDivisionValues (baru) + handleImportChannelDivisions + handleDownloadChannelDivisionsTemplate
+└── channel-divisions.route.ts       — GET /values (baru, no permission) / GET / POST / PATCH /:id / DELETE /:id / POST /import / GET /template
 ```
 
 **Tabel DB:** `channel_divisions`
@@ -71,7 +71,7 @@ Base URL: `http://localhost:3000/api/v1/settings/channel-divisions`
 
 ### `GET /settings/channel-divisions`
 
-List semua channel divisions, opsional filter.
+List semua channel divisions, opsional filter. **Butuh `settings.channel.division:view`.**
 
 **Query params:**
 | Param | Tipe | Default | Keterangan |
@@ -97,6 +97,29 @@ List semua channel divisions, opsional filter.
   ]
 }
 ```
+
+---
+
+### `GET /settings/channel-divisions/values` (baru, sesi 32)
+
+Cuma balikin nilai `division` unik (bukan mapping `channel_name` lengkap) — **tidak butuh permission apa pun** selain login (authMiddleware). Dipakai `useDivisionOptions()` sebagai dropdown filter divisi di 8+ halaman.
+
+**Kenapa endpoint terpisah, bukan melonggarkan `GET /` yang sudah ada:** `GET /` balikin `channel_name` **asli** (nama channel penjualan riil dari invoice) — melonggarkan permission-nya berarti nama channel penjualan jadi terlihat semua role yang login, bukan cuma yang punya `settings.channel.division:view`. Endpoint `/values` sengaja dirancang untuk TIDAK pernah mengembalikan `channel_name`, cuma daftar nilai divisi kategoris (`distribution`, `project`, dst) — data yang tidak sensitif — supaya aman dibuka lebar.
+
+**Query params:**
+| Param | Tipe | Default | Keterangan |
+|-------|------|---------|------------|
+| `company_id` | integer \| `"all"` | `"all"` | Sama seperti `GET /` — scope company rule + global |
+
+**Response 200:**
+```json
+{
+  "message": "Success",
+  "data": ["distribution", "e_commerce", "freelancer", "intercompany", "project", "support"]
+}
+```
+
+Route: `channelDivisionsRoutes.get('/values', handleListDivisionValues)` — didaftarkan **sebelum** `GET /` di file route (urutan tidak masalah di sini karena keduanya path statis, tidak ada konflik `:id`).
 
 ---
 
@@ -245,10 +268,11 @@ Seed data di-load via `bun run db:seed` → `backend/src/db/seed.ts`. Data ini b
 - **Digunakan oleh**: `features/customers.md` (status logic + division filter)
 - **Frontend Page (CRUD)**: `frontend/src/pages/Settings/Divisions/`
 - **Frontend Import**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `divisi`)
-- **Frontend API**: `frontend/src/api/channelDivisions.api.ts`
+- **Frontend API**: `frontend/src/api/channelDivisions.api.ts` (`listDivisionValues()` baru)
+- **Frontend Hook**: `frontend/src/hooks/useChannelDivisions.ts` (`useDivisionValues()` baru), `frontend/src/hooks/useDivisionOptions.ts` (dialihkan ke `useDivisionValues()` sesi 32)
 - **Seed**: `backend/src/db/seed.ts`
 
 ---
 
-**Last Updated**: 2026-06-30
+**Last Updated**: 2026-07-04 (sesi 32)
 **Status**: ✅ Production Ready

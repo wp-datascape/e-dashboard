@@ -1,6 +1,6 @@
-# Deployment — Backend (Render) + Frontend (Vercel)
+# Deployment — Backend (Railway) + Frontend (Vercel)
 
-> Status: 📋 Checklist — belum pernah deploy ke production, ini panduan pertama kali.
+> Status: ✅ **Sudah live di production** (sesi 31). Backend deploy ternyata di **Railway**, bukan Render seperti rencana awal dokumen ini — checklist §3 di bawah ditulis untuk Render, tapi Docker approach-nya (§2, §2a) sama persis berlaku untuk Railway (keduanya sama-sama tidak punya runtime Bun native di platform-nya). Domain backend aktual: `https://e-dashboard-production.up.railway.app` (dipakai `frontend/vercel.json` untuk proxy `/api/*`, lihat §5a).
 > Arsitektur: split deployment, backend dan frontend di domain berbeda (cross-site).
 
 ---
@@ -104,18 +104,20 @@ Generate secret cepat: `openssl rand -hex 32` (jalankan 3x untuk `JWT_SECRET`, `
 - [ ] Framework preset: **Vite**
 - [ ] Build Command: `npm run build` (= `tsc -b && vite build`)
 - [ ] Output Directory: `dist`
-- [ ] `frontend/vercel.json` **sudah dibuat** — rewrite semua path ke `index.html` supaya refresh/direct-link ke route React Router (mis. `/dashboard`) tidak 404 di level Vercel
+- [ ] `frontend/vercel.json` **sudah dibuat** — rewrite semua path ke `index.html` supaya refresh/direct-link ke route React Router (mis. `/dashboard`) tidak 404 di level Vercel, **plus** rewrite `/api/*` ke backend Railway (lihat §5a)
 
-### Environment Variables (Vercel dashboard → Settings → Environment Variables)
+### Environment Variables
+
 | Key | Value | Catatan |
 |---|---|---|
-| `VITE_API_URL` | `https://<backend>.onrender.com/api/v1` | **Wajib diisi** — default di `.env` (`/api`) cuma jalan kalau satu domain |
+| `VITE_API_URL` | `/api` (relative — sudah di-set di `frontend/.env`, **bukan** absolute URL backend) | Berkat proxy §5a, frontend selalu panggil `/api/*` same-origin ke domain Vercel sendiri; Vercel yang meneruskan ke Railway di belakang layar. **Jangan** diisi absolute `https://...railway.app` — itu akan bypass proxy dan expose domain backend langsung di Network tab (justru masalah yang mau dihindari §5a) |
 | `VITE_ENABLE_MOCK` | `false` (atau jangan di-set) | Pastikan MSW mock mati di production — `.env.local` (dev-only, tidak ke-deploy) yang set ini jadi `true`, `.env` production tidak punya key ini sama sekali → aman by default, tapi cek ulang |
 
 ### Verifikasi setelah deploy
 - [ ] Buka `https://<frontend>.vercel.app/dashboard` **langsung** (bukan via klik dari `/login`) → harus render Dashboard, bukan 404 Vercel
 - [ ] Login end-to-end → cek DevTools → Network → response `/auth/login` ada `Set-Cookie` dengan `SameSite=None`, lalu request berikutnya (`/auth/me`, dll) **bawa cookie itu** (cek header `Cookie` di request, bukan cuma response)
 - [ ] Refresh halaman setelah login (bukan cuma navigasi SPA) → harus tetap login, bukan lempar ke `/login`
+- [ ] PWA installable — buka di Chrome/Android atau Safari/iOS, cek opsi "Install app"/"Add to Home Screen" muncul (`vite-plugin-pwa` generate manifest + service worker otomatis saat `vite build`, tidak perlu langkah manual tambahan di Vercel)
 
 ---
 
@@ -128,6 +130,23 @@ CORS_ORIGIN=https://myapp.vercel.app,https://myapp-git-main-username.vercel.app
 ```
 
 Vercel preview deployment (tiap PR/branch) dapat subdomain **acak** — tidak praktis didaftarkan satu-satu. Untuk sekarang, cukup daftarkan domain production Vercel saja; kalau nanti butuh test preview deployment terhadap backend production, tambahkan domain preview-nya manual sementara, atau pertimbangkan backend staging terpisah untuk testing preview branch.
+
+---
+
+## 5a. Proxy Vercel → Railway (same-origin dari sisi klien)
+
+`frontend/vercel.json` rewrite `/api/*` ke domain backend Railway **sebelum** rewrite SPA catch-all (urutan penting — rewrite Vercel dicek berurutan):
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://e-dashboard-production.up.railway.app/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+**Kenapa:** tanpa proxy ini, request FE langsung ke domain Railway — URL/infra backend kelihatan langsung di DevTools Network tab pengguna. Dengan rewrite ini, browser klien selalu lihat request ke domain Vercel sendiri (same-origin), Vercel yang meneruskan ke Railway di belakang layar. **Catatan:** kalau domain Railway berubah (redeploy service baru, custom domain, dst), update juga `destination` di sini.
 
 ---
 

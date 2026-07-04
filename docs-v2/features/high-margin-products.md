@@ -1,7 +1,7 @@
 # high-margin-products.md — Fitur Product High Margin (Dynamic)
 
-> Status: **DONE** — Implementasi selesai 2026-06-26.
-> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-06-26
+> Status: **DONE** — Implementasi selesai 2026-06-26. Filter default "All Companies" + company scoping ditambah sesi 34.
+> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-07-04 (sesi 34)
 
 ---
 
@@ -146,11 +146,15 @@ Terima baris (CSV parser atau Accurate API response)
 
 | Method | Path | Deskripsi |
 |--------|------|-----------|
-| GET | `/` | List semua mapping (filter: company_id, period YYYY-MM, active_only) |
+| GET | `/` | List mapping (filter: `company_id` — `number\|'all'`, default `'all'`; `period` YYYY-MM; `active_only`) |
 | POST | `/` | Tambah mapping baru |
 | PATCH | `/:id` | Update (effective_until, note) |
 | PATCH | `/:id/deactivate` | Set effective_until = hari ini |
 | DELETE | `/:id` | Hapus mapping |
+
+**Company scoping (sesi 34):** `GET /` dan `POST /` pakai `resolveCompanyScope()` (`backend/src/middleware/auth.ts`, helper yang sama dipakai customers/transactions/metrics/products). Superadmin + `company_id='all'` → tanpa filter (lihat semua company). Non-superadmin + `'all'` → otomatis di-scope ke `companyIds` miliknya sendiri. `company_id` spesifik di luar akses (baik di query GET maupun body POST) → `403 FORBIDDEN`. Response `GET /` sekarang include `company_name` (JOIN ke `companies`) supaya frontend bisa tampilkan kolom Company saat data gabungan lintas company.
+
+Sebelum sesi 34: `company_id` di GET wajib angka (tidak ada mode `'all'`), dan `POST /` sama sekali tidak divalidasi terhadap akses company user (siapa pun yang punya permission `settings.product:create` bisa create mapping untuk company mana pun).
 
 **Endpoints pendukung (untuk dropdown di form):**
 
@@ -163,9 +167,11 @@ Terima baris (CSV parser atau Accurate API response)
 
 ## 5. Frontend — Halaman `/settings/high-margin`
 
-**Filter bar:** Company (Select) + Period bulan (type=month) + Active Only (Switch)
+**Filter bar:** Company (Select, default **"All Companies"** — buka halaman langsung tampil data sesuai company yang jadi hak akses user, tidak perlu pilih manual) + Period bulan (type=month) + Active Only (Switch)
 
-**Tabel:** target (nama produk/kategori + ikon tipe), tipe chip, effective_from, effective_until (italic "ongoing" jika null), status chip (active/inactive), note, action menu
+**Tabel:** company (nama company, kolom baru sesi 34), target (nama produk/kategori + ikon tipe), tipe chip, effective_from, effective_until (italic "ongoing" jika null), status chip (active/inactive), note, action menu
+
+Tombol "Add Mapping" otomatis disabled saat filter "All Companies" dipilih — create mapping butuh company spesifik (dropdown produk/kategori di dialog juga bergantung pada satu company).
 
 **Action menu per baris:** Edit (effective_until + note), Deactivate (set effective_until = today), Delete
 
@@ -254,13 +260,13 @@ Sama seperti tab Penetrasi Kategori, langkah pertama tetap resolusi `hm_cats` (l
 | Service | `backend/src/features/metrics/metrics.service.ts` → `getUpsellTargets()` (strip `relevance_score` sebelum dikirim) |
 | Route | `backend/src/features/metrics/metrics.route.ts` → `GET /high-margin-penetration/customers` |
 | Frontend tab | `frontend/src/pages/ProductsHighMargin/index.tsx` → `UpsellTargetsTab` |
-| Drawer riwayat beli | `frontend/src/pages/ProductsHighMargin/components/UpsellCustomerDrawer.tsx` |
+| Dialog riwayat beli | `frontend/src/pages/ProductsHighMargin/components/UpsellCustomerDialog.tsx` (dulu `UpsellCustomerDrawer.tsx`, dikonversi drawer→dialog sesi 34) |
 
 ### 8.3 Catatan penting — jangan tertukar dua jenis "margin"
 
 | | Sumber | Fungsi |
 |---|---|---|
 | **Status "High Margin"** (kategori/produk ditandai target upsell) | Setting manual admin di `high_margin_products` (§2.2) | Menentukan kategori mana yang jadi acuan "belum dibeli" di atas |
-| **`gp_margin_percent`** yang tampil di tabel/drawer (mis. chip warna di `UpsellCustomerDrawer.tsx`) | Dihitung real-time dari data invoice (`total_gp / total_revenue`) | Cuma informasi tampilan, **tidak mempengaruhi** apakah kategori dianggap "High Margin" |
+| **`gp_margin_percent`** yang tampil di tabel/dialog (mis. chip warna di `UpsellCustomerDialog.tsx`) | Dihitung real-time dari data invoice (`total_gp / total_revenue`) | Cuma informasi tampilan, **tidak mempengaruhi** apakah kategori dianggap "High Margin" |
 
 Produk dengan margin aktual tinggi sekalipun **tidak akan** muncul sebagai target upsell kalau tidak pernah didaftarkan admin di Settings → High Margin. Sebaliknya, produk yang sudah didaftarkan tetap dianggap "High Margin" walau margin aktualnya sedang turun — sampai admin men-deactivate mapping-nya.
