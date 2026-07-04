@@ -10,7 +10,7 @@ Auth   : JWT httpOnly cookie
 CSRF   : X-CSRF-Token header required on ALL mutations (POST/PUT/PATCH/DELETE)
 
 ## API Documentation
-OpenAPI/Swagger docs are **auto-generated from Zod schemas** — always keep Zod schemas as the source of truth. Never write OpenAPI YAML manually.
+`backend/src/docs/openapi.yaml` ditulis **manual** (bukan auto-generate), di-serve via Swagger UI di `/api/v1/docs` (mati kalau `NODE_ENV=production`). Auto-generate dari Zod schema (`hono-openapi`+`zod-openapi`) sempat dicoba lalu di-rollback — peer-dependency `zod-openapi` v6 butuh Zod v4, project masih Zod v3, dan `validator()` middleware-nya tidak bisa dibuat read-only khusus docs. Kalau nambah endpoint baru: update `openapi.yaml` manual juga, tidak otomatis sinkron dari Zod. Detail: `features/api-docs.md`.
 
 ## Pagination Query Standard
 All list endpoints use consistent query params:
@@ -96,23 +96,25 @@ POST /auth/refresh        → returns new csrf_token + permissions[]
 
 Login response includes `permissions[]` — frontend uses this for access control without extra requests.
 
-## Import Endpoints
-POST /import/file       [import:write]   multipart/form-data: file, company_id, period_month
+## Import Endpoints (path & permission aktual — `backend/src/features/import/import.route.ts`)
+> Contoh di bawah versi lama dokumen ini pakai format permission `import:write`/`import:read` — **sudah tidak akurat**, skema permission sekarang dot-notation (lihat `features/permissions.md`). Endpoint asli:
 
-POST /import/accurate   [import:write]   body: { company_id, period_month }
+GET  /import/template     `[config.import:view]`    download template XLSX faktur
 
-GET  /import/logs            [import:read]   ?company_id&page&per_page
+POST /import/csv          `[config.import:import]`  multipart/form-data: file, company_id
 
-GET  /import/logs/:id/errors  [import:read]
+POST /import/csv/stream   `[config.import:import]`  sama seperti /csv, SSE progress streaming
+
+GET  /import/logs         `[config.import:view]`    ?company_id&page&per_page
+
+GET  /import/logs/:id     `[config.import:view]`    detail + error rows
 
 ## Config Endpoints
-GET /config            [config:read]    — is_secret values masked as "***"
+> Endpoint di bawah **belum diverifikasi ulang path-nya** terhadap kode (butuh cek `backend/src/features/config/config.route.ts`) — anggap ilustratif, cek `features/config-page.md` untuk yang otoritatif.
 
-PUT /config/:key       [config:write]  body: { value, company_id }
+GET /config            `[settings.threshold:view]` (bukan `config:read` generik — permission per-key, lihat `features/permissions.md`)
 
-GET /product-categories      [config:read]   ?company_id
-
-PUT /product-categories/:id  [config:write] body: { is_high_margin, is_service }
+PUT /config/:key       `[settings.threshold:update]`
 
 ## Audit Log
 GET /audit-logs  [roles:manage]  ?company_id&action&actor_id&page&per_page

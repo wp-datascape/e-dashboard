@@ -11,7 +11,7 @@ Frontend : React 19 + Vite 8 + TypeScript 6 + MUI v9 (SPA)
 
 Auth     : JWT httpOnly Cookie + CSRF (dev: localStorage + MSW)
 
-Status   : Frontend ~97% | Backend ~80%
+Status   : Frontend ~99% | Backend ~98% | live di production (Railway backend + Vercel frontend, lihat `shared/deployment.md`)
 
 ## Read Order
 1. `CRITICAL_RULES.md` — hard constraints, tech stack, conventions

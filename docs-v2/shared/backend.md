@@ -45,27 +45,35 @@ backend/src/
 │   │   └── metrics.repository.ts
 │   ├── import/
 │   ├── users/
-│   ├── rbac/
+│   ├── roles/            # BUKAN "rbac/" — roles dan permissions dua folder feature terpisah
+│   ├── permissions/
 │   ├── customers/
 │   ├── products/
 │   ├── transactions/
+│   ├── settings/         # high-margin, channel-divisions, threshold (via config)
 │   ├── config/
+│   ├── dashboard/
+│   ├── docs/              # Swagger UI, mati di production
 │   └── audit/
 ├── db/
 │   ├── schema/           # Drizzle table definitions (snake_case plural)
 │   └── migrations/       # drizzle-kit generated
 ├── middleware/
-│   ├── auth.ts           # verifyJwt → set c.var.user
+│   ├── auth.ts           # verifyJwt → set c.var.user + c.var.permissions. CSRF validation JUGA di sini
+│   │                       (bukan file csrf.ts terpisah — X-CSRF-Token dicek inline untuk mutation methods),
+│   │                       plus export resolveCompanyScope() (lihat §4 — bukan middleware, dipanggil manual per-handler)
 │   ├── permission.ts     # requirePermission('resource:action')
-│   ├── company-access.ts # requireCompanyAccess()
-│   ├── csrf.ts
-│   └── rate-limit.ts
+│   ├── rate-limit.ts
+│   ├── requestId.ts
+│   └── requestLogger.ts
 ├── config/
 │   ├── env.ts            # Validasi & parse environment variables via Zod — dijalankan saat startup
 │   └── db.ts             # Drizzle instance + postgres client — sumber koneksi DB tunggal
 ├── utils/                # response, error, jwt, hash, csrf, audit, parser, accurate, validator, logger
 └── types/                # Shared TypeScript types
 ```
+
+**Catatan:** `middleware/company-access.ts` dan `middleware/csrf.ts` yang disebut di versi lama dokumen ini **tidak pernah dibuat sebagai file terpisah** — itu rencana arsitektur awal yang berubah saat implementasi (lihat §4 untuk pattern company-scope yang benar-benar dipakai).
 
 ## 3. API Conventions & Response Shapes
 Base URL: /api/v1
@@ -100,52 +108,91 @@ createRouter(app)
 export default { port: process.env.PORT ?? 3000, fetch: app.fetch }
 ```
 
-### `router.ts` — Orchestrator (satu-satunya file yang tahu semua route)
+### `router.ts` — Orchestrator (satu-satunya file yang tahu semua route, disederhanakan dari aslinya)
 ```typescript
 export function createRouter(app: Hono) {
-  // LAYER 1: Global (semua request)
-  app.use('*', cors())
-  app.use('*', csrfMiddleware())
-  app.use('*', rateLimitMiddleware())
+  // LAYER 1: Global (semua request, termasuk /auth)
+  app.use('*', requestIdMiddleware)
+  app.use('*', requestLogger)
+  app.use('*', cors({ origin: env.CORS_ORIGIN.split(','), credentials: true }))
 
-  // LAYER 2: Public (no auth)
+  // LAYER 2: Public (no auth) — rate-limit lebih ketat khusus di sini (brute-force login)
   app.route('/api/v1/auth', authRoutes)
 
-  // LAYER 3: Protected (auth + company access)
+  // LAYER 3: Protected — SATU middleware global: authMiddleware (verify JWT + validasi
+  // CSRF utk mutation + load permissions dari DB). TIDAK ADA requireCompanyAccess() global
+  // — company scoping dihandle manual per-handler via resolveCompanyScope() (lihat §4a), karena
+  // kebutuhan scope beda-beda per fitur (single company vs 'all' vs company-agnostic).
   const protectedApi = new Hono()
   protectedApi.use('*', authMiddleware())
-  protectedApi.use('*', requireCompanyAccess())
-  protectedApi.route('/metrics',    metricsRoutes)
-  protectedApi.route('/import',     importRoutes)
-  protectedApi.route('/users',      usersRoutes)
-  protectedApi.route('/rbac',       rbacRoutes)
-  protectedApi.route('/config',     configRoutes)
-  protectedApi.route('/customers',  customersRoutes)
-  protectedApi.route('/audit-logs', auditRoutes)
+  protectedApi.route('/users',       usersRoutes)
+  protectedApi.route('/roles',       rolesRoutes)         // BUKAN gabungan "/rbac"
+  protectedApi.route('/permissions', permissionsRoutes)   // roles & permissions dua route terpisah
+  protectedApi.route('/metrics',     metricsRoutes)
+  protectedApi.route('/import',      importRoutes)
+  protectedApi.route('/config',      configRoutes)
+  protectedApi.route('/customers',   customersRoutes)
+  protectedApi.route('/audit-logs',  auditRoutes)
+  // ...+ companies, products, transactions (mount sbg /invoices), dashboard, settings/*, dst
   app.route('/api/v1', protectedApi)
 }
 ```
 
-### Feature Route — Zero Global Middleware, Permission Per Endpoint
+### Feature Route — Zero Global Auth Middleware, Permission Per Endpoint
 ```typescript
 // features/metrics/metrics.route.ts
-// Auth + CompanyAccess sudah dihandle router.ts — JANGAN ditambah lagi di sini
+// authMiddleware sudah dihandle router.ts — JANGAN ditambah lagi di sini.
+// Permission key WAJIB dot-notation module.submodule:action (lihat features/permissions.md),
+// dan HARUS sama dengan permissionKey halaman frontend yang memakai endpoint itu — bukan
+// nama generik seperti 'metrics:read'/'metrics:view' (permission itu sudah deprecated, lihat
+// pitfall di features/permissions.md — semua role non-superadmin sempat selalu 403 karenanya).
 export const metricsRoutes = new Hono()
-  .get('/cross-selling', requirePermission('metrics:read'), metricsHandler.getCrossSelling)
-  .get('/revenue',       requirePermission('metrics:read'), metricsHandler.getRevenue)
-  .get('/dormant',       requirePermission('metrics:read'), metricsHandler.getDormant)
+metricsRoutes.get('/cross-selling',    requirePermission('cross.selling:view'), handleGetCrossSelling)
+metricsRoutes.get('/customer-metrics', requirePermission('expansion:view'),     handleGetCustomerMetrics)
+metricsRoutes.get('/dormant-customer', requirePermission('churn.risk:view'),    handleGetDormantMetrics)
 ```
 
-### Middleware Chain Order (full):
+### Middleware Chain Order (full, protected routes):
 ```
-CORS → CSRF → RateLimit → Auth → CompanyAccess → RequirePermission → Handler
+RequestId → RequestLogger → CORS → Auth(+CSRF+Permissions) → RequirePermission(per-route) → Handler
 ```
-- CORS: Whitelist dari env
-- CSRF: Validate X-CSRF-Token pada mutations (POST/PUT/PATCH/DELETE)
-- RateLimit: Per IP
-- Auth: Verify JWT dari httpOnly cookie → set `c.var.user`
-- CompanyAccess: Verify user akses ke `company_id` (superadmin + admin bypass)
-- RequirePermission: Check permission string per endpoint, e.g. `metrics:read`
+- RequestId: generate request_id untuk tracing di log
+- RequestLogger: log method+path+status+durasi
+- CORS: Whitelist dari env (`CORS_ORIGIN`, bisa multi domain dipisah koma)
+- Auth (`authMiddleware`, `middleware/auth.ts`): verify JWT dari httpOnly cookie → set `c.var.user` (userId, email, companyIds, isSuperAdmin); **CSRF validation inline di sini juga** (bukan middleware terpisah) untuk method POST/PUT/PATCH/DELETE; query permissions dari DB → set `c.var.permissions`
+- RequirePermission (`middleware/permission.ts`): check permission string per endpoint (OR logic kalau multi-key), superadmin selalu bypass
+- **Company scoping bukan bagian chain middleware** — dipanggil manual di handler lewat `resolveCompanyScope(c, query.company_id)` (lihat §4a) untuk fitur yang butuh, tidak semua endpoint butuh (mis. `/users`, `/roles` company-agnostic)
+
+## 4a. Company Scoping Pattern — `resolveCompanyScope()`
+
+Bukan middleware global — dipanggil manual di handler untuk endpoint yang datanya per-company:
+
+```typescript
+// backend/src/middleware/auth.ts
+export function resolveCompanyScope(c: Context, requested: number | 'all'): number[] | undefined {
+  const { companyIds, isSuperAdmin } = c.var.user
+  if (isSuperAdmin) {
+    if (requested === 'all') return undefined       // superadmin + 'all' → tanpa filter
+    return [requested]
+  }
+  if (requested === 'all') return companyIds          // non-superadmin + 'all' → scope ke company sendiri
+  if (!companyIds.includes(requested)) {
+    throw new AppError(ErrorCode.FORBIDDEN, 'Akses ke company ini tidak diizinkan', 403)
+  }
+  return [requested]
+}
+```
+
+Dipakai di handler (`customers`, `transactions`, `metrics`, `products`, `import`, `audit`, `high-margin` — cek pemakaian aktual via `grep -rn resolveCompanyScope backend/src/features`):
+```typescript
+export async function handleListX(c: Context) {
+  const query = validateQuery(c, schema)
+  const scopeIds = resolveCompanyScope(c, query.company_id)  // number[] | undefined
+  const result = await listXService(query, scopeIds)
+  return success(c, result)
+}
+```
+Di repository: `scopeIds` array → `inArray(table.company_id, scopeIds)`; `undefined` → tidak ada filter sama sekali. **Selalu guard `scopeIds.length === 0` → return kosong duluan** sebelum `inArray()` — drizzle-orm error kalau dipanggil dengan array kosong.
 
 ## 5. Database & ORM Rules (Drizzle)
 Schema: Tables are snake_case plural. Every table has id, created_at, updated_at. Soft delete via deleted_at.
@@ -211,14 +258,14 @@ Always import and use these existing utilities:
 
 ## 7. API Design, i18n & Developer Experience (DX)
 Backend i18n: Use i18next for translating backend error messages, email templates, and dynamic content. Never hardcode user-facing strings in the backend response if it's meant to be localized.
-API Documentation: Auto-generate OpenAPI/Swagger documentation directly from Zod schemas. Keep docs in sync with code.
+API Documentation: `src/docs/openapi.yaml` ditulis manual, di-serve via Swagger UI di `/api/v1/docs` (mati di production). Auto-generate dari Zod schema sudah dicoba & di-rollback (peer-dependency Zod v4 vs project Zod v3) — lihat `features/api-docs.md`.
 Developer Experience (DX):
 Enforce ESLint, Prettier, and Husky (lint-staged).
 No code should be committed if it fails linting or testing.
 Use bun test or Vitest for testing.
 
 ## 8. Security & Secrets
-Auth Cookie: httpOnly; Secure; SameSite=Strict.
+Auth Cookie: httpOnly; Secure; `SameSite=None` di production (`backend/src/features/auth/auth.handler.ts` — `SAME_SITE = SECURE ? 'None' : 'Lax'`), `Lax` di dev. Diputuskan sebelum proxy Vercel→Railway (`shared/deployment.md` §5a) ada — belum diverifikasi ulang apakah `None` masih genuinely perlu sekarang request sudah same-origin dari sisi browser lewat proxy itu; kalau ada waktu, uji turunkan ke `Lax` dan cek apakah cookie tetap terkirim.
 Secrets: Accurate API keys stored in app_configs with is_secret=true. NEVER return them to the frontend (mask as ***).
 Passwords: bcryptjs cost >= 12.
 Uploads: Validate MIME + extension whitelist. Max 10MB.
