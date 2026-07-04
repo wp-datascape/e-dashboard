@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
 import TextField from '@mui/material/TextField'
 import Autocomplete from '@mui/material/Autocomplete'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import Alert from '@mui/material/Alert'
+import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui'
+import { Dialog } from '@/components/ui'
 import { useDivisionOptions } from '@/hooks/useDivisionOptions'
 import { useUnmappedChannels } from '@/hooks/useChannelDivisions'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
@@ -74,18 +70,25 @@ export function DivisionMappingDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>
-        {mode === 'create' ? t('divisions.addMapping') : t('divisions.editMapping')}
-      </DialogTitle>
-
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {error && (
-          <Alert severity="error">
-            {(error as { response?: { data?: { message?: string } } }).response?.data?.message ?? error.message}
-          </Alert>
-        )}
-
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      title={mode === 'create' ? t('divisions.addMapping') : t('divisions.editMapping')}
+      error={error ? {
+        message: (error as { response?: { data?: { message?: string } } }).response?.data?.message ?? error.message,
+      } : null}
+      actions={[
+        { label: t('common.cancel'), onClick: onClose, variant: 'outlined', disabled: isPending },
+        {
+          label: mode === 'create' ? t('common.add') : t('common.save'),
+          onClick: handleSubmit,
+          isLoading: isPending,
+          disabled: !isValid,
+        },
+      ]}
+    >
+      <Stack spacing={2.5}>
         {mode === 'create' ? (
           <Autocomplete
             options={unmappedChannels}
@@ -138,21 +141,7 @@ export function DivisionMappingDialog({
             ))}
           </Select>
         </FormControl>
-      </DialogContent>
-
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button variant="outlined" onClick={onClose} disabled={isPending}>
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          isLoading={isPending}
-          disabled={!isValid}
-        >
-          {mode === 'create' ? t('common.add') : t('common.save')}
-        </Button>
-      </DialogActions>
+      </Stack>
     </Dialog>
   )
 }

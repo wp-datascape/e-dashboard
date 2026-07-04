@@ -5,10 +5,6 @@ import TextField from '@mui/material/TextField'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Switch from '@mui/material/Switch'
-import MuiDialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
 import Stack from '@mui/material/Stack'
 import Tooltip from '@mui/material/Tooltip'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -20,7 +16,7 @@ import type { TFunction } from 'i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { GridColDef } from '@mui/x-data-grid'
 import { api as axiosInstance } from '@/api/axios'
-import { Button, StatusChip, ActionMenu } from '@/components/ui'
+import { Button, StatusChip, ActionMenu, Dialog } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCan } from '@/hooks/useCan'
 
@@ -226,37 +222,49 @@ export default function ClassificationSettings() {
       />
 
       {/* Add/Edit Dialog */}
-      <MuiDialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingId ? t('classification_rules.edit') : t('classification_rules.add')}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Select size="small" value={form.match_type} onChange={(e) => setForm({ ...form, match_type: e.target.value })} fullWidth>
-              {Object.entries(MATCH_TYPE_LABELS).map(([val, label]) => <MenuItem key={val} value={val}>{label}</MenuItem>)}
-            </Select>
-            <TextField size="small" label={t('classification_rules.colPattern')} value={form.match_pattern} onChange={(e) => setForm({ ...form, match_pattern: e.target.value })} fullWidth />
-            <Select size="small" value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} fullWidth>
-              {(['unit', 'consumable', 'sparepart', 'service'] as const).map((val) => <MenuItem key={val} value={val}>{val}</MenuItem>)}
-            </Select>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={handleSave} isLoading={createMutation.isPending || updateMutation.isPending}>
-            {editingId ? t('common.save') : t('common.add')}
-          </Button>
-        </DialogActions>
-      </MuiDialog>
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        maxWidth="sm"
+        title={editingId ? t('classification_rules.edit') : t('classification_rules.add')}
+        actions={[
+          { label: t('common.cancel'), onClick: () => setDialogOpen(false), variant: 'text' },
+          {
+            label: editingId ? t('common.save') : t('common.add'),
+            onClick: handleSave,
+            isLoading: createMutation.isPending || updateMutation.isPending,
+          },
+        ]}
+      >
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Select size="small" value={form.match_type} onChange={(e) => setForm({ ...form, match_type: e.target.value })} fullWidth>
+            {Object.entries(MATCH_TYPE_LABELS).map(([val, label]) => <MenuItem key={val} value={val}>{label}</MenuItem>)}
+          </Select>
+          <TextField size="small" label={t('classification_rules.colPattern')} value={form.match_pattern} onChange={(e) => setForm({ ...form, match_pattern: e.target.value })} fullWidth />
+          <Select size="small" value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} fullWidth>
+            {(['unit', 'consumable', 'sparepart', 'service'] as const).map((val) => <MenuItem key={val} value={val}>{val}</MenuItem>)}
+          </Select>
+        </Stack>
+      </Dialog>
 
       {/* Delete Confirm */}
-      <MuiDialog open={deleteId !== null} onClose={() => setDeleteId(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('classification_rules.deleteConfirm')}</DialogTitle>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)}>{t('common.cancel')}</Button>
-          <Button variant="contained" color="error" onClick={() => deleteId && deleteMutation.mutate(deleteId)} isLoading={deleteMutation.isPending}>
-            {t('common.delete')}
-          </Button>
-        </DialogActions>
-      </MuiDialog>
+      <Dialog
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        maxWidth="xs"
+        title={t('common.delete')}
+        actions={[
+          { label: t('common.cancel'), onClick: () => setDeleteId(null), variant: 'text' },
+          {
+            label: t('common.delete'),
+            onClick: () => deleteId && deleteMutation.mutate(deleteId),
+            color: 'error',
+            isLoading: deleteMutation.isPending,
+          },
+        ]}
+      >
+        <Typography variant="body2">{t('classification_rules.deleteConfirm')}</Typography>
+      </Dialog>
     </Box>
   )
 }

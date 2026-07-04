@@ -2,9 +2,6 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import IconButton from '@mui/material/IconButton';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -12,6 +9,7 @@ import type { TFunction } from 'i18next';
 import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
+import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
 import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
@@ -84,50 +82,35 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
         open={!!drillDate}
         onClose={() => setDrillDate(null)}
         maxWidth="md"
-        fullWidth
-        slotProps={{ paper: { sx: { borderRadius: 0 } } }}
-      >
-        <Box sx={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          px: 3, py: 2, borderBottom: 1, borderColor: 'divider',
-        }}>
-          <Box>
-            <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              {t('customerMetrics.m6.dialogTitle', { date: drillDate })}
-            </Typography>
-            {breakdown && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
-                {([
-                  [t('customerMetrics.m6.dialogTotalExisting'),     String(breakdown.total_existing)],
-                  [t('customerMetrics.m6.dialogRepeatCount'), String(breakdown.repeat_count)],
-                  [t('customerMetrics.m6.dialogRate'),           `${value}%`],
-                ] as [string, string][]).map(([label, val]) => (
-                  <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
-                  </Box>
-                ))}
+        title={t('customerMetrics.m6.dialogTitle', { date: drillDate })}
+        showCloseButton
+        contentSx={{ p: 1 }}
+        subtitle={breakdown && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            {([
+              [t('customerMetrics.m6.dialogTotalExisting'),     String(breakdown.total_existing)],
+              [t('customerMetrics.m6.dialogRepeatCount'), String(breakdown.repeat_count)],
+              [t('customerMetrics.m6.dialogRate'),           `${value}%`],
+            ] as [string, string][]).map(([label, val]) => (
+              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
               </Box>
-            )}
+            ))}
           </Box>
-          <IconButton size="small" onClick={() => setDrillDate(null)} sx={{ color: 'text.secondary', mt: -0.5 }}>
-            <Typography component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✕</Typography>
-          </IconButton>
-        </Box>
-
-        <DialogContent sx={{ p: 1 }}>
-          <ResponsiveListView
-            rows={(breakdown?.rows ?? []).map((r) => ({ ...r, id: r.ranking }))}
-            columns={rorColumns}
-            loading={breakdownLoading}
-            height={400}
-            pageSize={25}
-            pageSizeOptions={[25, 50, 100]}
-            emptyMessage={t('customerMetrics.m6.emptyMessage')}
-            mobileFields={['customer_name', 'invoice_count', 'total_revenue']}
-          />
-        </DialogContent>
+        )}
+      >
+        <ResponsiveListView
+          rows={(breakdown?.rows ?? []).map((r) => ({ ...r, id: r.ranking }))}
+          columns={rorColumns}
+          loading={breakdownLoading}
+          height={400}
+          pageSize={25}
+          pageSizeOptions={[25, 50, 100]}
+          emptyMessage={t('customerMetrics.m6.emptyMessage')}
+          mobileFields={['customer_name', 'invoice_count', 'total_revenue']}
+        />
       </Dialog>
     </>
   );

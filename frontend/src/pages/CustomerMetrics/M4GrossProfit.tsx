@@ -6,8 +6,6 @@ import Skeleton from '@mui/material/Skeleton';
 import MuiTooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +15,7 @@ import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useGpBreakdown } from '@/hooks/useMetrics';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
@@ -147,65 +146,48 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
         open={!!drillDate}
         onClose={() => setDrillDate(null)}
         maxWidth="md"
-        fullWidth
-        slotProps={{ paper: { sx: { borderRadius: 0 } } }}
-      >
-        <Box sx={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          px: 3, py: 2, borderBottom: 1, borderColor: 'divider',
-        }}>
-          <Box>
-            <Typography component="div" variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              {t('customerMetrics.m4.dialogTitle', { date: drillDate })}
-            </Typography>
-            {breakdown && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
-                {([
-                  [t('customerMetrics.m4.dialogGpExisting'),  fmtRpDetail(breakdown.total_gp)],
-                  [t('customerMetrics.m4.dialogTotalExisting'), String(breakdown.total_existing)],
-                  [t('customerMetrics.m4.dialogAvgGp'),                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
-                  [t('customerMetrics.m4.dialogMedianThreshold'),                 fmtRpDetail(breakdown.median_threshold)],
-                  [t('customerMetrics.m4.dialogExistingTx'),  String(breakdown.rows.length)],
-                ] as [string, string][]).map(([label, val]) => (
-                  <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
-                  </Box>
-                ))}
+        title={t('customerMetrics.m4.dialogTitle', { date: drillDate })}
+        showCloseButton
+        contentSx={{ p: 1 }}
+        subtitle={breakdown && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            {([
+              [t('customerMetrics.m4.dialogGpExisting'),  fmtRpDetail(breakdown.total_gp)],
+              [t('customerMetrics.m4.dialogTotalExisting'), String(breakdown.total_existing)],
+              [t('customerMetrics.m4.dialogAvgGp'),                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
+              [t('customerMetrics.m4.dialogMedianThreshold'),                 fmtRpDetail(breakdown.median_threshold)],
+              [t('customerMetrics.m4.dialogExistingTx'),  String(breakdown.rows.length)],
+            ] as [string, string][]).map(([label, val]) => (
+              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
               </Box>
-            )}
+            ))}
           </Box>
-          <Box sx={{ display: 'flex', gap: 0.5, ml: 1, mt: -0.5 }}>
-            {breakdown && (
-              <MuiTooltip title={t('customerMetrics.m4.exportPdf')} placement="top">
-                <IconButton
-                  size="small"
-                  sx={{ color: 'text.secondary' }}
-                  onClick={() => exportGpBreakdownPdf(drillDate!, breakdown)}
-                >
-                  <DownloadOutlinedIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </MuiTooltip>
-            )}
-            <IconButton size="small" onClick={() => setDrillDate(null)} sx={{ color: 'text.secondary' }}>
-              <Typography component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✕</Typography>
+        )}
+        headerActions={breakdown && (
+          <MuiTooltip title={t('customerMetrics.m4.exportPdf')} placement="top">
+            <IconButton
+              size="small"
+              sx={{ color: 'text.secondary' }}
+              onClick={() => exportGpBreakdownPdf(drillDate!, breakdown)}
+            >
+              <DownloadOutlinedIcon sx={{ fontSize: 18 }} />
             </IconButton>
-          </Box>
-        </Box>
-
-        <DialogContent sx={{ p: 1 }}>
-          <ResponsiveListView
-            rows={(breakdown?.rows ?? []).map((r) => ({ ...r, id: r.ranking }))}
-            columns={gpColumns}
-            loading={breakdownLoading}
-            height={420}
-            pageSize={25}
-            pageSizeOptions={[25, 50, 100]}
-            emptyMessage={t('customerMetrics.m4.emptyMessage')}
-            mobileFields={['customer_name', 'gp', 'gp_pct', 'tier']}
-          />
-        </DialogContent>
+          </MuiTooltip>
+        )}
+      >
+        <ResponsiveListView
+          rows={(breakdown?.rows ?? []).map((r) => ({ ...r, id: r.ranking }))}
+          columns={gpColumns}
+          loading={breakdownLoading}
+          height={420}
+          pageSize={25}
+          pageSizeOptions={[25, 50, 100]}
+          emptyMessage={t('customerMetrics.m4.emptyMessage')}
+          mobileFields={['customer_name', 'gp', 'gp_pct', 'tier']}
+        />
       </Dialog>
     </>
   );
