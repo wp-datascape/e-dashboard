@@ -12,12 +12,11 @@ import {
 } from './high-margin.repository'
 import type { CreateHighMarginDto, UpdateHighMarginDto, ListHighMarginQuery } from './high-margin.schema'
 
-export async function listHighMargins(query: ListHighMarginQuery) {
+export async function listHighMargins(query: ListHighMarginQuery, scopeIds?: number[]) {
   return findHighMargins({
-    company_id: query.company_id,
     period: query.period,
     active_only: query.active_only ?? false,
-  })
+  }, scopeIds)
 }
 
 export async function addHighMargin(dto: CreateHighMarginDto, userId: number, ctx: Context) {

@@ -1,6 +1,6 @@
-import { and, eq, or, isNull, lte, gte, desc, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, isNull, lte, gte, desc, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { high_margin_products, products, product_categories } from '@/db/schema'
+import { high_margin_products, products, product_categories, companies } from '@/db/schema'
 import type { NewHighMarginProduct } from '@/db/schema/high_margin_products'
 
 export async function createHighMargin(data: NewHighMarginProduct) {
@@ -17,13 +17,15 @@ export async function findHighMarginById(id: number) {
 }
 
 export async function findHighMargins(params: {
-  company_id: number
   period?: string      // 'YYYY-MM' — filter row yang overlap dengan bulan ini
   active_only?: boolean
-}) {
-  const { company_id, period, active_only } = params
+}, scopeIds?: number[]) {
+  const { period, active_only } = params
 
-  const conditions = [eq(high_margin_products.company_id, company_id)]
+  // scopeIds undefined → superadmin + 'all' → tidak ada filter company (lihat semua)
+  // scopeIds array     → company spesifik ATAU 'all' non-superadmin → filter ke company itu
+  if (scopeIds && scopeIds.length === 0) return []
+  const conditions = scopeIds ? [inArray(high_margin_products.company_id, scopeIds)] : []
 
   if (active_only) {
     const today = sql`CURRENT_DATE`
@@ -56,6 +58,7 @@ export async function findHighMargins(params: {
     .select({
       id: high_margin_products.id,
       company_id: high_margin_products.company_id,
+      company_name: companies.name,
       product_id: high_margin_products.product_id,
       product_name: products.product_name,
       product_category_id: high_margin_products.product_category_id,
@@ -68,6 +71,7 @@ export async function findHighMargins(params: {
       updated_at: high_margin_products.updated_at,
     })
     .from(high_margin_products)
+    .leftJoin(companies, eq(high_margin_products.company_id, companies.id))
     .leftJoin(products, eq(high_margin_products.product_id, products.id))
     .leftJoin(product_categories, eq(high_margin_products.product_category_id, product_categories.id))
     .where(and(...conditions))

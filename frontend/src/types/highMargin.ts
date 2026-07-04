@@ -1,6 +1,7 @@
 export interface HighMarginMapping {
   id: number
   company_id: number
+  company_name: string | null
   product_id: number | null
   product_name: string | null
   product_category_id: number | null
@@ -28,7 +29,7 @@ export interface UpdateHighMarginPayload {
 }
 
 export interface HighMarginListParams {
-  company_id: number
+  company_id: number | 'all'
   period?: string       // YYYY-MM
   active_only?: boolean
 }

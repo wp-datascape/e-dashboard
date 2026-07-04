@@ -21,7 +21,7 @@ export const updateHighMarginSchema = z.object({
 })
 
 export const listHighMarginQuerySchema = z.object({
-  company_id: z.coerce.number().int().positive(),
+  company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).optional().default('all'),
   period: z.string().regex(/^\d{4}-\d{2}$/, 'Format: YYYY-MM').optional(),
   // z.coerce.boolean() salah untuk query string: Boolean("false") === true
   active_only: z.string().optional().default('false').transform(v => v === 'true'),

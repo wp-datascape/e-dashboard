@@ -40,7 +40,10 @@ export default function HighMarginSettings() {
   const can = useCan()
 
   // ── Filter state ──
-  const [companyId, setCompanyId] = useState<number | ''>('')
+  // Default 'all' — buka halaman langsung tampilkan data sesuai company yang
+  // memang boleh diakses user (di-scope backend lewat resolveCompanyScope),
+  // tidak perlu pilih company dulu secara manual.
+  const [companyId, setCompanyId] = useState<number | 'all'>('all')
   const [period, setPeriod] = useState('')
   const [activeOnly, setActiveOnly] = useState(false)
 
@@ -48,15 +51,19 @@ export default function HighMarginSettings() {
   const [dialogMode, setDialogMode] = useState<DialogMode>(null)
   const [selected, setSelected] = useState<HighMarginMapping | null>(null)
 
+  // Company spesifik saja (bukan 'all') — dipakai untuk aksi yang butuh satu
+  // company pasti: dropdown produk/kategori di dialog Add, dan payload create.
+  const singleCompanyId = typeof companyId === 'number' ? companyId : ''
+
   // ── Data ──
   const { data: companies = [] } = useCompanies()
   const { data: mappings = [], isLoading } = useHighMargins({
-    company_id: companyId as number,
+    company_id: companyId,
     period: period || undefined,
     active_only: activeOnly,
   })
-  const { data: localProducts = [] } = useLocalProducts(companyId)
-  const { data: localCategories = [] } = useLocalCategories(companyId)
+  const { data: localProducts = [] } = useLocalProducts(singleCompanyId)
+  const { data: localCategories = [] } = useLocalCategories(singleCompanyId)
   const productOptions = useMemo(
     () => [...localProducts, ...localCategories],
     [localProducts, localCategories]
@@ -94,6 +101,14 @@ export default function HighMarginSettings() {
 
   // ── Columns ──
   const columns: GridColDef<HighMarginMapping>[] = [
+    {
+      field: 'company_name',
+      headerName: t('highMargin.company'),
+      width: 160,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" color="text.secondary">{row.company_name ?? '-'}</Typography>
+      ),
+    },
     {
       field: 'target',
       headerName: t('highMargin.target'),
@@ -188,7 +203,7 @@ export default function HighMarginSettings() {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setDialogMode('create')}
-            disabled={!companyId}
+            disabled={companyId === 'all'}
             mobileIconOnly
           >
             {t('highMargin.add')}
@@ -204,8 +219,9 @@ export default function HighMarginSettings() {
             <Select
               value={companyId}
               label={t('highMargin.company')}
-              onChange={(e) => setCompanyId(e.target.value as number)}
+              onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             >
+              <MenuItem value="all">{t('highMargin.allCompanies')}</MenuItem>
               {companies.map((c) => (
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
@@ -249,7 +265,7 @@ export default function HighMarginSettings() {
         open={dialogMode !== null}
         mode={dialogMode ?? 'create'}
         selected={selected}
-        companyId={companyId as number}
+        companyId={singleCompanyId || 0}
         productOptions={productOptions}
         isPending={isCreating || isUpdating}
         error={createError ?? updateError}
