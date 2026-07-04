@@ -235,24 +235,40 @@ export default function ThresholdSettings() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t('config.kpiTarget.sectionSubtitle')}
               </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700, width: '40%' }}>{t('config.kpiTarget.colKpi')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '25%' }}>{t('config.kpiTarget.colTarget')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>{t('config.buThreshold.colNote')}</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {kpiTargetItems.map((item) => (
-                    <TableRow key={item.key} hover>
-                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography></TableCell>
-                      <TableCell><EditablePctCell item={item} /></TableCell>
-                      <TableCell><Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography></TableCell>
+              <Box sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, width: '40%' }}>{t('config.kpiTarget.colKpi')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: '25%' }}>{t('config.kpiTarget.colTarget')}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{t('config.buThreshold.colNote')}</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {kpiTargetItems.map((item) => (
+                      <TableRow key={item.key} hover>
+                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography></TableCell>
+                        <TableCell><EditablePctCell item={item} /></TableCell>
+                        <TableCell><Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+
+              <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+                {kpiTargetItems.map((item) => (
+                  <Card key={item.key} sx={{ p: 2 }}>
+                    <Stack spacing={1.5}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography>
+                        <EditablePctCell item={item} />
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography>
+                    </Stack>
+                  </Card>
+                ))}
+              </Stack>
             </Card>
           )}
 
