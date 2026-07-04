@@ -120,7 +120,7 @@ const items = await db.select().from(invoiceItems)
   // other filters
 ))
 ```
-`superadmin` + `admin` bypass `user_companies` check. Others: `requireCompanyAccess` middleware.
+Hanya `superadmin` (`isSuperAdmin` di JWT payload) yang bypass `user_companies` check — lihat `resolveCompanyScope()` di `middleware/auth.ts`. Role `admin` **tidak** dapat bypass otomatis; tetap wajib punya row di `user_companies` seperti role lain, cukup di-assign lewat seeder saat setup awal.
 
 ## Naming Convention
 
