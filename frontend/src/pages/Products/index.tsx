@@ -14,7 +14,7 @@ import { useCompanies } from '@/hooks/useCompanies'
 import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
-import { CategoryProductsDrawer } from './components/CategoryProductsDrawer'
+import { CategoryProductsDialog } from './components/CategoryProductsDialog'
 
 function todayMonth(): string {
   const now = new Date()
@@ -221,7 +221,7 @@ export default function Products() {
         onRowClick={(row) => handleRowClick(row as unknown as CategoryPerformanceRow)}
       />
 
-      <CategoryProductsDrawer
+      <CategoryProductsDialog
         category={selectedCategory}
         companyId={companyId}
         periodMonth={periodMonth}

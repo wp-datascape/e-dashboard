@@ -1,6 +1,6 @@
 {
   "title": "Transaksi",
-  "subtitle": "Daftar transaksi faktur dengan filter dan detail drawer",
+  "subtitle": "Daftar transaksi faktur dengan filter dan detail dialog",
   "invoiceNumber": "Faktur #",
   "invoiceDate": "Tanggal",
   "company": "Perusahaan",

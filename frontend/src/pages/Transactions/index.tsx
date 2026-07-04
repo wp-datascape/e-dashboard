@@ -10,7 +10,7 @@ import { useDivisionOptions } from '@/hooks/useDivisionOptions'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
-import { InvoiceDetailDrawer } from './components/InvoiceDetailDrawer'
+import { InvoiceDetailDialog } from './components/InvoiceDetailDialog'
 import { formatIDR } from '@/utils/format'
 
 export default function Transactions() {
@@ -83,7 +83,7 @@ export default function Transactions() {
         height={600}
       />
 
-      <InvoiceDetailDrawer invoiceId={selectedInvoiceId} onClose={() => setSelectedInvoiceId(null)} />
+      <InvoiceDetailDialog invoiceId={selectedInvoiceId} onClose={() => setSelectedInvoiceId(null)} />
     </Box>
   )
 }

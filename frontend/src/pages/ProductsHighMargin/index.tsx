@@ -24,8 +24,8 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { StatusChip } from '@/components/ui'
 import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { formatIDR } from '@/utils/format'
-import { UpsellCustomerDrawer } from './components/UpsellCustomerDrawer'
-import { CategoryProductsDrawer } from '@/pages/Products/components/CategoryProductsDrawer'
+import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
+import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
 
 function todayMonth(): string {
   const now = new Date()
@@ -288,8 +288,8 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         onRowClick={(row) => openHistory(row as unknown as UpsellTargetRow, null)}
       />
 
-      {/* Customer purchase history drawer */}
-      <UpsellCustomerDrawer
+      {/* Customer purchase history dialog */}
+      <UpsellCustomerDialog
         customer={drawerCustomer}
         filterCategory={drawerCatFilter}
         companyId={filter.companyId}
@@ -298,8 +298,8 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         onClose={() => { setDrawerCustomer(null); setDrawerCatFilter(null) }}
       />
 
-      {/* HM category products drawer (missing HM chip click) */}
-      <CategoryProductsDrawer
+      {/* HM category products dialog (missing HM chip click) */}
+      <CategoryProductsDialog
         category={hmCategoryDrawer ? {
           category_id:   hmCategoryDrawer.id,
           category_name: hmCategoryDrawer.name,

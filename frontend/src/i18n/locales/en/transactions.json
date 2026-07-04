@@ -1,6 +1,6 @@
 {
   "title": "Transactions",
-  "subtitle": "Invoice transaction list with filters and detail drawer",
+  "subtitle": "Invoice transaction list with filters and detail dialog",
   "invoiceNumber": "Invoice #",
   "invoiceDate": "Date",
   "company": "Company",
