@@ -13,7 +13,7 @@ import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
-import { CustomerDetailModal } from './components/CustomerDetailModal';
+import { CustomerDetailDialog } from './components/CustomerDetailDialog';
 import { formatIDR } from '@/utils/format';
 
 export default function Customers() {
@@ -127,7 +127,7 @@ export default function Customers() {
         height={600}
       />
 
-      <CustomerDetailModal
+      <CustomerDetailDialog
         customerId={selectedCustomerId}
         onClose={() => setSelectedCustomerId(null)}
       />

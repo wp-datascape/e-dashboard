@@ -3,8 +3,6 @@ import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
 import Divider from '@mui/material/Divider'
 import Skeleton from '@mui/material/Skeleton'
-import useMediaQuery from '@mui/material/useMediaQuery'
-import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { useCustomerDetail } from '@/hooks/useCustomers'
 import { Dialog } from '@/components/ui/Dialog/Dialog'
@@ -19,10 +17,8 @@ interface Props {
   onClose: () => void
 }
 
-export function CustomerDetailModal({ customerId, onClose }: Props) {
+export function CustomerDetailDialog({ customerId, onClose }: Props) {
   const { t } = useTranslation()
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const { data: detail, isLoading } = useCustomerDetail(customerId)
 
   return (
@@ -31,8 +27,7 @@ export function CustomerDetailModal({ customerId, onClose }: Props) {
       onClose={onClose}
       title={detail?.name ?? t('customers.detail.title')}
       maxWidth="md"
-      fullScreen={isMobile}
-      actions={[{ label: t('common.close'), onClick: onClose, variant: 'outlined' }]}
+      showCloseButton
       contentSx={{ pt: 1 }}
     >
       {isLoading && (
