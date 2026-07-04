@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import type { ApiError } from '@/types/api';
+import { getApiErrorMessage } from '@/utils/apiError';
 import type { Role } from '@/types/rbac';
 import type { Company, User, UpdateUserPayload } from '@/types/users';
 
@@ -99,8 +100,7 @@ export function EditUserDialog({
     });
   };
 
-  const getErrMsg = (err: ApiError): string =>
-    err.message ?? t('common.errorOccurred');
+  const getErrMsg = (err: ApiError): string => getApiErrorMessage(err, t);
 
   return (
     <Dialog

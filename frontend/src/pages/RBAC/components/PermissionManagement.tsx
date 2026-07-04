@@ -35,7 +35,7 @@ export function PermissionManagement({
   const columns: GridColDef[] = [
     {
       field: 'name',
-      headerName: t('rbac.permissionName'),
+      headerName: t('rbac.permission_name'),
       flex: 1,
       minWidth: 150,
       renderCell: (params) => (
@@ -111,7 +111,7 @@ export function PermissionManagement({
           onClick={onCreateClick}
           mobileIconOnly
         >
-          {t('rbac.addPermission')}
+          {t('rbac.add_permission')}
         </Button>
       </Box>
 

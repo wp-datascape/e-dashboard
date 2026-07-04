@@ -1,8 +1,10 @@
 // src/hooks/useImport.ts
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { importFile, importAccurate, getImportLogs, getImportErrors, getCompanies } from '@/api/import.api'
 import { getCsrfToken } from '@/api/axios'
+import { getApiErrorMessage } from '@/utils/apiError'
 import type { ImportFilePayload, ImportAccuratePayload, ImportResult } from '@/types/import'
 
 export const useImportLogs = (params?: { company_id?: number }) =>
@@ -47,6 +49,7 @@ export interface StreamProgress {
 
 export function useImportFileProgress() {
   const qc = useQueryClient()
+  const { t } = useTranslation()
   const [phase, setPhase]             = useState<ImportPhase>('idle')
   const [progress, setProgress]       = useState<StreamProgress>({ processed: 0, total: 0, success: 0, errors: 0 })
   const [result, setResult]           = useState<ImportResult | null>(null)
@@ -87,8 +90,8 @@ export function useImportFileProgress() {
       })
 
       if (!response.ok || !response.body) {
-        const data = await response.json() as { message?: string }
-        throw new Error(data.message ?? 'Import gagal')
+        const data = await response.json() as { error?: string; message?: string }
+        throw data
       }
 
       setPhase('processing')
@@ -118,6 +121,7 @@ export function useImportFileProgress() {
               success?: number
               errors?: number
               result?: ImportResult
+              error?: string
               message?: string
             }
 
@@ -135,7 +139,7 @@ export function useImportFileProgress() {
               void qc.invalidateQueries({ queryKey: ['import', 'logs'] })
               void qc.invalidateQueries({ queryKey: ['customers'] })
             } else if (msg.event === 'error') {
-              setErrorMessage(msg.message ?? 'Import gagal')
+              setErrorMessage(getApiErrorMessage(msg, t))
               setPhase('error')
             }
           } catch {
@@ -145,10 +149,10 @@ export function useImportFileProgress() {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
-      setErrorMessage(err instanceof Error ? err.message : 'Import gagal')
+      setErrorMessage(getApiErrorMessage(err, t))
       setPhase('error')
     }
-  }, [qc, reset])
+  }, [qc, reset, t])
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()

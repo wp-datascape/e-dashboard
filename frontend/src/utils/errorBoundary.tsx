@@ -8,6 +8,7 @@ import { styled } from '@mui/material/styles'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import HomeIcon from '@mui/icons-material/Home'
+import i18n from '@/i18n'
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 const Wrapper = styled(Box)(({ theme }) => ({
@@ -125,11 +126,11 @@ export class ErrorBoundary extends Component<Props, State> {
           </IconWrap>
 
           <Typography variant="h5" sx={{ fontWeight: 700 }} gutterBottom>
-            Ups, ada yang salah
+            {i18n.t('error.boundary.title')}
           </Typography>
 
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Komponen ini mengalami error tak terduga. Tim kami sudah diberitahu.
+            {i18n.t('error.boundary.subtitle')}
           </Typography>
 
           {showErrorDetail && error && (
@@ -150,14 +151,14 @@ export class ErrorBoundary extends Component<Props, State> {
               startIcon={<HomeIcon />}
               onClick={this.handleGoHome}
             >
-              Ke Halaman Utama
+              {i18n.t('error.boundary.goHome')}
             </Button>
             <Button
               variant="contained"
               startIcon={<RefreshIcon />}
               onClick={this.handleReload}
             >
-              Muat Ulang
+              {i18n.t('error.boundary.reload')}
             </Button>
           </Box>
 

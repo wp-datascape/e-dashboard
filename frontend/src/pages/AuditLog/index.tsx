@@ -19,22 +19,17 @@ import { ViewAuditLogDialog } from './components/ViewAuditLogDialog'
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const getActionColor = (action: string): StatusChipColor => {
+  const verb = action.split('.').pop() ?? ''
   const map: Record<string, StatusChipColor> = {
-    'invoice.import': 'primary',
-    'user.create': 'success',
-    'user.update': 'info',
-    'user.delete': 'error',
-    'role.create': 'success',
-    'role.update': 'info',
-    'role.delete': 'error',
-    'permission.assign': 'primary',
-    'permission.revoke': 'warning',
-    'user_role.assign': 'primary',
-    'user_role.revoke': 'warning',
-    'config.update': 'info',
-    'category.update': 'info',
+    create: 'success',
+    update: 'info',
+    delete: 'error',
+    import: 'primary',
+    assign: 'primary',
+    revoke: 'warning',
+    deactivate: 'warning',
   }
-  return map[action] ?? 'default'
+  return map[verb] ?? 'default'
 }
 
 const fmtDate = (iso: string): string => {
@@ -61,9 +56,15 @@ function getAuditColumns(t: TFunction): GridColDef[] {
       field: 'action',
       headerName: t('auditLog.action'),
       width: 150,
-      renderCell: (params) => (
-        <StatusChip label={params.value as string} color={getActionColor(params.value as string)} />
-      ),
+      renderCell: (params) => {
+        const action = params.value as string
+        return (
+          <StatusChip
+            label={t(`auditLog.actions.${action}`, { defaultValue: action })}
+            color={getActionColor(action)}
+          />
+        )
+      },
     },
     {
       field: 'actor',
@@ -168,7 +169,10 @@ export default function AuditLog() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
                 {t('auditLog.action')}
               </Typography>
-              <StatusChip label={audit.action} color={getActionColor(audit.action)} />
+              <StatusChip
+                label={t(`auditLog.actions.${audit.action}`, { defaultValue: audit.action })}
+                color={getActionColor(audit.action)}
+              />
             </Box>
           </Stack>
 
@@ -233,7 +237,9 @@ export default function AuditLog() {
         >
           <MenuItem value="">{t('auditLog.allActions')}</MenuItem>
           {actions.map((action) => (
-            <MenuItem key={action} value={action}>{action}</MenuItem>
+            <MenuItem key={action} value={action}>
+              {t(`auditLog.actions.${action}`, { defaultValue: action })}
+            </MenuItem>
           ))}
         </TextField>
 

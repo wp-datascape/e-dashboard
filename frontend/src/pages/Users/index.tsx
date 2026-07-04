@@ -146,7 +146,7 @@ export default function Users() {
       renderCell: (params) => (
         <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-            {fmtDate(params.row.last_login_at as string | null, t('users.noLastLogin'))}
+            {fmtDate(params.row.last_login_at as string | null, t('users.no_last_login'))}
           </Typography>
         </Box>
       ),
@@ -163,7 +163,7 @@ export default function Users() {
         return (
           <ActionMenu
             items={[
-              { label: t('users.viewUser'), icon: <VisibilityIcon />, onClick: () => { setSelectedUser(user); setDialogMode('view'); } },
+              { label: t('users.view_user'), icon: <VisibilityIcon />, onClick: () => { setSelectedUser(user); setDialogMode('view'); } },
               { label: t('users.editUser'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedUser(user); setDialogMode('edit'); }, hidden: !can('access.user:update') },
               { label: t('users.deleteUser'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedUser(user); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: isSystemUser(user) || !can('access.user:delete') },
             ]}

@@ -1,7 +1,7 @@
 # Feature: Auth (Autentikasi)
 
 > Status: ✅ 100% — Login, Logout, Me, Refresh, Rate Limiting selesai. JWT HttpOnly Cookie + CSRF aktif.
-> Last updated: 2026-06-29
+> Last updated: 2026-07-04
 > Baca juga: `shared/architecture.md`, `shared/api-conventions.md`, `features/permissions.md`
 
 ---
@@ -390,6 +390,15 @@ Frontend menangani token expire secara **silent** via axios interceptor:
 - Response 401 → intercept → POST /auth/refresh → retry original request
 - Jika refresh gagal → `forceLogout()` → redirect ke `/login?expired=true`
 - Race condition (multiple 401 serentak) → queue mutex (`isRefreshing` flag)
+
+---
+
+## Logout Flow (Frontend)
+
+`useLogoutMutation` (`hooks/useAuth.ts`) hanya menghapus `localStorage` lalu langsung `window.location.href = '/login'` (hard redirect, bukan SPA navigate).
+
+**Kenapa tidak panggil `logout()` context / `queryClient.clear()` sebelum redirect:**
+`window.location.href` tidak langsung unload halaman — ada jeda singkat di mana React masih sempat re-render. `App.tsx` generate seluruh route table (termasuk `/dashboard`) dari `pageSettings` (`usePageSettings()`, `enabled: !!token`). Jika `logout()`/`queryClient.clear()` dipanggil lebih dulu, token jadi `null` dan cache `page-settings` kosong di jeda itu — route table jadi kosong, dan URL lama (mis. `/dashboard`) jatuh ke wildcard `*` → render `<NotFound />` (404) sebelum redirect ke `/login` sempat terjadi. Reload penuh sudah otomatis membuang semua state React & cache di memori, jadi kedua panggilan itu redundant sekaligus jadi penyebab bug-nya.
 
 ---
 

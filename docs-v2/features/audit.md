@@ -1,7 +1,7 @@
 # Feature: Audit Logs
 
 > Status: ✅ Complete — 2 endpoints aktif, di-mount di `/api/v1/audit-logs`
-> Last updated: 2026-06-29
+> Last updated: 2026-07-04
 
 ---
 
@@ -118,19 +118,21 @@ Format: `{entity}.{verb}`
 
 | Action | Trigger |
 |--------|---------|
-| `user.create` | Buat user baru |
-| `user.update` | Update user |
-| `user.delete` | Soft delete user |
-| `role.create` | Buat role |
-| `role.update` | Update role |
-| `role.delete` | Hapus role |
-| `permission.assign` | Assign permission ke role |
-| `permission.revoke` | Revoke permission dari role |
-| `user_role.assign` | Assign role ke user |
-| `user_role.revoke` | Revoke role dari user |
-| `config.update` | Update config value |
-| `invoice.import` | Import faktur (file/API) |
-| `category.update` | Update flag is_service / is_high_margin |
+| `branch.create` / `branch.update` / `branch.delete` | CRUD cabang perusahaan |
+| `channel_division.create` / `.update` / `.delete` / `.import` | CRUD + import mapping channel → division |
+| `classification_rule.create` / `.update` / `.delete` / `.import` | CRUD + import classification rule |
+| `company.create` / `.update` / `.delete` | CRUD perusahaan |
+| `config.create` / `config.update` | Buat/update config value (`business_configs`) |
+| `high_margin.create` / `.update` / `.delete` / `.deactivate` | CRUD + deaktivasi mapping high margin |
+| `import.file` | Import faktur (CSV/Excel/Accurate) |
+| `page_setting.update` | Update page setting (`ready` flag) |
+| `permission.assign` / `permission.revoke` | Assign/revoke permission ke role |
+| `role.create` / `.update` / `.delete` | CRUD role |
+| `user.create` / `.update` / `.delete` / `.import` | CRUD + bulk import user |
+
+> Daftar ini harus tetap sinkron dengan seluruh pemanggilan `logAudit({ action: '...' })` di `*.service.ts` — cek dengan `grep -rn "logAudit(" backend/src/features` jika ragu.
+
+**i18n label (frontend):** action code di atas ditampilkan human-readable via `t(\`auditLog.actions.${action}\`, { defaultValue: action })` di `pages/AuditLog/index.tsx` dan `ViewAuditLogDialog.tsx` — key-nya didefinisikan di `i18n/locales/{en,id}/auditLog.json` → `actions.*`. Action baru yang belum ada key-nya tetap tampil (fallback ke kode mentah), tapi harus ditambahkan ke kedua file locale supaya konsisten dengan bahasa aplikasi yang aktif.
 
 ---
 

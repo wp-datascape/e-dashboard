@@ -4,6 +4,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@/components/ui';
 import type { Permission, CreatePermissionPayload, UpdatePermissionPayload } from '@/types/rbac';
+import { getApiErrorMessage } from '@/utils/apiError';
 import { useState } from 'react';
 import Typography from '@mui/material/Typography';
 
@@ -74,7 +75,7 @@ export function PermissionDialog({
         {error && (
           <Box sx={{ p: 1, bgcolor: 'error.light', borderRadius: 1 }}>
             <Typography variant="caption" color="error">
-              {error instanceof Error ? error.message : t('common.errorOccurred')}
+              {getApiErrorMessage(error, t)}
             </Typography>
           </Box>
         )}

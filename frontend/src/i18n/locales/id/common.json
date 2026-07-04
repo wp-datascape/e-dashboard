@@ -23,6 +23,8 @@
   "none": "Tidak Ada",
   "active": "Aktif",
   "inactive": "Nonaktif",
+  "activate": "Aktifkan",
+  "deactivate": "Nonaktifkan",
   "status": "Status",
   "actions": "Aksi",
   "details": "Detail",

@@ -21,9 +21,6 @@ import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
 import { AppAlert } from '@/components/ui/Alert';
 
-// Types
-import { ApiError } from '@/types/api';
-
 // Logic Hooks
 import { useLoginMutation } from '@/hooks/useAuth';
 
@@ -55,11 +52,11 @@ export default function Login() {
 
   const onSubmit = (data: LoginFormInput) => {
     login(data, {
-      onError: (err: ApiError) => {
+      onError: () => {
         setErrorInfo({
           open: true,
           title: t('auth.loginFailedTitle'),
-          message: err.message || t('auth.loginFailedMessage'),
+          message: t('auth.loginFailedMessage'),
         });
       },
     });

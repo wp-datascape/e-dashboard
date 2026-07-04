@@ -17,6 +17,7 @@ import {
   type GridRenderCellParams,
 } from '@mui/x-data-grid';
 import { Card } from '@/components/ui';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -206,7 +207,7 @@ export function ResponsiveListView({
   }
 
   if (error) {
-    return <Alert severity="error">{error.message ?? t('common.errorOccurred')}</Alert>;
+    return <Alert severity="error">{getApiErrorMessage(error, t)}</Alert>;
   }
 
   if (!rows.length) {

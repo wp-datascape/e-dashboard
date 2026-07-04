@@ -23,6 +23,7 @@ import { useBranches, useCredentials, useSaveCredentials, useTestConnection } fr
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 export default function IntegrationPage() {
   const { t } = useTranslation()
@@ -103,7 +104,7 @@ export default function IntegrationPage() {
         setTimeout(() => setStatus('idle'), 3000)
       } catch (err: unknown) {
         setStatus('error')
-        setStatusMessage(err instanceof Error ? err.message : t('config.integration.failedToSaveCredentials'))
+        setStatusMessage(getApiErrorMessage(err, t))
       }
     } else {
       setStatus('saved')
@@ -128,7 +129,7 @@ export default function IntegrationPage() {
         setTestResult({ status: 'fail', message: result.message || t('config.integration.connectionFailed') })
       }
     } catch (err: unknown) {
-      setTestResult({ status: 'fail', message: err instanceof Error ? err.message : t('config.integration.connectionError') })
+      setTestResult({ status: 'fail', message: getApiErrorMessage(err, t) })
     }
   }
 

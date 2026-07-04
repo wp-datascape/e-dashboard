@@ -17,6 +17,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { AuditLog } from '@/types/audit'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 interface Props {
   open: boolean
@@ -25,14 +26,17 @@ interface Props {
 }
 
 const getActionColor = (action: string): StatusChipColor => {
+  const verb = action.split('.').pop() ?? ''
   const map: Record<string, StatusChipColor> = {
-    'invoice.import': 'primary', 'user.create': 'success', 'user.update': 'info',
-    'user.delete': 'error', 'role.create': 'success', 'role.update': 'info',
-    'role.delete': 'error', 'permission.assign': 'primary', 'permission.revoke': 'warning',
-    'user_role.assign': 'primary', 'user_role.revoke': 'warning',
-    'config.update': 'info', 'category.update': 'info',
+    create: 'success',
+    update: 'info',
+    delete: 'error',
+    import: 'primary',
+    assign: 'primary',
+    revoke: 'warning',
+    deactivate: 'warning',
   }
-  return map[action] ?? 'default'
+  return map[verb] ?? 'default'
 }
 
 const fmtDate = (iso: string): string =>
@@ -119,7 +123,7 @@ export function ViewAuditLogDialog({ open, onClose, logId }: Props) {
       actions={[{ label: t('common.close'), onClick: onClose, variant: 'text' }]}
     >
       {isLoading && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">{t('common.loading')}</Typography></Box>}
-      {isError && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="error">{error instanceof Error ? error.message : t('auditLog.dialog.errorLoading')}</Typography></Box>}
+      {isError && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="error">{getApiErrorMessage(error, t)}</Typography></Box>}
       {!isLoading && !isError && !log && <Box sx={{ py: 4, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">{t('common.noData')}</Typography></Box>}
 
       {log && (
@@ -129,7 +133,10 @@ export function ViewAuditLogDialog({ open, onClose, logId }: Props) {
               <Typography variant="h6" sx={{ mb: 0.25 }}>{log.entity_key}</Typography>
               <Typography variant="caption" color="text.secondary">{fmtDate(log.created_at)}</Typography>
             </Box>
-            <StatusChip label={log.action} color={getActionColor(log.action)} />
+            <StatusChip
+              label={t(`auditLog.actions.${log.action}`, { defaultValue: log.action })}
+              color={getActionColor(log.action)}
+            />
           </Stack>
 
           <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>

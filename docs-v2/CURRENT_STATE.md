@@ -5,7 +5,7 @@
 ## Overall Progress
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
-| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). Fix logout tidak invalidasi sesi server (sesi 29). PWA installable (service worker + icon, sesi 31), fix status bar iOS + tabel tablet (sesi 33). **Semua dialog konsisten pakai komponen `Dialog` bersama — 6 raw MUI Dialog + 4 drawer detail dimigrasikan (sesi 34)**. |
+| Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). Fix logout tidak invalidasi sesi server (sesi 29). PWA installable (service worker + icon, sesi 31), fix status bar iOS + tabel tablet (sesi 33). Semua dialog konsisten pakai komponen `Dialog` bersama — 6 raw MUI Dialog + 4 drawer detail dimigrasikan (sesi 34). **Error API di-i18n via kode (`getApiErrorMessage`), 9 i18n key hilang ditambahkan, audit log action i18n dibangun ulang (13→28 action), fix bug logout redirect 404 (sesi 36)**. |
 | Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
 | Docs     | ✅ ~100%   | metrics.md, transactions.md, dashboard.md, permissions.md, ui-patterns.md, deployment.md, users.md — lihat riwayat sesi untuk detail per-file. Diaudit & disinkronkan menyeluruh sesi 35 (2026-07-04). |
@@ -271,6 +271,38 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-04 (sesi 36): i18n Error Handling (Option A) + Audit Log Action i18n + Fix Logout 404
+
+**Masalah awal:** notifikasi/alert dari backend tetap tampil bahasa Indonesia walau app di-set English. Root cause: backend selalu kirim `{ error: CODE, message }`, tapi frontend hanya pernah baca `message` mentah (hardcoded Indonesia di 96 pemanggilan `AppError`, dan `i18next` sama sekali belum pernah dipasang di backend meski `CRITICAL_RULES.md` sudah mensyaratkannya).
+
+**Fix — Option A (error code based, bukan i18next di backend):**
+`message` dari backend sekarang dianggap log-only, tidak pernah dirender ke UI. Ditambah `frontend/src/utils/apiError.ts` → `getApiErrorMessage(err, t)`: resolve `err.error` (kode) ke `t('error.codes.<CODE>')`, fallback ke `error.generic`. Diterapkan ke 10 titik yang sebelumnya render `err.message`/`error.message` langsung (`CreateUserDialog`, `EditUserDialog`, `ViewAuditLogDialog`, `PermissionDialog`, `DivisionMappingDialog`, `HighMarginDialog`, `Config/Integration`, `ResponsiveListView`, `useImport.ts` — termasuk SSE stream import yang sebelumnya cuma kirim `message` tanpa kode, sekarang `import.handler.ts` ikut kirim `error: code`). `Login` sengaja dikecualikan — semua kegagalan login cuma berarti "email/password salah", jadi tetap pakai copy statis `auth.loginFailedMessage`, bukan kode `UNAUTHORIZED` generik yang kurang pas ("silakan login kembali" aneh ditampilkan di halaman login itu sendiri). `ErrorCodeType` di `types/api.ts` disinkronkan dengan `ErrorCode` enum backend (sebelumnya beda daftar). `errorBoundary.tsx` (crash screen) ternyata sudah lama punya key `error.boundary.*` yang tidak pernah dipakai — title/subtitle/tombol masih hardcoded Indonesia, sekalian disambungkan.
+
+**Audit: 9 key i18n hilang** (button/label render raw key path, mis. literal teks `common.deactivate` muncul di UI) — ditemukan lewat script yang bandingkan semua static `t('key')` call vs isi `en/id` locale JSON. Ditambahkan ke `common.json` (`activate`/`deactivate`), `rbac.json` (`permission_name`, `category`, `description`, `add_permission`), `users.json` (`view_user`, `no_last_login`, rename `createdAt`→`created_at` snake_case sesuai konvensi). **Catatan:** key baru sempat ditulis camelCase (`permissionName`, `addPermission`, dst) mengikuti gaya key tetangga di file yang sama — ini salah, tidak ada instruksi yang membenarkan camelCase, `CRITICAL_RULES.md` eksplisit bilang i18n key wajib snake_case. Sudah dikoreksi ke `permission_name`/`add_permission`/dst.
+
+**Audit log action i18n:** map terjemahan `auditLog.actions.*` sudah ada tapi basi — cuma 13 entry, 5 di antaranya (`invoice.import`, `user_role.assign/revoke`, `category.update`) sudah tidak ada di backend, sementara 20 action asli (`branch.*`, `channel_division.*`, `classification_rule.*`, `company.*`, `high_margin.*`, `import.file`, `page_setting.update`, `user.import`) belum punya key sama sekali — jadi kebanyakan baris Audit Log tampil kode mentah. Ditulis ulang mengikuti 28 action asli dari `grep logAudit(` di backend, dipasang di 4 titik render (kolom DataGrid, kartu mobile, dropdown filter, dialog detail) via `t(..., { defaultValue: action })` supaya action baru yang belum di-translate tidak error. `getActionColor` (duplikat di 2 file) disederhanakan dari map per-action (butuh update manual tiap action baru) jadi rule generik per akhiran verb (`create`→hijau, `update`→biru, `delete`→merah, dst).
+
+**Fix bug: Logout redirect ke /dashboard tapi dapat 404.** `useLogoutMutation` panggil `logout()` (set token context `null`) dan `queryClient.clear()` (hapus cache `page-settings`) **sebelum** `window.location.href = '/login'` — padahal assignment `location.href` tidak langsung unload halaman, ada jeda React sempat re-render. `App.tsx` generate seluruh route table dari `pageSettings`; begitu cache-nya kosong & `token` jadi `null`, route table jadi kosong dan URL lama (mis. `/dashboard`) jatuh ke wildcard `*` → render `<NotFound/>` sebelum redirect sempat terjadi. Fix: hard reload sudah otomatis buang semua state React & cache di memori, jadi `logout()`/`queryClient.clear()` sebenarnya redundant sekaligus penyebab race — diganti hapus `localStorage` langsung lalu redirect tanpa jeda.
+
+**File yang diubah:**
+- `frontend/src/utils/apiError.ts` (NEW)
+- `frontend/src/types/api.ts` — sinkronisasi `ErrorCodeType`
+- `frontend/src/i18n/locales/{en,id}/error.json` — tambah `codes.*`
+- `frontend/src/i18n/locales/{en,id}/{common,rbac,users,auditLog}.json` — key hilang + rebuild `actions.*`
+- `frontend/src/pages/{Users/components/{CreateUserDialog,EditUserDialog,ViewUserDialog},index}.tsx`
+- `frontend/src/pages/AuditLog/{index,components/ViewAuditLogDialog}.tsx`
+- `frontend/src/pages/RBAC/components/{PermissionDialog,PermissionManagement}.tsx`
+- `frontend/src/pages/Settings/{Divisions/components/DivisionMappingDialog,HighMargin/components/HighMarginDialog}.tsx`
+- `frontend/src/pages/Config/Integration/index.tsx`, `frontend/src/pages/Login/index.tsx`
+- `frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx`
+- `frontend/src/utils/errorBoundary.tsx`
+- `frontend/src/hooks/{useImport,useAuth}.ts`
+- `backend/src/features/import/import.handler.ts` — SSE error event tambah field `error` (code)
+- `clinerules` — path `docs/` (sudah tidak ada) → `docs-v2/`, stack lama (React 18/shadcn) → React 19/MUI v9
+- `docs-v2/CRITICAL_RULES.md`, `docs-v2/shared/api-conventions.md`, `docs-v2/features/{auth,audit}.md`
+
+---
 
 ### 2026-07-04 (sesi 35): Audit & Sinkronisasi Dokumentasi Menyeluruh
 

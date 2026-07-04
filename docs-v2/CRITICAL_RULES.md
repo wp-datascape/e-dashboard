@@ -176,20 +176,22 @@ Parameter AUDIT utils (`logAudit()`) tetap camelCase karena JS API convention �
 | Setiap teks baru harus ada di `en.json` DAN `id.json` | Kedua file harus diupdate bersamaan |
 | Akses hook via `useTranslation()` | `const { t } = useTranslation()` — jangan import i18n langsung |
 | Komponen global/reusable juga wajib i18n | Contoh: `ResponsiveListView` pakai `t('common.errorOccurred')`, `t('common.noData')` |
-| Error message fallback | Error dari API pakai `err.message || t('...')` — jangan hardcoded string manual |
+| Error dari API — JANGAN pakai `err.message` | `message` dari backend hardcoded Indonesia & tidak di-i18n. Wajib resolve lewat error code: `getApiErrorMessage(err, t)` dari `@/utils/apiError` — detail: `shared/api-conventions.md` |
 | Pages like NotFound/UnderMaintenance | Wajib pakai `useTranslation()` — jangan lupa hanya karena page sederhana |
 
-Violations detected via: search for hardcoded strings wrapped in `<Typography>`, `title=`, `message=`, `label=`, `placeholder=` that are NOT `t()` calls.
+Violations detected via: search for hardcoded strings wrapped in `<Typography>`, `title=`, `message=`, `label=`, `placeholder=` that are NOT `t()` calls; juga search `err.message`/`error.message` di luar `utils/apiError.ts` dan `api/axios.ts`.
 
 Anti-pattern:
 ```typescript
 // ❌ Hardcoded
 <Typography>404 - Halaman Tidak Ditemukan</Typography>
-setErrorInfo({ title: 'Login Gagal', message: 'Terjadi kesalahan' })
+
+// ❌ Pesan error API ditampilkan mentah — ikut bahasa backend (Indonesia), bukan bahasa aplikasi
+setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('auth.loginFailedMessage') })
 
 // ✅ i18n
 <Typography>{t('notFound.title')}</Typography>
-setErrorInfo({ title: t('auth.loginFailedTitle'), message: err.message || t('auth.loginFailedMessage') })
+setErrorInfo({ title: t('auth.loginFailedTitle'), message: getApiErrorMessage(err, t) })
 ```
 
 ## Database Conventions

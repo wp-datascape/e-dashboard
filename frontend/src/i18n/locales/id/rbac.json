@@ -17,6 +17,10 @@
   "noPermission": "Belum ada permission",
   "uncategorized": "tidak berkategori",
   "permissionCount": "{{count}} permission",
+  "permission_name": "Nama Permission",
+  "category": "Kategori",
+  "description": "Deskripsi",
+  "add_permission": "Tambah Permission",
   "permissionDialog": {
     "editTitle": "Edit Permission",
     "createTitle": "Create Permission",

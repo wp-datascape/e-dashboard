@@ -5,7 +5,6 @@ import { authApi, LoginInput } from '@/api/auth.api';
 import { useAuth } from '@/context/auth.context';
 import { LoginResponse } from '@/types/auth';
 import { ApiError } from '@/types/api';
-import { queryClient } from '@/lib/queryClient';
 
 export function useLoginMutation() {
   const navigate = useNavigate();
@@ -30,20 +29,22 @@ export function useLoginMutation() {
 }
 
 export function useLogoutMutation() {
-  const { logout } = useAuth();
-
   return useMutation<void, ApiError, void>({
     mutationFn: authApi.logout,
     onSuccess: () => {
-      // 1. Clear state lokal dan localStorage
-      logout();
-
-      // 2. Bersihkan seluruh cache React Query agar tidak ada data bocor (stale data)
-      queryClient.clear();
-
-      // 3. Hard redirect (bukan navigate SPA) — memory JS di-reset total (state
-      // komponen, closure, cache), bukan cuma unmount, supaya data lama benar-benar
-      // hilang dari browser saat logout
+      // Hard redirect (bukan navigate SPA) — reload penuh sudah otomatis membuang
+      // seluruh state React & cache React Query di memori, jadi cukup bersihkan
+      // localStorage (yang persist lintas reload) lalu navigasi.
+      //
+      // JANGAN panggil logout()/queryClient.clear() di sini: window.location.href
+      // tidak langsung unload halaman, jadi React masih sempat re-render dengan
+      // token=null + cache page-settings kosong SEBELUM navigasi selesai. App.tsx
+      // generate route dari pageSettings — begitu cache-nya kosong, tabel route
+      // jadi kosong dan URL lama (mis. /dashboard) jatuh ke wildcard 404 selama
+      // jeda itu, sebelum akhirnya browser pindah ke /login.
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_permissions');
       window.location.href = '/login';
     },
   });

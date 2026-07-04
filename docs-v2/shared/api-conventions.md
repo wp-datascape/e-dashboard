@@ -74,6 +74,7 @@ All `/metrics/*` endpoints accept:
 |------|-------------------------|-------------------------------------------|
 | 400  | `VALIDATION_ERROR`      | Invalid input                             |
 | 400  | `INVALID_FILE_FORMAT`   | Wrong format / missing columns            |
+| 400  | `INVALID_REFERENCE`     | Referenced ID does not exist              |
 | 401  | `UNAUTHORIZED`          | Not logged in / token expired             |
 | 403  | `FORBIDDEN`             | Missing permission                        |
 | 403  | `COMPANY_ACCESS_DENIED` | No access to this company                 |
@@ -81,10 +82,26 @@ All `/metrics/*` endpoints accept:
 | 403  | `SYSTEM_RESOURCE`       | Attempt to delete is_system role/perm     |
 | 404  | `NOT_FOUND`             | Resource not found                        |
 | 409  | `DUPLICATE_IMPORT`      | Period already imported                   |
+| 409  | `DUPLICATE_ENTRY`       | Unique constraint violation (non-import)  |
 | 413  | `FILE_TOO_LARGE`        | File exceeds 10MB                         |
 | 422  | `IMPORT_PROCESSING_ERROR` | Valid file but processing error         |
 | 429  | `RATE_LIMITED`          | Too many requests                         |
 | 502  | `ACCURATE_API_ERROR`    | Cannot reach Accurate Online              |
+| 500  | `INTERNAL_ERROR`        | Unhandled server error                    |
+
+### ⚠️ Error `message` TIDAK di-i18n — jangan pernah render langsung ke UI
+`message` di response error ditulis manual di tiap `AppError(...)` (backend), sebagian besar bahasa Indonesia hardcoded, dan **tidak diterjemahkan**. Anggap field ini log/debug-only, bukan untuk ditampilkan ke user.
+
+Frontend **wajib** resolve error lewat field `error` (kode di atas), bukan `message`:
+```typescript
+import { getApiErrorMessage } from '@/utils/apiError'
+
+// err = ApiError { error: 'NOT_FOUND', message: 'Rule tidak ditemukan' }
+const shown = getApiErrorMessage(err, t) // → t('error.codes.NOT_FOUND'), ikut bahasa aktif
+```
+`getApiErrorMessage` lookup `error.codes.<CODE>` di `i18n/locales/{en,id}/error.json`, fallback ke `error.generic` kalau code tidak dikenali. Tambahkan entry baru ke `error.codes` di **kedua** file locale setiap kali ada `ErrorCode` baru di backend (`backend/src/errors/AppError.ts`) — dan sinkronkan juga union type `ErrorCodeType` di `frontend/src/types/api.ts`.
+
+Pengecualian: `Login` page tidak pakai `getApiErrorMessage` untuk error 401 — semua kegagalan login cuma berarti "email/password salah", jadi dipakai copy statis `auth.loginFailedMessage` (kode `UNAUTHORIZED` generik-nya kurang pas untuk konteks halaman login).
 | 500  | `INTERNAL_ERROR`        | Server error                              |
 
 ## Auth Endpoints

@@ -125,10 +125,11 @@ export async function handleImportFileStream(c: Context) {
         }),
       })
     } catch (err) {
+      const code = err instanceof AppError ? err.code : ErrorCode.INTERNAL_ERROR
       const message = err instanceof AppError
         ? err.message
-        : `Import gagal: ${err instanceof Error ? err.message : String(err)}`
-      await stream.writeSSE({ data: JSON.stringify({ event: 'error', message }) })
+        : `Import failed: ${err instanceof Error ? err.message : String(err)}`
+      await stream.writeSSE({ data: JSON.stringify({ event: 'error', error: code, message }) })
     }
   })
 }

@@ -42,7 +42,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
     <Dialog
       open={open}
       onClose={onClose}
-      title={t('users.viewUser')}
+      title={t('users.view_user')}
       maxWidth="sm"
       actions={[{ label: t('common.close'), onClick: onClose, variant: 'text' }]}
     >
@@ -107,7 +107,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
             <Typography variant="body2">
               {user.last_login_at
                 ? new Date(user.last_login_at).toLocaleString('id-ID')
-                : t('users.noLastLogin')}
+                : t('users.no_last_login')}
             </Typography>
           </Box>
 

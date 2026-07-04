@@ -23,6 +23,8 @@
   "none": "None",
   "active": "Active",
   "inactive": "Inactive",
+  "activate": "Activate",
+  "deactivate": "Deactivate",
   "status": "Status",
   "actions": "Actions",
   "details": "Details",

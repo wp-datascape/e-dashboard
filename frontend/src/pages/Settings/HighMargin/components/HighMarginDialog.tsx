@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import type { HighMarginMapping, CreateHighMarginPayload, UpdateHighMarginPayload, ProductOption } from '@/types/highMargin'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 interface Props {
   open: boolean
@@ -78,7 +79,7 @@ export function HighMarginDialog({
   return (
     <Dialog open={open} onClose={onClose} title={title} maxWidth="sm">
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
-        {error && <Alert severity="error">{error.message}</Alert>}
+        {error && <Alert severity="error">{getApiErrorMessage(error, t)}</Alert>}
 
         {mode === 'create' && (
           <>

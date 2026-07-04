@@ -13,6 +13,7 @@ import { useUnmappedChannels } from '@/hooks/useChannelDivisions'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
 import type { Division } from '@/types/customers'
 import type { Company } from '@/types/companies'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 type DialogMode = 'create' | 'edit'
 
@@ -75,9 +76,7 @@ export function DivisionMappingDialog({
       onClose={onClose}
       maxWidth="sm"
       title={mode === 'create' ? t('divisions.addMapping') : t('divisions.editMapping')}
-      error={error ? {
-        message: (error as { response?: { data?: { message?: string } } }).response?.data?.message ?? error.message,
-      } : null}
+      error={error ? { message: getApiErrorMessage(error, t) } : null}
       actions={[
         { label: t('common.cancel'), onClick: onClose, variant: 'outlined', disabled: isPending },
         {

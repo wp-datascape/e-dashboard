@@ -17,6 +17,10 @@
   "noPermission": "No permissions yet",
   "uncategorized": "uncategorized",
   "permissionCount": "{{count}} permissions",
+  "permission_name": "Permission Name",
+  "category": "Category",
+  "description": "Description",
+  "add_permission": "Add Permission",
   "permissionDialog": {
     "editTitle": "Edit Permission",
     "createTitle": "Create Permission",
