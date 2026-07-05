@@ -2,10 +2,16 @@ import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
 import { and, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
 import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
+import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
 
-export async function findCustomers(params: CustomersQuery, scopeIds?: number[]) {
+export async function findCustomers(
+  params: CustomersQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, string[]>,
+) {
   const { company_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
   const offset = (page - 1) * per_page
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
@@ -61,11 +67,8 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
 
   const whereClause = conditions.length ? and(...conditions) : undefined
 
-  // Division filter: diapply setelah JOIN channel_divisions
+  // Division filter (business_unit param): diapply setelah JOIN channel_divisions
   const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
-  const whereWithDivision = divisionCond
-    ? whereClause ? and(whereClause, divisionCond) : divisionCond
-    : whereClause
 
   // Sort
   const isAsc = sort_dir === 'asc'
@@ -85,11 +88,26 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
     .selectDistinctOn([invoices.customer_id], {
       customer_id: invoices.customer_id,
       channel_name: invoices.channel_name,
+      branch_id: invoices.branch_id,
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
     .orderBy(invoices.customer_id, desc(invoices.invoice_date))
     .as('latest_sp')
+
+  // Branch/division scope (docs-v2/task/task001.md) — di-derive dari invoice TERBARU
+  // customer (latestSalespersonSq), konsisten dengan cara business_unit/division di atas
+  // sudah di-derive (satu division per customer dari invoice terakhir, bukan EXISTS
+  // lintas semua invoice miliknya)
+  const branchScopeCond = buildBranchCondition(customers.company_id, latestSalespersonSq.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division, divisionScope)
+
+  const scopeConditions = [divisionCond, branchScopeCond, divisionScopeCond].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  )
+  const whereWithDivision = scopeConditions.length
+    ? whereClause ? and(whereClause, ...scopeConditions) : and(...scopeConditions)
+    : whereClause
 
   const [{ total }, rows] = await Promise.all([
     db

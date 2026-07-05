@@ -3,9 +3,14 @@ import { isNotFoundError } from '@/utils/response'
 import { findCustomers, findCustomerDetail } from './customers.repository'
 import type { CustomersQuery } from './customers.schema'
 
-export async function getCustomers(params: CustomersQuery, scopeIds?: number[]) {
+export async function getCustomers(
+  params: CustomersQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, string[]>,
+) {
   try {
-    const result = await findCustomers(params, scopeIds)
+    const result = await findCustomers(params, scopeIds, branchScope, divisionScope)
     return { data: result?.data ?? [], total: result?.total ?? 0 }
   } catch (err) {
     if (isNotFoundError(err)) return { data: [], total: 0 }
