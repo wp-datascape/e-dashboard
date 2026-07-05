@@ -3,15 +3,16 @@ import { sql } from 'drizzle-orm'
 import { cteEstablishedCustomers } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { HmBreakdownRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export async function fetchHmBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: HmBreakdownRow[]; total_hm_revenue: number; hm_buyer_count: number; total_existing: number }> {
-  const { cid, filterDate, activeMonths } = p
+  const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH
@@ -28,7 +29,7 @@ export async function fetchHmBreakdown(
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'

@@ -1,8 +1,10 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export interface CategoryPerformanceRepoParams {
   cid: number          // 0 = semua company
+  companyScopeIds?: number[] // hasil resolveCompanyScope() — lihat utils/scope.ts buildCompanyConditionRaw
   periodEnd: string    // YYYY-MM-DD = akhir bulan dari period_month
   activeWindow: number // jumlah bulan window aktif
   search: string       // '' = tanpa filter
@@ -11,6 +13,8 @@ export interface CategoryPerformanceRepoParams {
   sortDir: 'asc' | 'desc'
   page: number
   perPage: number
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 export interface CategoryPerformanceDbRow {
@@ -42,6 +46,10 @@ export async function fetchCategoryPerformance(
   const sortCol = SORT_COL[p.sortBy] ?? 'total_revenue'
   const sortDir = p.sortDir === 'asc' ? 'ASC' : 'DESC'
   const offset  = (p.page - 1) * p.perPage
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH
@@ -57,12 +65,17 @@ export async function fetchCategoryPerformance(
       FROM invoice_items ii
       JOIN invoices  i ON i.id = ii.invoice_id
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IS NOT NULL
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     ),
 
     -- Kategori yang aktif sebagai high-margin pada akhir periode
@@ -75,7 +88,7 @@ export async function fetchCategoryPerformance(
       LEFT JOIN products p ON p.id = hmp.product_id
       WHERE hmp.effective_from             <= ${p.periodEnd}::date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
-        AND (${p.cid}::int = 0 OR hmp.company_id = ${p.cid}::int)
+        AND ${companyCondHmp}
         AND COALESCE(hmp.product_category_id, p.product_category_id) IS NOT NULL
     ),
 

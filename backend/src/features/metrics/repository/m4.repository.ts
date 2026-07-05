@@ -3,15 +3,16 @@ import { sql } from 'drizzle-orm'
 import { cteEstablishedCustomers } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { GpBreakdownRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export async function fetchGpBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: GpBreakdownRow[]; total_gp: number; median_threshold: number; total_existing: number }> {
-  const { cid, filterDate, activeMonths } = p
+  const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH
@@ -25,7 +26,7 @@ export async function fetchGpBreakdown(
       WHERE i.deleted_at IS NULL
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
         AND ${branchCond}
         AND ${divisionScopeCond}

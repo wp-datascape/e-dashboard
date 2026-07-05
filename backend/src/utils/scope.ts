@@ -81,6 +81,32 @@ export function buildBranchConditionRaw(
   return sql.join(clauses, sql` OR `)
 }
 
+/**
+ * Fix bug company-scope bypass (2026-07-06): pola lama `(${cid}::int = 0 OR x.company_id
+ * = ${cid}::int)` di semua repository metrics SELALU true saat cid=0 ('all' companies),
+ * tanpa pernah cross-check ke company yang benar-benar jadi hak user (scopeIds hasil
+ * resolveCompanyScope() dulu dihitung tapi dibuang di handler, tidak pernah diteruskan).
+ * Helper ini menggantikan pola itu:
+ *   cid tetap dipakai untuk kasus company spesifik (query.company_id != 'all' — sudah
+ *   divalidasi oleh resolveCompanyScope, throw 403 kalau tidak berhak, jadi aman filter
+ *   langsung by cid tanpa cek scopeIds lagi)
+ *   scopeIds dipakai untuk kasus company_id = 'all': undefined = bypass (superadmin),
+ *   [] = default deny, selainnya = filter IN-list ke company yang jadi hak user
+ */
+export function buildCompanyConditionRaw(
+  companyExpr: string,
+  cid: number,
+  scopeIds: number[] | undefined,
+): SQL {
+  if (cid !== 0) return sql`${sql.raw(companyExpr)} = ${cid}`
+  if (!scopeIds) return sql`true`
+  if (scopeIds.length === 0) return sql`false`
+  return sql`${sql.raw(companyExpr)} IN (${sql.join(
+    scopeIds.map((id) => sql`${id}`),
+    sql`, `,
+  )})`
+}
+
 export function buildDivisionConditionRaw(
   branchExpr: string,
   divisionExpr: string,

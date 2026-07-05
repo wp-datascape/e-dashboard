@@ -2,15 +2,17 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { DormantTrendRow, DormantValueRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
  */
 export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
-  const { cid, filterDate, dormantMonths, division } = p
+  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -30,7 +32,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -41,7 +43,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       SELECT DISTINCT c.id AS cid
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
     ),
 
@@ -128,9 +130,11 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
  * Top 20 dormant customer diranking berdasarkan estimated lost value (M9).
  */
 export async function fetchDormantValueRanking(p: SegmentParams): Promise<DormantValueRow[]> {
-  const { cid, filterDate, dormantMonths, division } = p
+  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -142,7 +146,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND i.invoice_date <= ${filterDate}::date
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -158,7 +162,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       FROM customers c
       JOIN inv ON inv.customer_id = c.id
       WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
       GROUP BY c.id, c.customer_name, c.customer_code
       HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
     )

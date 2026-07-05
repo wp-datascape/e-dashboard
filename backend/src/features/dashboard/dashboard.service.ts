@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { getCrossSellingMetrics, getCustomerMetrics, getDormantCustomerMetrics, resolveSegmentParams } from '@/features/metrics/metrics.service'
+import type { MetricsScope } from '@/features/metrics/metrics.service'
 import { loadThresholds } from '@/features/config/threshold'
 import { fetchDormantValueTrend } from './dashboard.repository'
 import type { DashboardData, MetricCard, MetricSummary, MonthlyTrendPoint } from './dashboard.types'
@@ -42,16 +43,16 @@ function buildCard(
   }
 }
 
-export async function getDashboard(): Promise<DashboardData> {
+export async function getDashboard(scope: MetricsScope = {}): Promise<DashboardData> {
   try {
     const filterDate = todayDate()
 
     const [cross, customer, dormant, thresholds, segParams] = await Promise.all([
-      getCrossSellingMetrics({ company_id: 'all', period_end: filterDate }),
-      getCustomerMetrics({ company_id: 'all', period_end: filterDate }),
-      getDormantCustomerMetrics({ company_id: 'all', period_end: filterDate }),
+      getCrossSellingMetrics({ company_id: 'all', period_end: filterDate }, scope),
+      getCustomerMetrics({ company_id: 'all', period_end: filterDate }, scope),
+      getDormantCustomerMetrics({ company_id: 'all', period_end: filterDate }, scope),
       loadThresholds(),
-      resolveSegmentParams('all', filterDate),
+      resolveSegmentParams('all', filterDate, undefined, scope.companyScopeIds, scope.branchScope, scope.divisionScope),
     ])
 
     const dormantValueTrend = await fetchDormantValueTrend(segParams)

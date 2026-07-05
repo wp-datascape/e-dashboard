@@ -18,12 +18,13 @@
 import { db } from '@/config/db'
 import { sql, and, or } from 'drizzle-orm'
 import { divisionToDormantKey } from '@/features/config/threshold'
-import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SegmentParams {
-  cid: number            // 0 = semua perusahaan
+  cid: number            // 0 = semua perusahaan (perhatian: bukan berarti bypass, lihat companyScopeIds)
+  companyScopeIds?: number[] // hasil resolveCompanyScope() — undefined=bypass, []=default deny, selainnya=IN-list
   filterDate: string     // YYYY-MM-DD
   activeMonths: number   // active_window_months dari business_config
   dormantMonths: number  // dormant_threshold_months.{type} dari business_config
@@ -40,9 +41,11 @@ export function buildSegmentParams(
   division?: string,
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
+  companyScopeIds?: number[],
 ): SegmentParams {
   return {
     cid: companyId === 'all' ? 0 : companyId,
+    companyScopeIds,
     filterDate,
     activeMonths,
     dormantMonths,
@@ -68,9 +71,11 @@ export interface CustomerSegmentCount {
 export async function getCustomerSegments(
   p: SegmentParams,
 ): Promise<CustomerSegmentCount> {
-  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope } = p
+  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH
@@ -83,7 +88,7 @@ export async function getCustomerSegments(
       JOIN invoices i ON i.customer_id = c.id
       WHERE i.deleted_at IS NULL
         AND c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
         AND i.invoice_date <= ${filterDate}::date
         AND ${branchCond}
       GROUP BY c.id
@@ -97,7 +102,7 @@ export async function getCustomerSegments(
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND ${branchCond}
         AND ${divisionScopeCond}
       ORDER BY i.customer_id, i.invoice_date DESC
@@ -223,18 +228,22 @@ export function cteEstablishedCustomers(p: SegmentParams) {
   const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
   const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   return sql`
     established_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR c.company_id = ${p.cid}::int)
+        AND ${companyCondC}
         AND EXISTS (
           SELECT 1 FROM invoices ix0
           WHERE ix0.customer_id = c.id
             AND ix0.deleted_at IS NULL
             AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ${branchCond0}
+            AND ${companyCondIx0}
         )
         AND EXISTS (
           SELECT 1 FROM invoices ix
@@ -243,7 +252,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix.company_id = ${p.cid}::int)
+            AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
@@ -262,12 +271,15 @@ export function cteNewCustomers(p: SegmentParams) {
   const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
   const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   return sql`
     new_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR c.company_id = ${p.cid}::int)
+        AND ${companyCondC}
         AND EXISTS (
           SELECT 1 FROM invoices ix
           LEFT JOIN channel_divisions cd
@@ -275,7 +287,7 @@ export function cteNewCustomers(p: SegmentParams) {
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix.company_id = ${p.cid}::int)
+            AND ${companyCondIx}
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
             AND ${branchCond}
             AND ${divisionScopeCond}
@@ -286,6 +298,7 @@ export function cteNewCustomers(p: SegmentParams) {
             AND ix0.deleted_at IS NULL
             AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ${branchCond0}
+            AND ${companyCondIx0}
         )
     )
   `
@@ -299,18 +312,22 @@ export function cteActiveCustomers(p: SegmentParams) {
   const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
   const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   return sql`
     active_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR c.company_id = ${p.cid}::int)
+        AND ${companyCondC}
         AND EXISTS (
           SELECT 1 FROM invoices ix0
           WHERE ix0.customer_id = c.id
             AND ix0.deleted_at IS NULL
             AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ${branchCond0}
+            AND ${companyCondIx0}
         )
         AND EXISTS (
           SELECT 1 FROM invoices ix
@@ -319,7 +336,7 @@ export function cteActiveCustomers(p: SegmentParams) {
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix.company_id = ${p.cid}::int)
+            AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
@@ -341,18 +358,23 @@ export function cteExistingCustomers(p: SegmentParams) {
   const branchCond2 = buildBranchConditionRaw('ix2.company_id', 'ix2.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
   const divisionScopeCond2 = buildDivisionConditionRaw('ix2.branch_id', 'cd2.division', p.divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx2 = buildCompanyConditionRaw('ix2.company_id', p.cid, p.companyScopeIds)
   return sql`
     existing_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR c.company_id = ${p.cid}::int)
+        AND ${companyCondC}
         AND EXISTS (
           SELECT 1 FROM invoices ix0
           WHERE ix0.customer_id = c.id
             AND ix0.deleted_at IS NULL
             AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ${branchCond0}
+            AND ${companyCondIx0}
         )
         AND EXISTS (
           SELECT 1 FROM invoices ix
@@ -361,7 +383,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix.company_id = ${p.cid}::int)
+            AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
@@ -375,7 +397,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND (cd2.company_id = ix2.company_id OR cd2.company_id IS NULL)
           WHERE ix2.customer_id = c.id
             AND ix2.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix2.company_id = ${p.cid}::int)
+            AND ${companyCondIx2}
             AND ix2.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix2.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd2.division = ${p.division}::text)
@@ -393,12 +415,14 @@ export function cteExistingCustomers(p: SegmentParams) {
 export function cteDormantCustomers(p: SegmentParams) {
   const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   return sql`
     dormant_customers AS (
       SELECT c.id, c.customer_name, c.customer_code
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR c.company_id = ${p.cid}::int)
+        AND ${companyCondC}
         AND c.first_invoice_date IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM invoices ix
@@ -407,7 +431,7 @@ export function cteDormantCustomers(p: SegmentParams) {
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
-            AND (${p.cid}::int = 0 OR ix.company_id = ${p.cid}::int)
+            AND ${companyCondIx}
             AND ix.invoice_date > ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
             AND ${branchCond}

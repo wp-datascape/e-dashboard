@@ -1,90 +1,106 @@
 import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
-import { resolveCompanyScope } from '@/middleware/auth'
+import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope } from '@/middleware/auth'
 import { crossSellingQuerySchema, customerMetricsQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
 import { getCrossSellingMetrics, getCustomerMetrics, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import type { MetricsScope } from './metrics.service'
+
+/**
+ * Resolve companyScopeIds/branchScope/divisionScope dari Context — dipakai di semua
+ * handler di bawah. Fix bug (2026-07-06): sebelumnya resolveCompanyScope() dipanggil
+ * cuma untuk efek samping (validasi akses ke company spesifik), hasilnya dibuang,
+ * tidak pernah diteruskan ke service/repository. company_id='all' jadi TIDAK PERNAH
+ * difilter company sama sekali untuk siapa pun (bukan cuma superadmin) — lihat
+ * docs-v2/task/task001.md.
+ */
+function resolveScope(c: Context, companyId: number | 'all'): MetricsScope {
+  const companyScopeIds = resolveCompanyScope(c, companyId)
+  const branchScope = resolveBranchScope(c, companyScopeIds)
+  const divisionScope = resolveDivisionScope(c, branchScope)
+  return { companyScopeIds, branchScope, divisionScope }
+}
 
 export async function handleGetCrossSelling(c: Context) {
   const query = validateQuery(c, crossSellingQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getCrossSellingMetrics(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getCrossSellingMetrics(query, scope)
   return success(c, data)
 }
 
 export async function handleGetCustomerMetrics(c: Context) {
   const query = validateQuery(c, customerMetricsQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getCustomerMetrics(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getCustomerMetrics(query, scope)
   return success(c, data)
 }
 
 export async function handleGetGpBreakdown(c: Context) {
   const query = validateQuery(c, gpBreakdownQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getGpBreakdown(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getGpBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetHmBreakdown(c: Context) {
   const query = validateQuery(c, hmBreakdownQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getHmBreakdown(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getHmBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetRorBreakdown(c: Context) {
   const query = validateQuery(c, rorBreakdownQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getRorBreakdown(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getRorBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetDormantMetrics(c: Context) {
   const query = validateQuery(c, dormantCustomerQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getDormantCustomerMetrics(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getDormantCustomerMetrics(query, scope)
   return success(c, data)
 }
 
 export async function handleGetCategoryPerformance(c: Context) {
   const query = validateQuery(c, categoryPerformanceQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const { data, total } = await getCategoryPerformance(query)
+  const scope = resolveScope(c, query.company_id)
+  const { data, total } = await getCategoryPerformance(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetCategoryProducts(c: Context) {
   const query = validateQuery(c, categoryProductsQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const { data, total } = await getCategoryProducts(query)
+  const scope = resolveScope(c, query.company_id)
+  const { data, total } = await getCategoryProducts(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetHmDetail(c: Context) {
   const query = validateQuery(c, hmDetailQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const { data, total } = await getHmPenetrationDetail(query)
+  const scope = resolveScope(c, query.company_id)
+  const { data, total } = await getHmPenetrationDetail(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetCustomerProducts(c: Context) {
   const query = validateQuery(c, customerProductsQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const { data, total } = await getCustomerProducts(query)
+  const scope = resolveScope(c, query.company_id)
+  const { data, total } = await getCustomerProducts(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetUpsellTargets(c: Context) {
   const query = validateQuery(c, upsellTargetQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const { data, total } = await getUpsellTargets(query)
+  const scope = resolveScope(c, query.company_id)
+  const { data, total } = await getUpsellTargets(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetAvgCategory(c: Context) {
   const query = validateQuery(c, avgCategoryQuerySchema)
-  resolveCompanyScope(c, query.company_id)
-  const data = await getAvgCategoryTrend(query)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getAvgCategoryTrend(query, scope)
   return success(c, data)
 }
