@@ -1,6 +1,15 @@
 import { eq, and, isNull } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, roles, userCompanies, rolePermissions, permissions } from '@/db/schema'
+import {
+  users,
+  userRoles,
+  roles,
+  userCompanies,
+  rolePermissions,
+  permissions,
+  userBranches,
+  userDivisions,
+} from '@/db/schema'
 
 export async function findActiveUserByEmail(email: string) {
   const result = await db
@@ -37,6 +46,24 @@ export async function getUserCompanyIds(userId: number): Promise<number[]> {
     .from(userCompanies)
     .where(eq(userCompanies.user_id, userId))
   return rows.map((r) => r.company_id)
+}
+
+export async function getUserBranchScopes(
+  userId: number,
+): Promise<{ company_id: number; branch_id: number }[]> {
+  return db
+    .select({ company_id: userBranches.company_id, branch_id: userBranches.branch_id })
+    .from(userBranches)
+    .where(eq(userBranches.user_id, userId))
+}
+
+export async function getUserDivisionScopes(
+  userId: number,
+): Promise<{ branch_id: number; division: string }[]> {
+  return db
+    .select({ branch_id: userDivisions.branch_id, division: userDivisions.division })
+    .from(userDivisions)
+    .where(eq(userDivisions.user_id, userId))
 }
 
 export async function getUserPrimaryRole(userId: number): Promise<string | null> {

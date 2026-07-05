@@ -9,6 +9,8 @@
  *
  * Sets on context:
  *   c.var.user        — JwtPayload (userId, email, companyIds, isSuperAdmin)
+ *                        + branchScopes, divisionScopes (isolasi data Branch/Division,
+ *                        lihat docs-v2/task/task001.md)
  *   c.var.permissions — string[] of permission names
  */
 
@@ -17,7 +19,12 @@ import { getCookie } from 'hono/cookie'
 import { AppError, ErrorCode } from '@/errors'
 import { verifyToken } from '@/utils/jwt'
 import { validateCsrfToken } from '@/utils/csrf'
-import { getUserPermissions, getUserCompanyIds } from '@/features/auth/auth.repository'
+import {
+  getUserPermissions,
+  getUserCompanyIds,
+  getUserBranchScopes,
+  getUserDivisionScopes,
+} from '@/features/auth/auth.repository'
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -54,6 +61,57 @@ export function assertCompanyAccess(c: Context, companyId: number | 'all'): void
   resolveCompanyScope(c, companyId)
 }
 
+/**
+ * Resolve branch scope — child dari company scope (docs-v2/task/task001.md §4.2).
+ *
+ * Returns:
+ *   undefined                    → superadmin → bypass, lihat semua branch
+ *   Map<company_id, branch_id[]> → non-superadmin, cuma company+branch yang di-assign eksplisit
+ *                                   (map kosong / company tidak ada di key = default deny total company itu)
+ *
+ * Input companyScopeIds = hasil resolveCompanyScope() — branch di company yang SUDAH
+ * tersaring di luar companyScopeIds ikut tersaring juga di sini.
+ */
+export function resolveBranchScope(
+  c: Context,
+  companyScopeIds: number[] | undefined,
+): Map<number, number[]> | undefined {
+  const { branchScopes, isSuperAdmin } = c.var.user
+  if (isSuperAdmin) return undefined
+
+  const map = new Map<number, number[]>()
+  for (const { company_id, branch_id } of branchScopes as { company_id: number; branch_id: number }[]) {
+    if (companyScopeIds && !companyScopeIds.includes(company_id)) continue
+    if (!map.has(company_id)) map.set(company_id, [])
+    map.get(company_id)!.push(branch_id)
+  }
+  return map
+}
+
+/**
+ * Resolve division scope — child dari branch scope, BUKAN company scope (docs-v2/task/task001.md §4.2).
+ *
+ * Input branchScope = hasil resolveBranchScope() (bukan companyScopeIds) — division cuma
+ * bermakna dalam branch yang SUDAH lolos resolveBranchScope. Kalau branchScope bypass
+ * (undefined, superadmin), division ikut bypass otomatis.
+ */
+export function resolveDivisionScope(
+  c: Context,
+  branchScope: Map<number, number[]> | undefined,
+): Map<number, string[]> | undefined {
+  const { divisionScopes, isSuperAdmin } = c.var.user
+  if (isSuperAdmin) return undefined
+
+  const allowedBranchIds = new Set(branchScope ? [...branchScope.values()].flat() : [])
+  const map = new Map<number, string[]>()
+  for (const { branch_id, division } of divisionScopes as { branch_id: number; division: string }[]) {
+    if (!allowedBranchIds.has(branch_id)) continue
+    if (!map.has(branch_id)) map.set(branch_id, [])
+    map.get(branch_id)!.push(division)
+  }
+  return map
+}
+
 export function authMiddleware() {
   return async (c: Context, next: Next) => {
     const token = getCookie(c, 'access_token')
@@ -69,12 +127,14 @@ export function authMiddleware() {
       }
     }
 
-    const [permissions, companyIds] = await Promise.all([
+    const [permissions, companyIds, branchScopes, divisionScopes] = await Promise.all([
       getUserPermissions(payload.userId),
       getUserCompanyIds(payload.userId),
+      getUserBranchScopes(payload.userId),
+      getUserDivisionScopes(payload.userId),
     ])
 
-    c.set('user', { ...payload, companyIds })
+    c.set('user', { ...payload, companyIds, branchScopes, divisionScopes })
     c.set('permissions', permissions)
 
     await next()
