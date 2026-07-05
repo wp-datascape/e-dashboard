@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
-import { and, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
+import { and, or, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
 import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
 import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
@@ -115,7 +115,13 @@ export async function findCustomers(
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .where(whereWithDivision)
       .then(([r]) => r),
     db
@@ -144,7 +150,13 @@ export async function findCustomers(
         and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
       )
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .where(whereWithDivision)
       .groupBy(customers.id, companies.id, channel_divisions.division, liveDatesSq.live_last, liveDatesSq.live_first)
       .orderBy(orderByExpr)
@@ -176,9 +188,9 @@ export async function findCustomerDetail(customerId: number) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = sql`CURRENT_DATE`
 
-  // Ambil channel_name dari invoice terbaru → lookup division
+  // Ambil channel_name + company_id dari invoice terbaru → lookup division
   const [latestInv] = await db
-    .select({ channel_name: invoices.channel_name })
+    .select({ channel_name: invoices.channel_name, company_id: invoices.company_id })
     .from(invoices)
     .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
     .orderBy(desc(invoices.invoice_date))
@@ -188,7 +200,12 @@ export async function findCustomerDetail(customerId: number) {
     ? await db
         .select({ division: channel_divisions.division })
         .from(channel_divisions)
-        .where(eq(channel_divisions.channel_name, latestInv.channel_name))
+        .where(and(
+          eq(channel_divisions.channel_name, latestInv.channel_name),
+          or(eq(channel_divisions.company_id, latestInv.company_id), isNull(channel_divisions.company_id)),
+        ))
+        // Company-specific rule menang atas rule global kalau kebetulan ada dua-duanya
+        .orderBy(sql`${channel_divisions.company_id} IS NULL`)
         .limit(1)
     : []
 

@@ -1,9 +1,15 @@
 import { db } from '@/config/db'
 import { invoices, invoice_items, customers, companies, channel_divisions, import_logs } from '@/db/schema'
 import { and, eq, inArray, isNull, sql, desc, asc, ilike, or, gte, lte } from 'drizzle-orm'
+import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import type { InvoicesQuery } from './transactions.schema'
 
-export async function findInvoices(params: InvoicesQuery, scopeIds?: number[]) {
+export async function findInvoices(
+  params: InvoicesQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, string[]>,
+) {
   const { company_id, business_unit, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
   const offset = (page - 1) * per_page
 
@@ -26,7 +32,12 @@ export async function findInvoices(params: InvoicesQuery, scopeIds?: number[]) {
 
   const whereClause = and(...conditions)
   const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
-  const whereWithDivision = divisionCond ? and(whereClause, divisionCond) : whereClause
+  const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
+  const scopeConditions = [divisionCond, branchScopeCond, divisionScopeCond].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  )
+  const whereWithDivision = scopeConditions.length ? and(whereClause, ...scopeConditions) : whereClause
 
   const isAsc = sort_dir === 'asc'
   const orderByExpr = (() => {
@@ -44,7 +55,13 @@ export async function findInvoices(params: InvoicesQuery, scopeIds?: number[]) {
       .select({ total: sql<number>`COUNT(DISTINCT ${invoices.id})` })
       .from(invoices)
       .innerJoin(customers, eq(invoices.customer_id, customers.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, invoices.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, invoices.channel_name),
+          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .where(whereWithDivision)
       .then(([r]) => r),
     db
@@ -66,7 +83,13 @@ export async function findInvoices(params: InvoicesQuery, scopeIds?: number[]) {
       .from(invoices)
       .innerJoin(customers, eq(invoices.customer_id, customers.id))
       .innerJoin(companies, eq(invoices.company_id, companies.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, invoices.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, invoices.channel_name),
+          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .leftJoin(import_logs, eq(import_logs.id, invoices.import_log_id))
       .leftJoin(invoice_items, eq(invoice_items.invoice_id, invoices.id))
       .where(whereWithDivision)
@@ -102,11 +125,20 @@ export async function findInvoices(params: InvoicesQuery, scopeIds?: number[]) {
   }
 }
 
-export async function findInvoiceDetail(invoiceId: number, scopeIds?: number[]) {
+export async function findInvoiceDetail(
+  invoiceId: number,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, string[]>,
+) {
   if (scopeIds && scopeIds.length === 0) return null
 
   const conditions = [eq(invoices.id, invoiceId), isNull(invoices.deleted_at)]
   if (scopeIds) conditions.push(inArray(invoices.company_id, scopeIds))
+  const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
+  if (branchScopeCond) conditions.push(branchScopeCond)
+  if (divisionScopeCond) conditions.push(divisionScopeCond)
 
   const [row] = await db
     .select({
@@ -124,6 +156,13 @@ export async function findInvoiceDetail(invoiceId: number, scopeIds?: number[]) 
     .from(invoices)
     .innerJoin(customers, eq(invoices.customer_id, customers.id))
     .innerJoin(companies, eq(invoices.company_id, companies.id))
+    .leftJoin(
+      channel_divisions,
+      and(
+        eq(channel_divisions.channel_name, invoices.channel_name),
+        or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+      ),
+    )
     .where(and(...conditions))
     .limit(1)
 
