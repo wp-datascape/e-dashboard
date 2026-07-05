@@ -1,9 +1,9 @@
 import { eq, isNull, and, count, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, roles, userCompanies, companies } from '@/db/schema'
+import { users, userRoles, roles, userCompanies, companies, userBranches, userDivisions, company_branches } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
 import type { PaginationQuery } from '@/utils/validator'
-import type { CreateUserDto, UpdateUserDto } from './user.schema'
+import type { CreateUserDto, UpdateUserDto, CompanyAssignmentDto } from './user.schema'
 
 // Strip password dari hasil query sebelum dikembalikan ke caller
 function stripPassword<T extends { password: string }>(user: T): Omit<T, 'password'> {
@@ -57,6 +57,101 @@ async function fetchRolesAndCompaniesByUserIds(userIds: number[]) {
   return { rolesByUser, companiesByUser }
 }
 
+// Ambil pohon assignment Company -> Branch -> Division untuk sekumpulan user_id.
+// 3 query terpisah (bukan JOIN bertingkat) - alasan sama seperti fetchRolesAndCompaniesByUserIds:
+// hindari cartesian product sebelum di-assemble di JS.
+async function fetchAssignmentTreeByUserIds(userIds: number[]) {
+  type BranchNode = { branch_id: number; branch_name: string; divisions: string[] }
+  type CompanyNode = { company_id: number; company_name: string; branches: BranchNode[] }
+  const treeByUser = new Map<number, CompanyNode[]>()
+
+  if (userIds.length === 0) return treeByUser
+
+  const [companyRows, branchRows, divisionRows] = await Promise.all([
+    db
+      .select({ userId: userCompanies.user_id, id: companies.id, name: companies.name })
+      .from(userCompanies)
+      .innerJoin(companies, eq(userCompanies.company_id, companies.id))
+      .where(inArray(userCompanies.user_id, userIds)),
+    db
+      .select({
+        userId: userBranches.user_id,
+        companyId: userBranches.company_id,
+        branchId: userBranches.branch_id,
+        branchName: company_branches.name,
+      })
+      .from(userBranches)
+      .innerJoin(company_branches, eq(userBranches.branch_id, company_branches.id))
+      .where(inArray(userBranches.user_id, userIds)),
+    db
+      .select({ userId: userDivisions.user_id, branchId: userDivisions.branch_id, division: userDivisions.division })
+      .from(userDivisions)
+      .where(inArray(userDivisions.user_id, userIds)),
+  ])
+
+  const divisionsByUserBranch = new Map<string, string[]>()
+  for (const { userId, branchId, division } of divisionRows) {
+    const key = `${userId}:${branchId}`
+    if (!divisionsByUserBranch.has(key)) divisionsByUserBranch.set(key, [])
+    divisionsByUserBranch.get(key)!.push(division)
+  }
+
+  const branchesByUserCompany = new Map<string, BranchNode[]>()
+  for (const { userId, companyId, branchId, branchName } of branchRows) {
+    const key = `${userId}:${companyId}`
+    if (!branchesByUserCompany.has(key)) branchesByUserCompany.set(key, [])
+    branchesByUserCompany.get(key)!.push({
+      branch_id: branchId,
+      branch_name: branchName,
+      divisions: divisionsByUserBranch.get(`${userId}:${branchId}`) ?? [],
+    })
+  }
+
+  for (const { userId, id, name } of companyRows) {
+    if (!treeByUser.has(userId)) treeByUser.set(userId, [])
+    treeByUser.get(userId)!.push({
+      company_id: id,
+      company_name: name,
+      branches: branchesByUserCompany.get(`${userId}:${id}`) ?? [],
+    })
+  }
+
+  return treeByUser
+}
+
+// Replace assignment Company/Branch/Division sekaligus dalam satu transaksi -
+// supaya tidak ada state invalid (mis. division ter-assign tapi branch parent-nya
+// terhapus). Mirror pola replaceUserCompanies/replaceUserRoles tapi untuk 3 tabel.
+export async function replaceUserAssignments(userId: number, assignments: CompanyAssignmentDto[]) {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(userCompanies).where(eq(userCompanies.user_id, userId))
+      await tx.delete(userBranches).where(eq(userBranches.user_id, userId))
+      await tx.delete(userDivisions).where(eq(userDivisions.user_id, userId))
+
+      if (assignments.length === 0) return
+
+      await tx.insert(userCompanies).values(
+        assignments.map((a) => ({ user_id: userId, company_id: a.company_id })),
+      )
+
+      const branchRows = assignments.flatMap((a) =>
+        a.branches.map((b) => ({ user_id: userId, company_id: a.company_id, branch_id: b.branch_id })),
+      )
+      if (branchRows.length > 0) await tx.insert(userBranches).values(branchRows)
+
+      const divisionRows = assignments.flatMap((a) =>
+        a.branches.flatMap((b) =>
+          b.divisions.map((division) => ({ user_id: userId, branch_id: b.branch_id, division })),
+        ),
+      )
+      if (divisionRows.length > 0) await tx.insert(userDivisions).values(divisionRows)
+    })
+  } catch (err) {
+    handleDbError(err)
+  }
+}
+
 export async function findAllUsers(pagination: PaginationQuery) {
   const { page, per_page } = pagination
 
@@ -80,12 +175,17 @@ export async function findAllUsers(pagination: PaginationQuery) {
       db.select({ value: count() }).from(users).where(isNull(users.deleted_at)),
     ])
 
-    const { rolesByUser, companiesByUser } = await fetchRolesAndCompaniesByUserIds(usersData.map((u) => u.id))
+    const userIds = usersData.map((u) => u.id)
+    const [{ rolesByUser, companiesByUser }, assignmentTreeByUser] = await Promise.all([
+      fetchRolesAndCompaniesByUserIds(userIds),
+      fetchAssignmentTreeByUserIds(userIds),
+    ])
 
     const rows = usersData.map((user) => ({
       ...user,
       roles: rolesByUser.get(user.id) ?? [],
       companies: companiesByUser.get(user.id) ?? [],
+      company_assignments: assignmentTreeByUser.get(user.id) ?? [],
     }))
 
     return { rows, total }
@@ -112,12 +212,16 @@ export async function findUserById(id: number) {
 
     if (!user) return null
 
-    const { rolesByUser, companiesByUser } = await fetchRolesAndCompaniesByUserIds([id])
+    const [{ rolesByUser, companiesByUser }, assignmentTreeByUser] = await Promise.all([
+      fetchRolesAndCompaniesByUserIds([id]),
+      fetchAssignmentTreeByUserIds([id]),
+    ])
 
     return {
       ...user,
       roles: rolesByUser.get(id) ?? [],
       companies: companiesByUser.get(id) ?? [],
+      company_assignments: assignmentTreeByUser.get(id) ?? [],
     }
   } catch (err) {
     handleDbError(err)

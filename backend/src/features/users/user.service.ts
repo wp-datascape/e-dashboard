@@ -16,6 +16,7 @@ import {
   softDeleteUser,
   replaceUserRoles,
   replaceUserCompanies,
+  replaceUserAssignments,
 } from './user.repository'
 import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
@@ -36,18 +37,18 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
     const existing = await findUserByEmail(dto.email)
     if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
 
-    const { role_ids, company_ids, ...userData } = dto
+    const { role_ids, company_assignments, ...userData } = dto
     const hashed = await hashPassword(userData.password)
     const user = await createUser({ ...userData, password: hashed })
 
-    // Role & company sengaja di-assign di sini (bukan cuma insert users) —
-    // sebelumnya kedua field ini dikirim frontend tapi tidak ada di schema,
+    // Role & company assignment sengaja di-assign di sini (bukan cuma insert users) —
+    // sebelumnya field ini dikirim frontend tapi tidak ada di schema,
     // jadi di-strip diam-diam oleh Zod dan user baru selalu tanpa role/company.
     if (role_ids && role_ids.length > 0) {
       await replaceUserRoles(user!.id, role_ids)
     }
-    if (company_ids && company_ids.length > 0) {
-      await replaceUserCompanies(user!.id, company_ids)
+    if (company_assignments && company_assignments.length > 0) {
+      await replaceUserAssignments(user!.id, company_assignments)
     }
 
     const created = await findUserById(user!.id)
@@ -58,7 +59,7 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
       action: 'user.create',
       entity: 'users',
       entityId: user!.id,
-      companyId: company_ids?.[0] ?? null,
+      companyId: company_assignments?.[0]?.company_id ?? null,
       newValue: {
         id: user!.id,
         email: user!.email,
@@ -81,7 +82,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
   const before = await getUserById(id)
 
   // Extract relation fields before updating user data
-  const { role_ids, company_ids, ...userData } = dto
+  const { role_ids, company_assignments, ...userData } = dto
 
   // Hash password baru kalau admin reset password user ini
   const passwordReset = userData.password !== undefined
@@ -97,9 +98,9 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
     await replaceUserRoles(id, role_ids)
   }
 
-  // Sync companies if provided
-  if (company_ids !== undefined) {
-    await replaceUserCompanies(id, company_ids)
+  // Sync company/branch/division assignment if provided
+  if (company_assignments !== undefined) {
+    await replaceUserAssignments(id, company_assignments)
   }
 
   // Re-fetch dengan relasi (state setelah update)
