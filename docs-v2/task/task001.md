@@ -290,7 +290,7 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 - [ ] C2. `transactions.handler.ts` + `transactions.repository.ts`
 - [ ] C3. `products.handler.ts` + `products.repository.ts`
 - [ ] C4. `metrics.handler.ts` + `repository/{m1,m3m7,m4,m6,m8m10}.repository.ts`
-- [ ] C5. `import.handler.ts` + `import.repository.ts`
+- [x] C5. `import.handler.ts` + `import.repository.ts` — **keputusan (2026-07-06)**: `import_logs` tetap company-scope saja (TIDAK ditambah branch/division scope). Alasan: 1 import log = 1 event upload yang bisa berisi invoice lintas banyak branch sekaligus, tidak ada relasi 1:1 branch/division di level log — beda dari `invoices` yang per-baris. Fix C8 (channel_divisions JOIN company_id) tetap diterapkan di `upsertCustomer()`.
 - [ ] C6. `audit.handler.ts` + `audit.repository.ts` — **sudah diputuskan (§7.2)**: tetap di-scope `company_id` saja (pola existing, tidak berubah), TIDAK perlu tambah branch/division scope karena akses endpoint ini sudah dibatasi lewat permission ke role setingkat direktur/superadmin
 - [ ] C7. `settings/high-margin.handler.ts` + `high-margin.repository.ts`
 - [ ] C8. **Catatan tambahan ditemukan saat riset:** JOIN `channel_divisions` di semua repository di atas saat ini **tidak** match `company_id` pada kondisi JOIN-nya (cuma match `channel_name`) — sebelum enforcement division aktif, ini harus diperbaiki dulu supaya tidak salah scoping lintas company dengan `channel_name` yang kebetulan sama.

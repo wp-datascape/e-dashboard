@@ -117,14 +117,20 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
   const upperName = data.customer_name.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
 
-  // Lookup division dari channel_divisions berdasarkan channel_name
+  // Lookup division dari channel_divisions berdasarkan channel_name — di-scope company_id
+  // (rule company-specific menang atas rule global kalau kebetulan ada dua-duanya untuk
+  // channel_name yang sama), supaya tidak salah ambil mapping company lain (Task C8)
   let division: string | null = null
   if (data.channel_name) {
     const upperCh = data.channel_name.trim().toUpperCase()
     const [divRow] = await db
       .select({ division: channel_divisions.division })
       .from(channel_divisions)
-      .where(eq(channel_divisions.channel_name, upperCh))
+      .where(and(
+        eq(channel_divisions.channel_name, upperCh),
+        or(eq(channel_divisions.company_id, data.company_id), isNull(channel_divisions.company_id)),
+      ))
+      .orderBy(sql`${channel_divisions.company_id} IS NULL`)
       .limit(1)
     division = divRow?.division ?? null
   }
