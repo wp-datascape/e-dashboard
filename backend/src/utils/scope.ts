@@ -51,3 +51,49 @@ export function buildDivisionCondition(
   )
   return or(...clauses)
 }
+
+/**
+ * Varian raw-SQL dari buildBranchCondition/buildDivisionCondition — dipakai di
+ * repository metrics yang query-nya raw `db.execute(sql\`...\`)` dengan table alias
+ * (mis. `i` untuk invoices, `cd` untuk channel_divisions), bukan Drizzle query builder.
+ * Logic sama persis, cuma beda cara referensi kolom (string alias, bukan objek Column).
+ *
+ * companyExpr/branchExpr/divisionExpr HARUS string literal trusted (nama kolom/alias
+ * tetap dari kode, BUKAN dari input user) — dipakai lewat sql.raw(), tidak di-escape.
+ *
+ * Selalu return SQL valid (bukan undefined) supaya bisa langsung di-embed di WHERE
+ * dengan `AND (${cond})` tanpa perlu cek undefined dulu.
+ */
+export function buildBranchConditionRaw(
+  companyExpr: string,
+  branchExpr: string,
+  scopeMap: Map<number, number[]> | undefined,
+): SQL {
+  if (!scopeMap) return sql`true`
+  if (scopeMap.size === 0) return sql`false`
+  const clauses = [...scopeMap.entries()].map(
+    ([companyId, branchIds]) =>
+      sql`(${sql.raw(companyExpr)} = ${companyId} AND ${sql.raw(branchExpr)} IN (${sql.join(
+        branchIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}))`,
+  )
+  return sql.join(clauses, sql` OR `)
+}
+
+export function buildDivisionConditionRaw(
+  branchExpr: string,
+  divisionExpr: string,
+  scopeMap: Map<number, string[]> | undefined,
+): SQL {
+  if (!scopeMap) return sql`true`
+  if (scopeMap.size === 0) return sql`false`
+  const clauses = [...scopeMap.entries()].map(
+    ([branchId, divisions]) =>
+      sql`(${sql.raw(branchExpr)} = ${branchId} AND ${sql.raw(divisionExpr)} IN (${sql.join(
+        divisions.map((d) => sql`${d}`),
+        sql`, `,
+      )}))`,
+  )
+  return sql.join(clauses, sql` OR `)
+}

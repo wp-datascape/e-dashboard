@@ -3,12 +3,15 @@ import { sql } from 'drizzle-orm'
 import { cteEstablishedCustomers } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RorBreakdownRow } from '../metrics.types'
+import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
 
 export async function fetchRorBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: RorBreakdownRow[]; repeat_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, division } = p
   const establishedCTE = cteEstablishedCustomers(p)
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
 
   const rows = await db.execute(sql`
     WITH
@@ -26,6 +29,8 @@ export async function fetchRorBreakdown(
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
       GROUP BY i.customer_id
       HAVING COUNT(DISTINCT i.id) > 1
     ),

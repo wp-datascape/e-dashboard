@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
+import { buildBranchConditionRaw, buildDivisionConditionRaw } from '@/utils/scope'
 
 export type TrendRow = {
   month: string
@@ -34,7 +35,9 @@ export type TrendRow = {
  * active   = ada invoice dalam activeMonths sebelum akhir bulan (subset existing)
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
-  const { cid, filterDate, activeMonths, dormantMonths, division } = p
+  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope } = p
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
 
   const rows = await db.execute(sql`
     WITH
@@ -66,6 +69,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       WHERE i.deleted_at IS NULL
         AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${dormantMonths}::int * INTERVAL '1 month'
@@ -91,6 +96,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${activeMonths}::int * INTERVAL '1 month'
