@@ -21,6 +21,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { companies } from './companies'
 import { customers } from './customers'
+import { company_branches } from './company_branches'
 
 export const invoices = pgTable('invoices', {
   id: serial('id').primaryKey(),
@@ -45,6 +46,10 @@ export const invoices = pgTable('invoices', {
   channel_name: varchar('channel_name', { length: 255 }),
 
   branch_name: varchar('branch_name', { length: 255 }),
+
+  branch_id: integer('branch_id').references(() => company_branches.id),
+  // FK ke company_branches — nullable, hasil backfill dari branch_name (teks bebas dari Accurate,
+  // belum tentu match persis). Baris yang tidak match tetap NULL — lihat docs-v2/task/task001.md §3.3, §4.6
 
   business_unit: varchar('business_unit', { length: 50 }),
   // B2B_DC | B2B_PROJECT | B2C | MANUFACTURING — copy dari customers

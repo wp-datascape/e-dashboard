@@ -238,65 +238,33 @@ Hasil akhir: user ini cuma bisa lihat data Company 1 / Branch 10 / Division dist
 
 ⚠️ Ini konsekuensi langsung dari hierarki + default-deny: admin harus assign division untuk **setiap branch** yang mau benar-benar bisa dilihat user, bukan cuma assign branch-nya saja. Task D2 (warning di UI) jadi makin penting karena ada 2 lapis yang bisa lupa di-assign (branch DAN division), bukan cuma 1.
 
-### 4.5 Kategori sintetis "Lainnya" untuk division yang tidak match (baru, 2026-07-06 — lihat §7.3)
+### 4.5 "Lainnya" untuk division — row/value asli, konsisten dengan branch (§4.6)
 
-Baris invoice yang `channel_name`-nya tidak ketemu row apa pun di `channel_divisions` (LEFT JOIN gagal, `channel_divisions.division IS NULL`) diperlakukan sebagai division virtual **"Lainnya"**. Syaratnya **full coverage**, bukan cuma "ada akses":
+**Keputusan final (2026-07-06):** sama seperti branch (§4.6), "Lainnya" untuk division **BUKAN** kategori virtual NULL+full-coverage (desain awal dibatalkan) — melainkan **value `division` asli** yang bisa di-assign biasa:
 
-- **Tampil, kalau user punya SEMUA value division** (`distribution|project|e_commerce|intercompany|freelancer|support`, §3.2) yang di-assign untuk branch itu.
-- **Hilang, kalau assignment division user di branch itu cuma sebagian** (mis. cuma `distribution` dari 6 value yang ada) — baris "Lainnya" tidak bisa dipastikan masuk salah satu division yang jadi haknya, jadi disembunyikan.
-- Aturan dasar yang **tidak berubah**: akses division tetap ketat per-branch seperti desain awal (§3.2, §4.2) — user dengan division `distribution` di Branch 10 tetap TIDAK BISA lihat division apa pun di Branch 11 kalau tidak ada assignment di Branch 11. "Full coverage" di atas cuma menentukan apakah baris "Lainnya" ikut tampil DI DALAM branch yang memang sudah jadi haknya — bukan pengecualian baru untuk lintas-branch.
+- `channel_divisions.division` dapat value ke-7: **`'other'`** ("Lainnya"), di samping 6 value existing (`distribution|project|e_commerce|intercompany|freelancer|support`). Channel yang tidak match rule manapun di-assign eksplisit ke `division = 'other'` (lewat row `channel_divisions` biasa, atau default fallback saat tidak ada match — detail implementasi menyusul di Task C).
+- `user_divisions.division` bisa berisi `'other'` seperti value lain — admin assign akses ke division "Lainnya" per branch lewat UI RBAC (Task D1) seperti biasa.
+- **Tidak ada perubahan** di `buildDivisionCondition` (§4.3) — "Lainnya"/`'other'` diperlakukan identik dengan division lain: default-deny berlaku sama (user tidak lihat `'other'` kalau tidak di-assign eksplisit), tidak ada pengecualian/bypass.
+- `hasFullDivisionCoverage()` dan klausa `OR division IS NULL` di desain sebelumnya **dibatalkan** — tidak dibutuhkan lagi.
 
-```typescript
-const DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support']
+Dampak: JOIN `channel_divisions` (Task C8) perlu strategi eksplisit untuk channel yang belum ada rule-nya — assign ke `division='other'` (row default per company, atau global) alih-alih dibiarkan tidak match/NULL.
 
-function hasFullDivisionCoverage(assignedDivisions: string[]): boolean {
-  return DIVISION_VALUES.every((d) => assignedDivisions.includes(d))
-}
-```
+### 4.6 "Lainnya" untuk branch — **revisi (2026-07-06): row asli, bukan NULL+full-coverage**
 
-Konsekuensi di `buildDivisionCondition` (§4.3) — klausa `OR` tambahan cuma berlaku untuk branch yang full-coverage:
+Desain awal §4.6 (full-coverage + `branch_id IS NULL`) **dibatalkan** setelah audit data riil (Task A5) di company 1 (`PT Mesin Kasir Online`). Temuan: `company_branches` cuma seed 1 baris ("Pusat") untuk company 1, padahal di Accurate company 1 sebenarnya punya 2 branch riil (**Jakarta**, **Surabaya**) — dan "Pusat" ternyata bukan branch sungguhan, tapi bucket untuk invoice yang memang tidak ada info branch di Accurate (branch_name NULL).
 
-```sql
-WHERE branchCondition
-  AND (divisionCondition OR (<branch_id ada di daftar full-coverage> AND division IS NULL))
-```
+**Keputusan final:** "Lainnya" adalah **row `company_branches` biasa** (bukan kategori virtual):
+- Row lama "Pusat" (`id=1, company_id=1`) di-**repurpose**: `name` → `'Lainnya'`, `code` → `'LAINNYA'`.
+- Ditambah 2 row branch riil baru untuk company 1: `Jakarta` (`JKT`), `Surabaya` (`SBY`).
+- Backfill (`scripts/backfill-invoice-branch-id.ts`): invoice dengan `branch_name` yang match nama branch (case-insensitive) → `branch_id` branch itu. Invoice dengan `branch_name` NULL (tidak ada info branch sama sekali) → `branch_id` = branch "Lainnya" company itu. Hasil di data lokal: 4214 baris match nama (Jakarta+Surabaya), 2208 baris NULL → "Lainnya". **0 baris tersisa NULL.**
 
-Dampak UI/laporan: breakdown per-division perlu menampilkan bucket "Lainnya" secara eksplisit untuk branch yang full-coverage, supaya total angka tetap rekonsil.
+**Kenapa ini jauh lebih simpel dari desain full-coverage sebelumnya:** karena "Lainnya" adalah branch row asli dengan `id` sungguhan, `buildBranchCondition` (§4.3) TIDAK perlu diubah/ditambah klausa apa pun — "Lainnya" diperlakukan identik dengan Jakarta/Surabaya/branch lain: admin assign akses ke branch "Lainnya" seperti biasa lewat `user_branches`, default-deny berlaku sama seperti branch lain (bukan pengecualian). Tidak ada lagi kebutuhan `hasFullBranchCoverage()`, tidak ada lagi `allBranchesByCompany` lookup tambahan — Task B1/B4 **dibatalkan** kebutuhan tambahannya (lihat update Task B di §5).
 
-Perlakuan `invoices.branch_id IS NULL` (branch-nya sendiri tidak match) memakai pola yang **sama** (full coverage), lihat §4.6.
+⚠️ **Follow-up wajib sebelum Task A4 dijalankan ke production (masuk Task E):** company 1 di production kemungkinan besar punya masalah struktural yang sama (`company_branches` cuma "Pusat", padahal Accurate riil punya Jakarta+Surabaya) — perlu audit & fix data yang sama (repurpose "Pusat"→"Lainnya" + insert branch riil) SEBELUM backfill dijalankan di production, bukan asumsi otomatis "Pusat" di company lain juga berarti "Lainnya" (company 3 kemungkinan besar memang single-branch sungguhan, bukan bucket "Lainnya" — perlu dicek per company, jangan digeneralisasi).
 
-### 4.6 Kategori sintetis "Cabang Lainnya" untuk `branch_id` NULL (baru, 2026-07-06 — lihat §7.3)
+**Konfirmasi (2026-07-06):** division (§4.5) ikut disederhanakan dengan pola yang sama — `division = 'other'` sebagai value asli yang bisa di-assign biasa di `user_divisions`, bukan NULL+full-coverage. Arsitektur branch dan division sekarang konsisten: keduanya pakai "value/row asli", tidak ada logic full-coverage di manapun.
 
-Pola sama persis dengan §4.5, satu tingkat lebih tinggi (company → branch, bukan branch → division):
-
-- **Hilang untuk staff yang branch-nya terisolasi** — user yang cuma di-assign sebagian branch (mis. cuma Branch 10 dari 3 branch yang ada di company itu) TIDAK melihat baris `branch_id` NULL, karena tidak bisa dipastikan baris itu miliknya, bisa saja punya branch lain yang bukan haknya.
-- **Tampil kalau user punya akses ke SEMUA branch dalam company itu** (full coverage) — baris tak-teridentifikasi ikut ditampilkan sebagai bagian company itu.
-
-Beda dari division, universe pembandingnya bukan enum tetap, tapi daftar **branch aktual** di `company_branches` per company (perlu lookup baru):
-
-```typescript
-// allBranchesByCompany: Map<company_id, branch_id[]> — SEMUA branch per company (dari company_branches,
-// independen dari assignment user), bukan Map<company_id, branch_id[]> milik user
-function hasFullBranchCoverage(
-  companyId: number,
-  assignedBranchIds: number[],
-  allBranchesByCompany: Map<number, number[]>,
-): boolean {
-  const all = allBranchesByCompany.get(companyId) ?? []
-  return all.length > 0 && all.every((id) => assignedBranchIds.includes(id))
-}
-```
-
-`buildBranchCondition` (§4.3) perlu klausa `OR` tambahan, hanya untuk company yang full-coverage:
-
-```sql
-WHERE companyCondition
-  AND (branchCondition OR (<company_id ada di daftar full-coverage> AND branch_id IS NULL))
-```
-
-**Konsekuensi rollout (Task F1):** karena seeder F1 meng-assign user existing ke SEMUA branch dalam company yang sudah mereka punya, di hari pertama enforcement aktif semua user existing otomatis full-coverage → tidak ada yang tiba-tiba kehilangan baris `branch_id` NULL. Isolasi baru berlaku belakangan, saat admin sengaja mempersempit seorang user ke sebagian branch lewat RBAC UI (Task D1).
-
-**Task yang perlu update:** Task B1 (query baru: semua branch per company), Task B4 (`buildBranchCondition` perlu parameter tambahan), Task G1 (test case full-coverage vs branch-terisolasi).
+**Task yang perlu update:** Task G1 (test case: user tanpa assignment ke branch/division "Lainnya" tidak melihat baris itu, sama seperti division/branch lain manapun).
 
 ---
 
@@ -310,10 +278,10 @@ WHERE companyCondition
 - [ ] A5. Audit hasil backfill — hitung berapa % baris invoices yang **tidak** ketemu `branch_id` (lihat Task E)
 
 ### Task B — Backend Core (Scope Resolver & Middleware)
-- [ ] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()`, plus query baru `getAllBranchIdsByCompany()` (semua branch per company, dari `company_branches`, independen dari assignment user — dibutuhkan untuk cek full-coverage §4.6)
+- [ ] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()`
 - [ ] B2. `middleware/auth.ts` — extend `authMiddleware()` load scope baru, extend tipe `c.var.user`
 - [ ] B3. `middleware/auth.ts` — `resolveBranchScope()` (input: `companyScopeIds`), `resolveDivisionScope()` (input: hasil `resolveBranchScope`, BUKAN companyScopeIds — lihat §4.2) — keduanya cuma cek `isSuperAdmin`, tidak ada bypass untuk role `admin`
-- [ ] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`, `buildDivisionCondition()` (2 helper terpisah, lihat §4.3), plus `hasFullBranchCoverage()`/`hasFullDivisionCoverage()` untuk bucket "Lainnya"/"Cabang Lainnya" (§4.5, §4.6) — `buildBranchCondition()` perlu parameter tambahan `allBranchesByCompany`
+- [ ] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`, `buildDivisionCondition()` (2 helper terpisah, lihat §4.3). "Lainnya"/`'other'` (§4.5, §4.6) tidak butuh helper tambahan — diperlakukan sama seperti branch/division lain
 - [ ] B5. Seeder: assign row `user_companies`/`user_branches`/`user_divisions` eksplisit untuk user `admin` existing (bukan bypass kode) — lihat Task F1
 
 ### Task C — Repository Updates (7 fitur existing yang sudah pakai `resolveCompanyScope`)
@@ -357,7 +325,7 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 | Risiko | Dampak | Mitigasi |
 |--------|--------|----------|
-| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | Task E — audit dulu sebelum enforcement. **Update (2026-07-06):** sudah diputuskan jadi bucket "Cabang Lainnya" (§7.3, §4.6) — tampil untuk user full-coverage branch, hilang untuk staff branch-terisolasi |
+| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | **Sudah dieksekusi di data lokal (Task A4/A5, 2026-07-06):** ketemu company 1 cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya. Diperbaiki: repurpose "Pusat"→"Lainnya" + insert branch riil, backfill 100% (§4.6). **Production perlu audit serupa sebelum backfill dijalankan di sana (Task E).** |
 | JOIN `channel_divisions` existing tidak match `company_id` | Kalau dipakai juga untuk enforcement akses (bukan cuma filter laporan), bisa salah scoping lintas company | Task C8 — perbaiki JOIN condition dulu |
 | Default-deny **berjenjang** (Company→Branch→Division) | Admin assign branch tapi lupa assign division di bawahnya (atau sebaliknya) → user "hilang akses" mendadak di level yang lebih dalam, terlihat seperti bug padahal by design | Task D2 — warning eksplisit di 2 lapis (branch tanpa division, company tanpa branch) |
 | User existing (termasuk `admin`, karena admin tidak lagi bypass) tiba-tiba kehilangan akses saat fitur pertama kali deploy | Gangguan operasional besar kalau tidak di-migrasi dulu | Task F1 — wajib seeder backfill assignment dulu sebelum enforcement aktif, admin diperlakukan sama seperti user lain |
@@ -371,11 +339,10 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 ~~2. Audit log~~ — **sudah diputuskan (2026-07-06)**: `audit_logs` **tetap di-scope `company_id`** (pola existing, tidak berubah) — beda dari rekomendasi awal draft ini ("tetap full"). Alasan: division tidak pernah punya hak lihat audit log sama sekali; akses ke endpoint ini dibatasi lewat permission khusus role setingkat direktur/superadmin. Karena batas akses sudah berhenti di company (tidak pernah turun ke branch/division), tidak perlu tambah branch/division scope di endpoint ini. Lihat update Task C6.
 
-~~3. Baris data tanpa branch/division match (NULL)~~ — **sudah diputuskan (2026-07-06)**: baris invoice yang `channel_name`-nya tidak match ke divisi manapun di `channel_divisions` dikategorikan sebagai divisi sintetis **"Lainnya"**. Syaratnya **full coverage**, bukan cuma "punya akses":
-   - **Hilang untuk user yang division-nya di branch itu cuma sebagian** (mis. cuma `distribution` dari 6 value yang ada) — "Lainnya" bukan value yang pernah di-assign eksplisit di `user_divisions`, jadi tidak bisa dipastikan itu haknya.
-   - **Tampil kalau user punya SEMUA value division** yang di-assign untuk branch itu (full coverage) — baru dianggap "sudah lihat semua division di branch ini", jadi baris tak-teridentifikasi pun ikut ditampilkan sebagai bagian branch itu.
-   - Detail implementasi query: lihat §4.5 (baru).
-   - Perlakuan `invoices.branch_id` NULL memakai pola **sama persis** (full coverage, bukan "asal ada akses") — lihat §4.6.
+~~3. Baris data tanpa branch/division match (NULL)~~ — **sudah diputuskan & final (2026-07-06, direvisi dari draf awal)**: baik branch maupun division punya kategori **"Lainnya"**, tapi bukan kategori virtual NULL+full-coverage seperti draf awal — melainkan **row/value asli**:
+   - **Branch:** "Lainnya" adalah row `company_branches` biasa (hasil repurpose branch "Pusat" yang ternyata bukan branch riil, ditemukan lewat audit Task A5 — lihat §4.6). Invoice tanpa `branch_name` di-backfill ke `branch_id` "Lainnya" ini, bukan dibiarkan NULL.
+   - **Division:** "Lainnya" adalah value asli `division='other'` di `channel_divisions`/`user_divisions`, di samping 6 value existing (lihat §4.5).
+   - Konsekuensinya: **tidak ada logic khusus** di `buildBranchCondition`/`buildDivisionCondition` (§4.3) untuk kategori ini — keduanya diperlakukan identik dengan branch/division lain, default-deny biasa, admin assign akses lewat `user_branches`/`user_divisions` seperti biasa. Jauh lebih simpel dari desain full-coverage yang sempat dirancang sebelumnya.
 
 ~~4. Timing rollout~~ — **sudah diputuskan (2026-07-06)**: deploy sekaligus semua fitur, bukan bertahap per company. Prosesnya memang tidak berbeda secara teknis — schema, kode, dan migration ditulis & dirilis sekali untuk semua company. Task F3 (aktivasi bertahap) tetap dipertahankan, tapi cuma sebagai **toggle aktivasi** (feature flag `enforcement_enabled` per company), bukan proses build terpisah: Task A–D + F1 selesai dan dirilis sekaligus, lalu F2 (validasi tanpa enforcement) dan F3 (nyalakan bertahap) tinggal soal kapan flag di-flip per company. Alasan tetap pakai flag bertahap walau "prosesnya sama": sistem ini sudah live production, dan default-deny + risiko backfill `branch_id` yang belum tentu 100% bersih (Task E) berarti kalau ada company yang datanya kurang rapi, blast radius kesalahan kebatasi ke company itu dulu — bukan langsung semua user di semua company kehilangan akses bersamaan.
 

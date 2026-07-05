@@ -1,6 +1,6 @@
 {
-  "id": "e2630f4f-340d-4637-b675-ad94f7761849",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "c593b3cf-9814-4f9d-8b5e-8155a975d39f",
+  "prevId": "e2630f4f-340d-4637-b675-ad94f7761849",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1194,6 +1194,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "is_placeholder": {
+          "name": "is_placeholder",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "first_invoice_date": {
           "name": "first_invoice_date",
           "type": "date",
@@ -1219,13 +1226,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "is_placeholder": {
-          "name": "is_placeholder",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {},
@@ -1307,6 +1307,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "business_unit": {
           "name": "business_unit",
           "type": "varchar(50)",
@@ -1366,6 +1372,19 @@
             "id"
           ],
           "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "invoices_branch_id_company_branches_id_fk": {
+          "name": "invoices_branch_id_company_branches_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -1812,6 +1831,161 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.user_branches": {
+      "name": "user_branches",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_branches_user_id_users_id_fk": {
+          "name": "user_branches_user_id_users_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_branches_company_id_companies_id_fk": {
+          "name": "user_branches_company_id_companies_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_branches_branch_id_company_branches_id_fk": {
+          "name": "user_branches_branch_id_company_branches_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_branches_user_id_company_id_branch_id_pk": {
+          "name": "user_branches_user_id_company_id_branch_id_pk",
+          "columns": [
+            "user_id",
+            "company_id",
+            "branch_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "public.user_divisions": {
+      "name": "user_divisions",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division": {
+          "name": "division",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_divisions_user_id_users_id_fk": {
+          "name": "user_divisions_user_id_users_id_fk",
+          "tableFrom": "user_divisions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_divisions_branch_id_company_branches_id_fk": {
+          "name": "user_divisions_branch_id_company_branches_id_fk",
+          "tableFrom": "user_divisions",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_divisions_user_id_branch_id_division_pk": {
+          "name": "user_divisions_user_id_branch_id_division_pk",
+          "columns": [
+            "user_id",
+            "branch_id",
+            "division"
+          ]
+        }
+      },
       "uniqueConstraints": {}
     }
   },
