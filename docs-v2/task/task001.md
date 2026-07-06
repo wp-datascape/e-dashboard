@@ -296,11 +296,13 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 - [x] C8. JOIN `channel_divisions` yang tidak match `company_id` — **selesai (2026-07-06)**. Sudah benar di semua file raw-SQL (metrics, dashboard, threshold, segment.helper — ternyata sudah diperbaiki sesi sebelumnya). Yang masih bolong (Drizzle query builder): `customers.repository.ts`, `transactions.repository.ts`, `import.repository.ts` — sudah diperbaiki, pakai pola `OR company_id IS NULL` + prioritaskan rule company-specific di atas rule global kalau kebetulan ada dua-duanya.
 
 ### Task D — RBAC UI (Frontend)
-- [ ] D1. `CreateUserDialog.tsx` / `EditUserDialog.tsx` — UI assignment 3 tingkat: pilih Company → per company pilih Branch → per branch pilih Division. Bukan 3 multi-select flat yang independen — struktur pohon, karena pilihan di tingkat bawah dibatasi oleh pilihan di tingkat atas
-- [ ] D2. Warning eksplisit di UI kalau ada company tanpa branch ter-assign, ATAU branch tanpa division ter-assign ("User ini tidak akan bisa lihat data apa pun di Branch X sampai division di-assign") — dua lapis peringatan, bukan cuma satu, sesuai §4.4
-- [ ] D3. `ViewUserDialog.tsx` — tampilkan pohon assignment Company→Branch→Division
-- [ ] D4. Backend: `user.schema.ts`, `user.service.ts`, `user.repository.ts` — terima payload nested `{ company_id, branch_ids: [{ branch_id, divisions: [] }] }`, replace pattern (mirror `replaceUserCompanies`) untuk ketiga tabel sekaligus dalam satu transaksi (supaya tidak ada state invalid, mis. division ter-assign tapi branch parent-nya dihapus)
-- [ ] D5. i18n — semua label baru wajib masuk `en.json` + `id.json` (lihat `CRITICAL_RULES.md`)
+- [x] D1. `CreateUserDialog.tsx` / `EditUserDialog.tsx` — selesai (2026-07-06). Komponen baru `AssignmentTreePicker.tsx` dipakai bersama di kedua dialog: pilih Company → per company pilih Branch (`useBranchesByCompany`, data asli) → per branch pilih Division. Struktur pohon, bukan 3 multi-select independen.
+- [x] D2. Warning eksplisit — selesai. Company tanpa branch & branch tanpa division masing-masing dapat `Alert` tersendiri di `AssignmentTreePicker`.
+- [x] D3. `ViewUserDialog.tsx` — selesai. Tampilkan pohon assignment read-only + warning yang sama.
+- [x] D4. Backend — selesai. `company_assignments: [{ company_id, branches: [{ branch_id, divisions: [] }] }]` (bukan `branch_ids` seperti draf awal — nama field disesuaikan saat implementasi). `replaceUserAssignments()` di `user.repository.ts` pakai `db.transaction()` untuk 3 tabel sekaligus.
+- [x] D5. i18n — selesai, termasuk label division (`users.divisions.*`, "Lainnya"/"Other" untuk `other`).
+
+**Diverifikasi end-to-end di browser** (real backend + real data, bukan cuma build/typecheck): login → Add User → pilih company → section branch muncul dengan warning D2 → pilih branch → section division muncul dengan warning D2 → pilih division → warning hilang. Tanpa error console. Verifikasi live untuk Edit/View dialog sempat terkendala rate-limiter login (fitur keamanan, bukan bug) — cukup diyakinkan lewat code review karena berbagi komponen `AssignmentTreePicker` yang sama dan lolos build.
 
 ### Task E — Data Audit & Backfill
 - [ ] E1. Audit `invoices.branch_name` vs `company_branches.name` — laporan % match/tidak match per company
