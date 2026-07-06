@@ -305,14 +305,41 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 **Diverifikasi end-to-end di browser** (real backend + real data, bukan cuma build/typecheck): login → Add User → pilih company → section branch muncul dengan warning D2 → pilih branch → section division muncul dengan warning D2 → pilih division → warning hilang. Tanpa error console. Verifikasi live untuk Edit/View dialog sempat terkendala rate-limiter login (fitur keamanan, bukan bug) — cukup diyakinkan lewat code review karena berbagi komponen `AssignmentTreePicker` yang sama dan lolos build.
 
 ### Task E — Data Audit & Backfill
-- [ ] E1. Audit `invoices.branch_name` vs `company_branches.name` — laporan % match/tidak match per company
-- [ ] E2. Untuk baris tidak match: putuskan strategi (perbaiki data source di Accurate, normalisasi manual, atau biarkan `branch_id NULL` dengan aturan eksplisit — lihat §6 risiko)
-- [ ] E3. Audit `invoices.channel_name` vs `channel_divisions.channel_name` — channel yang belum ter-mapping ke division manapun
+> **Konteks penting (2026-07-06):** DB lokal yang dipakai sepanjang sesi implementasi task ini **1:1 sama dengan DB production** saat ini (belum ada drift). Jadi semua audit & backfill di bawah **sudah benar-benar dieksekusi** dan hasilnya representatif untuk production — yang belum terjadi adalah eksekusi ke instance production (Railway) yang sesungguhnya, karena sesi ini cuma pegang akses ke DB lokal. Lihat **Runbook Deploy** di bawah untuk urutan eksekusi ke production saat merge+redeploy nanti.
+- [x] E1. Audit `invoices.branch_name` vs `company_branches.name` — selesai (Task A5). Company 1 (`PT Mesin Kasir Online`) ternyata cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya — lihat §4.6 dan §6.
+- [x] E2. Strategi baris tidak match — **sudah diputuskan & dieksekusi**: "Pusat" di-repurpose jadi "Lainnya" (branch riil, bukan NULL), branch riil Jakarta+Surabaya ditambahkan, backfill 100% (0 baris `branch_id` NULL tersisa). Script: `backend/scripts/backfill-invoice-branch-id.ts`.
+- [x] E3. Audit `invoices.channel_name` vs `channel_divisions.channel_name` — tercakup dalam keputusan division `'other'` (§4.5, §7.3) + fix `COALESCE` di Task G4.
 
 ### Task F — Rollout & Migrasi User Existing
-- [ ] F1. **Sebelum enforcement diaktifkan:** seeder backfill `user_branches`/`user_divisions` untuk **semua** user existing (termasuk role `admin` — admin TIDAK bypass, lihat §2) berdasarkan akses company mereka saat ini: assign ke SEMUA branch dalam company yang sudah mereka punya di `user_companies`, dan SEMUA division dalam tiap branch itu, supaya tidak ada yang tiba-tiba kehilangan akses saat fitur ini di-deploy. **Catatan:** seeder di `seed.ts` sudah punya pola ini untuk user seed development (`admin@mail.com`/`executif@mail.com`) — perlu di-generalisasi jadi script terpisah yang jalan ke SEMUA user production, bukan cuma 2 user seed.
-- [x] F2/F3. **Feature flag `branch_division_enforcement_enabled` — selesai (2026-07-06)**. `business_configs` key baru, default `'false'` (bypass total, cuma company scope yang berlaku — persis perilaku sebelum task001 ini). `authMiddleware()` load sekali per request, `resolveBranchScope`/`resolveDivisionScope` bypass total kalau flag off, tanpa peduli role. Admin nyalakan lewat endpoint config generik yang sudah ada (`PATCH /api/v1/config/branch_division_enforcement_enabled`), tidak perlu UI baru. **Catatan:** ini flag GLOBAL, bukan per-company seperti draf awal §7.4 — per-company butuh redesain Map semantics `resolveBranchScope` (company yang di-bypass vs di-deny perlu representasi beda), didesain ulang kalau nanti terbukti perlu granularitas segitu. Aktivasi bertahap tetap bisa dilakukan lewat urutan: nyalakan flag → pantau → kalau ada masalah, matikan lagi (satu switch, bukan per-company).
-- [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder)
+- [x] F1. **Selesai & sudah dieksekusi (2026-07-06)** — script baru `backend/scripts/backfill-user-branch-division.ts` (idempotent, dry-run default + `--apply`): assign SEMUA branch + SEMUA division ke user existing berdasarkan `user_companies` yang sudah mereka punya, termasuk role `admin` (tidak bypass, lihat §2). Dijalankan di DB lokal: 11 pasangan (user, company) ter-backfill — 27 row `user_branches` + 189 row `user_divisions`.
+- [x] F2/F3. **Feature flag `branch_division_enforcement_enabled` — selesai (2026-07-06)**. `business_configs` key baru, default `'false'` (bypass total, cuma company scope yang berlaku — persis perilaku sebelum task001 ini). `authMiddleware()` load sekali per request, `resolveBranchScope`/`resolveDivisionScope` bypass total kalau flag off, tanpa peduli role. Admin nyalakan lewat **Settings → Threshold → General** (Switch, sudah ada UI-nya) atau langsung `PATCH /api/v1/config/branch_division_enforcement_enabled`. **Catatan:** ini flag GLOBAL, bukan per-company seperti draf awal §7.4 — per-company butuh redesain Map semantics `resolveBranchScope`, didesain ulang kalau nanti terbukti perlu granularitas segitu.
+- [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder). Ini tinggal soal kapan admin mulai pakai — UI-nya (Task D) sudah selesai.
+
+### Runbook Deploy ke Production (saat merge + redeploy)
+
+Urutan ini sudah tervalidasi penuh di DB lokal (1:1 dengan production per catatan di atas) — commands persis sama, cuma target `DATABASE_URL`-nya diganti ke production:
+
+```bash
+# 1. Migration schema (user_branches, user_divisions, invoices.branch_id)
+DATABASE_URL="<production>" bun run db:migrate
+
+# 2. Audit + backfill invoices.branch_id (dry-run dulu, cek laporannya sebelum --apply)
+DATABASE_URL="<production>" bun run backend/scripts/backfill-invoice-branch-id.ts
+DATABASE_URL="<production>" bun run backend/scripts/backfill-invoice-branch-id.ts --apply
+
+# 3. Backfill assignment user existing (dry-run dulu)
+DATABASE_URL="<production>" bun run backend/scripts/backfill-user-branch-division.ts
+DATABASE_URL="<production>" bun run backend/scripts/backfill-user-branch-division.ts --apply
+
+# 4. Seed config default (idempotent, skip kalau sudah ada) — flag OFF by default
+DATABASE_URL="<production>" bun run db:seed
+
+# 5. Deploy kode (enforcement masih OFF di titik ini — F2, aman, no-regression)
+# 6. Setelah verifikasi tidak ada masalah, nyalakan flag lewat Settings > Threshold
+#    (atau PATCH /api/v1/config/branch_division_enforcement_enabled {"value":"true"})
+```
+
+⚠️ **Perhatikan §4.6 audit khusus company 1**: kalau company 1 di production juga cuma punya "Pusat" (bukan Jakarta/Surabaya riil), butuh langkah manual yang sama seperti di lokal — repurpose "Pusat"→"Lainnya" + insert branch riil — SEBELUM step 2 di atas, atau backfill invoice branch_id akan 0% match untuk company itu (persis temuan Task A5).
 
 ### Task G — Testing
 - [x] G1. Unit test `resolveBranchScope`/`resolveDivisionScope`/`build*Condition*` — selesai (2026-07-06), `backend/src/utils/scope.test.ts` (17 test) + `backend/src/middleware/auth.test.ts` (14 test). Kasus bypass, default-deny (map/array kosong), company/branch spesifik, multi-company beda scope, default-deny berjenjang §4.4.
@@ -328,7 +355,7 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 | Risiko | Dampak | Mitigasi |
 |--------|--------|----------|
-| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | **Sudah dieksekusi di data lokal (Task A4/A5, 2026-07-06):** ketemu company 1 cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya. Diperbaiki: repurpose "Pusat"→"Lainnya" + insert branch riil, backfill 100% (§4.6). **Production perlu audit serupa sebelum backfill dijalankan di sana (Task E).** |
+| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | **Sudah dieksekusi di data lokal (Task A4/A5, 2026-07-06):** ketemu company 1 cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya. Diperbaiki: repurpose "Pusat"→"Lainnya" + insert branch riil, backfill 100% (§4.6). **DB lokal = 1:1 production saat ini** — perbaikan yang sama perlu direplikasi manual ke production sebelum step 2 di Runbook Deploy (§5, Task E/F), karena backfill baru jalan di instance lokal, belum di instance production yang sesungguhnya.
 | JOIN `channel_divisions` existing tidak match `company_id` | Kalau dipakai juga untuk enforcement akses (bukan cuma filter laporan), bisa salah scoping lintas company | Task C8 — perbaiki JOIN condition dulu |
 | Default-deny **berjenjang** (Company→Branch→Division) | Admin assign branch tapi lupa assign division di bawahnya (atau sebaliknya) → user "hilang akses" mendadak di level yang lebih dalam, terlihat seperti bug padahal by design | Task D2 — warning eksplisit di 2 lapis (branch tanpa division, company tanpa branch) |
 | User existing (termasuk `admin`, karena admin tidak lagi bypass) tiba-tiba kehilangan akses saat fitur pertama kali deploy | Gangguan operasional besar kalau tidak di-migrasi dulu | Task F1 — wajib seeder backfill assignment dulu sebelum enforcement aktif, admin diperlakukan sama seperti user lain |
