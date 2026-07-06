@@ -12,7 +12,8 @@ import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
+import { fmtRp, monthToEndDate } from './helpers';
+import { SectionLabel } from './HelperComponents';
 
 function orderCountColor(n: number): StatusChipColor {
   if (n >= 10) return 'success';

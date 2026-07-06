@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useCompanies, useBranchesByCompany } from './useCompanies';
 import { useDivisionOptions } from './useDivisionOptions';
 import { useMyScope } from './useMyScope';
@@ -20,9 +20,24 @@ export function useScopedCompanyFilter() {
   const { data: companies = [] } = useCompanies();
   const showCompanyFilter = companies.length > 1;
 
-  const [companyId, setCompanyId] = useState<number | 'all'>('all');
-  const [branchId, setBranchId] = useState<number | 'all'>('all');
+  const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
+  const [branchId, setBranchIdState] = useState<number | 'all'>('all');
   const [division, setDivision] = useState<NonNullable<Division> | ''>('');
+
+  // Company berganti -> branch+division direset; branch berganti -> division
+  // direset (opsi di bawahnya mungkin sudah tidak valid). Reset langsung di setter
+  // (bukan lewat useEffect terpisah) - selesai dalam 1 update, bukan 2 render effect
+  // beruntun, dan tidak melanggar rule "jangan setState sinkron di dalam effect".
+  const setCompanyId = (value: number | 'all') => {
+    setCompanyIdState(value);
+    setBranchIdState('all');
+    setDivision('');
+  };
+
+  const setBranchId = (value: number | 'all') => {
+    setBranchIdState(value);
+    setDivision('');
+  };
 
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);
@@ -37,14 +52,6 @@ export function useScopedCompanyFilter() {
   const divisionOptions = scopedDivisions.restricted
     ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
     : fullDivisionOptions;
-
-  useEffect(() => {
-    setBranchId('all');
-  }, [companyId]);
-
-  useEffect(() => {
-    setDivision('');
-  }, [branchId]);
 
   return {
     companies,

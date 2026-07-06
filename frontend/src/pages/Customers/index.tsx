@@ -42,10 +42,16 @@ export default function Customers() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset ke halaman 1 setiap kali filter berubah
-  useEffect(() => {
+  // Reset ke halaman 1 setiap kali filter berubah — pakai pola "adjust state during
+  // render" (dibandingkan ref filterKey sebelumnya), BUKAN useEffect terpisah, karena
+  // sumber perubahannya banyak (5 filter independen dari beberapa tempat berbeda,
+  // termasuk hook useScopedCompanyFilter) - tidak praktis digabung ke satu handler.
+  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [debouncedSearch, statusFilter, divisionFilter, companyFilter, branchFilter]);
+  }
 
   const queryParams = {
     company_id: companyFilter,

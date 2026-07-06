@@ -11,7 +11,8 @@ import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
+import { fmtRp, monthToEndDate } from './helpers';
+import { SectionLabel } from './HelperComponents';
 
 function useHmColumns(t: TFunction): GridColDef[] {
   return [

@@ -107,16 +107,17 @@ function NavGroup({
   const { t } = useTranslation()
   const location = useLocation()
 
-  // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
-  if (!canSee(item.permissionKey)) return null
-
+  // Hooks WAJIB dipanggil sebelum early return manapun (Rules of Hooks) — makanya
+  // visibleChildren/anyChildActive dihitung duluan di sini, bukan setelah cek canSee.
   const visibleChildren = (item.children ?? []).filter((c) => canSee(c.permissionKey))
-
   const anyChildActive = visibleChildren.some(
     (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
   )
   const [expanded, setExpanded] = useState(anyChildActive)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+
+  // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
+  if (!canSee(item.permissionKey)) return null
 
   if (visibleChildren.length === 0) return null
 

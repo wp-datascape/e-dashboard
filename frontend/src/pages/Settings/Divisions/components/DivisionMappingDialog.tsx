@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import TextField from '@mui/material/TextField'
 import Autocomplete from '@mui/material/Autocomplete'
 import FormControl from '@mui/material/FormControl'
@@ -46,13 +46,22 @@ export function DivisionMappingDialog({
     open && mode === 'create',
   )
 
-  useEffect(() => {
-    if (open) {
+  // Populate form saat dialog dibuka — pola "adjust state during render" (bukan
+  // useEffect) supaya tidak ada setState sinkron di dalam effect. syncedKey direset
+  // ke null tiap dialog tertutup, supaya buka lagi (walau record yang sama) selalu
+  // sinkron ulang dari data terbaru, bukan sisa form yang belum disimpan sebelumnya.
+  const [syncedKey, setSyncedKey] = useState<string | null>(null)
+  if (!open) {
+    if (syncedKey !== null) setSyncedKey(null)
+  } else {
+    const currentKey = String(selected?.id ?? 'new')
+    if (currentKey !== syncedKey) {
+      setSyncedKey(currentKey)
       setChannelName(selected?.channel_name ?? '')
       setDivision((selected?.division ?? '') as NonNullable<Division> | '')
       setCompanyId(selected?.company_id ?? '')
     }
-  }, [open, selected])
+  }
 
   const isValid = channelName.trim().length > 0 && division !== ''
 

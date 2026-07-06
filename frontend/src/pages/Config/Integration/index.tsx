@@ -59,15 +59,24 @@ export default function IntegrationPage() {
   const selectedBranch = branches.find((b) => b.id === selectedBranchId)
   const { data: existingCredentials } = useCredentials(selectedBranchId || null)
 
-  useEffect(() => {
+  // Company berganti -> reset semua field turunannya. Dipanggil langsung dari
+  // onChange Select company (bukan lewat useEffect terpisah) - selesai dalam 1 update.
+  const handleCompanyChange = (companyId: number) => {
+    setSelectedCompanyId(companyId)
     setSelectedBranchId(0)
     setSubdomain('')
     setApiToken('')
     setSignatureSecret('')
     setTestResult({ status: 'idle' })
     setStatus('idle')
-  }, [selectedCompanyId])
+  }
 
+  // Sinkron data dari server (query credentials) ke form editable - beda dari kasus
+  // lain di file ini yang sudah dipindah ke handler, effect ini REAKTIF ke hasil
+  // query (external system), bukan ke aksi user langsung - existingCredentials baru
+  // resolve async setelah selectedBranchId berubah, jadi tidak bisa digabung ke
+  // handler onChange branch seperti company di atas.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (existingCredentials) {
       setSubdomain(existingCredentials.subdomain ?? '')
@@ -79,6 +88,7 @@ export default function IntegrationPage() {
       setSignatureSecret('')
     }
   }, [existingCredentials, selectedBranchId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useSaveCredentials()
   const testMutation = useTestConnection()
@@ -176,7 +186,7 @@ export default function IntegrationPage() {
         <Stack spacing={3}>
           <FormControl fullWidth>
             <InputLabel>{t('config.integration.selectCompany')}</InputLabel>
-            <Select value={selectedCompanyId} label={t('config.integration.selectCompany')} onChange={(e) => setSelectedCompanyId(Number(e.target.value))}>
+            <Select value={selectedCompanyId} label={t('config.integration.selectCompany')} onChange={(e) => handleCompanyChange(Number(e.target.value))}>
               <MenuItem value={0}><em>— {t('common.select')} —</em></MenuItem>
               {companies.map((c) => <MenuItem key={c.id} value={c.id}>{c.name} ({c.code})</MenuItem>)}
             </Select>

@@ -19,7 +19,8 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useGpBreakdown } from '@/hooks/useMetrics';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
-import { fmtRp, fmtRpDetail, SectionLabel, Row, monthToEndDate } from './helpers';
+import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
+import { SectionLabel, Row } from './HelperComponents';
 
 function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();

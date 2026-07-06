@@ -1,5 +1,5 @@
 // src/App.tsx
-import { Suspense, useState } from 'react'
+import { Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 
 // MUI Components
@@ -41,12 +41,8 @@ function AppRouter() {
   const { data: pageSettings, isLoading } = usePageSettings()
   const { token, syncUser, isAuthenticated } = useAuth()
 
-  // synced: false saat ada token — tunggu /me selesai dan syncUser dipanggil
-  // Ini mencegah ProtectedRoute mengecek permissions dari localStorage yang stale
-  const [synced, setSynced] = useState(!token)
-
   // Sync user & permissions dari server setiap page load — agar perubahan RBAC langsung berlaku
-  const { data: meData, isLoading: isMeLoading, isError: isMeError } = useQuery({
+  const { data: meData, isLoading: isMeLoading, isError: isMeError, isSuccess: isMeSuccess } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.get('/auth/me').then((r) => r.data.data),
     enabled: !!token,
@@ -54,18 +50,17 @@ function AppRouter() {
     retry: false,
   })
 
+  // synced: false saat ada token — tunggu /me selesai (sukses ATAU gagal, supaya app
+  // tidak stuck di PageLoader selamanya kalau /me error) sebelum ProtectedRoute
+  // mengecek permissions dari localStorage yang stale. Derived langsung dari state
+  // query (bukan state+effect terpisah) — tidak ada setState sinkron di dalam effect.
+  const synced = !token || isMeSuccess || isMeError
+
   useEffect(() => {
     if (meData) {
       syncUser(meData.user, meData.permissions)
-      setSynced(true)
     }
-  }, [meData])
-
-  // Jika /auth/me gagal (network error, 500, dll) dan bukan ditangani forceLogout,
-  // unblock synced agar app tidak stuck di PageLoader selamanya
-  useEffect(() => {
-    if (isMeError) setSynced(true)
-  }, [isMeError])
+  }, [meData, syncUser])
 
   if (isLoading || (!!token && (isMeLoading || !synced))) {
     return <PageLoader />

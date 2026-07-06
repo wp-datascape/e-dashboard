@@ -51,13 +51,16 @@ export default function Companies() {
     resetDelete();
   };
 
-  const onCreateSubmit = (payload: CreateCompanyPayload) => {
-    createCompany(payload, { onSuccess: closeDialog });
+  // CompanyDialog.onSubmit di-type union (dipakai bersama utk mode create/edit/delete) -
+  // narrow ke shape yang sebenarnya di sini, aman karena dialog cuma pernah memanggil
+  // handler yang sesuai mode-nya masing-masing (lihat CompanyDialog.tsx handleSubmit).
+  const onCreateSubmit = (payload: CreateCompanyPayload | UpdateCompanyPayload | undefined) => {
+    createCompany(payload as CreateCompanyPayload, { onSuccess: closeDialog });
   };
 
-  const onEditSubmit = (payload: UpdateCompanyPayload) => {
+  const onEditSubmit = (payload: CreateCompanyPayload | UpdateCompanyPayload | undefined) => {
     if (!selectedCompany) return;
-    updateCompany({ id: selectedCompany.id, payload }, { onSuccess: closeDialog });
+    updateCompany({ id: selectedCompany.id, payload: payload as UpdateCompanyPayload }, { onSuccess: closeDialog });
   };
 
   const onDeleteConfirm = () => {

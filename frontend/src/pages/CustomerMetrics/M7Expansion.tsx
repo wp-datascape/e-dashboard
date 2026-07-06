@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
-import { SectionLabel } from './helpers';
+import { SectionLabel } from './HelperComponents';
 
 interface Props {
   trend: CustomerMetricsTrendPoint[]

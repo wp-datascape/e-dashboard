@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -35,18 +35,27 @@ export function HighMarginDialog({
   const [effectiveUntil, setEffectiveUntil] = useState('')
   const [note, setNote] = useState('')
 
-  useEffect(() => {
-    if (!open) return
-    if (mode === 'edit' && selected) {
-      setEffectiveUntil(selected.effective_until ?? '')
-      setNote(selected.note ?? '')
-    } else {
-      setTargetOption(null)
-      setEffectiveFrom('')
-      setEffectiveUntil('')
-      setNote('')
+  // Populate form saat dialog dibuka — pola "adjust state during render" (bukan
+  // useEffect), sama seperti DivisionMappingDialog.tsx. syncedKey direset ke null
+  // tiap dialog tertutup, supaya buka lagi selalu sinkron ulang dari data terbaru.
+  const [syncedKey, setSyncedKey] = useState<string | null>(null)
+  if (!open) {
+    if (syncedKey !== null) setSyncedKey(null)
+  } else {
+    const currentKey = `${mode}:${selected?.id ?? 'new'}`
+    if (currentKey !== syncedKey) {
+      setSyncedKey(currentKey)
+      if (mode === 'edit' && selected) {
+        setEffectiveUntil(selected.effective_until ?? '')
+        setNote(selected.note ?? '')
+      } else {
+        setTargetOption(null)
+        setEffectiveFrom('')
+        setEffectiveUntil('')
+        setNote('')
+      }
     }
-  }, [open, mode, selected])
+  }
 
   const handleSubmit = () => {
     if (mode === 'create') {

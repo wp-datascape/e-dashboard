@@ -67,11 +67,9 @@ export function ProgressBar({
   const isMounted = useRef(false)
 
   useEffect(() => {
-    if (!animated) {
-      setSuccessPct(targetSuccessPct)
-      setErrorPct(targetErrorPct)
-      return
-    }
+    // !animated ditangani langsung di render (lihat displaySuccessPct/displayErrorPct
+    // di bawah) — tidak perlu sinkronisasi state sama sekali kalau tidak ada animasi.
+    if (!animated) return
 
     if (!isMounted.current) {
       // Mount pertama: tunda satu frame agar browser render 0% dulu,
@@ -88,6 +86,11 @@ export function ProgressBar({
     setSuccessPct(targetSuccessPct)
     setErrorPct(targetErrorPct)
   }, [targetSuccessPct, targetErrorPct, animated])
+
+  // Saat !animated, tampilkan nilai target langsung tanpa lewat state (tidak ada
+  // transisi yang perlu disinkronkan bertahap)
+  const displaySuccessPct = animated ? successPct : targetSuccessPct
+  const displayErrorPct = animated ? errorPct : targetErrorPct
 
   const isLoading = status === 'loading'
 
@@ -116,7 +119,7 @@ export function ProgressBar({
                 left: 0,
                 top: 0,
                 height: '100%',
-                width: `${successPct}%`,
+                width: `${displaySuccessPct}%`,
                 bgcolor: 'success.main',
                 borderRadius: h,
                 transition: 'width 0.6s ease',
@@ -126,10 +129,10 @@ export function ProgressBar({
             <Box
               sx={{
                 position: 'absolute',
-                left: `${successPct}%`,
+                left: `${displaySuccessPct}%`,
                 top: 0,
                 height: '100%',
-                width: `${errorPct}%`,
+                width: `${displayErrorPct}%`,
                 bgcolor: 'error.main',
                 borderRadius: h,
                 transition: 'width 0.6s ease, left 0.6s ease',
