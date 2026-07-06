@@ -235,7 +235,7 @@ Import massal classification rules dari file CSV atau XLSX.
 ## References
 
 - **Backend**: `backend/src/features/import/classification.*`
-- **DB Schema**: `backend/src/db/schema/item_classification_rules.ts`
+- **DB Schema**: `backend/src/db/schema/schema-product.ts` (table `item_classification_rules`)
 - **Schema + Priority Map**: `backend/src/features/import/import.schema.ts`
 - **Frontend Page (CRUD)**: `frontend/src/pages/Config/Classification/`
 - **Frontend Import**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `klasifikasi`)

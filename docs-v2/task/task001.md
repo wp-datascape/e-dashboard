@@ -322,9 +322,15 @@ production saat ini **boleh hilang** — akan di-re-import ulang dari Accurate/C
 Ini menyederhanakan proses jauh lebih banyak dibanding rencana awal (skip semua langkah backfill
 data lama sama sekali). Dua hal yang membuat ini aman:
 
-1. Migration schema sudah rapi — **satu file** `0006_fat_leper_queen.sql` berisi seluruh perubahan
-   Task001 (`user_branches`, `user_divisions`, `invoices.branch_id`) sekali generate, tidak perlu
-   digabung/diedit manual.
+1. Migration schema sudah rapi — direstruktur (2026-07-06) jadi **4 file** selaras dengan
+   pengelompokan schema per-domain: `0000_schema_auth.sql`, `0001_schema_company.sql`,
+   `0002_schema_product.sql`, `0003_schema_transaction.sql` (`db/migrations/`). Berisi seluruh
+   tabel final termasuk perubahan Task001 (`user_branches`, `user_divisions`,
+   `invoices.branch_id`). Divalidasi 2x end-to-end di database sementara: migrate → seed →
+   `drizzle-kit generate` konfirmasi "No schema changes". Schema TS-nya sendiri (`db/schema/`)
+   juga direorganisasi dari 23 file per-tabel jadi 4 file per-domain (`schema-auth.ts`,
+   `schema-company.ts`, `schema-product.ts`, `schema-transaction.ts`) + `page_settings.ts`
+   berdiri sendiri — murni reorganisasi file, tidak ada perubahan struktur tabel.
 2. `seed.ts` (`defaultBranches`) sudah punya branch yang BENAR sejak awal untuk company 1 (Jakarta/
    Surabaya/Lainnya, bukan "Pusat" lama) — jadi fresh seed langsung konsisten, tidak perlu diperbaiki
    manual seperti temuan Task A5 di data lokal lama.

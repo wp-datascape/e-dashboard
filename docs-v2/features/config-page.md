@@ -150,7 +150,7 @@ Semua page di-seed via `backend/src/db/seed.ts`:
 
 ## References
 
-- **Backend**: `src/features/page/`, `src/db/schema/company_branches.ts`, `src/db/schema/accurate_credentials.ts`
+- **Backend**: `src/features/page/`, `src/db/schema/schema-company.ts` (tables `company_branches`, `accurate_credentials`)
 - **Database Schema**: `src/db/schema/page_settings.ts`
 - **Seed Data**: `src/db/seed.ts`
 - **Frontend API**: `frontend/src/api/page.api.ts`, `frontend/src/api/accurate.api.ts`

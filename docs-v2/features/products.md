@@ -194,7 +194,7 @@ Dihitung dari rata-rata `(total_gp / total_revenue)` per kategori saat ada invoi
 ## References
 
 - **Backend**: `backend/src/features/products/`
-- **DB Schema**: `backend/src/db/schema/products.ts`, `backend/src/db/schema/product_categories.ts`
+- **DB Schema**: `backend/src/db/schema/schema-product.ts` (tables `products`, `product_categories`)
 - **Accurate Integration**: `features/accurate.md`
 - **High Margin**: `features/high-margin-products.md`
 - **Frontend Page**: `frontend/src/pages/Products/`

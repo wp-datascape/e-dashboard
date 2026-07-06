@@ -270,7 +270,7 @@ Hapus cabang.
 ## References
 
 - **Backend API**: `src/features/companies/`
-- **Database Schema**: `src/db/schema/companies.ts`, `src/db/schema/company_branches.ts`
+- **Database Schema**: `src/db/schema/schema-company.ts` (tables `companies`, `company_branches`)
 - **Frontend Types**: `frontend/src/types/companies.ts`
 - **Frontend Page**: `frontend/src/pages/Companies/`
 - **Seed Data**: `src/db/seed.ts`

@@ -228,7 +228,7 @@ Assign permissions ke role (replace existing).
 ## References
 
 - **Backend API**: `src/features/roles/`
-- **Database Schema**: `src/db/schema/roles.ts`
+- **Database Schema**: `src/db/schema/schema-auth.ts` (table `roles`)
 - **Frontend Types**: `frontend/src/types/roles.ts`
 - **Seed Data**: `src/db/seed.ts`
 

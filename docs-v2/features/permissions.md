@@ -283,7 +283,7 @@ Hapus permission. Otomatis remove dari semua role_permissions (CASCADE).
 ## References
 
 - **Backend API**: `src/features/permissions/`
-- **Database Schema**: `src/db/schema/permissions.ts`
+- **Database Schema**: `src/db/schema/schema-auth.ts` (table `permissions`)
 - **Seed Data**: `src/db/seed.ts`
 
 ---
