@@ -122,12 +122,29 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
     cuma permission menganggur di RBAC UI. Bangun fiturnya (atau hapus definisi permission-nya)
     kalau nanti memang dibutuhkan.
 
-### Task C — Account Lockout
+### Task C — Account Lockout ✅ **Selesai (2026-07-06)**
 > **Keputusan (2026-07-06):** kombinasi per-akun DAN per-IP, bukan salah satu saja.
-- [ ] C1. Tambah kolom `failed_login_count`/`locked_until` di tabel `users` (lockout per-akun)
-- [ ] C2. Rate-limit per-IP di layer login **tetap dipertahankan** (`middleware/rate-limit.ts` — sudah ada) sebagai lapis kedua, independen dari lockout per-akun
-- [ ] C3. Desain threshold & durasi: berapa kali gagal berturut-turut sebelum akun terkunci, berapa lama lock bertahan (auto-unlock) — belum diputuskan, perlu dibahas saat mulai coding
-- [ ] C4. Unlock manual oleh admin (di halaman Users) sebagai jalan keluar kalau auto-unlock durasinya kepanjangan untuk kasus tertentu
+- [x] C1. Kolom `failed_login_count` (integer, default 0) dan `locked_until` (timestamp
+  nullable) ditambahkan ke `users` (`schema-auth.ts`) — migration `0004_account_lockout.sql`.
+- [x] C2. Rate-limit per-IP di `/auth/login` (sudah ada sebelumnya) **tetap dipertahankan**
+  sebagai lapis kedua, independen dari lockout per-akun ini.
+- [x] C3. **Threshold & durasi dikonfigurasi via ENV** (`ACCOUNT_LOCKOUT_THRESHOLD=5`,
+  `ACCOUNT_LOCKOUT_DURATION_MINUTES=30` — standar industri, default di `config/env.ts`),
+  BUKAN hardcode — bisa diubah kapan saja tanpa deploy kode baru. Alur: cek `locked_until`
+  SEBELUM verifikasi password (password benar pun tetap ditolak selama terkunci); password
+  salah → increment `failed_login_count`, kalau capai threshold → set `locked_until`; login
+  sukses → reset keduanya ke 0/null.
+- [x] C4. Unlock manual oleh admin: `POST /users/:id/unlock`, permission **baru**
+  `access.user:unlock` (bukan reuse `access.user:update` — granular by design, role custom
+  bisa di-assign cuma unlock tanpa full update). Ditambahkan lewat jalur lengkap: seeder DB →
+  toggle RBAC UI (kolom action `SetPermissionDialog` otomatis data-driven) → `requirePermission`
+  di route. UI Users list: chip "Locked"/"Terkunci" di kolom status + action "Buka Kunci Akun"
+  (cuma muncul kalau user sedang terkunci DAN viewer punya permission).
+
+  Diverifikasi end-to-end via curl: 5x password salah → terkunci tepat di percobaan ke-5;
+  password BENAR pun tetap ditolak selama terkunci; admin unlock → reset → login berhasil
+  lagi; user tanpa `access.user:unlock` → 403. Typecheck+build frontend bersih, 38 test
+  backend tetap lolos.
 
 ### Task D — Invalidasi Sesi saat Reset Password
 > **Keputusan (2026-07-06):** auth session **stateless, tanpa tabel DB** (lihat §1.3) — jadi revoke token individual tidak mungkin tanpa redesign. Pendekatan yang cocok untuk constraint ini: `token_version` bukan token blocklist.
