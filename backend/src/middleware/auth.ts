@@ -129,6 +129,27 @@ export function resolveDivisionScope(
   return map
 }
 
+/**
+ * Validasi filter branch_id yang di-request eksplisit lewat query param (BUKAN
+ * enforcement scope, tapi filter laporan opsional — mirror `business_unit`/`company_id`
+ * yang sudah ada). branchScope = hasil resolveBranchScope() di atas.
+ *
+ * undefined (bypass) → lolos apa pun. Map (enforcement aktif) → branchId harus ada
+ * di salah satu company yang di-assign user, kalau tidak throw 403 (bukan silently
+ * kosong — user perlu tahu filter yang dipilih memang bukan haknya, bukan cuma
+ * kebetulan tidak ada data).
+ */
+export function assertBranchFilterAccess(
+  branchScope: Map<number, number[]> | undefined,
+  branchId: number,
+): void {
+  if (!branchScope) return
+  const allowedBranchIds = new Set([...branchScope.values()].flat())
+  if (!allowedBranchIds.has(branchId)) {
+    throw new AppError(ErrorCode.FORBIDDEN, 'Akses ke branch ini tidak diizinkan', 403)
+  }
+}
+
 export function authMiddleware() {
   return async (c: Context, next: Next) => {
     const token = getCookie(c, 'access_token')

@@ -12,7 +12,7 @@ export async function findCustomers(
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
 ) {
-  const { company_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
+  const { company_id, branch_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
   const offset = (page - 1) * per_page
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
 
@@ -101,8 +101,11 @@ export async function findCustomers(
   // lintas semua invoice miliknya)
   const branchScopeCond = buildBranchCondition(customers.company_id, latestSalespersonSq.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division, divisionScope)
+  // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
+  // branchScopeCond (enforcement akses) meski keduanya nyasar ke kolom yang sama
+  const branchFilterCond = branch_id ? eq(latestSalespersonSq.branch_id, branch_id) : undefined
 
-  const scopeConditions = [divisionCond, branchScopeCond, divisionScopeCond].filter(
+  const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
   const whereWithDivision = scopeConditions.length
