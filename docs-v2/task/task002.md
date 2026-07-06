@@ -94,6 +94,31 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   Diverifikasi: 21 request PATCH beruntun ke endpoint role — 20 lolos, ke-21 kena 429 dengan
   `Retry-After` benar; GET tetap 200 meski user sama kena limit di endpoint mutasi (rate
   limit per-route, bukan global per-user); 38 test backend tetap lolos.
+- [x] B3. **Audit lanjutan (2026-07-06, atas permintaan user "cek setiap route endpoint"):**
+  bandingkan SEMUA string permission yang dipakai `requirePermission()` di seluruh route vs
+  yang benar-benar ada di `db/seed.ts` (data-driven, bukan tebak dari nama role). Ditemukan
+  2 hal dan diperbaiki:
+  - **BUG keamanan nyata**: `page.route.ts` `PUT /:pageKey` **TIDAK PUNYA `requirePermission`
+    SAMA SEKALI** — role apa pun (termasuk `user` biasa tanpa permission apa pun) bisa
+    mematikan/menyalakan visibility halaman mana pun di seluruh aplikasi. Dikonfirmasi via
+    curl langsung sebelum fix (`user@mail.com` berhasil set `ready=false` di halaman
+    dashboard). Fix: `requirePermission('config.features:update')`.
+  - **Granularitas RBAC keliru**: `permissions.route.ts` create/delete permission salah pakai
+    `access.permission:update` — padahal `access.permission:create`/`:delete` sudah ada di DB
+    tapi tidak pernah dipakai. Fix: masing-masing endpoint pakai permission yang sesuai (tidak
+    ada dampak akses nyata saat ini — belum ada role non-superadmin yang di-assign permission
+    ini sama sekali, tapi desainnya sekarang benar).
+  - Rate limit ditambah ke SEMUA endpoint mutasi yang sebelumnya 0 rate limit: companies/
+    branches (15/5menit — paling ketat, fondasi hierarki Company→Branch→Division task001),
+    channel-divisions (20/5menit — dipakai derive division scope RBAC), classification-rules
+    & high-margin-products (20/5menit), import CSV (5/10menit — beda karakter, resource
+    exhaustion bukan privilege escalation), business_configs PUT (20/5menit), accurate
+    credentials PUT (15/5menit — simpan secret ter-encrypt), accurate test-connection
+    (10/5menit — manggil API eksternal, threshold rendah supaya tidak jadi vektor hammer ke
+    pihak ketiga).
+  - **Temuan belum diputuskan** (bukan bug, keputusan produk): permission
+    `config.integration:delete` ada di DB tapi tidak ada endpoint DELETE credentials Accurate
+    sama sekali — orphaned permission, fitur "hapus kredensial" belum pernah dibangun.
 
 ### Task C — Account Lockout
 > **Keputusan (2026-07-06):** kombinasi per-akun DAN per-IP, bukan salah satu saja.
