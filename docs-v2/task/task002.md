@@ -116,9 +116,11 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
     credentials PUT (15/5menit — simpan secret ter-encrypt), accurate test-connection
     (10/5menit — manggil API eksternal, threshold rendah supaya tidak jadi vektor hammer ke
     pihak ketiga).
-  - **Temuan belum diputuskan** (bukan bug, keputusan produk): permission
-    `config.integration:delete` ada di DB tapi tidak ada endpoint DELETE credentials Accurate
-    sama sekali — orphaned permission, fitur "hapus kredensial" belum pernah dibangun.
+  - **Keputusan (2026-07-06):** permission `config.integration:delete` ada di DB tapi tidak
+    ada endpoint DELETE credentials Accurate sama sekali (orphaned — fitur "hapus kredensial"
+    belum pernah dibangun). User memutuskan **dibiarkan saja dulu** — bukan bug/berbahaya,
+    cuma permission menganggur di RBAC UI. Bangun fiturnya (atau hapus definisi permission-nya)
+    kalau nanti memang dibutuhkan.
 
 ### Task C — Account Lockout
 > **Keputusan (2026-07-06):** kombinasi per-akun DAN per-IP, bukan salah satu saja.
