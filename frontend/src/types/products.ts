@@ -64,6 +64,8 @@ export interface HighMarginCategoryRow {
 
 export interface HighMarginDetailParams {
   company_id?: number | 'all'
+  branch_id?: number
+  division?: string
   period_month?: string
   active_window?: number
   page?: number
@@ -111,6 +113,7 @@ export interface CustomerProductsParams {
 
 export interface UpsellTargetParams {
   company_id?: number | 'all'
+  branch_id?: number
   period_month?: string
   active_window?: number
   business_unit?: string
@@ -135,6 +138,8 @@ export interface ProductTrendData {
 
 export interface ProductTrendParams {
   company_id?: number | 'all'
+  branch_id?: number
+  division?: string
   period_month?: string
   active_window?: number
 }

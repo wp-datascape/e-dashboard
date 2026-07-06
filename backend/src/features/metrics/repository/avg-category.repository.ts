@@ -7,6 +7,8 @@ export interface AvgCategoryRepoParams {
   companyScopeIds?: number[]
   periodEnd: string    // YYYY-MM-DD = akhir bulan dari period_month
   activeWindow: number // jumlah bulan window aktif (rolling)
+  division?: string | null   // filter laporan (mirror business_unit di metrics lain)
+  branchFilter?: number | null // filter laporan (mirror branch_id di metrics lain)
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -17,12 +19,13 @@ export interface AvgCategoryTrendRow {
 }
 
 // Rolling avg jumlah kategori produk berbeda per customer aktif, per titik bulan (12 bulan terakhir).
-// Pola sama dengan fetchCrossSellingTrend (m1.repository.ts) tapi tanpa filter division —
-// ProductTrendParams tidak punya field division.
+// Pola sama dengan fetchCrossSellingTrend (m1.repository.ts).
 export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<AvgCategoryTrendRow[]> {
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   const rawRows = await db.execute(sql`
     WITH
@@ -53,6 +56,8 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ${companyCondI}
         AND ii.product_category_id IS NOT NULL
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),

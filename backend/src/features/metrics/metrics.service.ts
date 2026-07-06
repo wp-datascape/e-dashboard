@@ -322,6 +322,8 @@ export async function getHmPenetrationDetail(
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
+      division:        params.division,
+      branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
       page: params.page, perPage: params.per_page,
     })
@@ -382,6 +384,7 @@ export async function getUpsellTargets(
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
+      branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
       businessUnit: params.business_unit || null,
       page: params.page, perPage: params.per_page,
@@ -415,6 +418,8 @@ export async function getAvgCategoryTrend(params: AvgCategoryQuery, scope: Metri
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
+      division:        params.division,
+      branchFilter:    params.branch_id,
       periodEnd,
       activeWindow,
     })

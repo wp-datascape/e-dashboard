@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
-import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope } from '@/middleware/auth'
+import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
 import { crossSellingQuerySchema, customerMetricsQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
 import { getCrossSellingMetrics, getCustomerMetrics, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
@@ -14,51 +14,52 @@ import type { MetricsScope } from './metrics.service'
  * difilter company sama sekali untuk siapa pun (bukan cuma superadmin) — lihat
  * docs-v2/task/task001.md.
  */
-function resolveScope(c: Context, companyId: number | 'all'): MetricsScope {
+function resolveScope(c: Context, companyId: number | 'all', branchId?: number): MetricsScope {
   const companyScopeIds = resolveCompanyScope(c, companyId)
   const branchScope = resolveBranchScope(c, companyScopeIds)
   const divisionScope = resolveDivisionScope(c, branchScope)
+  if (branchId) assertBranchFilterAccess(branchScope, branchId)
   return { companyScopeIds, branchScope, divisionScope }
 }
 
 export async function handleGetCrossSelling(c: Context) {
   const query = validateQuery(c, crossSellingQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getCrossSellingMetrics(query, scope)
   return success(c, data)
 }
 
 export async function handleGetCustomerMetrics(c: Context) {
   const query = validateQuery(c, customerMetricsQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getCustomerMetrics(query, scope)
   return success(c, data)
 }
 
 export async function handleGetGpBreakdown(c: Context) {
   const query = validateQuery(c, gpBreakdownQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getGpBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetHmBreakdown(c: Context) {
   const query = validateQuery(c, hmBreakdownQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getHmBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetRorBreakdown(c: Context) {
   const query = validateQuery(c, rorBreakdownQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getRorBreakdown(query, scope)
   return success(c, data)
 }
 
 export async function handleGetDormantMetrics(c: Context) {
   const query = validateQuery(c, dormantCustomerQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getDormantCustomerMetrics(query, scope)
   return success(c, data)
 }
@@ -79,7 +80,7 @@ export async function handleGetCategoryProducts(c: Context) {
 
 export async function handleGetHmDetail(c: Context) {
   const query = validateQuery(c, hmDetailQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getHmPenetrationDetail(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
@@ -93,14 +94,14 @@ export async function handleGetCustomerProducts(c: Context) {
 
 export async function handleGetUpsellTargets(c: Context) {
   const query = validateQuery(c, upsellTargetQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getUpsellTargets(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
 
 export async function handleGetAvgCategory(c: Context) {
   const query = validateQuery(c, avgCategoryQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getAvgCategoryTrend(query, scope)
   return success(c, data)
 }

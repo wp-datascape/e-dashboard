@@ -11,8 +11,7 @@ import LinearProgress from '@mui/material/LinearProgress'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
-import { useCompanies } from '@/hooks/useCompanies'
-import { useDivisionOptions } from '@/hooks/useDivisionOptions'
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import type {
   HighMarginCategoryRow,
   HighMarginDetailParams,
@@ -53,6 +52,8 @@ function PenetrationBar({ value }: { value: number }) {
 // ─── Shared Filter Props ──────────────────────────────────────────────────────
 interface FilterState {
   companyId: number | 'all'
+  branchId: number | 'all'
+  division: string
   periodMonth: string
   activeWindow: number
 }
@@ -64,6 +65,8 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
 
   const params: HighMarginDetailParams = {
     company_id:    filter.companyId,
+    branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
+    division:      filter.division || undefined,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
     page: pagination.page + 1,
@@ -147,9 +150,6 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
 function UpsellTargetsTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
-  const [buFilter, setBuFilter] = useState('')
-
-  const divisionOptions = useDivisionOptions(filter.companyId)
 
   // Drawer: customer purchase history (row click or categories_bought chip click)
   const [drawerCustomer,  setDrawerCustomer]  = useState<UpsellTargetRow | null>(null)
@@ -171,9 +171,10 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
 
   const params: UpsellTargetParams = {
     company_id:    filter.companyId,
+    branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
-    business_unit: buFilter || undefined,
+    business_unit: filter.division || undefined,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
   }
@@ -260,20 +261,6 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
 
   return (
     <Box>
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          select size="small" label={t('customers.detail.division')}
-          value={buFilter}
-          onChange={(e) => { setBuFilter(e.target.value); setPagination((p) => ({ ...p, page: 0 })) }}
-          sx={{ minWidth: 180 }}
-        >
-          <MenuItem value="">{t('common.all')}</MenuItem>
-          {divisionOptions.map((opt) => (
-            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-          ))}
-        </TextField>
-      </Box>
-
       <ResponsiveListView
         rows={data?.data ?? []}
         columns={columns}
@@ -319,18 +306,24 @@ export default function ProductsHighMargin() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(0)
 
-  const [companyId,    setCompanyId]    = useState<number | 'all'>('all')
   const [periodMonth,  setPeriodMonth]  = useState(todayMonth())
   const [activeWindow, setActiveWindow] = useState(6)
 
-  const { data: companies = [] } = useCompanies()
+  const {
+    companies, showCompanyFilter,
+    companyId, setCompanyId,
+    branchId, setBranchId, branchOptions, showBranchFilter,
+    division, setDivision, divisionOptions,
+  } = useScopedCompanyFilter()
 
-  const filter: FilterState = { companyId, periodMonth, activeWindow }
+  const filter: FilterState = { companyId, branchId, division, periodMonth, activeWindow }
 
   // Ambil seluruh kategori HM (bukan hanya 1 halaman grid) untuk hitung summary
   // per_page dibatasi maksimal 100 oleh backend (metrics.schema.ts)
   const { data: summaryData } = useHighMarginDetail({
     company_id:    filter.companyId,
+    branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
+    division:      filter.division || undefined,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
     page: 1,
@@ -363,15 +356,43 @@ export default function ProductsHighMargin() {
 
         <Stack direction="row" spacing={1.5}
           sx={{ width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
+          {showCompanyFilter && (
+            <TextField
+              select size="small" label={t('common.filters.entity')}
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              sx={{ minWidth: 160 }}
+            >
+              <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
+              {companies.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {showBranchFilter && (
+            <TextField
+              select size="small" label={t('common.branch')}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {branchOptions.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
           <TextField
-            select size="small" label={t('common.filters.entity')}
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            sx={{ minWidth: 160 }}
+            select size="small" label={t('customers.detail.division')}
+            value={division}
+            onChange={(e) => setDivision(e.target.value as typeof division)}
+            sx={{ minWidth: 150 }}
           >
-            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
-            {companies.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            <MenuItem value="">{t('common.all')}</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
           </TextField>
 

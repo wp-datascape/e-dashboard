@@ -11,6 +11,8 @@ export interface HmDetailRepoParams {
   activeWindow: number
   page: number
   perPage: number
+  division?: string | null   // filter laporan - mirror business_unit di metrics lain
+  branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -23,6 +25,7 @@ export interface UpsellTargetRepoParams {
   businessUnit: string | null
   page: number
   perPage: number
+  branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -84,6 +87,8 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     WITH
@@ -100,6 +105,8 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),
@@ -121,6 +128,8 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     )
@@ -169,6 +178,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     WITH
@@ -197,6 +207,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
           AND  i.invoice_date <= ${p.periodEnd}::date
           AND  c.business_unit  IS NOT NULL
           AND  ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
+          AND  (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
           AND  ${branchCond}
           AND  ${divisionScopeCond}
         GROUP BY ii.product_category_id, c.business_unit
@@ -222,6 +233,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
       GROUP BY i.customer_id
