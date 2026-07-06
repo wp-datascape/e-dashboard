@@ -316,10 +316,12 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 - [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder)
 
 ### Task G — Testing
-- [ ] G1. Unit test `resolveDivisionScope`/`resolveBranchScope`/`buildScopedCondition` — kasus bypass, default-deny (map kosong), multi-company beda scope
-- [ ] G2. E2E: user dengan division A di company 1 tidak bisa lihat data division B company 1
-- [ ] G3. E2E: user tanpa assignment branch sama sekali di company manapun → semua endpoint yang butuh branch scope return kosong, bukan error
-- [ ] G4. Regression: user existing (sebelum fitur ini) tetap bisa akses seperti biasa setelah Task F1 (backfill) selesai
+- [x] G1. Unit test `resolveBranchScope`/`resolveDivisionScope`/`build*Condition*` — selesai (2026-07-06), `backend/src/utils/scope.test.ts` (17 test) + `backend/src/middleware/auth.test.ts` (14 test). Kasus bypass, default-deny (map/array kosong), company/branch spesifik, multi-company beda scope, default-deny berjenjang §4.4.
+- [x] G2. E2E: user dengan division "distribution" saja tidak lihat division lain — selesai, `backend/src/test/scope-isolation.e2e.test.ts`.
+- [x] G3. E2E: user tanpa branch assignment sama sekali → endpoint customers & metrics return kosong (200), bukan error — selesai.
+- [x] G4. Regression: user full-coverage (semua branch+division, mirror seeder F1) vs superadmin bypass harus dapat total identik — selesai. **Test ini menemukan bug nyata**: division `NULL` (channel belum termapping ke `channel_divisions`) tidak pernah lolos filter `inArray`/`IN` walau `'other'` ada di daftar scope user (`NULL IN (...)` = SQL `UNKNOWN`, bukan `true`) — persis kasus yang didesain di §4.5 tapi belum benar-benar diimplementasikan di query. Diperbaiki: `buildDivisionCondition`/`buildDivisionConditionRaw` (`utils/scope.ts`) sekarang `COALESCE(division, 'other')` sebelum dicocokkan — otomatis berlaku ke semua 24 call site tanpa ubah repository satu-satu.
+
+**35 test total** (17+14 unit, 4 E2E), 0 fail. Jalankan dengan `cd backend && bun test`.
 
 ---
 
