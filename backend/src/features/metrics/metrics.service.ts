@@ -30,6 +30,7 @@ export async function resolveSegmentParams(
   companyScopeIds?: number[],
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
+  branchId?: number,
 ): Promise<SegmentParams> {
   const { activeMonths, dormant } = await loadThresholds()
   const cid = companyId === 'all' ? 0 : companyId
@@ -40,7 +41,7 @@ export async function resolveSegmentParams(
   } else {
     dormantMonths = await resolveDormantMonths(cid, dormant)
   }
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, branchId)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {
@@ -54,7 +55,7 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
     const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
     const endOfMonth = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope)
+    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
 
     const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams),
@@ -93,7 +94,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
   try {
     const filterDate = params.period_end ?? todayDate()
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope),
+      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id),
       loadThresholds(),
     ])
 
@@ -151,7 +152,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
 export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsScope = {}): Promise<GpBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
     const result = await fetchGpBreakdown(segParams)
     return {
       period_end:       filterDate,
@@ -169,7 +170,7 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
 export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsScope = {}): Promise<HmBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
     const result = await fetchHmBreakdown(segParams)
     return {
       period_end:       filterDate,
@@ -188,7 +189,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
   try {
     const filterDate = params.period_end ?? todayDate()
     const [segParams, thresholds] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope),
+      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id),
       loadThresholds(),
     ])
 
@@ -223,7 +224,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
 export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsScope = {}): Promise<RorBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
     const result = await fetchRorBreakdown(segParams)
     return {
       period_end:     filterDate,

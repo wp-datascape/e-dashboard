@@ -4,6 +4,7 @@ import type { MetricsScope } from '@/features/metrics/metrics.service'
 import { loadThresholds } from '@/features/config/threshold'
 import { fetchDormantValueTrend } from './dashboard.repository'
 import type { DashboardData, MetricCard, MetricSummary, MonthlyTrendPoint } from './dashboard.types'
+import type { DashboardQuery } from './dashboard.schema'
 
 function todayDate(): string {
   const now = new Date()
@@ -43,16 +44,21 @@ function buildCard(
   }
 }
 
-export async function getDashboard(scope: MetricsScope = {}): Promise<DashboardData> {
+export async function getDashboard(
+  scope: MetricsScope = {},
+  companyId: number | 'all' = 'all',
+  branchId?: number,
+  division?: DashboardQuery['division'],
+): Promise<DashboardData> {
   try {
     const filterDate = todayDate()
 
     const [cross, customer, dormant, thresholds, segParams] = await Promise.all([
-      getCrossSellingMetrics({ company_id: 'all', period_end: filterDate }, scope),
-      getCustomerMetrics({ company_id: 'all', period_end: filterDate }, scope),
-      getDormantCustomerMetrics({ company_id: 'all', period_end: filterDate }, scope),
+      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId }, scope),
+      getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId }, scope),
       loadThresholds(),
-      resolveSegmentParams('all', filterDate, undefined, scope.companyScopeIds, scope.branchScope, scope.divisionScope),
+      resolveSegmentParams(companyId, filterDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId),
     ])
 
     const dormantValueTrend = await fetchDormantValueTrend(segParams)

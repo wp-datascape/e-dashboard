@@ -29,6 +29,7 @@ export interface SegmentParams {
   activeMonths: number   // active_window_months dari business_config
   dormantMonths: number  // dormant_threshold_months.{type} dari business_config
   division: string | null // filter laporan (business_unit param) - beda dari divisionScope (RBAC)
+  branchFilter: number | null // filter laporan (branch_id param) - beda dari branchScope (RBAC)
   branchScope?: Map<number, number[]>   // RBAC — lihat docs-v2/task/task001.md §4
   divisionScope?: Map<number, string[]> // RBAC — lihat docs-v2/task/task001.md §4
 }
@@ -42,6 +43,7 @@ export function buildSegmentParams(
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
   companyScopeIds?: number[],
+  branchFilter?: number,
 ): SegmentParams {
   return {
     cid: companyId === 'all' ? 0 : companyId,
@@ -50,6 +52,7 @@ export function buildSegmentParams(
     activeMonths,
     dormantMonths,
     division: division ?? null,
+    branchFilter: branchFilter ?? null,
     branchScope,
     divisionScope,
   }
@@ -96,6 +99,7 @@ export async function getCustomerSegments(
     latest_channel AS (
       SELECT DISTINCT ON (i.customer_id)
         i.customer_id,
+        i.branch_id,
         cd.division
       FROM invoices i
       LEFT JOIN channel_divisions cd
@@ -130,6 +134,7 @@ export async function getCustomerSegments(
     FROM cust_dates cd
     LEFT JOIN latest_channel lc ON lc.customer_id = cd.customer_id
     WHERE (${division}::text IS NULL OR lc.division = ${division}::text)
+      AND (${p.branchFilter}::int IS NULL OR lc.branch_id = ${p.branchFilter}::int)
   `)
 
   const row = (rows as unknown[])[0] as Record<string, unknown> | undefined
@@ -256,6 +261,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
         )
@@ -289,6 +295,7 @@ export function cteNewCustomers(p: SegmentParams) {
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
         )
@@ -340,6 +347,7 @@ export function cteActiveCustomers(p: SegmentParams) {
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
         )
@@ -387,6 +395,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
         )
@@ -401,6 +410,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND ix2.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix2.invoice_date <= ${p.filterDate}::date
             AND (${p.division}::text IS NULL OR cd2.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix2.branch_id = ${p.branchFilter}::int)
             AND ${branchCond2}
             AND ${divisionScopeCond2}
         )
@@ -434,6 +444,7 @@ export function cteDormantCustomers(p: SegmentParams) {
             AND ${companyCondIx}
             AND ix.invoice_date > ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
         )

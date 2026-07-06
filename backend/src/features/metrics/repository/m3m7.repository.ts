@@ -71,6 +71,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
@@ -98,6 +99,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)

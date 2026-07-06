@@ -38,6 +38,7 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),

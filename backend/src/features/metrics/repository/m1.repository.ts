@@ -19,6 +19,7 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
       AND i.invoice_date <= ${p.filterDate}::date
       AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
       AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+      AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
       AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
   )
@@ -93,6 +94,7 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
         AND i.invoice_date <= ${p.filterDate}::date
         AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
         AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
         AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
         AND ii.product_category_id IS NOT NULL

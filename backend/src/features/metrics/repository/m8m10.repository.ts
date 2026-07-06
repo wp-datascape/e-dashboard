@@ -34,6 +34,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),
@@ -148,6 +149,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),
