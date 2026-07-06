@@ -73,6 +73,6 @@ export async function handleLogout(c: Context) {
 }
 
 export async function handleMe(c: Context) {
-  const result = await getMeService(c.var.user.userId)
+  const result = await getMeService(c.var.user.userId, c.var.user.isSuperAdmin)
   return success(c, result)
 }

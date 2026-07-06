@@ -9,6 +9,7 @@ import {
   getUserPrimaryRole,
   getUserPermissions,
   updateLastLogin,
+  getMyScopeTree,
 } from './auth.repository'
 import type { LoginDto } from './auth.schema'
 
@@ -85,15 +86,16 @@ export async function refreshService(refreshToken: string) {
   return { accessToken, csrfToken }
 }
 
-export async function getMeService(userId: number) {
+export async function getMeService(userId: number, isSuperAdmin: boolean) {
   const user = await findActiveUserById(userId)
   if (!user || !user.is_active) {
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid', 401)
   }
 
-  const [primaryRole, permissionNames] = await Promise.all([
+  const [primaryRole, permissionNames, scopeCompanies] = await Promise.all([
     getUserPrimaryRole(userId),
     getUserPermissions(userId),
+    isSuperAdmin ? Promise.resolve([]) : getMyScopeTree(userId),
   ])
 
   return {
@@ -104,5 +106,13 @@ export async function getMeService(userId: number) {
       role: primaryRole ?? 'user',
     },
     permissions: permissionNames,
+    // Pohon Company->Branch->Division milik user sendiri, dipakai frontend utk
+    // populate dropdown filter Dashboard/Workbench sesuai level akses. Superadmin
+    // bypass total - companies:[] menandakan "unrestricted", frontend fallback ke
+    // daftar company/branch/division penuh (useCompanies/useBranchesByCompany/enum).
+    scope: {
+      isSuperAdmin,
+      companies: scopeCompanies,
+    },
   }
 }
