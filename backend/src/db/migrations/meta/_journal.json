@@ -5,50 +5,29 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1718000000000,
-      "tag": "0001_auth_system",
+      "when": 1783312973961,
+      "tag": "0000_schema_auth",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1782240882243,
-      "tag": "0002_branches_credentials",
+      "when": 1783312973962,
+      "tag": "0001_schema_company",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1782321025499,
-      "tag": "0003_transactions_import",
+      "when": 1783312973963,
+      "tag": "0002_schema_product",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1782489557394,
-      "tag": "0003_tough_proemial_gods",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782600000000,
-      "tag": "0004_customer_placeholder",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1782800000000,
-      "tag": "0005_repeat_order_config",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1783276350787,
-      "tag": "0006_fat_leper_queen",
+      "when": 1783312973964,
+      "tag": "0003_schema_transaction",
       "breakpoints": true
     }
   ]
