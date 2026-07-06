@@ -3,7 +3,13 @@ import { api } from './axios';
 import type { ApiResponse } from '@/types/api';
 import type { DashboardData } from '@/types/dashboard';
 
+export interface DashboardParams {
+  company_id?: number | 'all';
+  branch_id?: number;
+  division?: string;
+}
+
 export const dashboardApi = {
-  getDashboard: () =>
-    api.get<ApiResponse<DashboardData>>('/dashboard'),
+  getDashboard: (params?: DashboardParams) =>
+    api.get<ApiResponse<DashboardData>>('/dashboard', { params }),
 };

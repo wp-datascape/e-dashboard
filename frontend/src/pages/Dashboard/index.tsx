@@ -1,6 +1,9 @@
+import { useState, useEffect } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -14,7 +17,13 @@ import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useCompanies, useBranchesByCompany } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
+import { useMyScope } from '@/hooks/useMyScope';
+import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
+import { formatEnumLabel } from '@/utils/format';
 import type { MetricCard } from '@/types/dashboard';
+import type { Division } from '@/types/customers';
 import { StatCardSkeleton } from './components/StatCardSkeleton';
 import { ChartSkeleton } from './components/ChartSkeleton';
 import { PeriodStrip } from './components/PeriodStrip';
@@ -61,7 +70,42 @@ function formatMetricValue(card: MetricCard): string {
 export default function Dashboard() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { data, isLoading } = useDashboard();
+
+  const { data: companies = [] } = useCompanies();
+  const showCompanyFilter = companies.length > 1;
+  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
+  const [branchFilter, setBranchFilter] = useState<number | 'all'>('all');
+  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
+
+  // Filter Branch/Division mengikuti level akses user sendiri - lihat pola sama
+  // di pages/Customers/index.tsx (docs-v2/task/task001.md).
+  const myScope = useMyScope();
+  const scopedBranches = getScopedBranches(myScope, companyFilter);
+  const { data: allBranches = [] } = useBranchesByCompany(companyFilter === 'all' ? null : companyFilter);
+  const branchOptions = scopedBranches.restricted
+    ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
+    : allBranches.map((b) => ({ id: b.id, name: b.name }));
+  const showBranchFilter = companyFilter !== 'all' && branchOptions.length > 1;
+
+  const scopedDivisions = getScopedDivisions(myScope, companyFilter, branchFilter);
+  const fullDivisionOptions = useDivisionOptions(companyFilter);
+  const divisionOptions = scopedDivisions.restricted
+    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
+    : fullDivisionOptions;
+
+  useEffect(() => {
+    setBranchFilter('all');
+  }, [companyFilter]);
+
+  useEffect(() => {
+    setDivisionFilter('');
+  }, [branchFilter]);
+
+  const { data, isLoading } = useDashboard({
+    company_id: companyFilter,
+    branch_id: branchFilter === 'all' ? undefined : branchFilter,
+    division: divisionFilter || undefined,
+  });
 
   const metrics = data?.metrics ?? [];
 
@@ -95,6 +139,34 @@ export default function Dashboard() {
             period={data.period_month}
             activeWindow={data.active_window}
           />
+        )}
+      </Box>
+
+      {/* ── Filter Bar ── */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+        {showCompanyFilter && (
+          <TextField select size="small" label={t('common.company')} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
+            <MenuItem value="all">{t('common.all')}</MenuItem>
+            {companies.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+        )}
+        {showBranchFilter && (
+          <TextField select size="small" label={t('common.branch')} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
+            <MenuItem value="all">{t('common.all')}</MenuItem>
+            {branchOptions.map((b) => (
+              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+            ))}
+          </TextField>
+        )}
+        {companyFilter !== 'all' && (
+          <TextField select size="small" label={t('customers.detail.division')} value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')} sx={{ minWidth: 160 }}>
+            <MenuItem value="">{t('common.all')}</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
+          </TextField>
         )}
       </Box>
 
