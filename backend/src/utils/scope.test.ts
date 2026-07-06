@@ -83,8 +83,19 @@ describe('buildDivisionConditionRaw', () => {
     const q = dialect.sqlToQuery(
       buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map([[10, ['distribution', 'other']]])),
     )
-    expect(q.sql).toBe('(i.branch_id = $1 AND cd.division IN ($2, $3))')
+    expect(q.sql).toBe("(i.branch_id = $1 AND coalesce(cd.division, 'other') IN ($2, $3))")
     expect(q.params).toEqual([10, 'distribution', 'other'])
+  })
+
+  // Regresi (2026-07-06): channel_name yang tidak match rule apa pun di channel_divisions
+  // menghasilkan division NULL - tanpa COALESCE, "NULL IN (...)" selalu UNKNOWN di SQL,
+  // jadi baris itu TIDAK PERNAH lolos walau 'other' ada di daftar scope (ditemukan lewat
+  // E2E test G4 - full-coverage user kehilangan 1 baris dibanding superadmin bypass).
+  test('division NULL dianggap "other" — COALESCE wajib ada di SQL yang dihasilkan', () => {
+    const q = dialect.sqlToQuery(
+      buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map([[10, ['other']]])),
+    )
+    expect(q.sql).toContain("coalesce(cd.division, 'other')")
   })
 })
 

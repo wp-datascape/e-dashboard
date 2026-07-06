@@ -46,8 +46,13 @@ export function buildDivisionCondition(
 ): SQL | undefined {
   if (!scopeMap) return undefined
   if (scopeMap.size === 0) return sql`false`
+  // COALESCE ke 'other' — division NULL (channel_name tidak match rule apa pun di
+  // channel_divisions) dianggap "Lainnya" utk keperluan scope check (§4.5). Tanpa ini,
+  // `inArray(divisionCol, [...])` gagal diam-diam utk baris NULL walau 'other' ada di
+  // daftar scope — semantik SQL: NULL IN (...) selalu UNKNOWN, bukan match ke 'other'.
+  const divisionExpr = sql`coalesce(${divisionCol}, 'other')`
   const clauses = [...scopeMap.entries()].map(([branchId, divisions]) =>
-    and(eq(branchCol, branchId), inArray(divisionCol, divisions)),
+    and(eq(branchCol, branchId), inArray(divisionExpr, divisions)),
   )
   return or(...clauses)
 }
@@ -114,9 +119,10 @@ export function buildDivisionConditionRaw(
 ): SQL {
   if (!scopeMap) return sql`true`
   if (scopeMap.size === 0) return sql`false`
+  // COALESCE ke 'other' — lihat penjelasan di buildDivisionCondition() di atas.
   const clauses = [...scopeMap.entries()].map(
     ([branchId, divisions]) =>
-      sql`(${sql.raw(branchExpr)} = ${branchId} AND ${sql.raw(divisionExpr)} IN (${sql.join(
+      sql`(${sql.raw(branchExpr)} = ${branchId} AND coalesce(${sql.raw(divisionExpr)}, 'other') IN (${sql.join(
         divisions.map((d) => sql`${d}`),
         sql`, `,
       )}))`,
