@@ -12,8 +12,7 @@ import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
-import { useCompanies } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
 function todayIsoDate(): string {
@@ -50,14 +49,17 @@ export default function DormantCustomer() {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
-  const [division,   setDivision]   = useState<string>('');
+  const {
+    companies,
+    companyId, setCompanyId,
+    branchId, setBranchId, branchOptions, showBranchFilter,
+    division, setDivision, divisionOptions,
+  } = useScopedCompanyFilter();
 
-  const { data: companies = [] } = useCompanies();
-  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useDormantCustomer({
     company_id:  companyId,
+    branch_id:   branchId === 'all' ? undefined : branchId,
     period_end:  periodEnd,
     division:    division || undefined,
   });
@@ -103,10 +105,24 @@ export default function DormantCustomer() {
             ))}
           </TextField>
 
+          {showBranchFilter && (
+            <TextField
+              select size="small" label={t('common.branch')}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            >
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {branchOptions.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
           <TextField
             select size="small" label={t('common.filters.division')}
             value={division}
-            onChange={(e) => setDivision(e.target.value)}
+            onChange={(e) => setDivision(e.target.value as typeof division)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>

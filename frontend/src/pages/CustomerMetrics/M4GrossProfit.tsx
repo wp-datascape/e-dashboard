@@ -98,10 +98,11 @@ interface Props {
   trend: CustomerMetricsTrendPoint[]
   isLoading: boolean
   companyId: number | 'all'
+  branchId?: number
   division?: string
 }
 
-export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) {
+export function M4GrossProfit({ trend, isLoading, companyId, branchId, division }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
@@ -110,6 +111,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, division }: Props) 
   const { data: breakdown, isLoading: breakdownLoading } = useGpBreakdown({
     period_end: drillDate,
     company_id: companyId,
+    branch_id: branchId,
     division,
   });
 

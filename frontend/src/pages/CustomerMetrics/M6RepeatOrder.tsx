@@ -44,11 +44,12 @@ interface Props {
   value: number
   thresholdPct: number
   companyId: number | 'all'
+  branchId?: number
   division?: string
   periodEnd: string
 }
 
-export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, division, periodEnd }: Props) {
+export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branchId, division, periodEnd }: Props) {
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const rorColumns = useRorColumns(t);
@@ -56,6 +57,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, divis
   const { data: breakdown, isLoading: breakdownLoading } = useRorBreakdown({
     period_end: drillDate,
     company_id: companyId,
+    branch_id: branchId,
     division,
   });
 

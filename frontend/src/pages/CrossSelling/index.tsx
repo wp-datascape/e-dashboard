@@ -18,8 +18,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Card } from '@/components/ui';
 import { useCrossSelling } from '@/hooks/useMetrics';
-import { useCompanies } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { DetailCard } from './components/DetailCard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,14 +81,17 @@ export default function CrossSelling() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
   const [periodEnd,  setPeriodEnd]  = useState(todayStr());
-  const [division,   setDivision]   = useState<string>('');
+  const {
+    companies,
+    companyId, setCompanyId,
+    branchId, setBranchId, branchOptions, showBranchFilter,
+    division, setDivision, divisionOptions,
+  } = useScopedCompanyFilter();
 
-  const { data: companies = [] } = useCompanies();
-  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useCrossSelling({
     company_id: companyId,
+    branch_id:   branchId === 'all' ? undefined : branchId,
     period_end:  periodEnd,
     division:    division || undefined,
   });
@@ -171,10 +173,24 @@ export default function CrossSelling() {
             ))}
           </TextField>
 
+          {showBranchFilter && (
+            <TextField
+              select size="small" label={t('common.branch')}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            >
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {branchOptions.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
           <TextField
             select size="small" label={t('common.filters.division')}
             value={division}
-            onChange={(e) => setDivision(e.target.value)}
+            onChange={(e) => setDivision(e.target.value as typeof division)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
