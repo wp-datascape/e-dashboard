@@ -200,9 +200,6 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
-  'access.user:menu', 'access.user:view',
-  'access.role:menu', 'access.role:view',
-  'access.permission:view',
   'audit.log:menu', 'audit.log:view',
 ]
 
