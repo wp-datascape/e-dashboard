@@ -85,6 +85,8 @@ export const categoryPerformanceQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')

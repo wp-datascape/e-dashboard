@@ -13,6 +13,8 @@ export interface CategoryPerformanceRepoParams {
   sortDir: 'asc' | 'desc'
   page: number
   perPage: number
+  division?: string | null
+  branchFilter?: number | null
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -50,6 +52,8 @@ export async function fetchCategoryPerformance(
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     WITH
@@ -74,6 +78,8 @@ export async function fetchCategoryPerformance(
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IS NOT NULL
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
     ),

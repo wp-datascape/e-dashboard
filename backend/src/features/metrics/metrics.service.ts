@@ -255,6 +255,8 @@ export async function getCategoryPerformance(
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
+      division:        params.division,
+      branchFilter:    params.branch_id,
       periodEnd,
       activeWindow:   params.active_window,
       search:         params.search,

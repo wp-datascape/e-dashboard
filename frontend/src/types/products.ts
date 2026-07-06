@@ -17,6 +17,8 @@ export interface CategoryPerformanceRow {
 
 export interface CategoryPerformanceParams {
   company_id?: number | 'all'
+  branch_id?: number
+  division?: string
   period_month?: string
   active_window?: number
   search?: string

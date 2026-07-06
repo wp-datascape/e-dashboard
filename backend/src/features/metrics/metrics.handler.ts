@@ -66,7 +66,7 @@ export async function handleGetDormantMetrics(c: Context) {
 
 export async function handleGetCategoryPerformance(c: Context) {
   const query = validateQuery(c, categoryPerformanceQuerySchema)
-  const scope = resolveScope(c, query.company_id)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getCategoryPerformance(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
 }
