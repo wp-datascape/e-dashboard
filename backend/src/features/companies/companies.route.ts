@@ -5,8 +5,15 @@ import {
   handleGetBranches, handleCreateBranch, handleUpdateBranch, handleDeleteBranch,
 } from './companies.handler'
 import { requirePermission } from '@/middleware/permission'
+import { rateLimit, keyByUser } from '@/middleware/rate-limit'
 
 export const companiesRoutes = new Hono()
+
+// 15 mutasi per 5 menit per user (Task002 Task B, audit 2026-07-06) — paling ketat
+// dari semua mutation rate limit di app ini: company/branch adalah FONDASI hierarki
+// Company->Branch->Division (task001) - branch/company palsu atau salah hapus bisa
+// merusak isolasi data di seluruh sistem, bukan cuma 1 fitur.
+const companyMutationRateLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 15, keyFn: keyByUser })
 
 // ─── Company Routes ───────────────────────────────────────────────────────────
 // GET / sengaja TIDAK di-requirePermission (cuma authMiddleware, lihat router.ts) —
@@ -19,12 +26,12 @@ export const companiesRoutes = new Hono()
 // punya filter perusahaan, walau permission halaman itu sendiri sudah benar.
 companiesRoutes.get('/', handleGetCompanies)
 companiesRoutes.get('/:id', requirePermission('settings.company:view'), handleGetCompanyById)
-companiesRoutes.post('/', requirePermission('settings.company:create'), handleCreateCompany)
-companiesRoutes.patch('/:id', requirePermission('settings.company:update'), handleUpdateCompany)
-companiesRoutes.delete('/:id', requirePermission('settings.company:delete'), handleDeleteCompany)
+companiesRoutes.post('/', requirePermission('settings.company:create'), companyMutationRateLimit, handleCreateCompany)
+companiesRoutes.patch('/:id', requirePermission('settings.company:update'), companyMutationRateLimit, handleUpdateCompany)
+companiesRoutes.delete('/:id', requirePermission('settings.company:delete'), companyMutationRateLimit, handleDeleteCompany)
 
 // ─── Branch Routes ────────────────────────────────────────────────────────────
 companiesRoutes.get('/:id/branches', requirePermission('settings.branch:view'), handleGetBranches)
-companiesRoutes.post('/:id/branches', requirePermission('settings.branch:create'), handleCreateBranch)
-companiesRoutes.patch('/branches/:branchId', requirePermission('settings.branch:update'), handleUpdateBranch)
-companiesRoutes.delete('/branches/:branchId', requirePermission('settings.branch:delete'), handleDeleteBranch)
+companiesRoutes.post('/:id/branches', requirePermission('settings.branch:create'), companyMutationRateLimit, handleCreateBranch)
+companiesRoutes.patch('/branches/:branchId', requirePermission('settings.branch:update'), companyMutationRateLimit, handleUpdateBranch)
+companiesRoutes.delete('/branches/:branchId', requirePermission('settings.branch:delete'), companyMutationRateLimit, handleDeleteBranch)
