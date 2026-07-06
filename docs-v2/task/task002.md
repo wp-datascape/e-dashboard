@@ -210,8 +210,21 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   - Backend: `bun test` (`package.json` script `test`), `tsc --noEmit` (typecheck, belum ada script package.json-nya — dipanggil langsung), `bun run scripts/build-prod.ts` (script `build`)
   - Frontend: `tsc -b && vite build` (script `build`, sudah termasuk typecheck), `eslint .` (script `lint`)
 
-**Rencana bertahap — bagian CI (belum dieksekusi — masih dokumentasi):**
-- [ ] F1. **Stage 1 — CI dasar**: workflow `.github/workflows/ci.yml`, trigger push `dev` + PR `main`, jalankan install dependency (bun) → typecheck backend+frontend → `bun test` backend → build frontend
+**Rencana bertahap — bagian CI:**
+- [x] F1. **Stage 1 — CI dasar ✅ Selesai (2026-07-06)**: workflow `.github/workflows/ci.yml`,
+  trigger push `dev` + PR `main`, 2 job paralel:
+  - backend: typecheck → migrate+seed (postgres service container, kredensial sama dengan
+    `docker-compose.yml` lokal) → `bun test` → build. Env dummy (JWT_SECRET/CSRF_SECRET/
+    CREDENTIALS_ENCRYPTION_KEY, 32+ karakter, bukan rahasia asli) didefinisikan di level
+    JOB (bukan per-step) — pelajaran dari run pertama: step Seed sempat gagal karena cuma
+    dikasih `DATABASE_URL`, ternyata `seed.ts` import `config/env.ts` yang mewajibkan
+    semua var, bukan cuma itu.
+  - frontend: lint (eslint) → build (`tsc -b && vite build`, typecheck sudah termasuk)
+
+  **Temuan penting saat setup**: `bun run lint` ternyata SUDAH gagal 19 error di lokal
+  sebelum CI disentuh (utang teknis lama, belum pernah ke-gate). Semua diperbaiki di akar
+  masalahnya (bukan disable rule) — lihat commit "fix(frontend): perbaiki 19 error ESLint".
+  Diverifikasi: 2x run CI (`gh run watch`) sampai hijau penuh kedua job.
 - [ ] F2. **Stage 2 — Dependency scanning**: tambah step `bun audit --audit-level=high` ke workflow yang sama + file `.github/dependabot.yml` (scan `backend/` dan `frontend/` terpisah)
 - [ ] F3. **Stage 3 — Notifikasi Telegram**: kirim pesan ke Telegram (Task E) saat CI gagal di `main`, bot token disimpan di GitHub Secrets (bukan hardcode di YAML)
 - [ ] F4. **Stage 4 (opsional)**: branch protection rule di GitHub — `main` tidak bisa di-merge kalau CI gagal
