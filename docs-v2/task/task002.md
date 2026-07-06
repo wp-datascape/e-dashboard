@@ -60,10 +60,16 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
 
 ## 3. Breakdown Task
 
-### Task A — Security Headers
-- [ ] A1. Pasang `hono/secure-headers` (atau setara) di `router.ts`, scope global (`app.use('*', ...)`)
-- [ ] A2. Konfigurasi minimal: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` atau `frame-ancestors 'none'`, `Strict-Transport-Security` (HTTPS only, prod saja)
-- [ ] A3. Verifikasi tidak mematahkan CORS/embed yang sudah jalan (cek response header via curl ke tiap environment)
+### Task A — Security Headers ✅ **Selesai (2026-07-06)**
+- [x] A1. Pasang `hono/secure-headers` di `router.ts` — global, Layer 1, sebelum CORS.
+- [x] A2. `xFrameOptions: 'DENY'` eksplisit (default hono cuma `SAMEORIGIN`); `strictTransportSecurity`
+  cuma aktif saat `NODE_ENV === 'production'` (dev jalan di `http://localhost` — HSTS di situ
+  bisa memaksa browser pakai https utk localhost, merepotkan dev). Header lain pakai default
+  hono yang sudah aman: `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy:
+  same-origin`, `Referrer-Policy: no-referrer`, dll.
+- [x] A3. Diverifikasi: curl cek header aktual muncul benar di response; preflight `OPTIONS` +
+  login sungguhan dari origin frontend (`localhost:5173`) tetap lolos CORS; dashboard render
+  normal via Playwright tanpa console error; 38 test backend tetap lolos.
 
 ### Task B — Perluasan Rate Limit
 - [ ] B1. Identifikasi endpoint sensitif selain login yang butuh rate limit (`/auth/refresh`, endpoint mutasi RBAC/user, dll — perlu diskusi cakupan persis)
