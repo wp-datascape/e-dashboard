@@ -17,6 +17,7 @@
 import { Hono } from 'hono'
 import type { Hono as HonoType } from 'hono'
 import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
 import { env } from '@/config/env'
 import { registerErrorHandlers } from '@/errors'
 import { requestIdMiddleware } from '@/middleware/requestId'
@@ -64,6 +65,17 @@ export function createRouter(app: HonoType): void {
   // ─── LAYER 1: Global — semua request ────────────────────────────────────────
   app.use('*', requestIdMiddleware)
   app.use('*', requestLogger)
+  app.use(
+    '*',
+    // Task002 §3 Task A — security headers standar produksi. HSTS cuma di production
+    // (dev jalan di http://localhost — kirim HSTS di situ bisa "mengunci" browser
+    // paksa https utk localhost, merepotkan dev). xFrameOptions eksplisit DENY
+    // (default hono cuma SAMEORIGIN) — app ini tidak pernah di-embed via iframe.
+    secureHeaders({
+      xFrameOptions: 'DENY',
+      strictTransportSecurity: env.NODE_ENV === 'production' ? 'max-age=15552000; includeSubDomains' : false,
+    }),
+  )
   app.use(
     '*',
     cors({
