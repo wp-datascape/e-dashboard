@@ -45,6 +45,7 @@ export interface CustomerDetail {
 
 export interface CustomerParams {
   company_id?: number | 'all';
+  branch_id?: number;
   business_unit?: string;
   status?: CustomerStatus;
   search?: string;

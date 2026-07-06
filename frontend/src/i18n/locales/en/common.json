@@ -54,6 +54,7 @@
   "logout": "Logout",
   "select": "Select",
   "company": "Company",
+  "branch": "Branch",
   "ok": "OK",
   "titleWithItemCount": "{{title}} — {{count}} items",
   "copyright": "© {{year}} Executive Dashboard. All rights reserved.",

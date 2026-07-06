@@ -8,8 +8,11 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useCompanies } from '@/hooks/useCompanies';
+import { useCompanies, useBranchesByCompany } from '@/hooks/useCompanies';
 import { useDivisionOptions } from '@/hooks/useDivisionOptions';
+import { useMyScope } from '@/hooks/useMyScope';
+import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
+import { formatEnumLabel } from '@/utils/format';
 import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
@@ -22,11 +25,29 @@ export default function Customers() {
   const { data: companies = [] } = useCompanies();
   const showCompanyFilter = companies.length > 1;
   const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
+  const [branchFilter, setBranchFilter] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
-  const divisionOptions = useDivisionOptions(companyFilter);
+
+  // Filter Branch/Division mengikuti level akses user sendiri (docs-v2/task/task001.md):
+  // restricted=false → user unrestricted di level ini (superadmin/full access), pakai daftar
+  // penuh (data-driven). restricted=true → cuma opsi yang di-assign eksplisit ke user.
+  const myScope = useMyScope();
+  const scopedBranches = getScopedBranches(myScope, companyFilter);
+  const { data: allBranches = [] } = useBranchesByCompany(companyFilter === 'all' ? null : companyFilter);
+  const branchOptions = scopedBranches.restricted
+    ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
+    : allBranches.map((b) => ({ id: b.id, name: b.name }));
+  const showBranchFilter = companyFilter !== 'all' && branchOptions.length > 1;
+
+  const scopedDivisions = getScopedDivisions(myScope, companyFilter, branchFilter);
+  const fullDivisionOptions = useDivisionOptions(companyFilter);
+  const divisionOptions = scopedDivisions.restricted
+    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
+    : fullDivisionOptions;
+
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -40,13 +61,24 @@ export default function Customers() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Company berganti → branch/division ikut direset (branch lama mungkin sudah tidak relevan)
+  useEffect(() => {
+    setBranchFilter('all');
+  }, [companyFilter]);
+
+  // Branch berganti → division direset (opsi division tergantung branch yang dipilih)
+  useEffect(() => {
+    setDivisionFilter('');
+  }, [branchFilter]);
+
   // Reset ke halaman 1 setiap kali filter berubah
   useEffect(() => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [debouncedSearch, statusFilter, divisionFilter, companyFilter]);
+  }, [debouncedSearch, statusFilter, divisionFilter, companyFilter, branchFilter]);
 
   const queryParams = {
     company_id: companyFilter,
+    branch_id: branchFilter === 'all' ? undefined : branchFilter,
     search: debouncedSearch || undefined,
     status: (statusFilter || undefined) as CustomerStatus | undefined,
     business_unit: divisionFilter || undefined,
@@ -92,6 +124,14 @@ export default function Customers() {
             <MenuItem value="all">{t('common.all')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+        )}
+        {showBranchFilter && (
+          <TextField select size="small" label={t('common.branch')} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
+            <MenuItem value="all">{t('common.all')}</MenuItem>
+            {branchOptions.map((b) => (
+              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
             ))}
           </TextField>
         )}

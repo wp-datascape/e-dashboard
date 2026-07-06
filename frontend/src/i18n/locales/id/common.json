@@ -54,6 +54,7 @@
   "logout": "Keluar",
   "select": "Pilih",
   "company": "Perusahaan",
+  "branch": "Cabang",
   "ok": "OK",
   "titleWithItemCount": "{{title}} — {{count}} item",
   "copyright": "© {{year}} Executive Dashboard. Hak cipta dilindungi.",
