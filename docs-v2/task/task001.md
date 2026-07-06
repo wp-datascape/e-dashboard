@@ -349,6 +349,38 @@ DATABASE_URL="<production>" bun run db:seed
 
 **35 test total** (17+14 unit, 4 E2E), 0 fail. Jalankan dengan `cd backend && bun test`.
 
+### Task H — Filter Dropdown Sadar Level Akses (ditambahkan 2026-07-06, di luar rencana awal)
+
+Permintaan tambahan: dropdown filter Branch/Division di tiap halaman harus mengikuti level
+akses user sendiri (bukan cuma enforcement di backend, tapi opsi yang DITAWARKAN di UI):
+- User di-restrict ke division tertentu → dropdown division cuma opsi itu saja
+- User full-access di level branch (semua division dalam branch-nya) → dropdown division opsi penuh
+- User full-access di level company (semua branch) → dropdown branch JUGA opsi penuh
+
+- [x] H1. Backend — `GET /auth/me` diperluas dengan field `scope` (pohon Company→Branch→Division
+  milik user sendiri + flag `isFullBranchAccess`/`isFullDivisionAccess` per level). Lihat
+  `getMyScopeTree()` di `auth.repository.ts`.
+- [x] H2. Backend — filter laporan `branch_id` (mirror `business_unit` yang sudah ada, beda dari
+  `branchScope` enforcement) ditambahkan ke: Customers (`customers.schema/repository.ts`),
+  Dashboard (`dashboard.schema.ts` baru + threading penuh), dan `SegmentParams.branchFilter`
+  (SSOT `segment.helper.ts`) — otomatis berlaku ke m1/m3m7/m8m10 + `dashboard.repository.ts`
+  (dan bonus: gpBreakdown/hmBreakdown/rorBreakdown karena berbagi CTE builder yang sama).
+  `assertBranchFilterAccess()` (`middleware/auth.ts`) validasi branch_id yang diminta terhadap
+  scope user — 403 kalau bukan haknya.
+- [x] H3. Frontend — `useMyScope()` (baca `scope` dari `/auth/me`) + `scopeFilters.ts`
+  (`getScopedBranches`/`getScopedDivisions`) sebagai pola dasar. Diterapkan penuh di 2 halaman
+  pertama: **Customers** (`pages/Customers/index.tsx`) dan **Dashboard** (`pages/Dashboard/index.tsx`)
+  — dropdown Branch baru (tidak ada sebelumnya) + Division jadi sadar akses. Diverifikasi via
+  Playwright: pilih company → branch dropdown muncul terisi benar → data ter-filter sesuai,
+  tanpa console error.
+- [ ] H4. Replikasi pola yang sama ke halaman sisanya: Cross Selling, Dormant Customer, Customer
+  Metrics (GP/HM/ROR breakdown — backend `branch_id` SUDAH siap dari H2, tinggal frontend),
+  Product Trend, High Margin, Products, Transactions, Projects. Backend utk sebagian besar
+  metrik (m4/m5/m6 via `resolveSegmentParams`) sudah siap; yang belum: `category-performance`,
+  `category-products`, `high-margin-penetration`, `customer-products`, `avg-category` repository
+  (5 file metrics yang TIDAK lewat `segment.helper.ts` CTE builder, cek dulu apakah butuh
+  `branchFilter` serupa atau sudah cukup dengan `branchScope` enforcement saja).
+
 ---
 
 ## 6. Risiko & Mitigasi
