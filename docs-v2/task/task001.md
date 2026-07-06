@@ -373,13 +373,19 @@ akses user sendiri (bukan cuma enforcement di backend, tapi opsi yang DITAWARKAN
   — dropdown Branch baru (tidak ada sebelumnya) + Division jadi sadar akses. Diverifikasi via
   Playwright: pilih company → branch dropdown muncul terisi benar → data ter-filter sesuai,
   tanpa console error.
-- [ ] H4. Replikasi pola yang sama ke halaman sisanya: Cross Selling, Dormant Customer, Customer
-  Metrics (GP/HM/ROR breakdown — backend `branch_id` SUDAH siap dari H2, tinggal frontend),
-  Product Trend, High Margin, Products, Transactions, Projects. Backend utk sebagian besar
-  metrik (m4/m5/m6 via `resolveSegmentParams`) sudah siap; yang belum: `category-performance`,
-  `category-products`, `high-margin-penetration`, `customer-products`, `avg-category` repository
-  (5 file metrics yang TIDAK lewat `segment.helper.ts` CTE builder, cek dulu apakah butuh
-  `branchFilter` serupa atau sudah cukup dengan `branchScope` enforcement saja).
+- [x] H4. **Selesai (2026-07-06)** — replikasi pola ke semua halaman: Cross Selling, Dormant
+  Customer, Customer Metrics (M4/M5/M6 breakdown), Transactions, Product Trend, High Margin
+  (2 tab: Category Penetration + Upsell Targets), Products (Category Performance). Backend:
+  `avg-category`, `high-margin-penetration` (2 fungsi), `category-performance` repository
+  ditambah `division`+`branchFilter` (sebelumnya cuma `branchScope`/`divisionScope` RBAC, tanpa
+  filter laporan) — pola sama seperti metrics lain: `(filter IS NULL OR kolom = filter)`.
+  `metrics.handler.ts`'s `resolveScope()` diperluas terima `branchId` opsional +
+  `assertBranchFilterAccess()` — fix gap: 12 handler metrics sebelumnya terima `branch_id` dari
+  query tapi tidak validasi akses sebelum sesi ini (403 sekarang konsisten di semua endpoint).
+  `category-products`/`customer-products` (dialog drill-down bertingkat) sengaja TIDAK disentuh
+  — hanya level halaman utama yang jadi scope permintaan, dialog turunan masih company-scope saja.
+  Frontend: `useScopedCompanyFilter()` (dibuat di H3) dipakai ulang di 7 halaman, DRY penuh.
+  Projects dilewati (masih halaman placeholder, belum ada fitur).
 
 ---
 
