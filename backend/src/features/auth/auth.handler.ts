@@ -6,6 +6,7 @@ import { env } from '@/config/env'
 import { AppError, ErrorCode } from '@/errors'
 import { loginSchema } from './auth.schema'
 import { loginService, refreshService, getMeService } from './auth.service'
+import { getIp } from '@/middleware/rate-limit'
 
 const SECURE = env.NODE_ENV === 'production'
 
@@ -33,7 +34,7 @@ const CSRF_COOKIE_OPTS = {
 
 export async function handleLogin(c: Context) {
   const body = await validateBody(c, loginSchema)
-  const result = await loginService(body)
+  const result = await loginService(body, getIp(c))
 
   setCookie(c, 'access_token', result.accessToken, { ...HTTPONLY_OPTS, maxAge: 60 * 15 })
   setCookie(c, 'refresh_token', result.refreshToken, { ...HTTPONLY_OPTS, maxAge: 60 * 60 * 24 * 7 })

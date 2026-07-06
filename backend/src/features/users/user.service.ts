@@ -5,6 +5,7 @@ import { isDuplicateError } from '@/utils/response'
 import { hashPassword } from '@/utils/hash'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
+import { sendTelegramAlert } from '@/utils/telegram'
 import type { Context } from 'hono'
 import type { PaginationQuery } from '@/utils/validator'
 import {
@@ -23,6 +24,12 @@ import {
 import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
 import type { CreateUserDto, UpdateUserDto } from './user.schema'
+
+// Task002 Task E — role berwenang tinggi, dipakai deteksi aksi sensitif utk alert Telegram
+const HIGH_PRIVILEGE_ROLES = new Set(['superadmin', 'admin'])
+function hasHighPrivilegeRole(roles: Array<{ name: string }> | undefined): boolean {
+  return roles?.some((r) => HIGH_PRIVILEGE_ROLES.has(r.name)) ?? false
+}
 
 export async function getUsers(query: PaginationQuery, viewerIsSuperAdmin: boolean) {
   return findAllUsers(query, !viewerIsSuperAdmin)
@@ -70,6 +77,14 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
         companies: (created?.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
       },
     })
+
+    // Task002 Task E — privilege escalation: user baru langsung dibuat dengan role berwenang tinggi
+    if (hasHighPrivilegeRole(created?.roles as Array<{ name: string }> | undefined)) {
+      const roleNames = (created?.roles as Array<{ name: string }>).map((r) => r.name).join(', ')
+      void sendTelegramAlert(
+        `*User baru dengan role berwenang tinggi*\nEmail: \`${user!.email}\`\nRole: \`${roleNames}\`\nDibuat oleh: \`${ctx.var.user.email}\``,
+      )
+    }
 
     return created
   } catch (err) {
@@ -144,6 +159,26 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
     },
   })
 
+  // Task002 Task E — privilege escalation: role berwenang tinggi BARU didapat (belum
+  // punya sebelumnya) - bukan cuma "masih punya", supaya tidak spam tiap update lain
+  // ke user yang MEMANG SUDAH admin/superadmin dari awal.
+  const hadHighPrivilegeBefore = hasHighPrivilegeRole(before.roles as Array<{ name: string }> | undefined)
+  const hasHighPrivilegeAfter = hasHighPrivilegeRole(after?.roles as Array<{ name: string }> | undefined)
+  if (role_ids !== undefined && !hadHighPrivilegeBefore && hasHighPrivilegeAfter) {
+    const roleNames = (after?.roles as Array<{ name: string }>).map((r) => r.name).join(', ')
+    void sendTelegramAlert(
+      `*Privilege escalation*\nUser: \`${before.email}\`\nRole baru: \`${roleNames}\`\nDiubah oleh: \`${ctx.var.user.email}\``,
+    )
+  }
+
+  // Task002 Task E — reset password ke akun admin/superadmin (bukan ke user biasa,
+  // supaya tidak spam kalau admin reset password banyak user biasa sekaligus)
+  if (passwordReset && hadHighPrivilegeBefore) {
+    void sendTelegramAlert(
+      `*Reset password akun berwenang tinggi*\nUser: \`${before.email}\`\nDireset oleh: \`${ctx.var.user.email}\``,
+    )
+  }
+
   return after
 }
 
@@ -166,6 +201,14 @@ export async function deleteUserService(id: number, ctx: Context) {
     companyId,
     oldValue: { id: user.id, email: user.email, name: user.name },
   })
+
+  // Task002 Task E — hapus akun berwenang tinggi (superadmin sebenarnya sudah diblokir
+  // di atas via is_system, tapi role 'admin' TIDAK is_system - jalur ini masih tercapai)
+  if (hasHighPrivilegeRole(user.roles as Array<{ name: string }> | undefined)) {
+    void sendTelegramAlert(
+      `*User berwenang tinggi dihapus*\nEmail: \`${user.email}\`\nDihapus oleh: \`${ctx.var.user.email}\``,
+    )
+  }
 }
 
 /**
@@ -187,6 +230,12 @@ export async function unlockUserService(id: number, ctx: Context) {
     companyId: (user.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null,
     oldValue: { id: user.id, email: user.email },
   })
+
+  // Task002 Task E — unlock manual selalu di-alert (aksi jarang & sengaja, jejak siapa
+  // membuka kunci akun yang terkunci karena dicurigai brute force)
+  void sendTelegramAlert(
+    `*Akun di-unlock manual*\nEmail: \`${user.email}\`\nDibuka oleh: \`${ctx.var.user.email}\``,
+  )
 
   return getUserById(id, ctx.var.user.isSuperAdmin)
 }

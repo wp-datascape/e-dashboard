@@ -2,6 +2,7 @@ import { AppError, ErrorCode } from '@/errors'
 import { isDuplicateError } from '@/utils/response'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
+import { sendTelegramAlert } from '@/utils/telegram'
 import type { Context } from 'hono'
 import {
   findAllPermissions,
@@ -11,9 +12,12 @@ import {
   deletePermission,
   replaceRolePermissions,
 } from './permissions.repository'
-import { findRoleById } from '@/features/roles/roles.repository'
+import { findRoleById, findRolePermissions } from '@/features/roles/roles.repository'
 import { createPermissionSchema, updatePermissionSchema } from './permissions.schema'
 import type { CreatePermissionDto, UpdatePermissionDto } from './permissions.schema'
+
+// Task002 Task E — kategori Access Control (RBAC itu sendiri), lihat db/seed.ts
+const ACCESS_CONTROL_CATEGORIES = new Set(['Users', 'Roles', 'Permissions'])
 
 export const updateRolePermissionsSchema = createPermissionSchema.extend({
   permission_ids: createPermissionSchema.array(),
@@ -108,6 +112,13 @@ export async function updateRolePermissionsService(roleId: number, dto: { permis
   const role = await findRoleById(roleId)
   if (!role) throw new AppError(ErrorCode.NOT_FOUND, 'Role not found', 404)
 
+  // State SEBELUM update — dipakai deteksi permission Access Control yang BARU
+  // ditambahkan (bukan cuma "masih ada"), supaya tidak spam tiap update permission lain
+  const before = await findRolePermissions(roleId)
+  const hadAccessControlBefore = new Set(
+    (before ?? []).filter((p) => p.category && ACCESS_CONTROL_CATEGORIES.has(p.category)).map((p) => p.id),
+  )
+
   await replaceRolePermissions(roleId, dto.permission_ids)
   logger.info('[permission] Role permissions updated', { roleId })
 
@@ -118,6 +129,19 @@ export async function updateRolePermissionsService(roleId: number, dto: { permis
     companyId: null,
     meta: { permission_ids: dto.permission_ids },
   })
+
+  // Task002 Task E — permission kategori Access Control (RBAC itu sendiri) di-assign
+  // BARU ke role ini (misal: role custom diberi kemampuan create/delete user/role/permission)
+  const allPerms = await findAllPermissions()
+  const newAccessControlPerms = (allPerms ?? []).filter(
+    (p) => dto.permission_ids.includes(p.id) && p.category && ACCESS_CONTROL_CATEGORIES.has(p.category) && !hadAccessControlBefore.has(p.id),
+  )
+  if (newAccessControlPerms.length > 0) {
+    const names = newAccessControlPerms.map((p) => p.name).join(', ')
+    void sendTelegramAlert(
+      `*Permission Access Control di-assign*\nRole: \`${role.name}\`\nPermission baru: \`${names}\`\nDiubah oleh: \`${ctx.var.user.email}\``,
+    )
+  }
 
   // Return role with updated permissions
   return { ...role }

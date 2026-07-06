@@ -3,6 +3,7 @@ import { env } from '@/config/env'
 import { comparePassword } from '@/utils/hash'
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt'
 import { generateCsrfToken } from '@/utils/csrf'
+import { sendTelegramAlert } from '@/utils/telegram'
 import {
   findActiveUserByEmail,
   findActiveUserById,
@@ -21,7 +22,7 @@ function formatLockRemaining(lockedUntil: Date): string {
   return minutes <= 1 ? '1 menit' : `${minutes} menit`
 }
 
-export async function loginService(dto: LoginDto) {
+export async function loginService(dto: LoginDto, ipAddress?: string) {
   const user = await findActiveUserByEmail(dto.email)
 
   // Gunakan pesan error generik untuk mencegah user enumeration
@@ -44,6 +45,11 @@ export async function loginService(dto: LoginDto) {
   if (!isMatch) {
     const { justLocked } = await recordFailedLogin(user.id, env.ACCOUNT_LOCKOUT_THRESHOLD, env.ACCOUNT_LOCKOUT_DURATION_MINUTES)
     if (justLocked) {
+      // Task002 Task E — sinyal serangan (brute force live), BUKAN lewat logAudit()
+      // (belum ada ctx.var.user, request ini belum berhasil autentikasi)
+      void sendTelegramAlert(
+        `*Akun terkunci*\nEmail: \`${user.email}\`\nSetelah ${env.ACCOUNT_LOCKOUT_THRESHOLD}x percobaan login gagal berturut-turut.\nIP: \`${ipAddress ?? 'unknown'}\`\nDurasi lock: ${env.ACCOUNT_LOCKOUT_DURATION_MINUTES} menit.`,
+      )
       throw new AppError(
         ErrorCode.ACCOUNT_LOCKED,
         `Akun terkunci karena ${env.ACCOUNT_LOCKOUT_THRESHOLD}x percobaan gagal berturut-turut. Coba lagi dalam ${env.ACCOUNT_LOCKOUT_DURATION_MINUTES} menit, atau hubungi admin.`,
