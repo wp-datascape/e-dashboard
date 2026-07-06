@@ -12,13 +12,13 @@ import { createUserSchema, updateUserSchema, userIdParamSchema } from './user.sc
 export async function handleGetUsers(c: Context) {
   const query = validateQuery(c, paginationSchema)
   const typedQuery = { page: query.page ?? 1, per_page: query.per_page ?? 20, sort: query.sort }
-  const { rows, total } = await getUsers(typedQuery)
+  const { rows, total } = await getUsers(typedQuery, c.var.user.isSuperAdmin)
   return paginated(c, rows, { page: typedQuery.page, per_page: typedQuery.per_page, total })
 }
 
 export async function handleGetUserById(c: Context) {
   const { id } = validateParam(c, userIdParamSchema)
-  const user = await getUserById(id)
+  const user = await getUserById(id, c.var.user.isSuperAdmin)
   return success(c, user)
 }
 

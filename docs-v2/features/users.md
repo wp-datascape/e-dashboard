@@ -1,8 +1,8 @@
 # Feature: Users CRUD
 
-> Status: ✅ Complete — CRUD + role/company assignment + reset password + bulk import (template upload)
-> Last updated: 2026-07-03 (sesi 30)
-> Baca juga: `shared/api-conventions.md`, `features/roles.md`, `features/permissions.md`, `features/import.md`
+> Status: ✅ Complete — CRUD + role/company assignment + reset password + bulk import (template upload) + isolasi data superadmin
+> Last updated: 2026-07-06 (sesi 37)
+> Baca juga: `shared/api-conventions.md`, `features/roles.md`, `features/permissions.md`, `features/import.md`, `features/audit.md`
 
 ---
 
@@ -200,6 +200,28 @@ Fix: dipecah jadi 2 query terpisah (`fetchRolesAndCompaniesByUserIds()` — satu
 
 ### Bulk import — pola yang sama dengan Channel Divisions/Classification Rules
 `importUsersService` mengikuti pola identik `importChannelDivisionsService` (`settings/channel-divisions.service.ts`): parse CSV via `papaparse` atau XLSX via `xlsx` (scan baris pertama yang mengandung header `"email"`), validasi + insert per-baris, kumpulkan error per-baris (bukan gagal total di baris pertama yang error).
+
+### Isolasi data superadmin — List & Detail User (2026-07-06)
+
+Baris user dengan role `superadmin` **disembunyikan total** (bukan di-mask) dari `GET /`, `GET /:id`, `PUT /:id`, dan `DELETE /:id` kalau viewer bukan superadmin. Role-based, bukan self-only — sesama superadmin tetap saling terlihat penuh; yang di-block hanya `admin` ke bawah.
+
+**Mekanisme:** `findAllUsers(pagination, excludeSuperAdmin)` dan `findUserById(id, excludeSuperAdmin)` (`user.repository.ts`) menambah kondisi:
+```sql
+NOT EXISTS (
+  SELECT 1 FROM user_roles ur
+  INNER JOIN roles r ON ur.role_id = r.id
+  WHERE ur.user_id = <users.id> AND r.name = 'superadmin'
+)
+```
+`NOT EXISTS` dipakai (bukan `notInArray`) supaya baris dengan kolom nullable tetap benar secara semantik — pola yang sama dipakai lagi di `audit.md` untuk `actor_id` yang bisa `NULL` (system action).
+
+`excludeSuperAdmin` = `!c.var.user.isSuperAdmin`, di-thread dari `user.handler.ts` → `user.service.ts` (`getUsers`, `getUserById`) → repository. `createUserService`/`updateUserService`/`deleteUserService` sudah menerima `ctx: Context`, jadi tinggal derive `ctx.var.user.isSuperAdmin` langsung tanpa ubah signature.
+
+**Efek samping yang disengaja (defense-in-depth):** karena `updateUserService`/`deleteUserService` internal memanggil `getUserById`/`findUserById` yang sama untuk ambil state "before", non-superadmin yang mencoba update/delete akun superadmin lewat API langsung dapat `404 NOT_FOUND` (bukan `403`) — konsisten dengan "seakan tidak exist", bukan sekadar terlarang.
+
+**Diverifikasi** langsung ke DB lokal: `findAllUsers` total 8→7 baris saat `excludeSuperAdmin=true` (baris superadmin hilang), `findUserById` return `null` untuk target superadmin saat `excludeSuperAdmin=true`. `bunx tsc --noEmit` bersih, 38 test existing tetap pass.
+
+**Belum dikerjakan:** sisi frontend (halaman `/users`) belum disesuaikan/diverifikasi visual — murni enforcement backend untuk saat ini.
 
 ---
 

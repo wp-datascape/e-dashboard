@@ -11,8 +11,8 @@ export async function getAuditActions() {
   return findDistinctActions()
 }
 
-export async function getAuditLogById(id: number) {
-  const log = await findById(id)
+export async function getAuditLogById(id: number, excludeSuperAdminActors: boolean) {
+  const log = await findById(id, excludeSuperAdminActors)
   if (!log) throw new AppError(ErrorCode.NOT_FOUND, 'Audit log not found', 404)
   return log
 }

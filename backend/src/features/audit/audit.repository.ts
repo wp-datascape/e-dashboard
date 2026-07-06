@@ -12,6 +12,18 @@ export interface AuditLogsQuery {
   date_from?: string
   date_to?: string
   scopeIds?: number[]
+  excludeSuperAdminActors?: boolean
+}
+
+// Isolasi data superadmin: entry audit log yang aktornya superadmin disembunyikan
+// total dari viewer non-superadmin. NOT EXISTS (bukan notInArray) supaya
+// actor_id NULL (system action) tetap lolos apa adanya, bukan ikut ke-drop.
+function excludeSuperAdminActorCondition() {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM user_roles ur
+    INNER JOIN roles r ON ur.role_id = r.id
+    WHERE ur.user_id = ${auditLogs.actor_id} AND r.name = 'superadmin'
+  )`
 }
 
 function mapRow(row: any) {
@@ -45,7 +57,7 @@ function mapRow(row: any) {
 }
 
 export async function findAuditLogs(query: AuditLogsQuery) {
-  const { page, per_page, action, actor_id, company_id, date_from, date_to, scopeIds } = query
+  const { page, per_page, action, actor_id, company_id, date_from, date_to, scopeIds, excludeSuperAdminActors } = query
 
   const conditions = []
 
@@ -59,6 +71,7 @@ export async function findAuditLogs(query: AuditLogsQuery) {
     end.setHours(23, 59, 59, 999)
     conditions.push(lte(auditLogs.created_at, end))
   }
+  if (excludeSuperAdminActors) conditions.push(excludeSuperAdminActorCondition())
 
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
@@ -109,8 +122,12 @@ export async function findDistinctActions(): Promise<string[]> {
   }
 }
 
-export async function findAuditLogById(id: number) {
+export async function findAuditLogById(id: number, excludeSuperAdminActors: boolean) {
   try {
+    const where = excludeSuperAdminActors
+      ? and(eq(auditLogs.id, id), excludeSuperAdminActorCondition())
+      : eq(auditLogs.id, id)
+
     const [row] = await db
       .select({
         id: auditLogs.id,
@@ -129,7 +146,7 @@ export async function findAuditLogById(id: number) {
       })
       .from(auditLogs)
       .leftJoin(users, eq(auditLogs.actor_id, users.id))
-      .where(eq(auditLogs.id, id))
+      .where(where)
       .limit(1)
 
     if (!row) return null

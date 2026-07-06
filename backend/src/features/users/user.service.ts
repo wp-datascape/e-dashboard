@@ -22,12 +22,12 @@ import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
 import type { CreateUserDto, UpdateUserDto } from './user.schema'
 
-export async function getUsers(query: PaginationQuery) {
-  return findAllUsers(query)
+export async function getUsers(query: PaginationQuery, viewerIsSuperAdmin: boolean) {
+  return findAllUsers(query, !viewerIsSuperAdmin)
 }
 
-export async function getUserById(id: number) {
-  const user = await findUserById(id)
+export async function getUserById(id: number, viewerIsSuperAdmin: boolean) {
+  const user = await findUserById(id, !viewerIsSuperAdmin)
   if (!user) throw new AppError(ErrorCode.NOT_FOUND, 'User not found', 404)
   return user
 }
@@ -51,7 +51,7 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
       await replaceUserAssignments(user!.id, company_assignments)
     }
 
-    const created = await findUserById(user!.id)
+    const created = await findUserById(user!.id, !ctx.var.user.isSuperAdmin)
 
     logger.info('[user] User created', { id: user!.id, email: dto.email })
 
@@ -79,7 +79,7 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
 
 export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Context) {
   // Ambil state sebelum update untuk oldValue
-  const before = await getUserById(id)
+  const before = await getUserById(id, ctx.var.user.isSuperAdmin)
 
   // Extract relation fields before updating user data
   const { role_ids, company_assignments, ...userData } = dto
@@ -104,7 +104,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
   }
 
   // Re-fetch dengan relasi (state setelah update)
-  const after = await findUserById(id)
+  const after = await findUserById(id, !ctx.var.user.isSuperAdmin)
 
   // Ambil companyId dari company pertama user (default context)
   const companyId = (before.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null
@@ -140,7 +140,7 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
 }
 
 export async function deleteUserService(id: number, ctx: Context) {
-  const user = await getUserById(id)
+  const user = await getUserById(id, ctx.var.user.isSuperAdmin)
 
   if (user.roles?.some(r => (r as Record<string, unknown>).is_system)) {
     throw new AppError(ErrorCode.FORBIDDEN, 'Cannot delete a user with a system role', 403)

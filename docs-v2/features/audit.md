@@ -1,7 +1,7 @@
 # Feature: Audit Logs
 
-> Status: ✅ Complete — 2 endpoints aktif, di-mount di `/api/v1/audit-logs`
-> Last updated: 2026-07-04
+> Status: ✅ Complete — 2 endpoints aktif, di-mount di `/api/v1/audit-logs`, isolasi data superadmin
+> Last updated: 2026-07-06 (sesi 37)
 
 ---
 
@@ -186,3 +186,25 @@ Tabel: `audit_logs`
 | 400 | `VALIDATION_ERROR` | Query param tidak valid |
 | 404 | `NOT_FOUND` | Log tidak ditemukan |
 | 500 | `INTERNAL_ERROR` | Server / DB error |
+
+---
+
+## Isolasi data superadmin (2026-07-06)
+
+Entry audit log yang **aktornya (`actor_id`) adalah user berrole `superadmin`** di-drop total dari `GET /` dan `GET /:id` kalau viewer bukan superadmin — bukan sekadar redacted, entry itu juga tidak ikut dihitung di `total`/pagination. Role-based, bukan self-only: sesama superadmin saling terlihat penuh, hanya `admin` ke bawah yang di-block. Sejalan dengan isolasi yang sama untuk halaman List User — lihat `features/users.md`.
+
+**Mekanisme:** `findAuditLogs`/`findAuditLogById` (`audit.repository.ts`) menambah kondisi `excludeSuperAdminActorCondition()` ke `where` kalau `excludeSuperAdminActors` true:
+```sql
+NOT EXISTS (
+  SELECT 1 FROM user_roles ur
+  INNER JOIN roles r ON ur.role_id = r.id
+  WHERE ur.user_id = audit_logs.actor_id AND r.name = 'superadmin'
+)
+```
+`NOT EXISTS` (bukan `notInArray`) sengaja dipilih supaya entry dengan `actor_id IS NULL` (system action, tanpa aktor manusia) **tidak ikut ke-drop** — `NULL NOT IN (...)` di SQL evaluasinya `UNKNOWN` (bukan `true`), jadi kalau pakai `notInArray` biasa, log sistem yang harusnya tetap tampil malah ikut hilang.
+
+`excludeSuperAdminActors` = `!c.var.user.isSuperAdmin`, di-thread dari `audit.handler.ts` → `audit.service.ts` (`getAuditLogs`, `getAuditLogById`) → repository.
+
+**Diverifikasi** langsung ke DB lokal: `findAuditLogs` total 13→0 saat `excludeSuperAdminActors=true` (seluruh 13 log lokal saat ini kebetulan dibuat oleh akun superadmin, karena baru akun itu yang dipakai testing). `bunx tsc --noEmit` bersih, 38 test existing tetap pass.
+
+**Belum dikerjakan:** sisi frontend (halaman `/audit-log`) belum disesuaikan/diverifikasi visual — murni enforcement backend untuk saat ini.

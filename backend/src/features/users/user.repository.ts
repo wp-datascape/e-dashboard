@@ -1,6 +1,7 @@
-import { eq, isNull, and, count, inArray } from 'drizzle-orm'
+import { eq, isNull, and, count, inArray, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { users, userRoles, roles, userCompanies, companies, userBranches, userDivisions, company_branches } from '@/db/schema'
+import type { PgColumn } from 'drizzle-orm/pg-core'
 import { handleDbError } from '@/utils/dbError'
 import type { PaginationQuery } from '@/utils/validator'
 import type { CreateUserDto, UpdateUserDto, CompanyAssignmentDto } from './user.schema'
@@ -9,6 +10,17 @@ import type { CreateUserDto, UpdateUserDto, CompanyAssignmentDto } from './user.
 function stripPassword<T extends { password: string }>(user: T): Omit<T, 'password'> {
   const { password: _, ...rest } = user
   return rest
+}
+
+// Isolasi data superadmin: baris user dengan role 'superadmin' disembunyikan total
+// dari viewer non-superadmin (default-deny by role, bukan cuma restriksi field).
+// NOT EXISTS (bukan notInArray) supaya userIdCol NULL tetap lolos apa adanya.
+function excludeSuperAdminCondition(userIdCol: PgColumn): SQL {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM user_roles ur
+    INNER JOIN roles r ON ur.role_id = r.id
+    WHERE ur.user_id = ${userIdCol} AND r.name = 'superadmin'
+  )`
 }
 
 // Ambil roles & companies untuk sekumpulan user_id lewat 2 query terpisah
@@ -152,8 +164,11 @@ export async function replaceUserAssignments(userId: number, assignments: Compan
   }
 }
 
-export async function findAllUsers(pagination: PaginationQuery) {
+export async function findAllUsers(pagination: PaginationQuery, excludeSuperAdmin: boolean) {
   const { page, per_page } = pagination
+  const where = excludeSuperAdmin
+    ? and(isNull(users.deleted_at), excludeSuperAdminCondition(users.id))
+    : isNull(users.deleted_at)
 
   try {
     const [usersData, [{ value: total }]] = await Promise.all([
@@ -169,10 +184,10 @@ export async function findAllUsers(pagination: PaginationQuery) {
           deleted_at: users.deleted_at,
         })
         .from(users)
-        .where(isNull(users.deleted_at))
+        .where(where)
         .limit(per_page)
         .offset((page - 1) * per_page),
-      db.select({ value: count() }).from(users).where(isNull(users.deleted_at)),
+      db.select({ value: count() }).from(users).where(where),
     ])
 
     const userIds = usersData.map((u) => u.id)
@@ -194,8 +209,11 @@ export async function findAllUsers(pagination: PaginationQuery) {
   }
 }
 
-export async function findUserById(id: number) {
+export async function findUserById(id: number, excludeSuperAdmin: boolean) {
   try {
+    const conditions = [eq(users.id, id), isNull(users.deleted_at)]
+    if (excludeSuperAdmin) conditions.push(excludeSuperAdminCondition(users.id))
+
     const [user] = await db
       .select({
         id: users.id,
@@ -208,7 +226,7 @@ export async function findUserById(id: number) {
         deleted_at: users.deleted_at,
       })
       .from(users)
-      .where(and(eq(users.id, id), isNull(users.deleted_at)))
+      .where(and(...conditions))
 
     if (!user) return null
 
