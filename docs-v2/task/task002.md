@@ -146,12 +146,25 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   lagi; user tanpa `access.user:unlock` → 403. Typecheck+build frontend bersih, 38 test
   backend tetap lolos.
 
-### Task D — Invalidasi Sesi saat Reset Password
+### Task D — Invalidasi Sesi saat Reset Password ✅ **Selesai (2026-07-06)**
 > **Keputusan (2026-07-06):** auth session **stateless, tanpa tabel DB** (lihat §1.3) — jadi revoke token individual tidak mungkin tanpa redesign. Pendekatan yang cocok untuk constraint ini: `token_version` bukan token blocklist.
-- [ ] D1. Tambah kolom `token_version` (integer, default 0) di tabel `users`
-- [ ] D2. Sertakan `token_version` di payload JWT (access + refresh token) saat login/refresh
-- [ ] D3. `authMiddleware()` bandingkan `token_version` di JWT vs nilai terbaru di DB (reuse query yang sudah fetch data user per request — tidak nambah round-trip DB baru, lihat pola `getUserPermissions`/`getUserCompanyIds` yang sudah fresh-fetch tiap request)
-- [ ] D4. `updateUserService()` — saat `password reset`, increment `token_version` user itu → semua token lama (access & refresh) otomatis invalid di request berikutnya, tanpa perlu tabel blocklist
+- [x] D1. Kolom `token_version` (integer, default 0) ditambahkan ke `users` (`schema-auth.ts`) —
+  migration `0005_token_version.sql`.
+- [x] D2. `tokenVersion` disertakan di payload JWT (access DAN refresh token) saat
+  login/refresh (`utils/jwt.ts` — `generateRefreshToken()` sekarang butuh parameter kedua).
+- [x] D3. `authMiddleware()` bandingkan `tokenVersion` di JWT vs `token_version` terbaru di
+  DB — masuk `Promise.all` batch yang sudah ada (fungsi baru `getUserTokenVersion()`, tidak
+  nambah round-trip). `refreshService()` juga cek yang sama sebelum mint access token baru
+  (refresh token lama harus ikut mati, bukan cuma access token).
+- [x] D4. `updateUserService()` — saat field `password` terisi di `PUT /users/:id` (admin
+  reset password), panggil `incrementTokenVersion()` sekali → SEMUA access & refresh token
+  lama milik user itu, di device manapun, otomatis invalid di request berikutnya (401 "Sesi
+  tidak valid, silakan login ulang"), tanpa tabel blocklist.
+
+  Diverifikasi end-to-end via curl: login → JWT `tokenVersion:0` → admin reset password →
+  `/me` dengan access token lama = 401, `/auth/refresh` dengan refresh token lama = 401 →
+  login ulang dengan password baru → JWT baru `tokenVersion:1`, `/me` sukses lagi. Typecheck
+  bersih, 38 test backend tetap lolos.
 
 ### Task E — Audit/Alert Aksi Sensitif
 > **Keputusan (2026-07-06):** channel webhook, platform **Telegram** (dipilih dari perbandingan Slack/Discord/Telegram — alasan: reach paling luas karena kemungkinan besar semua anggota tim sudah pakai Telegram tanpa perlu install app baru, gratis tanpa limit retensi, push notification cepat/reliable). Setup teknis: bot via `@BotFather` → dapat bot token, ambil `chat_id` tujuan (personal atau grup) sekali di awal, lalu kirim alert dengan POST ke `api.telegram.org/bot<token>/sendMessage`.
