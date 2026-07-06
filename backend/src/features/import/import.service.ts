@@ -38,7 +38,7 @@ import {
   createImportErrors,
   findBranchIdByName,
 } from './import.repository'
-import type { NewImportLogError } from '@/db/schema/import_log_errors'
+import type { NewImportLogError } from '@/db/schema'
 
 export interface ImportProgress {
   processed: number

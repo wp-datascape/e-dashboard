@@ -5,7 +5,7 @@ import { encrypt, decrypt } from '@/utils/crypto'
 import axios from 'axios'
 import { findCredentialsByBranchId, upsertCredentials } from './accurate.repository'
 import type { SaveCredentialsDto } from './accurate.schema'
-import type { AccurateCredential } from '@/db/schema/accurate_credentials'
+import type { AccurateCredential } from '@/db/schema'
 
 export async function getCredentials(branchId: number): Promise<AccurateCredential | null> {
   const credential = await findCredentialsByBranchId(branchId)

@@ -18,9 +18,7 @@
 
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { accurate_credentials } from '@/db/schema'
-import { company_branches } from '@/db/schema/company_branches'
-import { companies } from '@/db/schema/companies'
+import { accurate_credentials, company_branches, companies } from '@/db/schema'
 import { decrypt } from '@/utils/crypto'
 import { AppError, ErrorCode } from '@/errors'
 import { logger } from '@/utils/logger'

@@ -1,7 +1,7 @@
 import { and, eq, sql, desc } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { products } from '@/db/schema'
-import type { NewProduct } from '@/db/schema/products'
+import type { NewProduct } from '@/db/schema'
 
 export async function upsertProduct(data: {
   company_id: number

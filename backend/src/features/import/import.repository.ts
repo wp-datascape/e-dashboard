@@ -19,11 +19,7 @@ import {
   company_branches,
   users,
 } from '@/db/schema'
-import type { NewInvoice } from '@/db/schema/invoices'
-import type { NewInvoiceItem } from '@/db/schema/invoice_items'
-import type { NewImportLog } from '@/db/schema/import_logs'
-import type { NewImportLogError } from '@/db/schema/import_log_errors'
-import type { NewItemClassificationRule } from '@/db/schema/item_classification_rules'
+import type { NewInvoice, NewInvoiceItem, NewImportLog, NewImportLogError, NewItemClassificationRule } from '@/db/schema'
 
 // ─── Date Helpers ────────────────────────────────────────────────────────────
 

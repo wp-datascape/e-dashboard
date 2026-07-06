@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { accurate_credentials } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
-import type { NewAccurateCredential } from '@/db/schema/accurate_credentials'
+import type { NewAccurateCredential } from '@/db/schema'
 
 export async function findCredentialsByBranchId(branchId: number) {
   try {
