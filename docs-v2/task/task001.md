@@ -271,18 +271,18 @@ Desain awal §4.6 (full-coverage + `branch_id IS NULL`) **dibatalkan** setelah a
 ## 5. Breakdown Task
 
 ### Task A — Schema & Migration (Backend)
-- [ ] A1. Tulis Drizzle schema `user_divisions.ts`, `user_branches.ts`
-- [ ] A2. Tambah kolom `invoices.branch_id` (nullable dulu, FK ke `company_branches`)
-- [ ] A3. `drizzle-kit generate` + `drizzle-kit migrate`
-- [ ] A4. Script backfill `invoices.branch_id` dari `branch_name` (manual, ikuti pola `postgres.js` di `CRITICAL_RULES.md` § Migration Limitation)
-- [ ] A5. Audit hasil backfill — hitung berapa % baris invoices yang **tidak** ketemu `branch_id` (lihat Task E)
+- [x] A1. Tulis Drizzle schema `user_divisions.ts`, `user_branches.ts` — selesai.
+- [x] A2. Tambah kolom `invoices.branch_id` (nullable dulu, FK ke `company_branches`) — selesai.
+- [x] A3. `drizzle-kit generate` + `drizzle-kit migrate` — selesai.
+- [x] A4. Script backfill `invoices.branch_id` dari `branch_name` — selesai, `backend/scripts/backfill-invoice-branch-id.ts`.
+- [x] A5. Audit hasil backfill — selesai, 100% ter-backfill setelah perbaikan data company 1 (§4.6).
 
 ### Task B — Backend Core (Scope Resolver & Middleware)
-- [ ] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()`
-- [ ] B2. `middleware/auth.ts` — extend `authMiddleware()` load scope baru, extend tipe `c.var.user`
-- [ ] B3. `middleware/auth.ts` — `resolveBranchScope()` (input: `companyScopeIds`), `resolveDivisionScope()` (input: hasil `resolveBranchScope`, BUKAN companyScopeIds — lihat §4.2) — keduanya cuma cek `isSuperAdmin`, tidak ada bypass untuk role `admin`
-- [ ] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`, `buildDivisionCondition()` (2 helper terpisah, lihat §4.3). "Lainnya"/`'other'` (§4.5, §4.6) tidak butuh helper tambahan — diperlakukan sama seperti branch/division lain
-- [ ] B5. Seeder: assign row `user_companies`/`user_branches`/`user_divisions` eksplisit untuk user `admin` existing (bukan bypass kode) — lihat Task F1
+- [x] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()` — selesai.
+- [x] B2. `middleware/auth.ts` — extend `authMiddleware()` load scope baru, extend tipe `c.var.user` — selesai (juga sudah diperluas lagi utk `enforcementEnabled` di Task F2/F3).
+- [x] B3. `middleware/auth.ts` — `resolveBranchScope()`/`resolveDivisionScope()` — selesai, 14 unit test (`auth.test.ts`).
+- [x] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`/`buildDivisionCondition()` + varian raw — selesai, 17 unit test (`scope.test.ts`).
+- [x] B5. Seeder assign `user_companies`/`user_branches`/`user_divisions` — selesai untuk user seed dev; digeneralisasi ke SEMUA user lewat script terpisah di Task F1.
 
 ### Task C — Repository Updates (7 fitur existing yang sudah pakai `resolveCompanyScope`)
 Update tiap handler + repository untuk terima & apply `divisionScope`/`branchScope` di samping `companyScope` yang sudah ada:
