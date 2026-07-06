@@ -68,9 +68,10 @@ export async function loginService(dto: LoginDto) {
     email: user.email,
     companyIds,
     isSuperAdmin,
+    tokenVersion: user.token_version,
   })
 
-  const refreshToken = generateRefreshToken(user.id)
+  const refreshToken = generateRefreshToken(user.id, user.token_version)
   const csrfToken = generateCsrfToken()
 
   return {
@@ -96,6 +97,13 @@ export async function refreshService(refreshToken: string) {
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid', 401)
   }
 
+  // Invalidasi sesi (Task002 Task D) — refresh token yang diterbitkan SEBELUM password
+  // direset punya tokenVersion lama; begitu password direset (token_version di-increment),
+  // refresh token itu otomatis ditolak di sini, tidak bisa dipakai mint access token baru.
+  if (payload.tokenVersion !== user.token_version) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid, silakan login ulang', 401)
+  }
+
   const [companyIds, primaryRole] = await Promise.all([
     getUserCompanyIds(payload.userId),
     getUserPrimaryRole(payload.userId),
@@ -106,6 +114,7 @@ export async function refreshService(refreshToken: string) {
     email: user.email,
     companyIds,
     isSuperAdmin: primaryRole === 'superadmin',
+    tokenVersion: user.token_version,
   })
 
   const csrfToken = generateCsrfToken()

@@ -322,6 +322,15 @@ export async function softDeleteUser(id: number) {
 }
 
 /**
+ * Invalidasi sesi (Task002 Task D) — dipanggil saat admin reset password user ini.
+ * Semua access/refresh token lama (dengan tokenVersion sebelumnya) otomatis ditolak
+ * di request berikutnya (authMiddleware/refreshService), tanpa perlu tabel blocklist.
+ */
+export async function incrementTokenVersion(id: number): Promise<void> {
+  await db.update(users).set({ token_version: sql`${users.token_version} + 1` }).where(eq(users.id, id))
+}
+
+/**
  * Unlock manual oleh admin (Task002 Task C4) — reset failed_login_count/locked_until,
  * jalan keluar kalau auto-unlock (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES) kepanjangan
  * untuk kasus tertentu. Sama seperti resetLoginAttempts() di auth.repository.ts (dipanggil

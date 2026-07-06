@@ -26,6 +26,7 @@ import {
   getUserCompanyIds,
   getUserBranchScopes,
   getUserDivisionScopes,
+  getUserTokenVersion,
 } from '@/features/auth/auth.repository'
 
 const ENFORCEMENT_CONFIG_KEY = 'branch_division_enforcement_enabled'
@@ -165,13 +166,21 @@ export function authMiddleware() {
       }
     }
 
-    const [permissions, companyIds, branchScopes, divisionScopes, enforcementEnabled] = await Promise.all([
+    const [permissions, companyIds, branchScopes, divisionScopes, enforcementEnabled, currentTokenVersion] = await Promise.all([
       getUserPermissions(payload.userId),
       getUserCompanyIds(payload.userId),
       getUserBranchScopes(payload.userId),
       getUserDivisionScopes(payload.userId),
       isEnforcementEnabled(),
+      getUserTokenVersion(payload.userId),
     ])
+
+    // Invalidasi sesi (Task002 Task D) — access token yang diterbitkan SEBELUM password
+    // direset punya tokenVersion lama; begitu password direset (token_version di-increment
+    // di DB), token lama otomatis ditolak di request berikutnya walau belum expired.
+    if (currentTokenVersion === null || payload.tokenVersion !== currentTokenVersion) {
+      throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid, silakan login ulang', 401)
+    }
 
     c.set('user', { ...payload, companyIds, branchScopes, divisionScopes, enforcementEnabled })
     c.set('permissions', permissions)

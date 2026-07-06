@@ -31,16 +31,20 @@ export interface JwtPayload {
   email: string
   companyIds: number[]
   isSuperAdmin: boolean
+  // Invalidasi sesi (Task002 Task D) — dibandingkan vs users.token_version tiap request
+  // oleh authMiddleware. Mismatch (mis. setelah password direset) = token ditolak.
+  tokenVersion: number
   iat?: number
   exp?: number
 }
 
 /**
- * Refresh token payload — minimal, hanya userId + type guard.
+ * Refresh token payload — minimal, hanya userId + type guard + tokenVersion.
  */
 export interface RefreshTokenPayload {
   userId: number
   type: 'refresh'
+  tokenVersion: number
   iat?: number
   exp?: number
 }
@@ -59,8 +63,8 @@ export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string 
 /**
  * Generate refresh token (long-lived, default 7d)
  */
-export function generateRefreshToken(userId: number): string {
-  const payload: Omit<RefreshTokenPayload, 'iat' | 'exp'> = { userId, type: 'refresh' }
+export function generateRefreshToken(userId: number, tokenVersion: number): string {
+  const payload: Omit<RefreshTokenPayload, 'iat' | 'exp'> = { userId, type: 'refresh', tokenVersion }
   return jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   })

@@ -26,6 +26,7 @@ export async function findActiveUserByEmail(email: string) {
       is_active: users.is_active,
       failed_login_count: users.failed_login_count,
       locked_until: users.locked_until,
+      token_version: users.token_version,
     })
     .from(users)
     .where(and(eq(users.email, email), isNull(users.deleted_at)))
@@ -40,11 +41,27 @@ export async function findActiveUserById(userId: number) {
       name: users.name,
       email: users.email,
       is_active: users.is_active,
+      token_version: users.token_version,
     })
     .from(users)
     .where(and(eq(users.id, userId), isNull(users.deleted_at)))
     .limit(1)
   return result[0] ?? null
+}
+
+/**
+ * Invalidasi sesi (Task002 Task D) — dipanggil authMiddleware tiap request untuk
+ * bandingkan vs tokenVersion di JWT. Query ringan terpisah (bukan lewat
+ * findActiveUserById) supaya bisa masuk Promise.all batch yang sudah ada di
+ * authMiddleware tanpa nambah round-trip baru.
+ */
+export async function getUserTokenVersion(userId: number): Promise<number | null> {
+  const result = await db
+    .select({ token_version: users.token_version })
+    .from(users)
+    .where(and(eq(users.id, userId), isNull(users.deleted_at)))
+    .limit(1)
+  return result[0]?.token_version ?? null
 }
 
 export async function getUserCompanyIds(userId: number): Promise<number[]> {

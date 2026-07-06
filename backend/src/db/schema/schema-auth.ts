@@ -42,6 +42,12 @@ export const users = pgTable('users', {
   // bukan hardcode di kolom ini.
   failed_login_count: integer('failed_login_count').notNull().default(0),
   locked_until: timestamp('locked_until', { withTimezone: true }),
+  // Invalidasi sesi (Task002 Task D) — di-increment saat password direset. JWT (access
+  // & refresh) menyimpan token_version saat diterbitkan; authMiddleware/refreshService
+  // bandingkan vs nilai ini tiap request — mismatch berarti token lama, ditolak. Pilihan
+  // ini dipakai karena auth session stateless tanpa tabel DB (lihat docs-v2/task/task002.md
+  // §Task D) — revoke token individual tidak mungkin tanpa token_version atau blocklist.
+  token_version: integer('token_version').notNull().default(0),
 })
 
 export type User = typeof users.$inferSelect

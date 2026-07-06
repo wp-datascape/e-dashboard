@@ -15,6 +15,7 @@ import {
   updateUser,
   softDeleteUser,
   unlockUserAccount,
+  incrementTokenVersion,
   replaceUserRoles,
   replaceUserCompanies,
   replaceUserAssignments,
@@ -93,6 +94,12 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
 
   // Update user basic fields
   await updateUser(id, userData)
+
+  // Invalidasi sesi (Task002 Task D) — password direset -> semua token lama (access &
+  // refresh, di device manapun) otomatis invalid di request berikutnya
+  if (passwordReset) {
+    await incrementTokenVersion(id)
+  }
 
   // Sync roles if provided
   if (role_ids !== undefined) {
