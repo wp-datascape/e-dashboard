@@ -10,7 +10,7 @@ export async function findInvoices(
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
 ) {
-  const { company_id, business_unit, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
+  const { company_id, branch_id, business_unit, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
   const offset = (page - 1) * per_page
 
   const conditions = [isNull(invoices.deleted_at), eq(customers.is_placeholder, false)]
@@ -32,9 +32,10 @@ export async function findInvoices(
 
   const whereClause = and(...conditions)
   const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
+  const branchFilterCond = branch_id ? eq(invoices.branch_id, branch_id) : undefined
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
-  const scopeConditions = [divisionCond, branchScopeCond, divisionScopeCond].filter(
+  const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
   const whereWithDivision = scopeConditions.length ? and(whereClause, ...scopeConditions) : whereClause

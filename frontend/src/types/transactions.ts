@@ -24,6 +24,7 @@ export interface InvoiceRow {
 
 export interface InvoiceParams {
   company_id?: number | 'all'
+  branch_id?: number
   business_unit?: string
   date_from?: string
   date_to?: string
