@@ -80,9 +80,20 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   `Access-Control-Allow-Headers` sekarang eksplisit (bukan reflect), mutasi sungguhan (PUT +
   `X-CSRF-Token`, toggle feature flag) dari browser real berhasil 2x tanpa CORS error.
 
-### Task B — Perluasan Rate Limit
-- [ ] B1. Identifikasi endpoint sensitif selain login yang butuh rate limit (`/auth/refresh`, endpoint mutasi RBAC/user, dll — perlu diskusi cakupan persis)
-- [ ] B2. Terapkan `rateLimit()` (sudah ada di `middleware/rate-limit.ts`) ke endpoint terpilih dengan window/threshold sesuai sensitivitas masing-masing
+### Task B — Perluasan Rate Limit ✅ **Selesai (2026-07-06)**
+- [x] B1. Cakupan yang dipilih: `POST /auth/refresh` (sebelumnya TIDAK ada rate limit sama
+  sekali), mutasi Users (`POST/PUT/DELETE /users`, `POST /users/import`), mutasi Roles
+  (`POST/PATCH/DELETE /roles`), mutasi Permissions (`POST/PUT/DELETE /permissions`,
+  `PUT /permissions/roles/:id/permissions` — titik privilege escalation paling langsung).
+  GET (view-only) sengaja TIDAK dibatasi.
+- [x] B2. `middleware/rate-limit.ts` ditambah `keyByUser()` (rate limit per authenticated
+  user, bukan per IP — kantor dengan banyak admin di 1 IP tidak saling memblokir, tapi 1
+  akun yang di-abuse/kompromis tetap dibatasi) + export `getIp()`. Threshold: refresh
+  30/15menit per IP (belum lewat authMiddleware saat itu); user mutation 30/5menit per user;
+  role/permission mutation 20/5menit per user (lebih ketat — privilege escalation surface).
+  Diverifikasi: 21 request PATCH beruntun ke endpoint role — 20 lolos, ke-21 kena 429 dengan
+  `Retry-After` benar; GET tetap 200 meski user sama kena limit di endpoint mutasi (rate
+  limit per-route, bukan global per-user); 38 test backend tetap lolos.
 
 ### Task C — Account Lockout
 > **Keputusan (2026-07-06):** kombinasi per-akun DAN per-IP, bukan salah satu saja.
