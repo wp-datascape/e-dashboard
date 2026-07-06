@@ -70,6 +70,15 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
 - [x] A3. Diverifikasi: curl cek header aktual muncul benar di response; preflight `OPTIONS` +
   login sungguhan dari origin frontend (`localhost:5173`) tetap lolos CORS; dashboard render
   normal via Playwright tanpa console error; 38 test backend tetap lolos.
+- [x] A4. **Sekalian (2026-07-06, atas permintaan user):** refactor CORS + secure-headers
+  dari inline `router.ts` ke `middleware/security.ts` sendiri (konsisten dengan pola
+  `middleware/auth.ts`/`rate-limit.ts` lain). Sekaligus perketat CORS: `allowHeaders`
+  eksplisit `['Content-Type', 'X-CSRF-Token']` (sebelumnya TIDAK di-set sama sekali — hono
+  fallback REFLECT apa pun yang diminta browser di preflight, bukan whitelist nyata),
+  `allowMethods` eksplisit, `maxAge: 600` (cache preflight browser). `origin` tetap whitelist
+  dari `CORS_ORIGIN` env (bukan wildcard) — sudah benar sebelumnya. Diverifikasi: preflight
+  `Access-Control-Allow-Headers` sekarang eksplisit (bukan reflect), mutasi sungguhan (PUT +
+  `X-CSRF-Token`, toggle feature flag) dari browser real berhasil 2x tanpa CORS error.
 
 ### Task B — Perluasan Rate Limit
 - [ ] B1. Identifikasi endpoint sensitif selain login yang butuh rate limit (`/auth/refresh`, endpoint mutasi RBAC/user, dll — perlu diskusi cakupan persis)
@@ -150,7 +159,8 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
 
 ## 5. Referensi Kode
 
-- `backend/src/router.ts` — setup CORS, request-id, request-logger, tempat pasang security headers baru
+- `backend/src/router.ts` — request-id, request-logger, mount `middleware/security.ts`
+- `backend/src/middleware/security.ts` — konfigurasi CORS + secure-headers (Task A, selesai 2026-07-06)
 - `backend/src/middleware/rate-limit.ts` — in-memory sliding window rate limiter, sudah dipakai di `auth.route.ts:9`
 - `backend/src/middleware/auth.ts` — JWT + CSRF validation
 - `backend/src/utils/csrf.ts`, `backend/src/utils/hash.ts` — CSRF token, bcrypt hashing
