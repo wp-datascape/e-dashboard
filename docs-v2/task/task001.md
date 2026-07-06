@@ -317,29 +317,56 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 ### Runbook Deploy ke Production (saat merge + redeploy)
 
-Urutan ini sudah tervalidasi penuh di DB lokal (1:1 dengan production per catatan di atas) — commands persis sama, cuma target `DATABASE_URL`-nya diganti ke production:
+**Keputusan (2026-07-06):** karena app belum benar-benar dipakai user riil, data invoice/customer
+production saat ini **boleh hilang** — akan di-re-import ulang dari Accurate/CSV setelah deploy.
+Ini menyederhanakan proses jauh lebih banyak dibanding rencana awal (skip semua langkah backfill
+data lama sama sekali). Dua hal yang membuat ini aman:
+
+1. Migration schema sudah rapi — **satu file** `0006_fat_leper_queen.sql` berisi seluruh perubahan
+   Task001 (`user_branches`, `user_divisions`, `invoices.branch_id`) sekali generate, tidak perlu
+   digabung/diedit manual.
+2. `seed.ts` (`defaultBranches`) sudah punya branch yang BENAR sejak awal untuk company 1 (Jakarta/
+   Surabaya/Lainnya, bukan "Pusat" lama) — jadi fresh seed langsung konsisten, tidak perlu diperbaiki
+   manual seperti temuan Task A5 di data lokal lama.
+3. Import invoice (CSV/Excel maupun Accurate) sekarang **otomatis resolve `branch_id`** saat data
+   masuk (`findBranchIdByName()`, `import.repository.ts`, fix 2026-07-06) — jadi
+   `backfill-invoice-branch-id.ts` tidak perlu dijalankan lagi untuk data yang diimpor ulang.
+
+**Langkah deploy (fresh start):**
 
 ```bash
-# 1. Migration schema (user_branches, user_divisions, invoices.branch_id)
+# 1. Drop seluruh tabel di production (data invoice/customer lama boleh hilang - keputusan sadar)
+#    Cara paling aman: drop database lalu buat ulang kosong, BUKAN DROP SCHEMA di DB yang dipakai
+#    proses lain. Sesuaikan dengan cara akses DB production (Railway dashboard/psql).
+
+# 2. Migration schema dari nol (6 file migration, hasil akhir = schema penuh saat ini)
 DATABASE_URL="<production>" bun run db:migrate
 
-# 2. Audit + backfill invoices.branch_id (dry-run dulu, cek laporannya sebelum --apply)
-DATABASE_URL="<production>" bun run backend/scripts/backfill-invoice-branch-id.ts
-DATABASE_URL="<production>" bun run backend/scripts/backfill-invoice-branch-id.ts --apply
-
-# 3. Backfill assignment user existing (dry-run dulu)
-DATABASE_URL="<production>" bun run backend/scripts/backfill-user-branch-division.ts
-DATABASE_URL="<production>" bun run backend/scripts/backfill-user-branch-division.ts --apply
-
-# 4. Seed config default (idempotent, skip kalau sudah ada) — flag OFF by default
+# 3. Seed data dasar (companies, branches yang SUDAH benar, permissions/roles, business_configs
+#    dengan flag enforcement default 'false', user seed dev)
 DATABASE_URL="<production>" bun run db:seed
 
-# 5. Deploy kode (enforcement masih OFF di titik ini — F2, aman, no-regression)
-# 6. Setelah verifikasi tidak ada masalah, nyalakan flag lewat Settings > Threshold
-#    (atau PATCH /api/v1/config/branch_division_enforcement_enabled {"value":"true"})
+# 4. Deploy kode backend+frontend (enforcement masih OFF - F2, aman, tidak ada regresi user)
+
+# 5. Re-import invoice dari Accurate/CSV seperti biasa lewat halaman Import - branch_id
+#    ter-resolve otomatis saat proses import (tidak perlu script backfill manual)
+
+# 6. Buat user real (bukan cuma 2 seed dev) + atur assignment Company/Branch/Division lewat
+#    RBAC UI (Task D, sudah selesai) - karena database fresh, tidak ada "user existing yang
+#    kehilangan akses" (F1 backfill script tidak relevan di skenario ini, cukup dipakai kalau
+#    nanti ada migrasi dari DB LAMA yang datanya mau dipertahankan)
+
+# 7. Setelah user & assignment beres, verifikasi dulu tanpa enforcement, baru nyalakan flag
+#    lewat Settings > Threshold (atau PATCH /api/v1/config/branch_division_enforcement_enabled
+#    {"value":"true"})
 ```
 
-⚠️ **Perhatikan §4.6 audit khusus company 1**: kalau company 1 di production juga cuma punya "Pusat" (bukan Jakarta/Surabaya riil), butuh langkah manual yang sama seperti di lokal — repurpose "Pusat"→"Lainnya" + insert branch riil — SEBELUM step 2 di atas, atau backfill invoice branch_id akan 0% match untuk company itu (persis temuan Task A5).
+**Script yang TIDAK perlu dijalankan** di skenario fresh-start ini (tapi tetap berguna kalau nanti
+ada migrasi dari database production LAMA yang datanya mau dipertahankan, bukan drop total):
+- `backend/scripts/backfill-invoice-branch-id.ts` — hanya relevan utk invoice LAMA yang sudah
+  ada branch_name tapi belum ada branch_id; invoice baru sudah auto-resolve saat import.
+- `backend/scripts/backfill-user-branch-division.ts` — hanya relevan utk user LAMA yang sudah
+  punya user_companies tapi belum ada branch/division; fresh seed tidak punya kondisi ini.
 
 ### Task G — Testing
 - [x] G1. Unit test `resolveBranchScope`/`resolveDivisionScope`/`build*Condition*` — selesai (2026-07-06), `backend/src/utils/scope.test.ts` (17 test) + `backend/src/middleware/auth.test.ts` (14 test). Kasus bypass, default-deny (map/array kosong), company/branch spesifik, multi-company beda scope, default-deny berjenjang §4.4.
