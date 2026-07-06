@@ -16,6 +16,7 @@ import {
   item_classification_rules,
   channel_divisions,
   companies,
+  company_branches,
   users,
 } from '@/db/schema'
 import type { NewInvoice } from '@/db/schema/invoices'
@@ -28,6 +29,37 @@ import type { NewItemClassificationRule } from '@/db/schema/item_classification_
 
 function toDateString(d: Date): string {
   return d.toISOString().split('T')[0]
+}
+
+// ─── Branch resolution (docs-v2/task/task001.md §4.6) ────────────────────────
+
+/**
+ * Resolve invoices.branch_id dari branch_name teks bebas (hasil Accurate/CSV) saat
+ * import — supaya invoice baru LANGSUNG punya branch_id terisi, tidak perlu jalanin
+ * script backfill manual (backend/scripts/backfill-invoice-branch-id.ts) tiap kali
+ * ada import baru. Match case-insensitive + trim, di-scope per company (branch cuma
+ * valid dalam company yang sama).
+ *
+ * branch_name NULL (Accurate tidak kasih info branch) → fallback ke branch "Lainnya"
+ * milik company itu (row asli, bukan NULL — lihat §4.6). branch_name terisi tapi
+ * tidak match branch manapun → tetap NULL, sinyal data kotor yang perlu diaudit
+ * manual (typo nama branch, dll), BUKAN diperlakukan sama dengan "tidak ada info".
+ */
+export async function findBranchIdByName(companyId: number, branchName: string | null): Promise<number | null> {
+  if (branchName) {
+    const [matched] = await db
+      .select({ id: company_branches.id })
+      .from(company_branches)
+      .where(and(eq(company_branches.company_id, companyId), sql`UPPER(TRIM(${company_branches.name})) = UPPER(TRIM(${branchName}))`))
+      .limit(1)
+    return matched?.id ?? null
+  }
+  const [fallback] = await db
+    .select({ id: company_branches.id })
+    .from(company_branches)
+    .where(and(eq(company_branches.company_id, companyId), eq(company_branches.name, 'Lainnya')))
+    .limit(1)
+  return fallback?.id ?? null
 }
 
 // ─── Import Logs ─────────────────────────────────────────────────────────────

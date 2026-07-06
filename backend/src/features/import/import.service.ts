@@ -36,6 +36,7 @@ import {
   updateInvoiceTotals,
   createInvoiceItem,
   createImportErrors,
+  findBranchIdByName,
 } from './import.repository'
 import type { NewImportLogError } from '@/db/schema/import_log_errors'
 
@@ -149,6 +150,8 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   const batchInvoiceCache = new Map<string, number>()
   // Set invoice_id yang sudah di-reset items-nya saat re-import
   const resetItemsCache = new Set<number>()
+  // branch_name → branch_id: reuse dalam satu batch (banyak baris berbagi branch_name sama)
+  const batchBranchIdCache = new Map<string, number | null>()
 
   for (const row of parseResult.rows) {
     const rowNum = parseResult.rows.indexOf(row) + 2
@@ -196,6 +199,14 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
           channel_name: row.channel_name,
         })
 
+        // ── Resolve branch_id dari branch_name (§4.6) — cache per batch ────
+        const branchCacheKey = row.branch_name ?? ''
+        let branchId = batchBranchIdCache.get(branchCacheKey)
+        if (branchId === undefined) {
+          branchId = await findBranchIdByName(companyId, row.branch_name ?? null)
+          batchBranchIdCache.set(branchCacheKey, branchId)
+        }
+
         const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
 
         if (existingInvoice) {
@@ -205,6 +216,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
             invoice_date: `${parts[2]}-${parts[1]}-${parts[0]}`,
             channel_name: row.channel_name ?? null,
             branch_name: row.branch_name ?? null,
+            branch_id: branchId,
             import_log_id: importLog.id,
           })
           invoiceId = existingInvoice.id
@@ -219,6 +231,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
             total_gp: '0',
             channel_name: row.channel_name ?? null,
             branch_name: row.branch_name ?? null,
+            branch_id: branchId,
             import_log_id: importLog.id,
           })
           invoiceId = invoice.id
