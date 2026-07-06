@@ -16,12 +16,11 @@
 
 import { Hono } from 'hono'
 import type { Hono as HonoType } from 'hono'
-import { cors } from 'hono/cors'
-import { secureHeaders } from 'hono/secure-headers'
 import { env } from '@/config/env'
 import { registerErrorHandlers } from '@/errors'
 import { requestIdMiddleware } from '@/middleware/requestId'
 import { requestLogger } from '@/middleware/requestLogger'
+import { securityHeadersMiddleware, corsMiddleware } from '@/middleware/security'
 import { authMiddleware } from '@/middleware/auth'
 import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
@@ -63,26 +62,11 @@ export function createRouter(app: HonoType): void {
   registerErrorHandlers(app)
 
   // ─── LAYER 1: Global — semua request ────────────────────────────────────────
+  // Konfigurasi security headers + CORS ada di middleware/security.ts (Task002 §3 Task A)
   app.use('*', requestIdMiddleware)
   app.use('*', requestLogger)
-  app.use(
-    '*',
-    // Task002 §3 Task A — security headers standar produksi. HSTS cuma di production
-    // (dev jalan di http://localhost — kirim HSTS di situ bisa "mengunci" browser
-    // paksa https utk localhost, merepotkan dev). xFrameOptions eksplisit DENY
-    // (default hono cuma SAMEORIGIN) — app ini tidak pernah di-embed via iframe.
-    secureHeaders({
-      xFrameOptions: 'DENY',
-      strictTransportSecurity: env.NODE_ENV === 'production' ? 'max-age=15552000; includeSubDomains' : false,
-    }),
-  )
-  app.use(
-    '*',
-    cors({
-      origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
-      credentials: true,
-    }),
-  )
+  app.use('*', securityHeadersMiddleware)
+  app.use('*', corsMiddleware)
 
   // ─── LAYER 2: Public routes — tidak butuh auth ──────────────────────────────
   app.route('/api/v1/auth', authRoutes)
