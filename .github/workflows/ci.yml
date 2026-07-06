@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: dashboard
+          POSTGRES_PASSWORD: dashboard123
+          POSTGRES_DB: e_dashboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependency
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Migrate database
+        run: bun run db:migrate
+        env:
+          DATABASE_URL: postgresql://dashboard:dashboard123@localhost:5432/e_dashboard
+
+      - name: Seed database
+        run: bun run db:seed
+        env:
+          DATABASE_URL: postgresql://dashboard:dashboard123@localhost:5432/e_dashboard
+
+      - name: Test
+        run: bun test
+        env:
+          DATABASE_URL: postgresql://dashboard:dashboard123@localhost:5432/e_dashboard
+          JWT_SECRET: ci-test-jwt-secret-minimal-32-karakter!!
+          CSRF_SECRET: ci-test-csrf-secret-minimal-32-karakter!
+          CREDENTIALS_ENCRYPTION_KEY: ci-test-encryption-key-32-karakter!!
+
+      - name: Build
+        run: bun run build
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependency
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Build (sudah termasuk typecheck)
+        run: bun run build
