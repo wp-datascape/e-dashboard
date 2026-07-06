@@ -53,6 +53,7 @@
     "actionCreate": "Create",
     "actionUpdate": "Update",
     "actionDelete": "Delete",
+    "actionUnlock": "Unlock",
     "actionExport": "Export",
     "actionImport": "Import",
     "actionReset": "Reset",

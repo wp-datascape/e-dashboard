@@ -14,6 +14,7 @@ import {
   createUser,
   updateUser,
   softDeleteUser,
+  unlockUserAccount,
   replaceUserRoles,
   replaceUserCompanies,
   replaceUserAssignments,
@@ -158,6 +159,29 @@ export async function deleteUserService(id: number, ctx: Context) {
     companyId,
     oldValue: { id: user.id, email: user.email, name: user.name },
   })
+}
+
+/**
+ * Unlock manual oleh admin (Task002 Task C4) — reset failed_login_count/locked_until
+ * SEBELUM auto-unlock (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES) habis. Aksi sensitif
+ * (bisa dipakai buka akses akun yang sengaja dikunci karena dicurigai brute force),
+ * jadi tetap tercatat di audit log seperti mutasi user lain.
+ */
+export async function unlockUserService(id: number, ctx: Context) {
+  const user = await getUserById(id, ctx.var.user.isSuperAdmin)
+
+  await unlockUserAccount(id)
+  logger.info('[user] User account unlocked', { id })
+
+  await logAudit(ctx, {
+    action: 'user.unlock',
+    entity: 'users',
+    entityId: id,
+    companyId: (user.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null,
+    oldValue: { id: user.id, email: user.email },
+  })
+
+  return getUserById(id, ctx.var.user.isSuperAdmin)
 }
 
 // ─── Bulk import (template upload) ─────────────────────────────────────────────

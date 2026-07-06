@@ -66,3 +66,14 @@ export function useDeleteUser() {
     },
   });
 }
+
+// Task002 Task C4 — unlock manual oleh admin
+export function useUnlockUser() {
+  const queryClient = useQueryClient();
+  return useMutation<User, ApiError, number>({
+    mutationFn: (id: number) => usersApi.unlockUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: usersKeys.all });
+    },
+  });
+}

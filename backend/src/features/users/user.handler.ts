@@ -5,6 +5,7 @@ import { ErrorCode } from '@/errors'
 import {
   getUsers, getUserById, createUserService,
   updateUserService, deleteUserService,
+  unlockUserService,
   importUsersService, getUsersTemplate,
 } from './user.service'
 import { createUserSchema, updateUserSchema, userIdParamSchema } from './user.schema'
@@ -39,6 +40,12 @@ export async function handleDeleteUser(c: Context) {
   const { id } = validateParam(c, userIdParamSchema)
   await deleteUserService(id, c)
   return noContent(c)
+}
+
+export async function handleUnlockUser(c: Context) {
+  const { id } = validateParam(c, userIdParamSchema)
+  const user = await unlockUserService(id, c)
+  return success(c, user)
 }
 
 export async function handleImportUsers(c: Context) {

@@ -1,4 +1,4 @@
-import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { eq, and, isNull, inArray, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import {
   users,
@@ -24,6 +24,8 @@ export async function findActiveUserByEmail(email: string) {
       email: users.email,
       password: users.password,
       is_active: users.is_active,
+      failed_login_count: users.failed_login_count,
+      locked_until: users.locked_until,
     })
     .from(users)
     .where(and(eq(users.email, email), isNull(users.deleted_at)))
@@ -165,4 +167,37 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
 
 export async function updateLastLogin(userId: number): Promise<void> {
   await db.update(users).set({ last_login_at: new Date() }).where(eq(users.id, userId))
+}
+
+/**
+ * Account lockout (Task002 Task C) — dipanggil setiap password salah. Increment
+ * failed_login_count; kalau sudah mencapai threshold (ENV ACCOUNT_LOCKOUT_THRESHOLD),
+ * set locked_until = now + durasi (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES).
+ * Return failed_login_count TERBARU (setelah increment) supaya service tahu apakah
+ * baru saja jadi locked di percobaan ini (utk pesan error yang lebih jelas).
+ */
+export async function recordFailedLogin(userId: number, threshold: number, lockDurationMinutes: number): Promise<{ failedCount: number; justLocked: boolean }> {
+  const [row] = await db
+    .update(users)
+    .set({ failed_login_count: sql`${users.failed_login_count} + 1` })
+    .where(eq(users.id, userId))
+    .returning({ failed_login_count: users.failed_login_count })
+
+  const failedCount = row?.failed_login_count ?? 0
+  const justLocked = failedCount >= threshold
+
+  if (justLocked) {
+    const lockedUntil = new Date(Date.now() + lockDurationMinutes * 60 * 1000)
+    await db.update(users).set({ locked_until: lockedUntil }).where(eq(users.id, userId))
+  }
+
+  return { failedCount, justLocked }
+}
+
+/**
+ * Reset failed_login_count + locked_until — dipanggil saat login SUKSES (percobaan
+ * gagal sebelumnya tidak relevan lagi), atau saat admin unlock manual (Task C4).
+ */
+export async function resetLoginAttempts(userId: number): Promise<void> {
+  await db.update(users).set({ failed_login_count: 0, locked_until: null }).where(eq(users.id, userId))
 }

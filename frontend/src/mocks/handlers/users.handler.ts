@@ -88,6 +88,7 @@ let users: User[] = [
     companies: mockCompanies,
     company_assignments: [],
     last_login_at: '2026-06-18T09:15:00Z',
+    locked_until: null,
     created_at: '2025-01-01T00:00:00Z',
   },
   {
@@ -100,6 +101,7 @@ let users: User[] = [
     companies: mockCompanies,
     company_assignments: [],
     last_login_at: '2026-06-17T14:30:00Z',
+    locked_until: null,
     created_at: '2025-02-15T08:00:00Z',
   },
   {
@@ -112,6 +114,7 @@ let users: User[] = [
     companies: [mockCompanies[0]],
     company_assignments: [],
     last_login_at: '2026-06-18T08:00:00Z',
+    locked_until: null,
     created_at: '2025-03-01T08:00:00Z',
   },
   {
@@ -124,6 +127,7 @@ let users: User[] = [
     companies: [mockCompanies[0]],
     company_assignments: [],
     last_login_at: '2026-06-16T10:00:00Z',
+    locked_until: null,
     created_at: '2025-04-10T08:00:00Z',
   },
   {
@@ -136,6 +140,7 @@ let users: User[] = [
     companies: [mockCompanies[1]],
     company_assignments: [],
     last_login_at: null,
+    locked_until: null,
     created_at: '2025-05-20T08:00:00Z',
   },
   {
@@ -148,6 +153,7 @@ let users: User[] = [
     companies: mockCompanies,
     company_assignments: [],
     last_login_at: '2026-06-15T16:00:00Z',
+    locked_until: null,
     created_at: '2025-01-15T08:00:00Z',
   },
 ];
@@ -202,6 +208,7 @@ export const usersHandlers = [
       companies: mockCompanies.filter(c => body.company_assignments.some(a => a.company_id === c.id)),
       company_assignments: [],
       last_login_at: null,
+      locked_until: null,
       created_at: new Date().toISOString(),
     };
 

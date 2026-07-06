@@ -182,6 +182,7 @@ export async function findAllUsers(pagination: PaginationQuery, excludeSuperAdmi
           updated_at: users.updated_at,
           last_login_at: users.last_login_at,
           deleted_at: users.deleted_at,
+          locked_until: users.locked_until,
         })
         .from(users)
         .where(where)
@@ -224,6 +225,7 @@ export async function findUserById(id: number, excludeSuperAdmin: boolean) {
         updated_at: users.updated_at,
         last_login_at: users.last_login_at,
         deleted_at: users.deleted_at,
+        locked_until: users.locked_until,
       })
       .from(users)
       .where(and(...conditions))
@@ -310,6 +312,27 @@ export async function softDeleteUser(id: number) {
     const [user] = await db
       .update(users)
       .set({ deleted_at: new Date(), updated_at: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deleted_at)))
+      .returning({ id: users.id })
+
+    return user ?? null
+  } catch (err) {
+    handleDbError(err)
+  }
+}
+
+/**
+ * Unlock manual oleh admin (Task002 Task C4) — reset failed_login_count/locked_until,
+ * jalan keluar kalau auto-unlock (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES) kepanjangan
+ * untuk kasus tertentu. Sama seperti resetLoginAttempts() di auth.repository.ts (dipanggil
+ * saat login sukses) — duplikasi kecil disengaja supaya user.repository.ts tidak import
+ * dari feature auth (batas modul tetap bersih).
+ */
+export async function unlockUserAccount(id: number) {
+  try {
+    const [user] = await db
+      .update(users)
+      .set({ failed_login_count: 0, locked_until: null, updated_at: new Date() })
       .where(and(eq(users.id, id), isNull(users.deleted_at)))
       .returning({ id: users.id })
 

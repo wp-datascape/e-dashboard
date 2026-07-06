@@ -157,6 +157,9 @@ const defaultPermissions = [
   { name: 'access.user:create', description: 'Create User', category: 'Users' },
   { name: 'access.user:update', description: 'Update User', category: 'Users' },
   { name: 'access.user:delete', description: 'Delete User', category: 'Users' },
+  // Task002 Task C4 — permission TERPISAH dari access.user:update (bukan reuse) supaya
+  // bisa di-assign granular (mis. role support yang cuma boleh unlock, bukan full update)
+  { name: 'access.user:unlock', description: 'Unlock User Account', category: 'Users' },
   { name: 'access.role:menu',   description: 'Menu Roles',  category: 'Roles' },
   { name: 'access.role:view',   description: 'View Roles',  category: 'Roles' },
   { name: 'access.role:create', description: 'Create Role', category: 'Roles' },

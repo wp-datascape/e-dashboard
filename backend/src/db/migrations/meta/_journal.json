@@ -29,6 +29,13 @@
       "when": 1783312973964,
       "tag": "0003_schema_transaction",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783346524599,
+      "tag": "0004_account_lockout",
+      "breakpoints": true
     }
   ]
 }

@@ -51,6 +51,7 @@ export interface User {
   company_assignments: CompanyAssignmentView[];
   last_login_at: string | null;
   created_at: string;
+  locked_until: string | null; // Task002 Task C — akun terkunci kalau ini di masa depan
 }
 
 export interface CreateUserPayload {

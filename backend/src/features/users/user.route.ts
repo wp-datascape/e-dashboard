@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import {
   handleGetUsers, handleGetUserById, handleCreateUser,
-  handleUpdateUser, handleDeleteUser,
+  handleUpdateUser, handleDeleteUser, handleUnlockUser,
   handleImportUsers, handleDownloadUsersTemplate,
 } from './user.handler'
 import { requirePermission } from '@/middleware/permission'
@@ -22,3 +22,5 @@ usersRoutes.get('/:id', requirePermission('access.user:view'), handleGetUserById
 usersRoutes.post('/', requirePermission('access.user:create'), userMutationRateLimit, handleCreateUser)
 usersRoutes.put('/:id', requirePermission('access.user:update'), userMutationRateLimit, handleUpdateUser)
 usersRoutes.delete('/:id', requirePermission('access.user:delete'), userMutationRateLimit, handleDeleteUser)
+// Task002 Task C4 — permission TERPISAH 'access.user:unlock' (bukan reuse :update)
+usersRoutes.post('/:id/unlock', requirePermission('access.user:unlock'), userMutationRateLimit, handleUnlockUser)

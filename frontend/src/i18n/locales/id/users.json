@@ -5,6 +5,8 @@
   "view_user": "Detail Pengguna",
   "deleteUser": "Hapus Pengguna",
   "deleteConfirm": "Yakin ingin menghapus pengguna ini?",
+  "unlockUser": "Buka Kunci Akun",
+  "locked": "Terkunci",
   "name": "Nama",
   "email": "Email",
   "role": "Role",

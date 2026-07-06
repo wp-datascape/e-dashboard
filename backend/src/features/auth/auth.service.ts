@@ -1,4 +1,5 @@
 import { AppError, ErrorCode } from '@/errors'
+import { env } from '@/config/env'
 import { comparePassword } from '@/utils/hash'
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt'
 import { generateCsrfToken } from '@/utils/csrf'
@@ -10,8 +11,15 @@ import {
   getUserPermissions,
   updateLastLogin,
   getMyScopeTree,
+  recordFailedLogin,
+  resetLoginAttempts,
 } from './auth.repository'
 import type { LoginDto } from './auth.schema'
+
+function formatLockRemaining(lockedUntil: Date): string {
+  const minutes = Math.ceil((lockedUntil.getTime() - Date.now()) / 60000)
+  return minutes <= 1 ? '1 menit' : `${minutes} menit`
+}
 
 export async function loginService(dto: LoginDto) {
   const user = await findActiveUserByEmail(dto.email)
@@ -21,8 +29,27 @@ export async function loginService(dto: LoginDto) {
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Email atau password salah', 401)
   }
 
+  // Account lockout (Task002 Task C) — cek SEBELUM verifikasi password. locked_until
+  // di masa depan berarti masih terkunci; kalau sudah lewat, biarkan lanjut normal
+  // (bukan auto-reset di sini — reset beneran terjadi saat login sukses berikutnya).
+  if (user.locked_until && user.locked_until.getTime() > Date.now()) {
+    throw new AppError(
+      ErrorCode.ACCOUNT_LOCKED,
+      `Akun terkunci karena terlalu banyak percobaan gagal. Coba lagi dalam ${formatLockRemaining(user.locked_until)}, atau hubungi admin.`,
+      403,
+    )
+  }
+
   const isMatch = await comparePassword(dto.password, user.password)
   if (!isMatch) {
+    const { justLocked } = await recordFailedLogin(user.id, env.ACCOUNT_LOCKOUT_THRESHOLD, env.ACCOUNT_LOCKOUT_DURATION_MINUTES)
+    if (justLocked) {
+      throw new AppError(
+        ErrorCode.ACCOUNT_LOCKED,
+        `Akun terkunci karena ${env.ACCOUNT_LOCKOUT_THRESHOLD}x percobaan gagal berturut-turut. Coba lagi dalam ${env.ACCOUNT_LOCKOUT_DURATION_MINUTES} menit, atau hubungi admin.`,
+        403,
+      )
+    }
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Email atau password salah', 401)
   }
 
@@ -32,7 +59,7 @@ export async function loginService(dto: LoginDto) {
     getUserPermissions(user.id),
   ])
 
-  await updateLastLogin(user.id)
+  await Promise.all([updateLastLogin(user.id), resetLoginAttempts(user.id)])
 
   const isSuperAdmin = primaryRole === 'superadmin'
 

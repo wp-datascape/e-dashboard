@@ -37,6 +37,11 @@ export const users = pgTable('users', {
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   last_login_at: timestamp('last_login_at', { withTimezone: true }),
   deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  // Account lockout (Task002 Task C) — reset ke 0/null saat login sukses atau unlock manual.
+  // Threshold/durasi lock dikonfigurasi via ENV (ACCOUNT_LOCKOUT_THRESHOLD/_DURATION_MINUTES),
+  // bukan hardcode di kolom ini.
+  failed_login_count: integer('failed_login_count').notNull().default(0),
+  locked_until: timestamp('locked_until', { withTimezone: true }),
 })
 
 export type User = typeof users.$inferSelect

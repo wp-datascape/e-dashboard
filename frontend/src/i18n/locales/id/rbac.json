@@ -53,6 +53,7 @@
     "actionCreate": "Create",
     "actionUpdate": "Update",
     "actionDelete": "Delete",
+    "actionUnlock": "Buka Kunci",
     "actionExport": "Export",
     "actionImport": "Import",
     "actionReset": "Reset",
