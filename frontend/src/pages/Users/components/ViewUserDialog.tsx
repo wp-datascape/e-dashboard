@@ -76,15 +76,43 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
             </Box>
           </Box>
 
-          {/* Companies */}
+          {/* Company -> Branch -> Division assignment tree */}
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: 130, fontWeight: 600, pt: 0.25 }}>
               {t('users.companies')}
             </Typography>
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-              {user.companies.map(c => (
-                <StatusChip key={c.id} label={c.name} color="default" />
-              ))}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {user.company_assignments.length === 0 ? (
+                <Typography variant="body2" color="text.disabled">—</Typography>
+              ) : (
+                user.company_assignments.map((a) => (
+                  <Box key={a.company_id} sx={{ pl: 1.5, borderLeft: '2px solid', borderColor: 'divider' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{a.company_name}</Typography>
+                    {a.branches.length === 0 ? (
+                      <Typography variant="caption" color="warning.main">
+                        {t('users.warningNoBranch', { company: a.company_name })}
+                      </Typography>
+                    ) : (
+                      a.branches.map((b) => (
+                        <Box key={b.branch_id} sx={{ pl: 1.5, mt: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">{b.branch_name}</Typography>
+                          {b.divisions.length === 0 ? (
+                            <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                              {t('users.warningNoDivision', { branch: b.branch_name })}
+                            </Typography>
+                          ) : (
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.25 }}>
+                              {b.divisions.map((d) => (
+                                <StatusChip key={d} label={t(`users.divisions.${d}`)} color="default" size="small" />
+                              ))}
+                            </Box>
+                          )}
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                ))
+              )}
             </Box>
           </Box>
 

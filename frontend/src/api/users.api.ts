@@ -15,6 +15,7 @@ function adaptUser(raw: Record<string, unknown>): User {
     // These fields only available after RBAC is implemented — default to empty array
     roles: (raw.roles as User['roles']) ?? [],
     companies: (raw.companies as User['companies']) ?? [],
+    company_assignments: (raw.company_assignments as User['company_assignments']) ?? [],
     permissions: (raw.permissions as string[]) ?? [],
     // Backend uses lastLoginAt (camelCase), frontend expects last_login_at (snake_case)
     last_login_at: (raw.last_login_at ?? null) as string | null,

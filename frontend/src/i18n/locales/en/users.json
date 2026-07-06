@@ -20,6 +20,19 @@
   "newPassword": "New Password",
   "selectRole": "Select Role",
   "selectCompanies": "Select Companies",
+  "selectBranches": "Select Branches",
+  "selectDivisions": "Select Divisions",
+  "warningNoBranch": "This user won't see any data for {{company}} until a branch is assigned.",
+  "warningNoDivision": "This user won't see any data for Branch {{branch}} until a division is assigned.",
+  "divisions": {
+    "distribution": "Distribution",
+    "project": "Project",
+    "e_commerce": "E-Commerce",
+    "intercompany": "Intercompany",
+    "freelancer": "Freelancer",
+    "support": "Support",
+    "other": "Other"
+  },
   "permissionsCount": "Permissions ({{count}})",
   "validation": {
     "nameMin": "Name must be at least 2 characters",

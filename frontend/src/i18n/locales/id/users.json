@@ -20,6 +20,19 @@
   "newPassword": "Password Baru",
   "selectRole": "Pilih Role",
   "selectCompanies": "Pilih Perusahaan",
+  "selectBranches": "Pilih Cabang",
+  "selectDivisions": "Pilih Divisi",
+  "warningNoBranch": "User ini tidak akan bisa lihat data apa pun di {{company}} sampai cabang di-assign.",
+  "warningNoDivision": "User ini tidak akan bisa lihat data apa pun di Cabang {{branch}} sampai divisi di-assign.",
+  "divisions": {
+    "distribution": "Distribution",
+    "project": "Project",
+    "e_commerce": "E-Commerce",
+    "intercompany": "Intercompany",
+    "freelancer": "Freelancer",
+    "support": "Support",
+    "other": "Lainnya"
+  },
   "permissionsCount": "Permissions ({{count}})",
   "validation": {
     "nameMin": "Nama minimal 2 karakter",

@@ -5,10 +5,7 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
-import OutlinedInput from '@mui/material/OutlinedInput';
 import FormHelperText from '@mui/material/FormHelperText';
-import Checkbox from '@mui/material/Checkbox';
-import ListItemText from '@mui/material/ListItemText';
 import Alert from '@mui/material/Alert';
 import { useTranslation } from 'react-i18next';
 import { useForm, Controller } from 'react-hook-form';
@@ -17,17 +14,18 @@ import { z } from 'zod';
 
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
+import { AssignmentTreePicker } from './AssignmentTreePicker';
 import type { ApiError } from '@/types/api';
 import { getApiErrorMessage } from '@/utils/apiError';
 import type { Role } from '@/types/rbac';
-import type { Company, CreateUserPayload } from '@/types/users';
+import type { Company, CreateUserPayload, CompanyAssignment } from '@/types/users';
 
 const createSchema = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('users.validation.nameMin')),
   email: z.string().email(t('users.validation.emailInvalid')),
   password: z.string().min(6, t('users.validation.passwordMin')),
   role_id: z.number().int().min(1, t('users.validation.roleRequired')),
-  company_ids: z.array(z.number()).min(1, t('users.validation.companiesRequired')),
+  company_assignments: z.array(z.custom<CompanyAssignment>()).min(1, t('users.validation.companiesRequired')),
 });
 
 type CreateFormData = z.infer<ReturnType<typeof createSchema>>;
@@ -60,7 +58,7 @@ export function CreateUserDialog({
     formState: { errors },
   } = useForm<CreateFormData>({
     resolver: zodResolver(createSchema(t)),
-    defaultValues: { name: '', email: '', password: '', role_id: 0, company_ids: [] },
+    defaultValues: { name: '', email: '', password: '', role_id: 0, company_assignments: [] },
   });
 
   const handleFormSubmit = (data: CreateFormData) => {
@@ -69,7 +67,7 @@ export function CreateUserDialog({
       email: data.email,
       password: data.password,
       role_ids: [data.role_id],
-      company_ids: data.company_ids,
+      company_assignments: data.company_assignments,
     });
   };
 
@@ -167,36 +165,17 @@ export function CreateUserDialog({
             )}
           />
 
-          {/* Companies */}
+          {/* Company -> Branch -> Division assignment tree */}
           <Controller
-            name="company_ids"
+            name="company_assignments"
             control={control}
             render={({ field, fieldState }) => (
-              <FormControl fullWidth size="small" error={!!fieldState.error}>
-                <InputLabel>{t('users.selectCompanies')}</InputLabel>
-                <Select
-                  multiple
-                  value={field.value ?? []}
-                  onChange={(e) => field.onChange(e.target.value as number[])}
-                  input={<OutlinedInput label={t('users.selectCompanies')} />}
-                  renderValue={(selected) =>
-                    companies
-                      .filter(c => (selected as number[]).includes(c.id))
-                      .map(c => c.name)
-                      .join(', ')
-                  }
-                >
-                  {companies.map(co => (
-                    <MenuItem key={co.id} value={co.id}>
-                      <Checkbox size="small" checked={(field.value ?? []).includes(co.id)} />
-                      <ListItemText primary={co.name} />
-                    </MenuItem>
-                  ))}
-                </Select>
-                {fieldState.error && (
-                  <FormHelperText>{fieldState.error.message}</FormHelperText>
-                )}
-              </FormControl>
+              <AssignmentTreePicker
+                companies={companies}
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
             )}
           />
 

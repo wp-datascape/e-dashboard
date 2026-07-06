@@ -86,6 +86,7 @@ let users: User[] = [
     roles: [{ id: 1, name: 'superadmin' }],
     permissions: derivePermissions(['superadmin']),
     companies: mockCompanies,
+    company_assignments: [],
     last_login_at: '2026-06-18T09:15:00Z',
     created_at: '2025-01-01T00:00:00Z',
   },
@@ -97,6 +98,7 @@ let users: User[] = [
     roles: [{ id: 2, name: 'admin' }],
     permissions: derivePermissions(['admin']),
     companies: mockCompanies,
+    company_assignments: [],
     last_login_at: '2026-06-17T14:30:00Z',
     created_at: '2025-02-15T08:00:00Z',
   },
@@ -108,6 +110,7 @@ let users: User[] = [
     roles: [{ id: 3, name: 'manager' }],
     permissions: derivePermissions(['manager']),
     companies: [mockCompanies[0]],
+    company_assignments: [],
     last_login_at: '2026-06-18T08:00:00Z',
     created_at: '2025-03-01T08:00:00Z',
   },
@@ -119,6 +122,7 @@ let users: User[] = [
     roles: [{ id: 4, name: 'sales' }],
     permissions: derivePermissions(['sales']),
     companies: [mockCompanies[0]],
+    company_assignments: [],
     last_login_at: '2026-06-16T10:00:00Z',
     created_at: '2025-04-10T08:00:00Z',
   },
@@ -130,6 +134,7 @@ let users: User[] = [
     roles: [{ id: 4, name: 'sales' }],
     permissions: derivePermissions(['sales']),
     companies: [mockCompanies[1]],
+    company_assignments: [],
     last_login_at: null,
     created_at: '2025-05-20T08:00:00Z',
   },
@@ -141,6 +146,7 @@ let users: User[] = [
     roles: [{ id: 5, name: 'executive' }],
     permissions: derivePermissions(['executive']),
     companies: mockCompanies,
+    company_assignments: [],
     last_login_at: '2026-06-15T16:00:00Z',
     created_at: '2025-01-15T08:00:00Z',
   },
@@ -168,7 +174,7 @@ export const usersHandlers = [
       email: string;
       password: string;
       role_ids: number[];
-      company_ids: number[];
+      company_assignments: { company_id: number; branches: { branch_id: number; divisions: string[] }[] }[];
     };
 
     if (!body.name?.trim() || !body.email?.trim() || !body.password?.trim()) {
@@ -193,7 +199,8 @@ export const usersHandlers = [
       is_active: true,
       roles: selectedRoles,
       permissions: derivePermissions(selectedRoles.map(r => r.name)),
-      companies: mockCompanies.filter(c => body.company_ids.includes(c.id)),
+      companies: mockCompanies.filter(c => body.company_assignments.some(a => a.company_id === c.id)),
+      company_assignments: [],
       last_login_at: null,
       created_at: new Date().toISOString(),
     };
@@ -216,7 +223,7 @@ export const usersHandlers = [
     const body = await request.json() as {
       name?: string;
       role_ids?: number[];
-      company_ids?: number[];
+      company_assignments?: { company_id: number; branches: { branch_id: number; divisions: string[] }[] }[];
       is_active?: boolean;
     };
 
@@ -230,8 +237,8 @@ export const usersHandlers = [
       is_active: body.is_active ?? user.is_active,
       roles: selectedRoles,
       permissions: derivePermissions(selectedRoles.map(r => r.name)),
-      companies: body.company_ids
-        ? mockCompanies.filter(c => body.company_ids!.includes(c.id))
+      companies: body.company_assignments
+        ? mockCompanies.filter(c => body.company_assignments!.some(a => a.company_id === c.id))
         : user.companies,
     };
 
