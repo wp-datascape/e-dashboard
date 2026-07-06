@@ -166,22 +166,34 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   login ulang dengan password baru → JWT baru `tokenVersion:1`, `/me` sukses lagi. Typecheck
   bersih, 38 test backend tetap lolos.
 
-### Task E — Audit/Alert Aksi Sensitif
+### Task E — Audit/Alert Aksi Sensitif ✅ **Selesai (2026-07-06)**
 > **Keputusan (2026-07-06):** channel webhook, platform **Telegram** (dipilih dari perbandingan Slack/Discord/Telegram — alasan: reach paling luas karena kemungkinan besar semua anggota tim sudah pakai Telegram tanpa perlu install app baru, gratis tanpa limit retensi, push notification cepat/reliable). Setup teknis: bot via `@BotFather` → dapat bot token, ambil `chat_id` tujuan (personal atau grup) sekali di awal, lalu kirim alert dengan POST ke `api.telegram.org/bot<token>/sendMessage`.
 - [x] E1. **Daftar aksi "sensitif" (final, 2026-07-06):**
   1. **Sinyal serangan** — account lockout (5x gagal login berturut-turut). BEDA jalur dari
      4 poin di bawah: terjadi SEBELUM autentikasi berhasil (belum ada `ctx.var.user`), jadi
      TIDAK lewat `logAudit()` — hook langsung di `loginService()` saat `justLocked` true.
-  2. **Privilege escalation** — role di-assign ke superadmin; permission kategori Access
-     Control (Users/Roles/Permissions) di-assign ke role apa pun; user baru dibuat dengan
-     role superadmin/admin.
-  3. **Aksi destruktif ke akun berwenang tinggi** — `user.delete` pada akun admin/superadmin;
-     `role.delete` pada role yang sedang dipakai user.
+  2. **Privilege escalation** — user baru dibuat DENGAN role admin/superadmin, atau user
+     existing BARU mendapat role tersebut (bukan cuma "masih punya" — supaya tidak spam
+     tiap update lain ke user yang memang sudah admin dari awal); permission kategori
+     Access Control (Users/Roles/Permissions) BARU di-assign ke role apa pun.
+  3. **Aksi destruktif** — `user.delete` pada akun admin (superadmin sendiri sudah diblokir
+     hapus via `is_system`); `role.delete` (semua, tanpa syarat — jarang terjadi, selalu
+     layak diketahui).
   4. **Reset password ke akun admin/superadmin** (bukan ke user biasa — supaya tidak spam
      kalau admin reset password banyak user biasa sekaligus).
   5. **Unlock manual oleh admin** (Task C4) — jejak siapa membuka kunci akun yang terkunci.
-- [ ] E2. Buat bot Telegram (`@BotFather`) + ambil `chat_id` tujuan, simpan bot token sebagai secret (bukan hardcode)
-- [ ] E3. Hook ke `logAudit()` existing (`utils/audit.ts`) untuk poin 2-5 supaya tidak duplikasi jalur pencatatan (kirim ke Telegram di titik yang sama tempat `logAudit()` dipanggil); poin 1 (lockout) hook terpisah langsung di `loginService()`
+- [x] E2. Bot Telegram dibuat via `@BotFather`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`
+  disimpan di `.env` (optional di `config/env.ts` — kosong = `sendTelegramAlert()` no-op
+  diam-diam, tidak wajib di semua environment, tidak pernah crash aplikasi kalau gagal kirim).
+- [x] E3. `utils/telegram.ts` (`sendTelegramAlert()`) di-hook di titik yang sama dengan
+  `logAudit()` yang sudah ada untuk poin 2–5 (tidak duplikasi jalur pencatatan); poin 1
+  (lockout) hook terpisah langsung di `loginService()`. Semua panggilan fire-and-forget
+  (`void`, tidak di-`await`) supaya lambatnya Telegram API tidak menambah latency respons.
+
+  Diverifikasi end-to-end: test bot via curl `sendMessage` berhasil, lalu 6 skenario
+  ditrigger langsung (privilege escalation, reset password admin, delete user admin,
+  delete role, unlock manual, assign permission Access Control) — semua pesan masuk ke
+  Telegram dengan format rapi (tanpa emoji). Typecheck bersih, 38 test backend tetap lolos.
 
 ### Task F — CI/CD dengan GitHub Actions (scope diperluas 2026-07-06)
 
