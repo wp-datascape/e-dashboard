@@ -168,9 +168,20 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
 
 ### Task E — Audit/Alert Aksi Sensitif
 > **Keputusan (2026-07-06):** channel webhook, platform **Telegram** (dipilih dari perbandingan Slack/Discord/Telegram — alasan: reach paling luas karena kemungkinan besar semua anggota tim sudah pakai Telegram tanpa perlu install app baru, gratis tanpa limit retensi, push notification cepat/reliable). Setup teknis: bot via `@BotFather` → dapat bot token, ambil `chat_id` tujuan (personal atau grup) sekali di awal, lalu kirim alert dengan POST ke `api.telegram.org/bot<token>/sendMessage`.
-- [ ] E1. Definisikan daftar aksi "sensitif" (mis. `role.update` ke superadmin, `permission.assign` kategori Access Control, `user.update` dengan `passwordReset:true` ke akun superadmin)
+- [x] E1. **Daftar aksi "sensitif" (final, 2026-07-06):**
+  1. **Sinyal serangan** — account lockout (5x gagal login berturut-turut). BEDA jalur dari
+     4 poin di bawah: terjadi SEBELUM autentikasi berhasil (belum ada `ctx.var.user`), jadi
+     TIDAK lewat `logAudit()` — hook langsung di `loginService()` saat `justLocked` true.
+  2. **Privilege escalation** — role di-assign ke superadmin; permission kategori Access
+     Control (Users/Roles/Permissions) di-assign ke role apa pun; user baru dibuat dengan
+     role superadmin/admin.
+  3. **Aksi destruktif ke akun berwenang tinggi** — `user.delete` pada akun admin/superadmin;
+     `role.delete` pada role yang sedang dipakai user.
+  4. **Reset password ke akun admin/superadmin** (bukan ke user biasa — supaya tidak spam
+     kalau admin reset password banyak user biasa sekaligus).
+  5. **Unlock manual oleh admin** (Task C4) — jejak siapa membuka kunci akun yang terkunci.
 - [ ] E2. Buat bot Telegram (`@BotFather`) + ambil `chat_id` tujuan, simpan bot token sebagai secret (bukan hardcode)
-- [ ] E3. Hook ke `logAudit()` existing (`utils/audit.ts`) supaya tidak duplikasi jalur pencatatan — kirim ke Telegram di titik yang sama tempat `logAudit()` dipanggil untuk aksi-aksi di E1
+- [ ] E3. Hook ke `logAudit()` existing (`utils/audit.ts`) untuk poin 2-5 supaya tidak duplikasi jalur pencatatan (kirim ke Telegram di titik yang sama tempat `logAudit()` dipanggil); poin 1 (lockout) hook terpisah langsung di `loginService()`
 
 ### Task F — CI/CD dengan GitHub Actions (scope diperluas 2026-07-06)
 
