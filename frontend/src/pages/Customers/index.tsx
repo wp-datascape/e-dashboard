@@ -8,12 +8,8 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useCompanies, useBranchesByCompany } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
-import { useMyScope } from '@/hooks/useMyScope';
-import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
-import { formatEnumLabel } from '@/utils/format';
-import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import type { CustomerStatus, CustomerRow, Division } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
@@ -22,31 +18,16 @@ import { formatIDR } from '@/utils/format';
 export default function Customers() {
   const { t } = useTranslation();
 
-  const { data: companies = [] } = useCompanies();
-  const showCompanyFilter = companies.length > 1;
-  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
-  const [branchFilter, setBranchFilter] = useState<number | 'all'>('all');
+  const {
+    companies, showCompanyFilter,
+    companyId: companyFilter, setCompanyId: setCompanyFilter,
+    branchId: branchFilter, setBranchId: setBranchFilter, branchOptions, showBranchFilter,
+    division: divisionFilter, setDivision: setDivisionFilter, divisionOptions,
+  } = useScopedCompanyFilter();
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
-  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
-
-  // Filter Branch/Division mengikuti level akses user sendiri (docs-v2/task/task001.md):
-  // restricted=false → user unrestricted di level ini (superadmin/full access), pakai daftar
-  // penuh (data-driven). restricted=true → cuma opsi yang di-assign eksplisit ke user.
-  const myScope = useMyScope();
-  const scopedBranches = getScopedBranches(myScope, companyFilter);
-  const { data: allBranches = [] } = useBranchesByCompany(companyFilter === 'all' ? null : companyFilter);
-  const branchOptions = scopedBranches.restricted
-    ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
-    : allBranches.map((b) => ({ id: b.id, name: b.name }));
-  const showBranchFilter = companyFilter !== 'all' && branchOptions.length > 1;
-
-  const scopedDivisions = getScopedDivisions(myScope, companyFilter, branchFilter);
-  const fullDivisionOptions = useDivisionOptions(companyFilter);
-  const divisionOptions = scopedDivisions.restricted
-    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
-    : fullDivisionOptions;
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -60,16 +41,6 @@ export default function Customers() {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
-  // Company berganti → branch/division ikut direset (branch lama mungkin sudah tidak relevan)
-  useEffect(() => {
-    setBranchFilter('all');
-  }, [companyFilter]);
-
-  // Branch berganti → division direset (opsi division tergantung branch yang dipilih)
-  useEffect(() => {
-    setDivisionFilter('');
-  }, [branchFilter]);
 
   // Reset ke halaman 1 setiap kali filter berubah
   useEffect(() => {

@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
@@ -17,11 +16,7 @@ import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useCompanies, useBranchesByCompany } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
-import { useMyScope } from '@/hooks/useMyScope';
-import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
-import { formatEnumLabel } from '@/utils/format';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import type { MetricCard } from '@/types/dashboard';
 import type { Division } from '@/types/customers';
 import { StatCardSkeleton } from './components/StatCardSkeleton';
@@ -71,35 +66,12 @@ export default function Dashboard() {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const { data: companies = [] } = useCompanies();
-  const showCompanyFilter = companies.length > 1;
-  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
-  const [branchFilter, setBranchFilter] = useState<number | 'all'>('all');
-  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
-
-  // Filter Branch/Division mengikuti level akses user sendiri - lihat pola sama
-  // di pages/Customers/index.tsx (docs-v2/task/task001.md).
-  const myScope = useMyScope();
-  const scopedBranches = getScopedBranches(myScope, companyFilter);
-  const { data: allBranches = [] } = useBranchesByCompany(companyFilter === 'all' ? null : companyFilter);
-  const branchOptions = scopedBranches.restricted
-    ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
-    : allBranches.map((b) => ({ id: b.id, name: b.name }));
-  const showBranchFilter = companyFilter !== 'all' && branchOptions.length > 1;
-
-  const scopedDivisions = getScopedDivisions(myScope, companyFilter, branchFilter);
-  const fullDivisionOptions = useDivisionOptions(companyFilter);
-  const divisionOptions = scopedDivisions.restricted
-    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
-    : fullDivisionOptions;
-
-  useEffect(() => {
-    setBranchFilter('all');
-  }, [companyFilter]);
-
-  useEffect(() => {
-    setDivisionFilter('');
-  }, [branchFilter]);
+  const {
+    companies, showCompanyFilter,
+    companyId: companyFilter, setCompanyId: setCompanyFilter,
+    branchId: branchFilter, setBranchId: setBranchFilter, branchOptions, showBranchFilter,
+    division: divisionFilter, setDivision: setDivisionFilter, divisionOptions,
+  } = useScopedCompanyFilter();
 
   const { data, isLoading } = useDashboard({
     company_id: companyFilter,
