@@ -8,10 +8,14 @@ interface FakeUser {
   companyIds: number[]
   branchScopes: { company_id: number; branch_id: number }[]
   divisionScopes: { branch_id: number; division: string }[]
+  enforcementEnabled?: boolean
 }
 
+// enforcementEnabled default true di helper ini - supaya test resolveBranchScope/
+// resolveDivisionScope existing tetap menguji LOGIC scoping-nya (bukan flag off-nya).
+// Kasus enforcementEnabled=false diuji eksplisit terpisah di bawah.
 function ctx(user: FakeUser): Context {
-  return { var: { user } } as unknown as Context
+  return { var: { user: { enforcementEnabled: true, ...user } } } as unknown as Context
 }
 
 describe('resolveCompanyScope', () => {
@@ -127,5 +131,35 @@ describe('resolveDivisionScope', () => {
   test('branchScope bypass (undefined, dari superadmin di layer atas) tapi dipanggil oleh non-superadmin → tetap Map kosong kalau tidak ada divisionScopes', () => {
     const c = ctx({ isSuperAdmin: false, companyIds: [1], branchScopes: [], divisionScopes: [] })
     expect(resolveDivisionScope(c, undefined)).toEqual(new Map())
+  })
+})
+
+describe('feature flag enforcementEnabled (Task F2/F3 - rollout bertahap)', () => {
+  test('enforcementEnabled=false → resolveBranchScope bypass total walau non-superadmin & tanpa branch assignment', () => {
+    const c = ctx({
+      isSuperAdmin: false,
+      companyIds: [1],
+      branchScopes: [], // user ini SEHARUSNYA default-deny kalau enforcement aktif
+      divisionScopes: [],
+      enforcementEnabled: false,
+    })
+    expect(resolveBranchScope(c, [1])).toBeUndefined()
+  })
+
+  test('enforcementEnabled=false → resolveDivisionScope juga bypass total', () => {
+    const c = ctx({
+      isSuperAdmin: false,
+      companyIds: [1],
+      branchScopes: [],
+      divisionScopes: [],
+      enforcementEnabled: false,
+    })
+    expect(resolveDivisionScope(c, new Map())).toBeUndefined()
+  })
+
+  test('enforcementEnabled=true (default) → scoping tetap berjalan seperti biasa utk non-superadmin', () => {
+    const c = ctx({ isSuperAdmin: false, companyIds: [1], branchScopes: [], divisionScopes: [] })
+    // Map kosong (bukan undefined) - default deny, BUKAN bypass, karena flag aktif
+    expect(resolveBranchScope(c, [1])).toEqual(new Map())
   })
 })

@@ -14,9 +14,11 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { Hono } from 'hono'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches } from '@/db/schema'
+import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
+
+const ENFORCEMENT_KEY = 'branch_division_enforcement_enabled'
 
 const COMPANY_ID = 1
 const USER_ROLE_ID = 3
@@ -73,8 +75,24 @@ let fullAccessUser: { id: number; email: string }
 let distributionOnlyUser: { id: number; email: string }
 let noBranchUser: { id: number; email: string }
 let allBranchIds: number[]
+let previousEnforcementValue: string | null
 
 beforeAll(async () => {
+  // Feature flag rollout bertahap (Task F2/F3) default OFF - test G2/G3/G4 ini
+  // KHUSUS menguji perilaku saat enforcement AKTIF, jadi dinyalakan sementara di sini
+  // dan dikembalikan persis ke state semula (bukan diasumsikan 'false') di afterAll.
+  const existing = await db.select().from(businessConfigs).where(eq(businessConfigs.key, ENFORCEMENT_KEY)).limit(1)
+  previousEnforcementValue = existing[0]?.value ?? null
+  if (existing.length > 0) {
+    await db.update(businessConfigs).set({ value: 'true' }).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
+  } else {
+    await db.insert(businessConfigs).values({
+      key: ENFORCEMENT_KEY,
+      value: 'true',
+      description: 'Rollout bertahap isolasi Branch/Division (Task F2/F3) - diaktifkan sementara oleh E2E test',
+    })
+  }
+
   const branches = await db
     .select({ id: company_branches.id })
     .from(company_branches)
@@ -111,6 +129,12 @@ afterAll(async () => {
     deleteTestUser(distributionOnlyUser.id),
     deleteTestUser(noBranchUser.id),
   ])
+  // Kembalikan flag persis ke state semula
+  if (previousEnforcementValue !== null) {
+    await db.update(businessConfigs).set({ value: previousEnforcementValue }).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
+  } else {
+    await db.delete(businessConfigs).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
+  }
 })
 
 describe('Task G2 — isolasi division', () => {

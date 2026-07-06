@@ -9,8 +9,9 @@
  *
  * Sets on context:
  *   c.var.user        — JwtPayload (userId, email, companyIds, isSuperAdmin)
- *                        + branchScopes, divisionScopes (isolasi data Branch/Division,
- *                        lihat docs-v2/task/task001.md)
+ *                        + branchScopes, divisionScopes, enforcementEnabled
+ *                        (isolasi data Branch/Division, lihat docs-v2/task/task001.md
+ *                        Task B + feature flag rollout Task F2/F3)
  *   c.var.permissions — string[] of permission names
  */
 
@@ -19,12 +20,28 @@ import { getCookie } from 'hono/cookie'
 import { AppError, ErrorCode } from '@/errors'
 import { verifyToken } from '@/utils/jwt'
 import { validateCsrfToken } from '@/utils/csrf'
+import { findConfigByKey } from '@/features/config/config.repository'
 import {
   getUserPermissions,
   getUserCompanyIds,
   getUserBranchScopes,
   getUserDivisionScopes,
 } from '@/features/auth/auth.repository'
+
+const ENFORCEMENT_CONFIG_KEY = 'branch_division_enforcement_enabled'
+
+/**
+ * Feature flag rollout bertahap (docs-v2/task/task001.md Task F2/F3) — safety valve
+ * supaya branch/division enforcement TIDAK langsung aktif untuk semua orang begitu
+ * kode ini di-deploy. Default OFF (config belum ada / value != 'true') — enforcement
+ * bypass total, perilaku persis sebelum task ini (cuma company scope yang berlaku).
+ * Admin nyalakan lewat PATCH /api/v1/config/branch_division_enforcement_enabled
+ * (endpoint config generik yang sudah ada, tidak perlu UI baru).
+ */
+async function isEnforcementEnabled(): Promise<boolean> {
+  const config = await findConfigByKey(ENFORCEMENT_CONFIG_KEY)
+  return config?.value === 'true'
+}
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -76,8 +93,8 @@ export function resolveBranchScope(
   c: Context,
   companyScopeIds: number[] | undefined,
 ): Map<number, number[]> | undefined {
-  const { branchScopes, isSuperAdmin } = c.var.user
-  if (isSuperAdmin) return undefined
+  const { branchScopes, isSuperAdmin, enforcementEnabled } = c.var.user
+  if (isSuperAdmin || !enforcementEnabled) return undefined
 
   const map = new Map<number, number[]>()
   for (const { company_id, branch_id } of branchScopes as { company_id: number; branch_id: number }[]) {
@@ -99,8 +116,8 @@ export function resolveDivisionScope(
   c: Context,
   branchScope: Map<number, number[]> | undefined,
 ): Map<number, string[]> | undefined {
-  const { divisionScopes, isSuperAdmin } = c.var.user
-  if (isSuperAdmin) return undefined
+  const { divisionScopes, isSuperAdmin, enforcementEnabled } = c.var.user
+  if (isSuperAdmin || !enforcementEnabled) return undefined
 
   const allowedBranchIds = new Set(branchScope ? [...branchScope.values()].flat() : [])
   const map = new Map<number, string[]>()
@@ -127,14 +144,15 @@ export function authMiddleware() {
       }
     }
 
-    const [permissions, companyIds, branchScopes, divisionScopes] = await Promise.all([
+    const [permissions, companyIds, branchScopes, divisionScopes, enforcementEnabled] = await Promise.all([
       getUserPermissions(payload.userId),
       getUserCompanyIds(payload.userId),
       getUserBranchScopes(payload.userId),
       getUserDivisionScopes(payload.userId),
+      isEnforcementEnabled(),
     ])
 
-    c.set('user', { ...payload, companyIds, branchScopes, divisionScopes })
+    c.set('user', { ...payload, companyIds, branchScopes, divisionScopes, enforcementEnabled })
     c.set('permissions', permissions)
 
     await next()
