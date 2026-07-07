@@ -93,6 +93,18 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
     },
     shape: { borderRadius: BORDER_RADIUS },
     components: {
+      MuiTypography: {
+        defaultProps: {
+          // pageTitle/pageSubtitle TIDAK ada di default variantMapping MUI, tanpa ini
+          // Typography fallback ke <span> (inline) - title dan subtitle jadi nempel di
+          // baris yang sama, bukan bertumpuk ke bawah seperti h5+body2 sebelumnya.
+          // pageTitle -> h1 (semantically benar, 1 judul utama per halaman untuk a11y).
+          variantMapping: {
+            pageTitle: 'h1',
+            pageSubtitle: 'p',
+          },
+        },
+      },
       MuiCssBaseline: {
         styleOverrides: {
           body: isDark
