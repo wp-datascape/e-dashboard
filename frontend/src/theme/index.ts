@@ -55,17 +55,6 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          // Transisi global background-color/border-color/color (BUKAN 'all' atau
-          // 'transform' - itu bisa ganggu animasi lain, mis. knob ThemeToggle) supaya
-          // toggle light<->dark terasa smooth di seluruh app, bukan cuma loncat
-          // instan. Selector '*' aman di sini karena scope-nya cuma warna, dan
-          // komponen yang punya transition sendiri (lebih spesifik, mis. ThemeToggle)
-          // tetap menang lewat CSS specificity, tidak ke-override rule global ini.
-          '*': {
-            transitionProperty: 'background-color, border-color, color',
-            transitionDuration: '0.25s',
-            transitionTimingFunction: 'ease',
-          },
           body: isDark
             ? { scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }
             : { scrollbarWidth: 'thin' },

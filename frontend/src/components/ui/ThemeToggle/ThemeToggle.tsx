@@ -41,17 +41,10 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
         borderRadius: 999,
         cursor: 'pointer',
         transition: 'background-color 0.3s, border-color 0.3s',
+        bgcolor: isDark ? '#09090b' : '#ffffff',
         border: '1px solid',
-        ...sx,
-      }}
-      // bgcolor/borderColor lewat style (bukan sx) — sx men-generate className BARU
-      // tiap kali nilainya berubah (emotion/CSS-in-JS), jadi transition CSS-nya tidak
-      // pernah sempat animasi (browser anggap 2 rule berbeda, bukan 1 property yang
-      // berubah). style/inline beneran memutasi 1 DOM node yang sama, jadi transition
-      // di sx (declared sekali, tidak berubah) bisa interpolasi dengan mulus.
-      style={{
-        backgroundColor: isDark ? '#09090b' : '#ffffff',
         borderColor: isDark ? '#27272a' : '#e4e4e7',
+        ...sx,
       }}
     >
       {/* Knob aktif (terisi) — moon saat dark (posisi kiri), sun saat light (geser ke kanan) */}
@@ -67,10 +60,8 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'transform 0.3s, background-color 0.3s',
-        }}
-        style={{
           transform: isDark ? 'translateX(0)' : `translateX(${SLIDE_DISTANCE}px)`,
-          backgroundColor: isDark ? '#27272a' : '#e5e7eb',
+          bgcolor: isDark ? '#27272a' : '#e5e7eb',
         }}
       >
         {isDark
@@ -91,8 +82,6 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'transform 0.3s',
-        }}
-        style={{
           transform: isDark ? `translateX(${SLIDE_DISTANCE}px)` : 'translateX(0)',
         }}
       >
