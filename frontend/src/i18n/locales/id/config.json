@@ -61,7 +61,11 @@
     "themeHelper": "Pilihan tema disimpan otomatis dan berlaku ke seluruh aplikasi.",
     "paletteTitle": "Palet Warna (Mode: {{mode}})",
     "darkModeDesc": "Tema gelap — mengurangi ketegangan mata di lingkungan redup",
-    "lightModeDesc": "Tema terang — visibilitas lebih baik di lingkungan terang"
+    "lightModeDesc": "Tema terang — visibilitas lebih baik di lingkungan terang",
+    "paletteHelper": "Pilih warna aksen untuk tombol dan highlight. Tersimpan ke akun kamu dan berlaku di mana pun kamu login.",
+    "paletteBlue": "Biru",
+    "paletteGreen": "Hijau",
+    "paletteYellow": "Kuning"
   },
   "pageSettings": {
     "title": "Visibilitas Halaman",
@@ -98,6 +102,10 @@
     "b2bProject": "B2B Project",
     "b2c": "B2C",
     "manufacturing": "Manufacturing",
+    "b2bDcDesc": "Threshold dormant untuk B2B DC (bulan)",
+    "b2bProjectDesc": "Threshold dormant untuk B2B Project (bulan) — cycle project lebih panjang",
+    "b2cDesc": "Threshold dormant untuk B2C (bulan)",
+    "manufacturingDesc": "Threshold dormant untuk Manufacturing (bulan)",
     "monthsUnit": "bln",
     "monthsChip": "{{value}} bulan"
   },
@@ -117,7 +125,11 @@
     "reactivationIdealDesc": "Batas atas target M10 — BulletChart zona hijau mulai dari nilai ini"
   },
   "generalSection": {
-    "title": "Pengaturan Umum"
+    "title": "Pengaturan Umum",
+    "activeWindowLabel": "Window Bulan Aktif",
+    "activeWindowDesc": "Window bulan aktif: customer dianggap aktif jika ada transaksi dalam N bulan terakhir",
+    "enforcementLabel": "Isolasi Akses Branch/Division",
+    "enforcementDesc": "\"Aktif\" berarti user non-superadmin dibatasi ke branch/division yang di-assign; \"Nonaktif\" berarti cuma company scope yang berlaku"
   },
   "periodInfo": {
     "title": "Tentang Periode (period_month)",

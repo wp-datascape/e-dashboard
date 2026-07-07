@@ -5,12 +5,19 @@ import { useThemeMode } from '@/theme/theme.context'
 
 export type DatePickerProps = Omit<TextFieldProps, 'type' | 'slotProps'> & {
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
+  /** @default 'date' */
+  type?: 'date' | 'month'
 }
 
 /**
- * Atomic DatePicker component — wrapping MUI TextField with type="date".
+ * Atomic DatePicker component — wrapping MUI TextField with type="date" (atau "month").
  *
- * Handles dark/light mode calendar icon color automatically via useThemeMode.
+ * Handles dark/light mode calendar icon color automatically via useThemeMode - warna
+ * icon native date/month picker browser ikut `color-scheme: light dark` di index.css
+ * (mengikuti preferensi OS, BUKAN toggle tema di dalam app), jadi tanpa override ini
+ * icon bisa jadi putih-di-atas-putih (tidak kelihatan) kalau OS dark tapi app di-set
+ * light, atau sebaliknya. SELALU pakai komponen ini utk input date/month, jangan
+ * TextField type="date"/"month" mentah.
  * Always shrinks the label so it doesn't overlap the date value.
  *
  * Usage:
@@ -21,12 +28,12 @@ export type DatePickerProps = Omit<TextFieldProps, 'type' | 'slotProps'> & {
  *     size="small"
  *   />
  */
-export function DatePicker({ sx, ...rest }: DatePickerProps) {
+export function DatePicker({ sx, type = 'date', ...rest }: DatePickerProps) {
   const { isDark } = useThemeMode()
 
   return (
     <TextField
-      type="date"
+      type={type}
       slotProps={{ inputLabel: { shrink: true } }}
       sx={[
         {

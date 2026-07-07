@@ -48,7 +48,18 @@ export const users = pgTable('users', {
   // ini dipakai karena auth session stateless tanpa tabel DB (lihat docs-v2/task/task002.md
   // §Task D) — revoke token individual tidak mungkin tanpa token_version atau blocklist.
   token_version: integer('token_version').notNull().default(0),
+  // Preferensi user sendiri (Task003) — dibundel jadi 1 kolom JSONB, bukan kolom
+  // terpisah per preferensi, supaya gampang tambah preferensi baru tanpa migration.
+  // Semua field optional - kosong/null berarti fallback ke default di frontend
+  // (system preference utk theme, "blue" utk palette, browser locale utk bahasa).
+  preferences: jsonb('preferences').$type<UserPreferences>().notNull().default({}),
 })
+
+export interface UserPreferences {
+  theme_mode?: 'light' | 'dark'
+  color_palette?: string
+  language?: string
+}
 
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert

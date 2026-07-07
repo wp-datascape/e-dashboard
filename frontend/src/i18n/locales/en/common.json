@@ -95,5 +95,10 @@
     "window3Months": "3 Months",
     "window6Months": "6 Months",
     "window12Months": "12 Months"
+  },
+  "userMenu": {
+    "moreCount": "+{{count}} more",
+    "superadminBadge": "Superadmin — full access",
+    "allDivisions": "All divisions"
   }
 }

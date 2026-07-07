@@ -3,6 +3,8 @@ export * from './TextField';
 export * from './Card';
 export * from './Alert';
 export * from './LogoutButton';
+export * from './AppLogo';
+export * from './UserMenu';
 export * from './AppBar';
 export * from './Sidebar';
 export * from './Footer';

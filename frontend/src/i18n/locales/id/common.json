@@ -95,5 +95,10 @@
     "window3Months": "3 Bulan",
     "window6Months": "6 Bulan",
     "window12Months": "12 Bulan"
+  },
+  "userMenu": {
+    "moreCount": "+{{count}} lainnya",
+    "superadminBadge": "Superadmin — akses penuh",
+    "allDivisions": "Semua divisi"
   }
 }

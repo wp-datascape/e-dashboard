@@ -1,7 +1,7 @@
 // src/hooks/useAuth.ts
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { authApi, LoginInput } from '@/api/auth.api';
+import { authApi, LoginInput, UserPreferencesInput } from '@/api/auth.api';
 import { useAuth } from '@/context/auth.context';
 import { LoginResponse } from '@/types/auth';
 import { ApiError } from '@/types/api';
@@ -46,6 +46,19 @@ export function useLogoutMutation() {
       localStorage.removeItem('auth_user');
       localStorage.removeItem('auth_permissions');
       window.location.href = '/login';
+    },
+  });
+}
+
+// Task003 — self-service update preferensi sendiri (theme/palette/bahasa). Caller
+// (AppSettings/UserMenu) tetap update state lokal (ThemeContext/i18n) langsung utk
+// responsif instan - mutation ini cuma persist ke backend di background.
+export function useUpdateMyPreferences() {
+  const queryClient = useQueryClient();
+  return useMutation<UserPreferencesInput, ApiError, UserPreferencesInput>({
+    mutationFn: authApi.updatePreferences,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });
 }

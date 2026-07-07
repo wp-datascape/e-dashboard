@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authMiddleware } from '@/middleware/auth'
-import { rateLimit } from '@/middleware/rate-limit'
-import { handleLogin, handleRefresh, handleLogout, handleMe } from './auth.handler'
+import { rateLimit, keyByUser } from '@/middleware/rate-limit'
+import { handleLogin, handleRefresh, handleLogout, handleMe, handleUpdatePreferences } from './auth.handler'
 
 export const authRoutes = new Hono()
 
@@ -14,7 +14,11 @@ const loginRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 })
 // dibatasi — endpoint ini sebelumnya TIDAK ada rate limit sama sekali (Task002 Task B).
 const refreshRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 })
 
+// 20/5menit per user — self-service, sama seperti mutasi business_configs (Task002 Task B).
+const preferencesRateLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 20, keyFn: keyByUser })
+
 authRoutes.post('/login', loginRateLimit, handleLogin)
 authRoutes.post('/refresh', refreshRateLimit, handleRefresh)
 authRoutes.post('/logout', authMiddleware(), handleLogout)
 authRoutes.get('/me', authMiddleware(), handleMe)
+authRoutes.patch('/me/preferences', authMiddleware(), preferencesRateLimit, handleUpdatePreferences)

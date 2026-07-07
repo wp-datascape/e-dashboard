@@ -61,7 +61,11 @@
     "themeHelper": "Theme choice is saved automatically and applies to the entire application.",
     "paletteTitle": "Color Palette (Mode: {{mode}})",
     "darkModeDesc": "Dark theme — reduces eye strain in low-light environments",
-    "lightModeDesc": "Light theme — better visibility in bright environments"
+    "lightModeDesc": "Light theme — better visibility in bright environments",
+    "paletteHelper": "Choose an accent color for buttons and highlights. Saved to your account and applied wherever you log in.",
+    "paletteBlue": "Blue",
+    "paletteGreen": "Green",
+    "paletteYellow": "Yellow"
   },
   "pageSettings": {
     "title": "Page Visibility",
@@ -98,6 +102,10 @@
     "b2bProject": "B2B Project",
     "b2c": "B2C",
     "manufacturing": "Manufacturing",
+    "b2bDcDesc": "Dormant threshold for B2B DC (months)",
+    "b2bProjectDesc": "Dormant threshold for B2B Project (months) — longer project cycle",
+    "b2cDesc": "Dormant threshold for B2C (months)",
+    "manufacturingDesc": "Dormant threshold for Manufacturing (months)",
     "monthsUnit": "months",
     "monthsChip": "{{value}} months"
   },
@@ -117,7 +125,11 @@
     "reactivationIdealDesc": "M10 target upper bound — BulletChart green zone starts from this value"
   },
   "generalSection": {
-    "title": "General Settings"
+    "title": "General Settings",
+    "activeWindowLabel": "Active Window (months)",
+    "activeWindowDesc": "Active window in months: a customer is considered active if there is a transaction within the last N months",
+    "enforcementLabel": "Branch/Division Access Isolation",
+    "enforcementDesc": "\"On\" means non-superadmin users are restricted to their assigned branch/division; \"Off\" means only company scope applies"
   },
   "periodInfo": {
     "title": "About Period Month (period_month)",

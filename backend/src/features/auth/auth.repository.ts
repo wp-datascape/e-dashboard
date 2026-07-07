@@ -42,11 +42,35 @@ export async function findActiveUserById(userId: number) {
       email: users.email,
       is_active: users.is_active,
       token_version: users.token_version,
+      preferences: users.preferences,
     })
     .from(users)
     .where(and(eq(users.id, userId), isNull(users.deleted_at)))
     .limit(1)
   return result[0] ?? null
+}
+
+/**
+ * Update preferensi user sendiri (Task003) — MERGE partial ke kolom JSONB yang ada
+ * (bukan replace penuh) supaya field yang tidak dikirim di body PATCH tetap
+ * dipertahankan. Fetch-merge-update di JS (bukan operator Postgres `||` via sql`` raw
+ * template) - lebih predictable ketimbang interpolasi sql`` untuk jsonb merge.
+ */
+export async function updateUserPreferences(userId: number, partial: Record<string, unknown>) {
+  const [current] = await db
+    .select({ preferences: users.preferences })
+    .from(users)
+    .where(and(eq(users.id, userId), isNull(users.deleted_at)))
+    .limit(1)
+  if (!current) return null
+
+  const merged = { ...(current.preferences ?? {}), ...partial }
+  const result = await db
+    .update(users)
+    .set({ preferences: merged })
+    .where(and(eq(users.id, userId), isNull(users.deleted_at)))
+    .returning({ preferences: users.preferences })
+  return result[0]?.preferences ?? null
 }
 
 /**

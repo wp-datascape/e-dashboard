@@ -35,6 +35,28 @@ function getBuLabels(t: TFunction): Record<string, string> {
     manufacturing: t('config.buThreshold.manufacturing'),
   }
 }
+function getBuDesc(t: TFunction): Record<string, string> {
+  return {
+    b2b_dc: t('config.buThreshold.b2bDcDesc'),
+    b2b_project: t('config.buThreshold.b2bProjectDesc'),
+    b2c: t('config.buThreshold.b2cDesc'),
+    manufacturing: t('config.buThreshold.manufacturingDesc'),
+  }
+}
+// Config "General Settings" yang sudah ada terjemahan resmi (label + notes) - selain
+// ini fallback ke item.key/item.description mentah dari DB (lihat ConfigRow/BooleanConfigRow).
+function getGeneralLabels(t: TFunction): Record<string, string> {
+  return {
+    active_window_months: t('config.generalSection.activeWindowLabel'),
+    branch_division_enforcement_enabled: t('config.generalSection.enforcementLabel'),
+  }
+}
+function getGeneralDesc(t: TFunction): Record<string, string> {
+  return {
+    active_window_months: t('config.generalSection.activeWindowDesc'),
+    branch_division_enforcement_enabled: t('config.generalSection.enforcementDesc'),
+  }
+}
 const DORMANT_PREFIX = 'dormant_threshold_months.'
 const KPI_TARGET_KEYS = [
   'repeat_order_target_pct',
@@ -115,16 +137,17 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
 // Config yang value-nya literal 'true'/'false' (mis. feature flag) di-render sebagai
 // Switch, bukan text/number field — field number generik menolak input non-numerik
 // jadi 'true'/'false' tidak pernah bisa diketik ulang lewat UI itu.
-function BooleanConfigRow({ item }: { item: ConfigItem }) {
+function BooleanConfigRow({ item, label, desc }: { item: ConfigItem; label?: string; desc?: string }) {
   const { mutate, isPending } = useUpdateConfig()
   const can = useCan()
   const checked = item.value === 'true'
   const handleToggle = () => mutate({ key: item.key, value: checked ? 'false' : 'true' })
+  const note = desc ?? item.description
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
       <Box sx={{ flex: 2 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.key}</Typography>
-        {item.description && <Typography variant="caption" color="text.secondary">{item.description}</Typography>}
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label ?? item.key}</Typography>
+        {note && <Typography variant="caption" color="text.secondary">{note}</Typography>}
       </Box>
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Chip label={checked ? 'true' : 'false'} size="small" color={checked ? 'success' : 'default'} variant="outlined" />
@@ -137,7 +160,7 @@ function BooleanConfigRow({ item }: { item: ConfigItem }) {
   )
 }
 
-function ConfigRow({ item }: { item: ConfigItem }) {
+function ConfigRow({ item, label, desc }: { item: ConfigItem; label?: string; desc?: string }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.value)
@@ -145,12 +168,13 @@ function ConfigRow({ item }: { item: ConfigItem }) {
   const can = useCan()
   const handleSave = () => mutate({ key: item.key, value: draft }, { onSuccess: () => setEditing(false), onError: () => setDraft(item.value) })
   const handleCancel = () => { setDraft(item.value); setEditing(false) }
-  if (item.value === 'true' || item.value === 'false') return <BooleanConfigRow item={item} />
+  if (item.value === 'true' || item.value === 'false') return <BooleanConfigRow item={item} label={label} desc={desc} />
+  const note = desc ?? item.description
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
       <Box sx={{ flex: 2 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.key}</Typography>
-        {item.description && <Typography variant="caption" color="text.secondary">{item.description}</Typography>}
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label ?? item.key}</Typography>
+        {note && <Typography variant="caption" color="text.secondary">{note}</Typography>}
       </Box>
       <Box sx={{ flex: 1 }}>
         {editing
@@ -174,8 +198,11 @@ function ConfigRow({ item }: { item: ConfigItem }) {
 export default function ThresholdSettings() {
   const { t } = useTranslation()
   const BU_LABELS = getBuLabels(t)
+  const BU_DESC = getBuDesc(t)
   const KPI_TARGET_LABELS = getKpiTargetLabels(t)
   const KPI_TARGET_DESC = getKpiTargetDesc(t)
+  const GENERAL_LABELS = getGeneralLabels(t)
+  const GENERAL_DESC = getGeneralDesc(t)
   const { data: configs, isLoading, error } = useConfig()
   const { mutate } = useUpdateConfig()
   const allItems: ConfigItem[] = configs ?? []
@@ -221,7 +248,7 @@ export default function ThresholdSettings() {
                           <TableRow key={item.key} hover>
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{BU_LABELS[buCode] ?? buCode}</Typography></TableCell>
                             <TableCell><EditableMonthCell item={item} onSave={handleSave} /></TableCell>
-                            <TableCell><Typography variant="caption" color="text.secondary">{item.description}</Typography></TableCell>
+                            <TableCell><Typography variant="caption" color="text.secondary">{BU_DESC[buCode] ?? item.description}</Typography></TableCell>
                           </TableRow>
                         )
                       })}
@@ -239,7 +266,7 @@ export default function ThresholdSettings() {
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{BU_LABELS[buCode] ?? buCode}</Typography>
                             <EditableMonthCell item={item} onSave={handleSave} />
                           </Box>
-                          {item.description && <Typography variant="caption" color="text.secondary">{item.description}</Typography>}
+                          {(BU_DESC[buCode] ?? item.description) && <Typography variant="caption" color="text.secondary">{BU_DESC[buCode] ?? item.description}</Typography>}
                         </Stack>
                       </Card>
                     )
@@ -302,7 +329,7 @@ export default function ThresholdSettings() {
           {otherItems.length > 0 && (
             <Card sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>{t('config.generalSection.title')}</Typography>
-              <Stack divider={<Divider />}>{otherItems.map((item) => <ConfigRow key={item.key} item={item} />)}</Stack>
+              <Stack divider={<Divider />}>{otherItems.map((item) => <ConfigRow key={item.key} item={item} label={GENERAL_LABELS[item.key]} desc={GENERAL_DESC[item.key]} />)}</Stack>
             </Card>
           )}
 

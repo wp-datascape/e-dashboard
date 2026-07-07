@@ -4,8 +4,8 @@ import { success } from '@/utils/response'
 import { validateBody } from '@/utils/validator'
 import { env } from '@/config/env'
 import { AppError, ErrorCode } from '@/errors'
-import { loginSchema } from './auth.schema'
-import { loginService, refreshService, getMeService } from './auth.service'
+import { loginSchema, updatePreferencesSchema } from './auth.schema'
+import { loginService, refreshService, getMeService, updateMyPreferencesService } from './auth.service'
 import { getIp } from '@/middleware/rate-limit'
 
 const SECURE = env.NODE_ENV === 'production'
@@ -76,4 +76,10 @@ export async function handleLogout(c: Context) {
 export async function handleMe(c: Context) {
   const result = await getMeService(c.var.user.userId, c.var.user.isSuperAdmin)
   return success(c, result)
+}
+
+export async function handleUpdatePreferences(c: Context) {
+  const body = await validateBody(c, updatePreferencesSchema)
+  const preferences = await updateMyPreferencesService(c.var.user.userId, body)
+  return success(c, { preferences })
 }

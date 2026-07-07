@@ -14,6 +14,8 @@ import { AuthProvider, ProtectedRoute } from './context/AuthContext'
 import { useAuth } from './context/auth.context'
 import { usePageSettings } from './hooks/usePageSettings'
 import { api } from './api/axios'
+import { useThemeMode } from './theme/theme.context'
+import { useTranslation } from 'react-i18next'
 
 // Registry Config & Lazy Base Elements
 import { routeRegistry } from './route/routeConstants'
@@ -40,6 +42,8 @@ function PageLoader() {
 function AppRouter() {
   const { data: pageSettings, isLoading } = usePageSettings()
   const { token, syncUser, isAuthenticated } = useAuth()
+  const { applyRemotePreferences } = useThemeMode()
+  const { i18n } = useTranslation()
 
   // Sync user & permissions dari server setiap page load — agar perubahan RBAC langsung berlaku
   const { data: meData, isLoading: isMeLoading, isError: isMeError, isSuccess: isMeSuccess } = useQuery({
@@ -61,6 +65,16 @@ function AppRouter() {
       syncUser(meData.user, meData.permissions)
     }
   }, [meData, syncUser])
+
+  // Task003 — begitu /auth/me resolve, terapkan preferensi tersimpan (theme/palette
+  // dari backend, override cache localStorage sebelumnya; bahasa lewat i18n langsung).
+  useEffect(() => {
+    if (!meData?.preferences) return
+    applyRemotePreferences(meData.preferences)
+    if (meData.preferences.language && meData.preferences.language !== i18n.language) {
+      void i18n.changeLanguage(meData.preferences.language)
+    }
+  }, [meData, applyRemotePreferences, i18n])
 
   if (isLoading || (!!token && (isMeLoading || !synced))) {
     return <PageLoader />
