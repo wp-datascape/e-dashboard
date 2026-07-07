@@ -127,8 +127,20 @@ function AppRouter() {
         {/* 403 Forbidden */}
         <Route path="/403" element={<Forbidden />} />
 
-        {/* Fallback 404 Wildcard Handling */}
-        <Route path="*" element={<NotFound />} />
+        {/* Fallback 404 Wildcard Handling — path apa pun yang tidak match route dinamis
+            di atas. BUG FIX: route dinamis di atas cuma terdaftar kalau pageSettings
+            berhasil di-fetch (query itu enabled: !!token) — jadi kalau user BELUM
+            login (tidak ada token) dan langsung buka path selain "/", "/login" (mis.
+            bookmark ke /settings/app, atau reload di halaman dalam), TIDAK ADA route
+            protected yang terdaftar sama sekali, request jatuh ke sini duluan SEBELUM
+            sempat lewat ProtectedRoute (yang harusnya redirect ke /login). Cek
+            isAuthenticated dulu di sini supaya user belum login selalu diarahkan ke
+            /login, bukan disodori 404 palsu. NotFound asli cuma untuk user yang SUDAH
+            login tapi path-nya memang tidak pernah ada. */}
+        <Route
+          path="*"
+          element={isAuthenticated ? <NotFound /> : <Navigate to="/login" replace />}
+        />
       </Routes>
     </Suspense>
   )
