@@ -9,7 +9,8 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import type { CustomerStatus, CustomerRow, Division } from '@/types/customers';
+import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
@@ -18,12 +19,8 @@ import { formatIDR } from '@/utils/format';
 export default function Customers() {
   const { t } = useTranslation();
 
-  const {
-    companies, showCompanyFilter,
-    companyId: companyFilter, setCompanyId: setCompanyFilter,
-    branchId: branchFilter, setBranchId: setBranchFilter, branchOptions, showBranchFilter,
-    division: divisionFilter, setDivision: setDivisionFilter, divisionOptions,
-  } = useScopedCompanyFilter();
+  const scopeFilter = useScopedCompanyFilter();
+  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter } = scopeFilter;
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -96,34 +93,13 @@ export default function Customers() {
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 240 }} />
-        {showCompanyFilter && (
-          <TextField select size="small" label={t('common.company')} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
-            <MenuItem value="all">{t('common.all')}</MenuItem>
-            {companies.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
-        )}
-        {showBranchFilter && (
-          <TextField select size="small" label={t('common.branch')} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
-            <MenuItem value="all">{t('common.all')}</MenuItem>
-            {branchOptions.map((b) => (
-              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-            ))}
-          </TextField>
-        )}
+        <ScopeFilterFields filter={scopeFilter} />
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ minWidth: 140 }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
           <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
           <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
           <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
           <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
-        </TextField>
-        <TextField select size="small" label={t('customers.detail.division')} value={divisionFilter} onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')} sx={{ minWidth: 160 }}>
-          <MenuItem value="">{t('common.all')}</MenuItem>
-          {divisionOptions.map((opt) => (
-            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-          ))}
         </TextField>
       </Box>
 

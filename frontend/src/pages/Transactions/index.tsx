@@ -2,11 +2,11 @@ import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
-import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices } from '@/hooks/useTransactions'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
@@ -16,12 +16,8 @@ import { formatIDR } from '@/utils/format'
 export default function Transactions() {
   const { t } = useTranslation()
   const [customerSearch, setCustomerSearch] = useState('')
-  const {
-    companies, showCompanyFilter,
-    companyId, setCompanyId,
-    branchId, setBranchId, branchOptions, showBranchFilter,
-    division: buFilter, setDivision: setBuFilter, divisionOptions,
-  } = useScopedCompanyFilter()
+  const scopeFilter = useScopedCompanyFilter()
+  const { companyId, branchId, division: buFilter } = scopeFilter
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
@@ -64,28 +60,7 @@ export default function Transactions() {
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ minWidth: 240 }} />
-        {showCompanyFilter && (
-          <TextField select size="small" label={t('common.company')} value={companyId} onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
-            <MenuItem value="all">{t('common.all')}</MenuItem>
-            {companies.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
-        )}
-        {showBranchFilter && (
-          <TextField select size="small" label={t('common.branch')} value={branchId} onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
-            <MenuItem value="all">{t('common.all')}</MenuItem>
-            {branchOptions.map((b) => (
-              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-            ))}
-          </TextField>
-        )}
-        <TextField select size="small" label={t('customers.detail.division')} value={buFilter} onChange={(e) => setBuFilter(e.target.value as typeof buFilter)} sx={{ minWidth: 160 }}>
-          <MenuItem value="">{t('common.all')}</MenuItem>
-          {divisionOptions.map((opt) => (
-            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-          ))}
-        </TextField>
+        <ScopeFilterFields filter={scopeFilter} />
       </Box>
 
       <ResponsiveListView

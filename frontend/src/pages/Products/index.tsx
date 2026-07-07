@@ -11,6 +11,7 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { useTranslation } from 'react-i18next'
 import { useCategoryPerformance } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
@@ -29,12 +30,8 @@ function MarginChip({ pct }: { pct: number }) {
 export default function Products() {
   const { t } = useTranslation()
 
-  const {
-    companies, showCompanyFilter,
-    companyId, setCompanyId,
-    branchId, setBranchId, branchOptions, showBranchFilter,
-    division, setDivision, divisionOptions,
-  } = useScopedCompanyFilter()
+  const scopeFilter = useScopedCompanyFilter()
+  const { companyId, branchId, division } = scopeFilter
   const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
   const [activeWindow,    setActiveWindow]    = useState(6)
   const [search,          setSearch]          = useState('')
@@ -162,45 +159,7 @@ export default function Products() {
             sx={{ minWidth: { xs: '100%', sm: 180 } }}
           />
 
-          {showCompanyFilter && (
-            <TextField
-              select size="small" label={t('common.filters.entity')}
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              sx={{ minWidth: { xs: '100%', sm: 160 } }}
-            >
-              <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
-              {companies.map((c) => (
-                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-              ))}
-            </TextField>
-          )}
-
-          {showBranchFilter && (
-            <TextField
-              select size="small" label={t('common.branch')}
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            >
-              <MenuItem value="all">{t('common.all')}</MenuItem>
-              {branchOptions.map((b) => (
-                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-              ))}
-            </TextField>
-          )}
-
-          <TextField
-            select size="small" label={t('customers.detail.division')}
-            value={division}
-            onChange={(e) => setDivision(e.target.value as typeof division)}
-            sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          >
-            <MenuItem value="">{t('common.all')}</MenuItem>
-            {divisionOptions.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-            ))}
-          </TextField>
+          <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
           <TextField
             size="small" label={t('common.filters.month')} type="month"

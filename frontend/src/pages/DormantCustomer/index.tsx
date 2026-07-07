@@ -4,7 +4,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
@@ -13,6 +12,7 @@ import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
 function todayIsoDate(): string {
@@ -50,12 +50,8 @@ export default function DormantCustomer() {
   const { t } = useTranslation();
 
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
-  const {
-    companies,
-    companyId, setCompanyId,
-    branchId, setBranchId, branchOptions, showBranchFilter,
-    division, setDivision, divisionOptions,
-  } = useScopedCompanyFilter();
+  const scopeFilter = useScopedCompanyFilter();
+  const { companyId, branchId, division } = scopeFilter;
 
   const { data, isLoading } = useDormantCustomer({
     company_id:  companyId,
@@ -93,43 +89,7 @@ export default function DormantCustomer() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-          <TextField
-            select size="small" label={t('common.filters.entity')}
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          >
-            <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
-            {companies.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
-
-          {showBranchFilter && (
-            <TextField
-              select size="small" label={t('common.branch')}
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            >
-              <MenuItem value="all">{t('common.all')}</MenuItem>
-              {branchOptions.map((b) => (
-                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-              ))}
-            </TextField>
-          )}
-
-          <TextField
-            select size="small" label={t('common.filters.division')}
-            value={division}
-            onChange={(e) => setDivision(e.target.value as typeof division)}
-            sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          >
-            <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
-            {divisionOptions.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-            ))}
-          </TextField>
+          <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
           <TextField
             size="small" label={t('common.filters.periodDate')} type="date"

@@ -45,13 +45,17 @@ export function useScopedCompanyFilter() {
   const branchOptions = scopedBranches.restricted
     ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
     : allBranches.map((b) => ({ id: b.id, name: b.name }));
-  const showBranchFilter = companyId !== 'all' && branchOptions.length > 1;
+  // companyId==='all' tetap bisa tampilkan branch filter untuk user restricted (union branch
+  // lintas company miliknya) - cuma unrestricted/superadmin yang di company='all' tidak
+  // punya konteks branch sama sekali (branchOptions otomatis kosong, lihat scopeFilters.ts).
+  const showBranchFilter = branchOptions.length > 1;
 
   const scopedDivisions = getScopedDivisions(myScope, companyId, branchId);
   const fullDivisionOptions = useDivisionOptions(companyId);
   const divisionOptions = scopedDivisions.restricted
     ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
     : fullDivisionOptions;
+  const showDivisionFilter = divisionOptions.length > 1;
 
   return {
     companies,
@@ -65,5 +69,6 @@ export function useScopedCompanyFilter() {
     division,
     setDivision,
     divisionOptions,
+    showDivisionFilter,
   };
 }
