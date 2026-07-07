@@ -1,6 +1,30 @@
 import { createTheme, type Theme } from '@mui/material/styles'
 import { PALETTES, DEFAULT_PALETTE, type PaletteKey } from './palettes'
 
+// ─── Custom Typography Variants ────────────────────────────────────────────────
+// pageTitle/pageSubtitle — variant KHUSUS untuk judul halaman, TERPISAH dari h5
+// (h5 juga dipakai untuk angka besar di StatCard/DonutChartWidget/dll — kalau
+// judul halaman ikut ganti warna lewat override h5 biasa, angka data ikut kena
+// juga, tidak diinginkan). Warna ikut palette (primary.main), didefinisikan di
+// SATU tempat (createAppTheme di bawah) - ganti di sini otomatis berlaku ke
+// semua halaman yang pakai variant="pageTitle", tidak perlu edit satu-satu.
+declare module '@mui/material/styles' {
+  interface TypographyVariants {
+    pageTitle: React.CSSProperties
+    pageSubtitle: React.CSSProperties
+  }
+  interface TypographyVariantsOptions {
+    pageTitle?: React.CSSProperties
+    pageSubtitle?: React.CSSProperties
+  }
+}
+declare module '@mui/material/Typography' {
+  interface TypographyPropsVariantOverrides {
+    pageTitle: true
+    pageSubtitle: true
+  }
+}
+
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const FONT_PRIMARY = '"Plus Jakarta Sans"'
 const FONT_MONO    = '"Plus Jakarta Sans"'
@@ -50,7 +74,23 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
         : { primary: '#0F172A', secondary: '#475569', disabled: '#94A3B8' }, // slate-900/600/400
       divider: isDark ? '#1E293B' : '#E2E8F0', // slate-800 / slate-200
     },
-    typography: TYPOGRAPHY,
+    typography: {
+      ...TYPOGRAPHY,
+      // Warna ikut palette aktif (primary.light/dark, sama seperti palette.primary.main
+      // di atas) - beda dari h5 biasa yang warnanya netral (text.primary) supaya tidak
+      // bentrok dengan pemakaian h5 lain (angka besar StatCard/DonutChartWidget).
+      pageTitle: {
+        fontSize: '1.375rem',
+        fontWeight: 700,
+        lineHeight: 1.3,
+        color: isDark ? colors.primary.dark : colors.primary.light,
+      },
+      pageSubtitle: {
+        fontSize: '0.8125rem',
+        lineHeight: 1.5,
+        color: isDark ? '#94A3B8' : '#475569', // sama dengan text.secondary di atas
+      },
+    },
     shape: { borderRadius: BORDER_RADIUS },
     components: {
       MuiCssBaseline: {

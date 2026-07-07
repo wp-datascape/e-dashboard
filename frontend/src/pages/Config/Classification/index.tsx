@@ -198,12 +198,12 @@ export default function ClassificationSettings() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, gap: 1, flexWrap: 'wrap' }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('nav.settingsClassification')}</Typography>
+            <Typography variant="pageTitle">{t('nav.settingsClassification')}</Typography>
             <Tooltip title={t('classification_rules.tooltip')} arrow>
               <InfoOutlinedIcon fontSize="small" color="action" sx={{ cursor: 'help', mt: 0.25 }} />
             </Tooltip>
           </Box>
-          <Typography variant="body2" color="text.secondary">{t('settings.classification.subtitle')}</Typography>
+          <Typography variant="pageSubtitle">{t('settings.classification.subtitle')}</Typography>
         </Box>
         {can('config.classification:create') && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd} mobileIconOnly>

@@ -80,10 +80,10 @@ export default function DormantCustomer() {
         gap: 2,
       }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          <Typography variant="pageTitle">
             {t('dormantCustomer.pageTitle')}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
             {t('dormantCustomer.pageSubtitle')}
           </Typography>
         </Box>

@@ -169,7 +169,7 @@ export default function RBAC() {
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography variant="pageTitle">
           {t('rbac.title')}
         </Typography>
         {can('access.role:create') && (

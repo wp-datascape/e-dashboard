@@ -123,7 +123,7 @@ export default function FeaturesPage() {
   if (isLoading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
+        <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box>
       </Box>
     )
@@ -132,7 +132,7 @@ export default function FeaturesPage() {
   if (error) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
+        <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
         <Alert severity="error">{t('error.generic')}</Alert>
       </Box>
     )
@@ -149,8 +149,8 @@ export default function FeaturesPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('config.features.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('config.features.subtitle')}</Typography>
 
       <Card sx={{ p: 3 }}>
         {orderedGroups.map(([groupKey, pages]) => {

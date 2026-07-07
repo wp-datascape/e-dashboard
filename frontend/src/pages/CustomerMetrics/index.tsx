@@ -43,10 +43,10 @@ export default function CustomerMetrics() {
         gap: 2,
       }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          <Typography variant="pageTitle">
             {t('customerMetrics.pageTitle')}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
             {t('customerMetrics.pageSubtitle')}
           </Typography>
         </Box>

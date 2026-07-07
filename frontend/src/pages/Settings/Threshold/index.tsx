@@ -213,8 +213,8 @@ export default function ThresholdSettings() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.settingsThreshold')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('settings.threshold.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.settingsThreshold')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('settings.threshold.subtitle')}</Typography>
 
       {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box>}
       {error && <Alert severity="error">{t('error.generic')}</Alert>}

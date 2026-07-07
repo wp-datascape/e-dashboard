@@ -97,7 +97,7 @@ export default function Dashboard() {
           gap: 1,
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography variant="pageTitle">
           {t('dashboard.overviewTitle')}
         </Typography>
         {!isLoading && data && (

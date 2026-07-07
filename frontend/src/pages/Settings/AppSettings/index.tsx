@@ -46,8 +46,8 @@ export default function AppSettingsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.settingsApp')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('settings.app.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.settingsApp')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('settings.app.subtitle')}</Typography>
 
       <Card sx={{ p: 3 }}>
         <Stack spacing={4}>

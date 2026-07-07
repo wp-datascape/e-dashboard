@@ -7,8 +7,8 @@ export default function Projects() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4">{t('projects.title')}</Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="pageTitle">{t('projects.title')}</Typography>
+      <Typography variant="pageSubtitle">
         {t('projects.placeholder')}
       </Typography>
     </Box>
