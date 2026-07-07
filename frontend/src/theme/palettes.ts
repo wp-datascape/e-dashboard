@@ -8,7 +8,7 @@
 // theme/index.ts (BRAND) - supaya sinyal warna semantik tidak pernah ambigu (mis.
 // "error" jangan sampai ikut jadi hijau kalau user pilih palette hijau).
 
-export type PaletteKey = 'blue' | 'green' | 'yellow'
+export type PaletteKey = 'blue' | 'green' | 'yellow' | 'purple' | 'rose' | 'indigo'
 
 export interface PaletteColors {
   primary: { light: string; dark: string }
@@ -38,6 +38,21 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     primary:   { light: '#D97706', dark: '#F59E0B' }, // amber-600 / amber-500
     secondary: { light: '#EA580C', dark: '#FB923C' }, // orange-600 / orange-400
     appBar:    { light: '#D97706', dark: '#1A1207' }, // amber-600 / nyaris hitam ber-tint amber
+  },
+  purple: {
+    primary:   { light: '#9333EA', dark: '#A855F7' }, // purple-600 / purple-500
+    secondary: { light: '#C026D3', dark: '#D946EF' }, // fuchsia-600 / fuchsia-500
+    appBar:    { light: '#9333EA', dark: '#170B1F' }, // purple-600 / nyaris hitam ber-tint ungu
+  },
+  rose: {
+    primary:   { light: '#E11D48', dark: '#F43F5E' }, // rose-600 / rose-500
+    secondary: { light: '#DB2777', dark: '#EC4899' }, // pink-600 / pink-500
+    appBar:    { light: '#E11D48', dark: '#1F0A0E' }, // rose-600 / nyaris hitam ber-tint merah muda
+  },
+  indigo: {
+    primary:   { light: '#4F46E5', dark: '#6366F1' }, // indigo-600 / indigo-500
+    secondary: { light: '#0284C7', dark: '#0EA5E9' }, // sky-600 / sky-500
+    appBar:    { light: '#4F46E5', dark: '#0B0F1F' }, // indigo-600 / nyaris hitam ber-tint indigo
   },
 }
 

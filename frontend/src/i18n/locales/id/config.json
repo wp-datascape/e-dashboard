@@ -65,7 +65,10 @@
     "paletteHelper": "Pilih warna aksen untuk tombol dan highlight. Tersimpan ke akun kamu dan berlaku di mana pun kamu login.",
     "paletteBlue": "Biru",
     "paletteGreen": "Hijau",
-    "paletteYellow": "Kuning"
+    "paletteYellow": "Kuning",
+    "palettePurple": "Ungu",
+    "paletteRose": "Merah Muda",
+    "paletteIndigo": "Indigo"
   },
   "pageSettings": {
     "title": "Visibilitas Halaman",

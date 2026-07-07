@@ -8,7 +8,7 @@ export const loginSchema = z.object({
 export type LoginDto = z.infer<typeof loginSchema>
 
 // Daftar palette valid (Task003) — harus sinkron dengan frontend/src/theme/palettes.ts
-export const COLOR_PALETTES = ['blue', 'green', 'yellow'] as const
+export const COLOR_PALETTES = ['blue', 'green', 'yellow', 'purple', 'rose', 'indigo'] as const
 
 // Semua field optional - PATCH partial, cuma field yang dikirim yang di-update (merge,
 // bukan replace penuh kolom preferences JSONB - lihat updateUserPreferences()).
