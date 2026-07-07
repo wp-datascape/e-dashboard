@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
+import { DatePicker } from '@/components/ui/DatePicker'
 import type {
   HighMarginCategoryRow,
   HighMarginDetailParams,
@@ -355,12 +356,11 @@ export default function ProductsHighMargin() {
           sx={{ width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
           <ScopeFilterFields filter={scopeFilter} />
 
-          <TextField
+          <DatePicker
             size="small" label={t('common.filters.month')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             sx={{ minWidth: 150 }}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
 
           <TextField

@@ -4,8 +4,8 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import TextField from '@mui/material/TextField'
 import { useTranslation } from 'react-i18next'
+import { DatePicker } from '@/components/ui/DatePicker'
 import type { Company } from '@/types/users'
 
 interface CompanyPeriodFieldsProps {
@@ -43,7 +43,7 @@ export function CompanyPeriodFields({
         </FormControl>
       </Grid>
       <Grid size={{ xs: 12, sm: 6 }}>
-        <TextField
+        <DatePicker
           label={t('import.form.period')}
           type="month"
           size="small"
@@ -51,7 +51,6 @@ export function CompanyPeriodFields({
           onChange={(e: ChangeEvent<HTMLInputElement>) => onPeriod(e.target.value)}
           placeholder="YYYY-MM"
           disabled={disabled}
-          slotProps={{ inputLabel: { shrink: true } }}
           sx={{ minWidth: 160 }}
           helperText={t('import.form.periodHint')}
         />

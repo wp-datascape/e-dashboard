@@ -3,7 +3,6 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
@@ -19,6 +18,7 @@ import { Card } from '@/components/ui';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { DetailCard } from './components/DetailCard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -159,12 +159,11 @@ export default function CrossSelling() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
-          <TextField
-            size="small" label={t('crossSelling.filterDateEnd')} type="date"
+          <DatePicker
+            size="small" label={t('crossSelling.filterDateEnd')}
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
         </Box>
       </Box>

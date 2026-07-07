@@ -2,12 +2,12 @@ import { useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
 import { useTranslation } from 'react-i18next';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { todayIsoDate } from './helpers';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
@@ -54,11 +54,10 @@ export default function CustomerMetrics() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
-          <TextField
-            type="date" size="small" label={t('common.filters.periodDate')}
+          <DatePicker
+            size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
         </Box>

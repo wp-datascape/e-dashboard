@@ -5,7 +5,6 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import TextField from '@mui/material/TextField'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
 
@@ -18,6 +17,7 @@ import CategoryIcon from '@mui/icons-material/Category'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef } from '@mui/x-data-grid'
 import { Card, Button, ActionMenu, StatusChip } from '@/components/ui'
+import { DatePicker } from '@/components/ui/DatePicker'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCompanies } from '@/hooks/useCompanies'
 import {
@@ -228,13 +228,12 @@ export default function HighMarginSettings() {
             </Select>
           </FormControl>
 
-          <TextField
+          <DatePicker
             size="small"
             label={t('highMargin.filterPeriod')}
             type="month"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
             sx={{ width: { xs: '100%', sm: 180 }, flex: { sm: '0 0 auto' } }}
           />
 

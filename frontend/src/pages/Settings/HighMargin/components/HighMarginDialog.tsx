@@ -8,6 +8,7 @@ import ListSubheader from '@mui/material/ListSubheader'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
+import { DatePicker } from '@/components/ui/DatePicker'
 import type { HighMarginMapping, CreateHighMarginPayload, UpdateHighMarginPayload, ProductOption } from '@/types/highMargin'
 import { getApiErrorMessage } from '@/utils/apiError'
 
@@ -127,13 +128,11 @@ export function HighMarginDialog({
               )}
             />
 
-            <TextField
+            <DatePicker
               size="small"
               label={t('highMargin.effectiveFrom')}
-              type="date"
               value={effectiveFrom}
               onChange={(e) => setEffectiveFrom(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
           </>
@@ -150,13 +149,11 @@ export function HighMarginDialog({
           </Box>
         )}
 
-        <TextField
+        <DatePicker
           size="small"
           label={t('highMargin.effectiveUntil')}
-          type="date"
           value={effectiveUntil}
           onChange={(e) => setEffectiveUntil(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
           fullWidth
           helperText={t('highMargin.effectiveUntilHint')}
         />

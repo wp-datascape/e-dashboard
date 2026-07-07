@@ -3,7 +3,6 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
@@ -13,6 +12,7 @@ import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
 function todayIsoDate(): string {
@@ -91,12 +91,11 @@ export default function DormantCustomer() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
-          <TextField
-            size="small" label={t('common.filters.periodDate')} type="date"
+          <DatePicker
+            size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
         </Box>
       </Box>

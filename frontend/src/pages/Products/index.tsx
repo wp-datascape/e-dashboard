@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { useCategoryPerformance } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
+import { DatePicker } from '@/components/ui/DatePicker'
 import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
@@ -161,12 +162,11 @@ export default function Products() {
 
           <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
 
-          <TextField
+          <DatePicker
             size="small" label={t('common.filters.month')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
 
           <TextField
