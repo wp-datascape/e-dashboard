@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "idx_invoices_customer_invoice_date" ON "invoices" USING btree ("customer_id","invoice_date") WHERE deleted_at is null;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_invoices_company_invoice_date" ON "invoices" USING btree ("company_id","invoice_date") WHERE deleted_at is null;

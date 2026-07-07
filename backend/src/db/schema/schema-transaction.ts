@@ -15,7 +15,10 @@ import {
   boolean,
   text,
   timestamp,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { companies, company_branches } from './schema-company'
 import { users } from './schema-auth'
 import { product_categories, products } from './schema-product'
@@ -77,12 +80,22 @@ export const invoices = pgTable('invoices', {
   // soft delete only
   deleted_at: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => ({
-  // Dedup key
-  uniqueInvoicePerCompany: {
-    name: 'uq_invoices_number_company',
-    columns: [table.invoice_number, table.company_id],
-    unique: true,
-  },
+  // Dedup key — sebelumnya format object literal lama (bukan IndexBuilder), jadi
+  // diam-diam tidak pernah ke-generate drizzle-kit. Diganti ke uniqueIndex() yang valid.
+  uniqueInvoicePerCompany: uniqueIndex('uq_invoices_number_company').on(
+    table.invoice_number,
+    table.company_id,
+  ),
+  // Menopang correlated EXISTS/JOIN per-customer di segment.helper.ts (cust_dates,
+  // latest_channel, cteEstablishedCustomers, dst) — tanpa ini, query dashboard dgn
+  // company_id=all (companyScopeIds=undefined → filter company hilang) full-scan
+  // seluruh tabel invoices per customer dan menggantung tanpa timeout.
+  idxCustomerInvoiceDate: index('idx_invoices_customer_invoice_date')
+    .on(table.customer_id, table.invoice_date)
+    .where(sql`deleted_at is null`),
+  idxCompanyInvoiceDate: index('idx_invoices_company_invoice_date')
+    .on(table.company_id, table.invoice_date)
+    .where(sql`deleted_at is null`),
 }))
 
 export type Invoice = typeof invoices.$inferSelect

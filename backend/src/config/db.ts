@@ -37,8 +37,14 @@ const client = postgres(env.DATABASE_URL, {
   connect_timeout: 10,
   onnotice: () => {},
   ssl: isLocalDb ? false : 'require',
-  // Paksa timezone WIB agar CURRENT_DATE konsisten dengan server (UTC+7)
-  connection: { TimeZone: 'Asia/Jakarta' },
+  connection: {
+    // Paksa timezone WIB agar CURRENT_DATE konsisten dengan server (UTC+7)
+    TimeZone: 'Asia/Jakarta',
+    // Safety net: query nyasar (mis. dashboard company_id=all tanpa index yang tepat)
+    // gagal cepat dgn error 500 yg jelas, bukan menggantung diam-diam sampai koneksi
+    // diputus browser/proxy (lihat bug dashboard timeout, task002).
+    statement_timeout: 20000,
+  },
 })
 
 // Drizzle ORM instance dengan full schema
