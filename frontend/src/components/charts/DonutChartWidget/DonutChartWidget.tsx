@@ -44,7 +44,9 @@ export const DonutChartWidget = ({
       </Box>
 
       <Box sx={{ position: 'relative' }}>
-        <ResponsiveContainer width="100%" height={height} debounce={200}>
+        {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
+            (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
+        <ResponsiveContainer width="100%" height={height} debounce={260}>
           <PieChart onClick={onChartClick} style={onChartClick ? { cursor: 'pointer' } : undefined}>
             <Pie
               data={data}
