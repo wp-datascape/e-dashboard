@@ -33,12 +33,18 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
 
   return (
     <>
+      {/* width: xs:'100%' — tiap field FULL WIDTH di mobile, bukan cuma minWidth tetap.
+          Efeknya: dalam Stack/Box row + flexWrap:'wrap' (dipakai di 9 halaman pemanggil),
+          field 100% lebar otomatis "memaksa" baris baru sendiri - hasilnya stack rapi
+          1 kolom di mobile TANPA perlu ubah direction parent jadi column secara terpisah
+          di tiap halaman. Sebelumnya cuma minWidth (150-160px), di layar sempit 2 field
+          muat berdampingan lewat wrap tapi keduanya kepotong/numpuk tidak rata. */}
       {showCompanyFilter && (
         <TextField
           select size={size} label={t('common.filters.entity')}
           value={companyId}
           onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          sx={{ minWidth: 160, ...sx }}
+          sx={{ width: { xs: '100%', sm: 160 }, ...sx }}
         >
           <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
           {companies.map((c) => (
@@ -52,7 +58,7 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           select size={size} label={t('common.branch')}
           value={branchId}
           onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          sx={{ minWidth: 150, ...sx }}
+          sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
         >
           <MenuItem value="all">{t('common.all')}</MenuItem>
           {branchOptions.map((b) => (
@@ -66,7 +72,7 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           select size={size} label={t('customers.detail.division')}
           value={division}
           onChange={(e) => setDivision(e.target.value as typeof division)}
-          sx={{ minWidth: 150, ...sx }}
+          sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
         >
           <MenuItem value="">{t('common.all')}</MenuItem>
           {divisionOptions.map((opt) => (
