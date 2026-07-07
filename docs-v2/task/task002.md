@@ -225,7 +225,42 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   sebelum CI disentuh (utang teknis lama, belum pernah ke-gate). Semua diperbaiki di akar
   masalahnya (bukan disable rule) — lihat commit "fix(frontend): perbaiki 19 error ESLint".
   Diverifikasi: 2x run CI (`gh run watch`) sampai hijau penuh kedua job.
-- [ ] F2. **Stage 2 — Dependency scanning**: tambah step `bun audit --audit-level=high` ke workflow yang sama + file `.github/dependabot.yml` (scan `backend/` dan `frontend/` terpisah)
+- [x] F2. **Stage 2 — Dependency scanning ✅ Selesai (2026-07-07)**: step "Dependency audit"
+  (`bun audit --audit-level=high`) ditambah ke kedua job (backend setelah typecheck,
+  frontend setelah lint) + `.github/dependabot.yml` — package-ecosystem **`"bun"`**
+  (BUKAN `"npm"` — dicek langsung ke source `dependabot-core`, ada ekosistem khusus bun
+  dengan parser `bun.lock` sendiri) untuk `backend/` dan `frontend/` terpisah, plus
+  `github-actions` untuk workflow file, semua interval mingguan.
+
+  **3 kerentanan high-severity yang sudah ada ditemukan & diperbaiki lebih dulu** (supaya
+  gate baru ini tidak langsung merah, sama seperti pola Stage 1 dengan lint):
+  - `drizzle-orm` <0.45.2 (SQL injection via improperly escaped identifiers) → upgrade ke
+    0.45.2 (+ `drizzle-kit` 0.22→0.31.10 mengikuti). Dicek dulu: codebase cuma pakai query
+    builder biasa (`select/insert/update/delete`), bukan Relational Query API — area
+    breaking change utama Drizzle di rentang versi ini. Diverifikasi: typecheck bersih,
+    38 test tetap lolos, `drizzle-kit generate` "No schema changes".
+  - `xlsx` (SheetJS) <0.19.3 (prototype pollution + ReDoS) — fix-nya **tidak pernah
+    dipublish ke npm**, cuma lewat CDN resmi SheetJS. Frontend: dicek ternyata dependency
+    MATI (tidak ada satu pun `import` xlsx di source, cuma disebut sebagai string biasa) —
+    dihapus. Backend: benar dipakai (import faktur/user/classification/channel-division +
+    parser generik) tapi cuma API inti stabil (`read/write/utils.*`) — ganti sumber ke
+    `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` (cara install resmi
+    didokumentasikan SheetJS sendiri). Diverifikasi fungsional nyata (bukan cuma test
+    otomatis): upload file `.xlsx` asli via `POST /users/import` sukses, download
+    template via `GET /users/template` menghasilkan file Excel valid.
+
+  **Pending — butuh aksi manual user** (bukan sesuatu yang bisa diaktifkan lewat kode):
+  `bun audit` di CI sudah jalan independen dan terverifikasi hijau, TAPI fitur native
+  GitHub "Dependabot alerts" masih **disabled di level repository**
+  (`gh api repos/.../dependabot/alerts` → 403 "Dependabot alerts are disabled for this
+  repository"). File `dependabot.yml` sudah benar tapi PR update mingguan otomatis baru
+  akan jalan setelah user aktifkan toggle di
+  `https://github.com/wp-datascape/e-dashboard/settings/security_analysis` → nyalakan
+  **"Dependabot alerts"** dan **"Dependabot security updates"** (butuh akses admin repo,
+  tidak bisa dilakukan via API/CLI oleh Claude). Cara pakai: setelah aktif, GitHub akan
+  otomatis buka PR mingguan tiap ada dependency baru + tab Security mulai menampilkan
+  alert kerentanan secara real-time (terpisah dari `bun audit` di CI yang cuma jalan
+  saat push/PR).
 - [ ] F3. **Stage 3 — Notifikasi Telegram**: kirim pesan ke Telegram (Task E) saat CI gagal di `main`, bot token disimpan di GitHub Secrets (bukan hardcode di YAML)
 - [ ] F4. **Stage 4 (opsional)**: branch protection rule di GitHub — `main` tidak bisa di-merge kalau CI gagal
 
