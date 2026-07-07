@@ -111,7 +111,7 @@ export function HighMarginDialog({
               }}
               renderGroup={(params) => (
                 <li key={params.key}>
-                  <ListSubheader sx={{ lineHeight: '32px', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', bgcolor: 'grey.50' }}>
+                  <ListSubheader component="div" sx={{ lineHeight: '32px', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', bgcolor: 'grey.50' }}>
                     {params.group === 'category' ? t('highMargin.targetCategory') : t('highMargin.targetProduct')}
                   </ListSubheader>
                   <ul style={{ padding: 0 }}>{params.children}</ul>
