@@ -10,8 +10,16 @@ interface ThemeToggleProps {
   sx?: SxProps<Theme>;
 }
 
-const KNOB_SIZE = 24;
+const KNOB_SIZE = 22;
 const TRACK_PADDING = 4;
+// KNOB_OFFSET (bukan TRACK_PADDING langsung) - beri slack 1px di semua sisi antara
+// knob dan tepi track. Sebelumnya KNOB_SIZE=24 pas PERSIS dengan tinggi area dalam
+// track (32 - 2*TRACK_PADDING = 24), knob (lingkaran radius 12) jadi tangent PAS di
+// radius ujung track yang dibulatkan (radius sama, 12) - toleransi rendering NOL.
+// Sub-pixel rounding yang beda antar browser/device (paling kentara di mobile,
+// DPR 2x/3x) bikin knob kelihatan "kepotong"/tidak presisi pas di ujung track.
+// Slack 1px menghilangkan situasi tangent-pas-di-radius yang rapuh itu.
+const KNOB_OFFSET = TRACK_PADDING + 1;
 const SLIDE_DISTANCE = 32; // jarak knob geser kiri<->kanan
 
 /**
@@ -83,8 +91,8 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
       <Box
         sx={{
           position: 'absolute',
-          top: TRACK_PADDING,
-          left: TRACK_PADDING,
+          top: KNOB_OFFSET,
+          left: KNOB_OFFSET,
           width: KNOB_SIZE,
           height: KNOB_SIZE,
           borderRadius: '50%',
@@ -105,8 +113,8 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
       <Box
         sx={{
           position: 'absolute',
-          top: TRACK_PADDING,
-          left: TRACK_PADDING,
+          top: KNOB_OFFSET,
+          left: KNOB_OFFSET,
           width: KNOB_SIZE,
           height: KNOB_SIZE,
           borderRadius: '50%',
