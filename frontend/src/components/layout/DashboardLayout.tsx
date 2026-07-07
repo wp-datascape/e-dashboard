@@ -59,6 +59,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <Toolbar sx={{ mb: 'env(safe-area-inset-top)' }} />
 
         {/* ── Page content (scrollable) ───────────────── */}
+        {/* contain:'layout' — batasi SCOPE reflow saat sidebar toggle. Tanpa ini,
+            browser recalc layout turun sampai ke setiap card/grid/chart di dalam main
+            setiap frame animasi width sidebar. Dengan containment, main jadi formatting
+            context independen — browser cuma perlu tahu UKURAN LUAR main berubah,
+            tidak perlu re-layout detail SEMUA descendant sedalam-dalamnya tiap frame.
+            Aman dipakai di sini karena main sudah dapat ukuran dari flexGrow:1 (bukan
+            shrink-to-fit konten), syarat utama contain:layout. */}
         <Box
           component="main"
           sx={{
@@ -66,6 +73,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             overflow: 'auto',
             p: { xs: 2, sm: 3 },
             bgcolor: 'background.default',
+            contain: 'layout',
           }}
         >
           {children}

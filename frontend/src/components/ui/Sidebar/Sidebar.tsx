@@ -261,6 +261,11 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           overflowX: 'hidden',
+          // will-change: 'width' — hint browser siapkan compositing layer lebih awal
+          // sebelum transisi mulai. Dipasang permanen di sini (BUKAN di banyak
+          // elemen/card - itu yang harus dihindari, boros memori GPU) karena ini cuma
+          // 1 elemen navigasi tunggal yang memang selalu jadi sumber animasi ini.
+          willChange: 'width',
           transition: (theme) =>
             theme.transitions.create('width', {
               easing: theme.transitions.easing.sharp,
