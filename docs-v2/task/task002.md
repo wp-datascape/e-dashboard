@@ -225,7 +225,10 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
   sebelum CI disentuh (utang teknis lama, belum pernah ke-gate). Semua diperbaiki di akar
   masalahnya (bukan disable rule) — lihat commit "fix(frontend): perbaiki 19 error ESLint".
   Diverifikasi: 2x run CI (`gh run watch`) sampai hijau penuh kedua job.
-- [x] F2. **Stage 2 — Dependency scanning ✅ Selesai (2026-07-07)**: step "Dependency audit"
+- [ ] F2. **Stage 2 — Dependency scanning ⚠️ Sebagian selesai (2026-07-07)** — bagian kode
+  (CI gate) sudah jalan, TAPI belum selesai penuh: aktivasi Dependabot alerts di GitHub
+  Settings masih pending (lihat detail di bawah), jadi belum dicentang selesai. Step
+  "Dependency audit"
   (`bun audit --audit-level=high`) ditambah ke kedua job (backend setelah typecheck,
   frontend setelah lint) + `.github/dependabot.yml` — package-ecosystem **`"bun"`**
   (BUKAN `"npm"` — dicek langsung ke source `dependabot-core`, ada ekosistem khusus bun
