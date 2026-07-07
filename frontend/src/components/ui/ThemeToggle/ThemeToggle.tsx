@@ -19,19 +19,51 @@ const SLIDE_DISTANCE = 32; // jarak knob geser kiri<->kanan
  * (moon aktif di kiri saat dark, sun aktif di kanan saat light — icon "hantu" yang
  * meredup geser ke posisi sebaliknya). Warna sengaja hardcode zinc/gray (bukan ikut
  * palette tema) — ini look monokrom yang disengaja, independen dari accent color user.
+ *
+ * Ganti tema dibungkus document.startViewTransition() — animasi lingkaran membesar
+ * dari titik toggle diklik, SATU animasi utuh untuk seluruh halaman (lihat
+ * index.css @keyframes theme-circle-reveal), bukan transisi CSS per-komponen yang
+ * sebelumnya terbukti tidak serempak. Browser tanpa dukungan View Transitions API
+ * (belum ada di semua browser) otomatis fallback ke ganti instan, tanpa efek samping.
  */
 export function ThemeToggle({ sx }: ThemeToggleProps) {
   const { t } = useTranslation();
   const { toggleTheme, isDark } = useThemeMode();
 
+  const handleToggle = (e: { clientX: number; clientY: number }) => {
+    const supportsViewTransition = typeof document.startViewTransition === 'function';
+    if (!supportsViewTransition) {
+      toggleTheme();
+      return;
+    }
+
+    const x = e.clientX;
+    const y = e.clientY;
+    const radius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y),
+    );
+    document.documentElement.style.setProperty('--vt-x', `${x}px`);
+    document.documentElement.style.setProperty('--vt-y', `${y}px`);
+    document.documentElement.style.setProperty('--vt-radius', `${radius}px`);
+
+    document.startViewTransition(() => {
+      toggleTheme();
+    });
+  };
+
   return (
     <Box
-      onClick={toggleTheme}
+      onClick={handleToggle}
       role="button"
       tabIndex={0}
       aria-label={isDark ? t('common.lightMode') : t('common.darkMode')}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTheme(); }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const rect = e.currentTarget.getBoundingClientRect();
+          handleToggle({ clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 });
+        }
       }}
       sx={{
         position: 'relative',

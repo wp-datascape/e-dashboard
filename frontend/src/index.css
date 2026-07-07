@@ -58,6 +58,37 @@
   box-sizing: border-box;
 }
 
+/* ─── Toggle tema — circular reveal (View Transitions API) ──────────────────
+   Dipicu dari ThemeToggle.tsx via document.startViewTransition(). --vt-x/--vt-y/
+   --vt-radius di-set ke posisi klik tombol toggle SEBELUM transisi dipanggil.
+   Matikan animasi bawaan browser (cross-fade default) - ganti pakai clip-path
+   circle yang membesar dari titik klik, satu animasi utuh untuk SELURUH
+   halaman (bukan per-komponen) karena View Transitions bekerja di level
+   screenshot before/after, bukan CSS transition per elemen. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+  animation: theme-circle-reveal 0.5s ease-in-out;
+}
+
+@keyframes theme-circle-reveal {
+  from {
+    clip-path: circle(0px at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--vt-radius, 150%) at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+
 body {
   margin: 0;
 }
