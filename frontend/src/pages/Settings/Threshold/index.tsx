@@ -13,6 +13,7 @@ import TableHead from '@mui/material/TableHead'
 import TableBody from '@mui/material/TableBody'
 import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
+import Switch from '@mui/material/Switch'
 import InputAdornment from '@mui/material/InputAdornment'
 import Tooltip from '@mui/material/Tooltip'
 import EditIcon from '@mui/icons-material/Edit'
@@ -111,6 +112,31 @@ function EditableMonthCell({ item, onSave }: { item: ConfigItem; onSave: (key: s
   )
 }
 
+// Config yang value-nya literal 'true'/'false' (mis. feature flag) di-render sebagai
+// Switch, bukan text/number field — field number generik menolak input non-numerik
+// jadi 'true'/'false' tidak pernah bisa diketik ulang lewat UI itu.
+function BooleanConfigRow({ item }: { item: ConfigItem }) {
+  const { mutate, isPending } = useUpdateConfig()
+  const can = useCan()
+  const checked = item.value === 'true'
+  const handleToggle = () => mutate({ key: item.key, value: checked ? 'false' : 'true' })
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
+      <Box sx={{ flex: 2 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.key}</Typography>
+        {item.description && <Typography variant="caption" color="text.secondary">{item.description}</Typography>}
+      </Box>
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Chip label={checked ? 'true' : 'false'} size="small" color={checked ? 'success' : 'default'} variant="outlined" />
+        {isPending
+          ? <CircularProgress size={20} />
+          : <Switch checked={checked} onChange={handleToggle} size="small" disabled={!can('settings.threshold:update')} />}
+      </Box>
+      <Box sx={{ width: 40 }} />
+    </Box>
+  )
+}
+
 function ConfigRow({ item }: { item: ConfigItem }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
@@ -119,6 +145,7 @@ function ConfigRow({ item }: { item: ConfigItem }) {
   const can = useCan()
   const handleSave = () => mutate({ key: item.key, value: draft }, { onSuccess: () => setEditing(false), onError: () => setDraft(item.value) })
   const handleCancel = () => { setDraft(item.value); setEditing(false) }
+  if (item.value === 'true' || item.value === 'false') return <BooleanConfigRow item={item} />
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
       <Box sx={{ flex: 2 }}>

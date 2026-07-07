@@ -9,6 +9,9 @@
  *
  * Sets on context:
  *   c.var.user        — JwtPayload (userId, email, companyIds, isSuperAdmin)
+ *                        + branchScopes, divisionScopes, enforcementEnabled
+ *                        (isolasi data Branch/Division, lihat docs-v2/task/task001.md
+ *                        Task B + feature flag rollout Task F2/F3)
  *   c.var.permissions — string[] of permission names
  */
 
@@ -17,7 +20,29 @@ import { getCookie } from 'hono/cookie'
 import { AppError, ErrorCode } from '@/errors'
 import { verifyToken } from '@/utils/jwt'
 import { validateCsrfToken } from '@/utils/csrf'
-import { getUserPermissions, getUserCompanyIds } from '@/features/auth/auth.repository'
+import { findConfigByKey } from '@/features/config/config.repository'
+import {
+  getUserPermissions,
+  getUserCompanyIds,
+  getUserBranchScopes,
+  getUserDivisionScopes,
+  getUserTokenVersion,
+} from '@/features/auth/auth.repository'
+
+const ENFORCEMENT_CONFIG_KEY = 'branch_division_enforcement_enabled'
+
+/**
+ * Feature flag rollout bertahap (docs-v2/task/task001.md Task F2/F3) — safety valve
+ * supaya branch/division enforcement TIDAK langsung aktif untuk semua orang begitu
+ * kode ini di-deploy. Default OFF (config belum ada / value != 'true') — enforcement
+ * bypass total, perilaku persis sebelum task ini (cuma company scope yang berlaku).
+ * Admin nyalakan lewat PATCH /api/v1/config/branch_division_enforcement_enabled
+ * (endpoint config generik yang sudah ada, tidak perlu UI baru).
+ */
+async function isEnforcementEnabled(): Promise<boolean> {
+  const config = await findConfigByKey(ENFORCEMENT_CONFIG_KEY)
+  return config?.value === 'true'
+}
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -54,6 +79,78 @@ export function assertCompanyAccess(c: Context, companyId: number | 'all'): void
   resolveCompanyScope(c, companyId)
 }
 
+/**
+ * Resolve branch scope — child dari company scope (docs-v2/task/task001.md §4.2).
+ *
+ * Returns:
+ *   undefined                    → superadmin → bypass, lihat semua branch
+ *   Map<company_id, branch_id[]> → non-superadmin, cuma company+branch yang di-assign eksplisit
+ *                                   (map kosong / company tidak ada di key = default deny total company itu)
+ *
+ * Input companyScopeIds = hasil resolveCompanyScope() — branch di company yang SUDAH
+ * tersaring di luar companyScopeIds ikut tersaring juga di sini.
+ */
+export function resolveBranchScope(
+  c: Context,
+  companyScopeIds: number[] | undefined,
+): Map<number, number[]> | undefined {
+  const { branchScopes, isSuperAdmin, enforcementEnabled } = c.var.user
+  if (isSuperAdmin || !enforcementEnabled) return undefined
+
+  const map = new Map<number, number[]>()
+  for (const { company_id, branch_id } of branchScopes as { company_id: number; branch_id: number }[]) {
+    if (companyScopeIds && !companyScopeIds.includes(company_id)) continue
+    if (!map.has(company_id)) map.set(company_id, [])
+    map.get(company_id)!.push(branch_id)
+  }
+  return map
+}
+
+/**
+ * Resolve division scope — child dari branch scope, BUKAN company scope (docs-v2/task/task001.md §4.2).
+ *
+ * Input branchScope = hasil resolveBranchScope() (bukan companyScopeIds) — division cuma
+ * bermakna dalam branch yang SUDAH lolos resolveBranchScope. Kalau branchScope bypass
+ * (undefined, superadmin), division ikut bypass otomatis.
+ */
+export function resolveDivisionScope(
+  c: Context,
+  branchScope: Map<number, number[]> | undefined,
+): Map<number, string[]> | undefined {
+  const { divisionScopes, isSuperAdmin, enforcementEnabled } = c.var.user
+  if (isSuperAdmin || !enforcementEnabled) return undefined
+
+  const allowedBranchIds = new Set(branchScope ? [...branchScope.values()].flat() : [])
+  const map = new Map<number, string[]>()
+  for (const { branch_id, division } of divisionScopes as { branch_id: number; division: string }[]) {
+    if (!allowedBranchIds.has(branch_id)) continue
+    if (!map.has(branch_id)) map.set(branch_id, [])
+    map.get(branch_id)!.push(division)
+  }
+  return map
+}
+
+/**
+ * Validasi filter branch_id yang di-request eksplisit lewat query param (BUKAN
+ * enforcement scope, tapi filter laporan opsional — mirror `business_unit`/`company_id`
+ * yang sudah ada). branchScope = hasil resolveBranchScope() di atas.
+ *
+ * undefined (bypass) → lolos apa pun. Map (enforcement aktif) → branchId harus ada
+ * di salah satu company yang di-assign user, kalau tidak throw 403 (bukan silently
+ * kosong — user perlu tahu filter yang dipilih memang bukan haknya, bukan cuma
+ * kebetulan tidak ada data).
+ */
+export function assertBranchFilterAccess(
+  branchScope: Map<number, number[]> | undefined,
+  branchId: number,
+): void {
+  if (!branchScope) return
+  const allowedBranchIds = new Set([...branchScope.values()].flat())
+  if (!allowedBranchIds.has(branchId)) {
+    throw new AppError(ErrorCode.FORBIDDEN, 'Akses ke branch ini tidak diizinkan', 403)
+  }
+}
+
 export function authMiddleware() {
   return async (c: Context, next: Next) => {
     const token = getCookie(c, 'access_token')
@@ -69,12 +166,23 @@ export function authMiddleware() {
       }
     }
 
-    const [permissions, companyIds] = await Promise.all([
+    const [permissions, companyIds, branchScopes, divisionScopes, enforcementEnabled, currentTokenVersion] = await Promise.all([
       getUserPermissions(payload.userId),
       getUserCompanyIds(payload.userId),
+      getUserBranchScopes(payload.userId),
+      getUserDivisionScopes(payload.userId),
+      isEnforcementEnabled(),
+      getUserTokenVersion(payload.userId),
     ])
 
-    c.set('user', { ...payload, companyIds })
+    // Invalidasi sesi (Task002 Task D) — access token yang diterbitkan SEBELUM password
+    // direset punya tokenVersion lama; begitu password direset (token_version di-increment
+    // di DB), token lama otomatis ditolak di request berikutnya walau belum expired.
+    if (currentTokenVersion === null || payload.tokenVersion !== currentTokenVersion) {
+      throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid, silakan login ulang', 401)
+    }
+
+    c.set('user', { ...payload, companyIds, branchScopes, divisionScopes, enforcementEnabled })
     c.set('permissions', permissions)
 
     await next()

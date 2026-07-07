@@ -21,13 +21,14 @@ import type { Role, Permission } from '@/types/rbac';
 // Urutan tampilan action yang dikenal — action di luar daftar ini (kalau ada
 // suffix permission baru di masa depan) tetap muncul lewat fallback label,
 // cuma urutannya di akhir.
-const KNOWN_ACTION_ORDER = ['menu', 'view', 'create', 'update', 'delete', 'export', 'import', 'reset', 'test'];
+const KNOWN_ACTION_ORDER = ['menu', 'view', 'create', 'update', 'delete', 'unlock', 'export', 'import', 'reset', 'test'];
 const ACTION_LABEL_KEYS: Record<string, string> = {
   menu: 'actionMenu',
   view: 'actionView',
   create: 'actionCreate',
   update: 'actionUpdate',
   delete: 'actionDelete',
+  unlock: 'actionUnlock',
   export: 'actionExport',
   import: 'actionImport',
   reset: 'actionReset',

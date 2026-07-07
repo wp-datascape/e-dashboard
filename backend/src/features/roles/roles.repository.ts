@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { roles, rolePermissions, permissions } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
-import type { NewRole } from '@/db/schema/roles'
+import type { NewRole } from '@/db/schema'
 
 type RoleWithPermissions = {
   id: number

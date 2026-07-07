@@ -1,10 +1,16 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export interface AvgCategoryRepoParams {
   cid: number          // 0 = semua company
+  companyScopeIds?: number[]
   periodEnd: string    // YYYY-MM-DD = akhir bulan dari period_month
   activeWindow: number // jumlah bulan window aktif (rolling)
+  division?: string | null   // filter laporan (mirror business_unit di metrics lain)
+  branchFilter?: number | null // filter laporan (mirror branch_id di metrics lain)
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 export interface AvgCategoryTrendRow {
@@ -13,9 +19,14 @@ export interface AvgCategoryTrendRow {
 }
 
 // Rolling avg jumlah kategori produk berbeda per customer aktif, per titik bulan (12 bulan terakhir).
-// Pola sama dengan fetchCrossSellingTrend (m1.repository.ts) tapi tanpa filter division —
-// ProductTrendParams tidak punya field division.
+// Pola sama dengan fetchCrossSellingTrend (m1.repository.ts).
 export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<AvgCategoryTrendRow[]> {
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
+
   const rawRows = await db.execute(sql`
     WITH
     months AS (
@@ -36,12 +47,19 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
       JOIN invoice_items ii ON ii.invoice_id = i.id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND c.is_placeholder = false
         AND i.invoice_date >  ${p.periodEnd}::date - INTERVAL '12 months'
         AND i.invoice_date <= ${p.periodEnd}::date
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND ii.product_category_id IS NOT NULL
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     ),
     monthly AS (
       SELECT

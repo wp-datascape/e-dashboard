@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -35,18 +35,27 @@ export function HighMarginDialog({
   const [effectiveUntil, setEffectiveUntil] = useState('')
   const [note, setNote] = useState('')
 
-  useEffect(() => {
-    if (!open) return
-    if (mode === 'edit' && selected) {
-      setEffectiveUntil(selected.effective_until ?? '')
-      setNote(selected.note ?? '')
-    } else {
-      setTargetOption(null)
-      setEffectiveFrom('')
-      setEffectiveUntil('')
-      setNote('')
+  // Populate form saat dialog dibuka — pola "adjust state during render" (bukan
+  // useEffect), sama seperti DivisionMappingDialog.tsx. syncedKey direset ke null
+  // tiap dialog tertutup, supaya buka lagi selalu sinkron ulang dari data terbaru.
+  const [syncedKey, setSyncedKey] = useState<string | null>(null)
+  if (!open) {
+    if (syncedKey !== null) setSyncedKey(null)
+  } else {
+    const currentKey = `${mode}:${selected?.id ?? 'new'}`
+    if (currentKey !== syncedKey) {
+      setSyncedKey(currentKey)
+      if (mode === 'edit' && selected) {
+        setEffectiveUntil(selected.effective_until ?? '')
+        setNote(selected.note ?? '')
+      } else {
+        setTargetOption(null)
+        setEffectiveFrom('')
+        setEffectiveUntil('')
+        setNote('')
+      }
     }
-  }, [open, mode, selected])
+  }
 
   const handleSubmit = () => {
     if (mode === 'create') {
@@ -102,7 +111,7 @@ export function HighMarginDialog({
               }}
               renderGroup={(params) => (
                 <li key={params.key}>
-                  <ListSubheader sx={{ lineHeight: '32px', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', bgcolor: 'grey.50' }}>
+                  <ListSubheader component="div" sx={{ lineHeight: '32px', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', bgcolor: 'grey.50' }}>
                     {params.group === 'category' ? t('highMargin.targetCategory') : t('highMargin.targetProduct')}
                   </ListSubheader>
                   <ul style={{ padding: 0 }}>{params.children}</ul>

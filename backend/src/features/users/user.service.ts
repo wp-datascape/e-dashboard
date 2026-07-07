@@ -5,6 +5,7 @@ import { isDuplicateError } from '@/utils/response'
 import { hashPassword } from '@/utils/hash'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
+import { sendTelegramAlert } from '@/utils/telegram'
 import type { Context } from 'hono'
 import type { PaginationQuery } from '@/utils/validator'
 import {
@@ -14,19 +15,28 @@ import {
   createUser,
   updateUser,
   softDeleteUser,
+  unlockUserAccount,
+  incrementTokenVersion,
   replaceUserRoles,
   replaceUserCompanies,
+  replaceUserAssignments,
 } from './user.repository'
 import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
 import type { CreateUserDto, UpdateUserDto } from './user.schema'
 
-export async function getUsers(query: PaginationQuery) {
-  return findAllUsers(query)
+// Task002 Task E — role berwenang tinggi, dipakai deteksi aksi sensitif utk alert Telegram
+const HIGH_PRIVILEGE_ROLES = new Set(['superadmin', 'admin'])
+function hasHighPrivilegeRole(roles: Array<{ name: string }> | undefined): boolean {
+  return roles?.some((r) => HIGH_PRIVILEGE_ROLES.has(r.name)) ?? false
 }
 
-export async function getUserById(id: number) {
-  const user = await findUserById(id)
+export async function getUsers(query: PaginationQuery, viewerIsSuperAdmin: boolean) {
+  return findAllUsers(query, !viewerIsSuperAdmin)
+}
+
+export async function getUserById(id: number, viewerIsSuperAdmin: boolean) {
+  const user = await findUserById(id, !viewerIsSuperAdmin)
   if (!user) throw new AppError(ErrorCode.NOT_FOUND, 'User not found', 404)
   return user
 }
@@ -36,21 +46,21 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
     const existing = await findUserByEmail(dto.email)
     if (existing) throw new AppError(ErrorCode.DUPLICATE_ENTRY, 'Email already in use', 409)
 
-    const { role_ids, company_ids, ...userData } = dto
+    const { role_ids, company_assignments, ...userData } = dto
     const hashed = await hashPassword(userData.password)
     const user = await createUser({ ...userData, password: hashed })
 
-    // Role & company sengaja di-assign di sini (bukan cuma insert users) —
-    // sebelumnya kedua field ini dikirim frontend tapi tidak ada di schema,
+    // Role & company assignment sengaja di-assign di sini (bukan cuma insert users) —
+    // sebelumnya field ini dikirim frontend tapi tidak ada di schema,
     // jadi di-strip diam-diam oleh Zod dan user baru selalu tanpa role/company.
     if (role_ids && role_ids.length > 0) {
       await replaceUserRoles(user!.id, role_ids)
     }
-    if (company_ids && company_ids.length > 0) {
-      await replaceUserCompanies(user!.id, company_ids)
+    if (company_assignments && company_assignments.length > 0) {
+      await replaceUserAssignments(user!.id, company_assignments)
     }
 
-    const created = await findUserById(user!.id)
+    const created = await findUserById(user!.id, !ctx.var.user.isSuperAdmin)
 
     logger.info('[user] User created', { id: user!.id, email: dto.email })
 
@@ -58,7 +68,7 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
       action: 'user.create',
       entity: 'users',
       entityId: user!.id,
-      companyId: company_ids?.[0] ?? null,
+      companyId: company_assignments?.[0]?.company_id ?? null,
       newValue: {
         id: user!.id,
         email: user!.email,
@@ -67,6 +77,14 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
         companies: (created?.companies as Array<{ id: number; code: string }> | undefined)?.map(c => ({ id: c.id, code: c.code })),
       },
     })
+
+    // Task002 Task E — privilege escalation: user baru langsung dibuat dengan role berwenang tinggi
+    if (hasHighPrivilegeRole(created?.roles as Array<{ name: string }> | undefined)) {
+      const roleNames = (created?.roles as Array<{ name: string }>).map((r) => r.name).join(', ')
+      void sendTelegramAlert(
+        `*User baru dengan role berwenang tinggi*\nEmail: \`${user!.email}\`\nRole: \`${roleNames}\`\nDibuat oleh: \`${ctx.var.user.email}\``,
+      )
+    }
 
     return created
   } catch (err) {
@@ -78,10 +96,10 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
 
 export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Context) {
   // Ambil state sebelum update untuk oldValue
-  const before = await getUserById(id)
+  const before = await getUserById(id, ctx.var.user.isSuperAdmin)
 
   // Extract relation fields before updating user data
-  const { role_ids, company_ids, ...userData } = dto
+  const { role_ids, company_assignments, ...userData } = dto
 
   // Hash password baru kalau admin reset password user ini
   const passwordReset = userData.password !== undefined
@@ -92,18 +110,24 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
   // Update user basic fields
   await updateUser(id, userData)
 
+  // Invalidasi sesi (Task002 Task D) — password direset -> semua token lama (access &
+  // refresh, di device manapun) otomatis invalid di request berikutnya
+  if (passwordReset) {
+    await incrementTokenVersion(id)
+  }
+
   // Sync roles if provided
   if (role_ids !== undefined) {
     await replaceUserRoles(id, role_ids)
   }
 
-  // Sync companies if provided
-  if (company_ids !== undefined) {
-    await replaceUserCompanies(id, company_ids)
+  // Sync company/branch/division assignment if provided
+  if (company_assignments !== undefined) {
+    await replaceUserAssignments(id, company_assignments)
   }
 
   // Re-fetch dengan relasi (state setelah update)
-  const after = await findUserById(id)
+  const after = await findUserById(id, !ctx.var.user.isSuperAdmin)
 
   // Ambil companyId dari company pertama user (default context)
   const companyId = (before.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null
@@ -135,11 +159,31 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
     },
   })
 
+  // Task002 Task E — privilege escalation: role berwenang tinggi BARU didapat (belum
+  // punya sebelumnya) - bukan cuma "masih punya", supaya tidak spam tiap update lain
+  // ke user yang MEMANG SUDAH admin/superadmin dari awal.
+  const hadHighPrivilegeBefore = hasHighPrivilegeRole(before.roles as Array<{ name: string }> | undefined)
+  const hasHighPrivilegeAfter = hasHighPrivilegeRole(after?.roles as Array<{ name: string }> | undefined)
+  if (role_ids !== undefined && !hadHighPrivilegeBefore && hasHighPrivilegeAfter) {
+    const roleNames = (after?.roles as Array<{ name: string }>).map((r) => r.name).join(', ')
+    void sendTelegramAlert(
+      `*Privilege escalation*\nUser: \`${before.email}\`\nRole baru: \`${roleNames}\`\nDiubah oleh: \`${ctx.var.user.email}\``,
+    )
+  }
+
+  // Task002 Task E — reset password ke akun admin/superadmin (bukan ke user biasa,
+  // supaya tidak spam kalau admin reset password banyak user biasa sekaligus)
+  if (passwordReset && hadHighPrivilegeBefore) {
+    void sendTelegramAlert(
+      `*Reset password akun berwenang tinggi*\nUser: \`${before.email}\`\nDireset oleh: \`${ctx.var.user.email}\``,
+    )
+  }
+
   return after
 }
 
 export async function deleteUserService(id: number, ctx: Context) {
-  const user = await getUserById(id)
+  const user = await getUserById(id, ctx.var.user.isSuperAdmin)
 
   if (user.roles?.some(r => (r as Record<string, unknown>).is_system)) {
     throw new AppError(ErrorCode.FORBIDDEN, 'Cannot delete a user with a system role', 403)
@@ -157,6 +201,43 @@ export async function deleteUserService(id: number, ctx: Context) {
     companyId,
     oldValue: { id: user.id, email: user.email, name: user.name },
   })
+
+  // Task002 Task E — hapus akun berwenang tinggi (superadmin sebenarnya sudah diblokir
+  // di atas via is_system, tapi role 'admin' TIDAK is_system - jalur ini masih tercapai)
+  if (hasHighPrivilegeRole(user.roles as Array<{ name: string }> | undefined)) {
+    void sendTelegramAlert(
+      `*User berwenang tinggi dihapus*\nEmail: \`${user.email}\`\nDihapus oleh: \`${ctx.var.user.email}\``,
+    )
+  }
+}
+
+/**
+ * Unlock manual oleh admin (Task002 Task C4) — reset failed_login_count/locked_until
+ * SEBELUM auto-unlock (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES) habis. Aksi sensitif
+ * (bisa dipakai buka akses akun yang sengaja dikunci karena dicurigai brute force),
+ * jadi tetap tercatat di audit log seperti mutasi user lain.
+ */
+export async function unlockUserService(id: number, ctx: Context) {
+  const user = await getUserById(id, ctx.var.user.isSuperAdmin)
+
+  await unlockUserAccount(id)
+  logger.info('[user] User account unlocked', { id })
+
+  await logAudit(ctx, {
+    action: 'user.unlock',
+    entity: 'users',
+    entityId: id,
+    companyId: (user.companies as Array<{ id: number }> | undefined)?.[0]?.id ?? null,
+    oldValue: { id: user.id, email: user.email },
+  })
+
+  // Task002 Task E — unlock manual selalu di-alert (aksi jarang & sengaja, jejak siapa
+  // membuka kunci akun yang terkunci karena dicurigai brute force)
+  void sendTelegramAlert(
+    `*Akun di-unlock manual*\nEmail: \`${user.email}\`\nDibuka oleh: \`${ctx.var.user.email}\``,
+  )
+
+  return getUserById(id, ctx.var.user.isSuperAdmin)
 }
 
 // ─── Bulk import (template upload) ─────────────────────────────────────────────

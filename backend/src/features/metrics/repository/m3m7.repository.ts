@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export type TrendRow = {
   month: string
@@ -34,7 +35,11 @@ export type TrendRow = {
  * active   = ada invoice dalam activeMonths sebelum akhir bulan (subset existing)
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
-  const { cid, filterDate, activeMonths, dormantMonths, division } = p
+  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds } = p
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH
@@ -64,8 +69,11 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${dormantMonths}::int * INTERVAL '1 month'
@@ -87,10 +95,13 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${activeMonths}::int * INTERVAL '1 month'
@@ -106,7 +117,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       CROSS JOIN months m
       JOIN first_inv fi ON fi.customer_id = c.id
       WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
         -- not new: first invoice sebelum active cutoff bulan ini
         AND fi.first_date < (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
                             - ${activeMonths}::int * INTERVAL '1 month'
@@ -175,7 +186,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       CROSS JOIN months m
       JOIN first_inv fi ON fi.customer_id = c.id
       WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
         AND fi.first_date >= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
                             - ${activeMonths}::int * INTERVAL '1 month'
         AND fi.first_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')

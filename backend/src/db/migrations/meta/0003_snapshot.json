@@ -1,11 +1,11 @@
 {
-  "id": "e2630f4f-340d-4637-b675-ad94f7761849",
+  "id": "dcb2a5c1-2215-4efc-90f8-11b6f72bad39",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.companies": {
-      "name": "companies",
+    "public.audit_logs": {
+      "name": "audit_logs",
       "schema": "",
       "columns": {
         "id": {
@@ -14,149 +14,65 @@
           "primaryKey": true,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "companies_code_unique": {
-          "name": "companies_code_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
-        }
-      }
-    },
-    "public.users": {
-      "name": "users",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password": {
-          "name": "password",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_login_at": {
-          "name": "last_login_at",
-          "type": "timestamp with time zone",
+        "actor_id": {
+          "name": "actor_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        }
-      }
-    },
-    "public.roles": {
-      "name": "roles",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
+        "action": {
+          "name": "action",
           "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
-          "type": "text",
+        "entity": {
+          "name": "entity",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "is_system": {
-          "name": "is_system",
-          "type": "boolean",
+        "old_value": {
+          "name": "old_value",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": false
+        },
+        "new_value": {
+          "name": "new_value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meta": {
+          "name": "meta",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "varchar(45)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -164,27 +80,39 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "roles_name_unique": {
-          "name": "roles_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+      "foreignKeys": {
+        "audit_logs_actor_id_users_id_fk": {
+          "name": "audit_logs_actor_id_users_id_fk",
+          "tableFrom": "audit_logs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "audit_logs_company_id_companies_id_fk": {
+          "name": "audit_logs_company_id_companies_id_fk",
+          "tableFrom": "audit_logs",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
-      }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
     },
     "public.permissions": {
       "name": "permissions",
@@ -306,21 +234,34 @@
       },
       "uniqueConstraints": {}
     },
-    "public.user_roles": {
-      "name": "user_roles",
+    "public.roles": {
+      "name": "roles",
       "schema": "",
       "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "integer",
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "role_id": {
-          "name": "role_id",
-          "type": "integer",
+        "description": {
+          "name": "description",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "is_system": {
+          "name": "is_system",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -328,47 +269,27 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "user_roles_user_id_users_id_fk": {
-          "name": "user_roles_user_id_users_id_fk",
-          "tableFrom": "user_roles",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "user_roles_role_id_roles_id_fk": {
-          "name": "user_roles_role_id_roles_id_fk",
-          "tableFrom": "user_roles",
-          "tableTo": "roles",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "user_roles_user_id_role_id_pk": {
-          "name": "user_roles_user_id_role_id_pk",
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "roles_name_unique": {
+          "name": "roles_name_unique",
+          "nullsNotDistinct": false,
           "columns": [
-            "user_id",
-            "role_id"
+            "name"
           ]
         }
-      },
-      "uniqueConstraints": {}
+      }
     },
     "public.user_companies": {
       "name": "user_companies",
@@ -434,126 +355,21 @@
       },
       "uniqueConstraints": {}
     },
-    "public.page_settings": {
-      "name": "page_settings",
+    "public.user_roles": {
+      "name": "user_roles",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "page_key": {
-          "name": "page_key",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ready": {
-          "name": "ready",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "page_settings_page_key_unique": {
-          "name": "page_settings_page_key_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "page_key"
-          ]
-        }
-      }
-    },
-    "public.audit_logs": {
-      "name": "audit_logs",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "actor_id": {
-          "name": "actor_id",
+        "user_id": {
+          "name": "user_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
-        },
-        "action": {
-          "name": "action",
-          "type": "varchar(100)",
-          "primaryKey": false,
           "notNull": true
         },
-        "entity": {
-          "name": "entity",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "company_id": {
-          "name": "company_id",
+        "role_id": {
+          "name": "role_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
-        },
-        "old_value": {
-          "name": "old_value",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "new_value": {
-          "name": "new_value",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "meta": {
-          "name": "meta",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ip_address": {
-          "name": "ip_address",
-          "type": "varchar(45)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -565,38 +381,46 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "audit_logs_actor_id_users_id_fk": {
-          "name": "audit_logs_actor_id_users_id_fk",
-          "tableFrom": "audit_logs",
+        "user_roles_user_id_users_id_fk": {
+          "name": "user_roles_user_id_users_id_fk",
+          "tableFrom": "user_roles",
           "tableTo": "users",
           "columnsFrom": [
-            "actor_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "audit_logs_company_id_companies_id_fk": {
-          "name": "audit_logs_company_id_companies_id_fk",
-          "tableFrom": "audit_logs",
-          "tableTo": "companies",
+        "user_roles_role_id_roles_id_fk": {
+          "name": "user_roles_role_id_roles_id_fk",
+          "tableFrom": "user_roles",
+          "tableTo": "roles",
           "columnsFrom": [
-            "company_id"
+            "role_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "user_roles_user_id_role_id_pk": {
+          "name": "user_roles_user_id_role_id_pk",
+          "columns": [
+            "user_id",
+            "role_id"
+          ]
+        }
+      },
       "uniqueConstraints": {}
     },
-    "public.company_branches": {
-      "name": "company_branches",
+    "public.users": {
+      "name": "users",
       "schema": "",
       "columns": {
         "id": {
@@ -605,21 +429,21 @@
           "primaryKey": true,
           "notNull": true
         },
-        "company_id": {
-          "name": "company_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "name": {
           "name": "name",
-          "type": "varchar(100)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "varchar(50)",
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
@@ -643,32 +467,29 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "company_branches_company_id_companies_id_fk": {
-          "name": "company_branches_company_id_companies_id_fk",
-          "tableFrom": "company_branches",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "unq_company_branch_code": {
-          "name": "unq_company_branch_code",
+        "users_email_unique": {
+          "name": "users_email_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "company_id",
-            "code"
+            "email"
           ]
         }
       }
@@ -861,6 +682,558 @@
         }
       }
     },
+    "public.companies": {
+      "name": "companies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "companies_code_unique": {
+          "name": "companies_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      }
+    },
+    "public.company_branches": {
+      "name": "company_branches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "company_branches_company_id_companies_id_fk": {
+          "name": "company_branches_company_id_companies_id_fk",
+          "tableFrom": "company_branches",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "unq_company_branch_code": {
+          "name": "unq_company_branch_code",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "code"
+          ]
+        }
+      }
+    },
+    "public.user_branches": {
+      "name": "user_branches",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_branches_user_id_users_id_fk": {
+          "name": "user_branches_user_id_users_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_branches_company_id_companies_id_fk": {
+          "name": "user_branches_company_id_companies_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_branches_branch_id_company_branches_id_fk": {
+          "name": "user_branches_branch_id_company_branches_id_fk",
+          "tableFrom": "user_branches",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_branches_user_id_company_id_branch_id_pk": {
+          "name": "user_branches_user_id_company_id_branch_id_pk",
+          "columns": [
+            "user_id",
+            "company_id",
+            "branch_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "public.user_divisions": {
+      "name": "user_divisions",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division": {
+          "name": "division",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_divisions_user_id_users_id_fk": {
+          "name": "user_divisions_user_id_users_id_fk",
+          "tableFrom": "user_divisions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_divisions_branch_id_company_branches_id_fk": {
+          "name": "user_divisions_branch_id_company_branches_id_fk",
+          "tableFrom": "user_divisions",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_divisions_user_id_branch_id_division_pk": {
+          "name": "user_divisions_user_id_branch_id_division_pk",
+          "columns": [
+            "user_id",
+            "branch_id",
+            "division"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "public.channel_divisions": {
+      "name": "channel_divisions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel_name": {
+          "name": "channel_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division": {
+          "name": "division",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "channel_divisions_company_id_companies_id_fk": {
+          "name": "channel_divisions_company_id_companies_id_fk",
+          "tableFrom": "channel_divisions",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.high_margin_products": {
+      "name": "high_margin_products",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "product_category_id": {
+          "name": "product_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_until": {
+          "name": "effective_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "high_margin_products_company_id_companies_id_fk": {
+          "name": "high_margin_products_company_id_companies_id_fk",
+          "tableFrom": "high_margin_products",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "high_margin_products_product_id_products_id_fk": {
+          "name": "high_margin_products_product_id_products_id_fk",
+          "tableFrom": "high_margin_products",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "high_margin_products_product_category_id_product_categories_id_fk": {
+          "name": "high_margin_products_product_category_id_product_categories_id_fk",
+          "tableFrom": "high_margin_products",
+          "tableTo": "product_categories",
+          "columnsFrom": [
+            "product_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "high_margin_products_created_by_users_id_fk": {
+          "name": "high_margin_products_created_by_users_id_fk",
+          "tableFrom": "high_margin_products",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.item_classification_rules": {
+      "name": "item_classification_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "match_type": {
+          "name": "match_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "match_pattern": {
+          "name": "match_pattern",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_type": {
+          "name": "item_type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "item_classification_rules_company_id_companies_id_fk": {
+          "name": "item_classification_rules_company_id_companies_id_fk",
+          "tableFrom": "item_classification_rules",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
     "public.product_categories": {
       "name": "product_categories",
       "schema": "",
@@ -1035,131 +1408,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "public.high_margin_products": {
-      "name": "high_margin_products",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "product_category_id": {
-          "name": "product_category_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_until": {
-          "name": "effective_until",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "high_margin_products_company_id_companies_id_fk": {
-          "name": "high_margin_products_company_id_companies_id_fk",
-          "tableFrom": "high_margin_products",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "high_margin_products_product_id_products_id_fk": {
-          "name": "high_margin_products_product_id_products_id_fk",
-          "tableFrom": "high_margin_products",
-          "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "high_margin_products_product_category_id_product_categories_id_fk": {
-          "name": "high_margin_products_product_category_id_product_categories_id_fk",
-          "tableFrom": "high_margin_products",
-          "tableTo": "product_categories",
-          "columnsFrom": [
-            "product_category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "high_margin_products_created_by_users_id_fk": {
-          "name": "high_margin_products_created_by_users_id_fk",
-          "tableFrom": "high_margin_products",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
     "public.customers": {
       "name": "customers",
       "schema": "",
@@ -1193,6 +1441,13 @@
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_placeholder": {
+          "name": "is_placeholder",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "first_invoice_date": {
           "name": "first_invoice_date",
@@ -1240,8 +1495,8 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "public.invoices": {
-      "name": "invoices",
+    "public.import_log_errors": {
+      "name": "import_log_errors",
       "schema": "",
       "columns": {
         "id": {
@@ -1249,187 +1504,33 @@
           "type": "serial",
           "primaryKey": true,
           "notNull": true
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invoice_number": {
-          "name": "invoice_number",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invoice_date": {
-          "name": "invoice_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_revenue": {
-          "name": "total_revenue",
-          "type": "numeric(15, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "total_gp": {
-          "name": "total_gp",
-          "type": "numeric(15, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "salesperson_name": {
-          "name": "salesperson_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "branch_name": {
-          "name": "branch_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "business_unit": {
-          "name": "business_unit",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
         },
         "import_log_id": {
           "name": "import_log_id",
           "type": "integer",
           "primaryKey": false,
+          "notNull": true
+        },
+        "row_number": {
+          "name": "row_number",
+          "type": "integer",
+          "primaryKey": false,
           "notNull": false
+        },
+        "raw_data": {
+          "name": "raw_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "invoices_company_id_companies_id_fk": {
-          "name": "invoices_company_id_companies_id_fk",
-          "tableFrom": "invoices",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "invoices_customer_id_customers_id_fk": {
-          "name": "invoices_customer_id_customers_id_fk",
-          "tableFrom": "invoices",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "public.invoice_items": {
-      "name": "invoice_items",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "invoice_id": {
-          "name": "invoice_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "product_category_id": {
-          "name": "product_category_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "unit_price": {
-          "name": "unit_price",
-          "type": "numeric(15, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "revenue": {
-          "name": "revenue",
-          "type": "numeric(15, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "gross_profit": {
-          "name": "gross_profit",
-          "type": "numeric(15, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -1438,43 +1539,17 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "invoice_items_invoice_id_invoices_id_fk": {
-          "name": "invoice_items_invoice_id_invoices_id_fk",
-          "tableFrom": "invoice_items",
-          "tableTo": "invoices",
+        "import_log_errors_import_log_id_import_logs_id_fk": {
+          "name": "import_log_errors_import_log_id_import_logs_id_fk",
+          "tableFrom": "import_log_errors",
+          "tableTo": "import_logs",
           "columnsFrom": [
-            "invoice_id"
+            "import_log_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "invoice_items_product_id_products_id_fk": {
-          "name": "invoice_items_product_id_products_id_fk",
-          "tableFrom": "invoice_items",
-          "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "invoice_items_product_category_id_product_categories_id_fk": {
-          "name": "invoice_items_product_category_id_product_categories_id_fk",
-          "tableFrom": "invoice_items",
-          "tableTo": "product_categories",
-          "columnsFrom": [
-            "product_category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1602,8 +1677,8 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "public.import_log_errors": {
-      "name": "import_log_errors",
+    "public.invoice_items": {
+      "name": "invoice_items",
       "schema": "",
       "columns": {
         "id": {
@@ -1611,30 +1686,190 @@
           "type": "serial",
           "primaryKey": true,
           "notNull": true
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_category_id": {
+          "name": "product_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "revenue": {
+          "name": "revenue",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "gross_profit": {
+          "name": "gross_profit",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invoice_items_invoice_id_invoices_id_fk": {
+          "name": "invoice_items_invoice_id_invoices_id_fk",
+          "tableFrom": "invoice_items",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "invoice_items_product_id_products_id_fk": {
+          "name": "invoice_items_product_id_products_id_fk",
+          "tableFrom": "invoice_items",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "invoice_items_product_category_id_product_categories_id_fk": {
+          "name": "invoice_items_product_category_id_product_categories_id_fk",
+          "tableFrom": "invoice_items",
+          "tableTo": "product_categories",
+          "columnsFrom": [
+            "product_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.invoices": {
+      "name": "invoices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_number": {
+          "name": "invoice_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_date": {
+          "name": "invoice_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_revenue": {
+          "name": "total_revenue",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_gp": {
+          "name": "total_gp",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "channel_name": {
+          "name": "channel_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_name": {
+          "name": "branch_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business_unit": {
+          "name": "business_unit",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
         },
         "import_log_id": {
           "name": "import_log_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
-        },
-        "row_number": {
-          "name": "row_number",
-          "type": "integer",
-          "primaryKey": false,
           "notNull": false
-        },
-        "raw_data": {
-          "name": "raw_data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -1642,29 +1877,68 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "import_log_errors_import_log_id_import_logs_id_fk": {
-          "name": "import_log_errors_import_log_id_import_logs_id_fk",
-          "tableFrom": "import_log_errors",
-          "tableTo": "import_logs",
+        "invoices_company_id_companies_id_fk": {
+          "name": "invoices_company_id_companies_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "companies",
           "columnsFrom": [
-            "import_log_id"
+            "company_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "invoices_customer_id_customers_id_fk": {
+          "name": "invoices_customer_id_customers_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "invoices_branch_id_company_branches_id_fk": {
+          "name": "invoices_branch_id_company_branches_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "company_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "public.item_classification_rules": {
-      "name": "item_classification_rules",
+    "public.page_settings": {
+      "name": "page_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1673,43 +1947,18 @@
           "primaryKey": true,
           "notNull": true
         },
-        "company_id": {
-          "name": "company_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "match_type": {
-          "name": "match_type",
-          "type": "varchar(50)",
+        "page_key": {
+          "name": "page_key",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
-        "match_pattern": {
-          "name": "match_pattern",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_type": {
-          "name": "item_type",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "priority": {
-          "name": "priority",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 50
-        },
-        "is_active": {
-          "name": "is_active",
+        "ready": {
+          "name": "ready",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": true
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -1727,85 +1976,17 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "item_classification_rules_company_id_companies_id_fk": {
-          "name": "item_classification_rules_company_id_companies_id_fk",
-          "tableFrom": "item_classification_rules",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "public.channel_divisions": {
-      "name": "channel_divisions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "salesperson_name": {
-          "name": "salesperson_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "division": {
-          "name": "division",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+      "uniqueConstraints": {
+        "page_settings_page_key_unique": {
+          "name": "page_settings_page_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "page_key"
+          ]
         }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "channel_divisions_company_id_companies_id_fk": {
-          "name": "channel_divisions_company_id_companies_id_fk",
-          "tableFrom": "channel_divisions",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      }
     }
   },
   "enums": {},

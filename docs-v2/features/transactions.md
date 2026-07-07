@@ -211,7 +211,7 @@ Match berdasarkan `product_id` ATAU `product_category_id` (`high_margin_products
 
 - **Backend**: `backend/src/features/transactions/`
 - **Router mount**: `backend/src/router.ts` — `protectedApi.route('/invoices', transactionsRoutes)`
-- **DB Schema**: `backend/src/db/schema/invoices.ts`, `invoice_items.ts`, `import_logs.ts`, `high_margin_products.ts`
+- **DB Schema**: `backend/src/db/schema/schema-transaction.ts` (tables `invoices`, `invoice_items`, `import_logs`), `schema-product.ts` (table `high_margin_products`)
 - **Permission seed**: `backend/src/db/seed.ts` (`transaction:menu/view/export`, kategori "Transaction")
 - **Frontend Types**: `frontend/src/types/transactions.ts`
 - **Frontend Page**: `frontend/src/pages/Transactions/`

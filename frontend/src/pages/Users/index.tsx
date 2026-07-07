@@ -7,6 +7,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
@@ -18,6 +19,7 @@ import {
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
+  useUnlockUser,
 } from '@/hooks/useUsers';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useRoles } from '@/hooks/useRoles';
@@ -49,6 +51,10 @@ const getRoleColor = (roleName: string): StatusChipColor => {
 const isSystemUser = (user: User): boolean =>
   user.roles?.some(r => r.is_system) ?? false;
 
+// Task002 Task C — locked_until di masa depan berarti akun masih terkunci
+const isLocked = (user: User): boolean =>
+  !!user.locked_until && new Date(user.locked_until).getTime() > Date.now();
+
 const fmtDate = (iso: string | null, fallback: string): string => {
   if (!iso) return fallback;
   return new Date(iso).toLocaleDateString('id-ID', {
@@ -74,6 +80,7 @@ export default function Users() {
   const { mutate: createUser, isPending: isCreating, error: createError, reset: resetCreate } = useCreateUser();
   const { mutate: updateUser, isPending: isUpdating, error: updateError, reset: resetUpdate } = useUpdateUser();
   const { mutate: deleteUser, isPending: isDeleting, error: deleteError, reset: resetDelete } = useDeleteUser();
+  const { mutate: unlockUser } = useUnlockUser();
 
   const closeDialog = () => {
     setDialogMode(null);
@@ -129,15 +136,21 @@ export default function Users() {
     {
       field: 'is_active',
       headerName: t('common.status'),
-      width: 105,
-      renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-          <StatusChip
-            label={params.value ? t('common.active') : t('common.inactive')}
-            color={params.value ? 'success' : 'default'}
-          />
-        </Box>
-      ),
+      width: 160,
+      renderCell: (params) => {
+        const user = params.row as User;
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+            <StatusChip
+              label={params.value ? t('common.active') : t('common.inactive')}
+              color={params.value ? 'success' : 'default'}
+            />
+            {isLocked(user) && (
+              <StatusChip label={t('users.locked')} color="error" icon={<LockIcon />} />
+            )}
+          </Box>
+        );
+      },
     },
     {
       field: 'last_login_at',
@@ -165,6 +178,7 @@ export default function Users() {
             items={[
               { label: t('users.view_user'), icon: <VisibilityIcon />, onClick: () => { setSelectedUser(user); setDialogMode('view'); } },
               { label: t('users.editUser'), icon: <EditIcon />, onClick: () => { resetUpdate(); setSelectedUser(user); setDialogMode('edit'); }, hidden: !can('access.user:update') },
+              { label: t('users.unlockUser'), icon: <LockOpenIcon />, onClick: () => unlockUser(user.id), hidden: !isLocked(user) || !can('access.user:unlock') },
               { label: t('users.deleteUser'), icon: <DeleteIcon />, onClick: () => { resetDelete(); setSelectedUser(user); setDialogMode('delete'); }, color: 'error', dividerBefore: true, hidden: isSystemUser(user) || !can('access.user:delete') },
             ]}
           />

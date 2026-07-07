@@ -5,7 +5,8 @@ export const invoicesQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support']).optional(),
+  branch_id: z.coerce.number().int().positive().optional(),
+  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
   customer_search: z.string().optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),

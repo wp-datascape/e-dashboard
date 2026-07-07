@@ -49,6 +49,7 @@ Status   : Frontend ~99% | Backend ~98% | live di production (Railway backend + 
 | Audit Log                  | `features/audit.md`                    |
 | Accurate Integration       | `features/accurate.md`                 |
 | Deployment (Render/Vercel) | `shared/deployment.md`                 |
+| CI/CD (GitHub Actions, dependency audit) | `shared/ci-cd.md`         |
 
 ## Core Business Flow
 Admin imports invoices (CSV/Excel upload OR Accurate API fetch)

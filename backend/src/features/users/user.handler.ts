@@ -5,6 +5,7 @@ import { ErrorCode } from '@/errors'
 import {
   getUsers, getUserById, createUserService,
   updateUserService, deleteUserService,
+  unlockUserService,
   importUsersService, getUsersTemplate,
 } from './user.service'
 import { createUserSchema, updateUserSchema, userIdParamSchema } from './user.schema'
@@ -12,13 +13,13 @@ import { createUserSchema, updateUserSchema, userIdParamSchema } from './user.sc
 export async function handleGetUsers(c: Context) {
   const query = validateQuery(c, paginationSchema)
   const typedQuery = { page: query.page ?? 1, per_page: query.per_page ?? 20, sort: query.sort }
-  const { rows, total } = await getUsers(typedQuery)
+  const { rows, total } = await getUsers(typedQuery, c.var.user.isSuperAdmin)
   return paginated(c, rows, { page: typedQuery.page, per_page: typedQuery.per_page, total })
 }
 
 export async function handleGetUserById(c: Context) {
   const { id } = validateParam(c, userIdParamSchema)
-  const user = await getUserById(id)
+  const user = await getUserById(id, c.var.user.isSuperAdmin)
   return success(c, user)
 }
 
@@ -39,6 +40,12 @@ export async function handleDeleteUser(c: Context) {
   const { id } = validateParam(c, userIdParamSchema)
   await deleteUserService(id, c)
   return noContent(c)
+}
+
+export async function handleUnlockUser(c: Context) {
+  const { id } = validateParam(c, userIdParamSchema)
+  const user = await unlockUserService(id, c)
+  return success(c, user)
 }
 
 export async function handleImportUsers(c: Context) {

@@ -6,7 +6,7 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). Fix logout tidak invalidasi sesi server (sesi 29). PWA installable (service worker + icon, sesi 31), fix status bar iOS + tabel tablet (sesi 33). Semua dialog konsisten pakai komponen `Dialog` bersama — 6 raw MUI Dialog + 4 drawer detail dimigrasikan (sesi 34). **Error API di-i18n via kode (`getApiErrorMessage`), 9 i18n key hilang ditambahkan, audit log action i18n dibangun ulang (13→28 action), fix bug logout redirect 404 (sesi 36)**. |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). **Isolasi data superadmin — List User & Audit Log disembunyikan total dari viewer non-superadmin (sesi 37)**. |
 | Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). |
 | Docs     | ✅ ~100%   | metrics.md, transactions.md, dashboard.md, permissions.md, ui-patterns.md, deployment.md, users.md — lihat riwayat sesi untuk detail per-file. Diaudit & disinkronkan menyeluruh sesi 35 (2026-07-04). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
@@ -271,6 +271,32 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-06 (sesi 37): Isolasi Data Superadmin — List User & Audit Log
+
+**Latar belakang:** permintaan user — data superadmin (List User maupun Audit Log) harus HANYA terlihat oleh sesama superadmin, tidak boleh terlihat `admin` ke bawah walaupun role itu punya permission `access.user:view`/`audit.log:view`.
+
+**Keputusan desain (dikonfirmasi via pertanyaan ke user sebelum implementasi):**
+1. **Role-based visibility**, bukan self-only — sesama superadmin saling terlihat penuh (kalau ada >1 akun superadmin), yang di-block cuma `admin` ke bawah.
+2. **List User:** baris superadmin disembunyikan **total** dari response (bukan field-nya di-mask/disabled).
+3. **Audit Log:** entry dengan aktor superadmin **di-drop total** dari response DAN dari `total`/pagination count (bukan tetap kehitung dengan konten redacted).
+
+**Implementasi:** kondisi `NOT EXISTS` (bukan `notInArray`) ditambahkan ke query — dipilih `NOT EXISTS` supaya kolom nullable (`actor_id` audit log untuk system action) tidak ikut ke-exclude secara salah (`NULL NOT IN (...)` di SQL evaluasinya `UNKNOWN`, bukan `true`).
+- `user.repository.ts` — `findAllUsers(pagination, excludeSuperAdmin)`, `findUserById(id, excludeSuperAdmin)`
+- `audit.repository.ts` — `findAuditLogs(query.excludeSuperAdminActors)`, `findAuditLogById(id, excludeSuperAdminActors)`
+
+Flag diturunkan dari `!c.var.user.isSuperAdmin`, di-thread lewat handler → service → repository di kedua fitur. **Efek samping yang disengaja:** karena `updateUserService`/`deleteUserService` reuse `getUserById`/`findUserById` yang sama untuk ambil state "before", non-superadmin yang mencoba update/delete akun superadmin lewat API otomatis kena `404 NOT_FOUND` juga (bukan cuma tidak terlihat di list).
+
+**Diverifikasi** langsung ke DB lokal (bukan cuma baca kode): `findAllUsers` total 8→7 saat exclude aktif (baris superadmin hilang), `findUserById` return `null` untuk target superadmin, `findAuditLogs` total 13→0 saat exclude aktif. `bunx tsc --noEmit` bersih, 38 test existing tetap pass (0 fail).
+
+**Belum dikerjakan:** sisi frontend (halaman `/users` dan `/audit-log`) belum disesuaikan/diverifikasi visual — murni enforcement backend untuk saat ini.
+
+**File yang diubah:**
+- `backend/src/features/users/{user.repository,user.service,user.handler}.ts`
+- `backend/src/features/audit/{audit.repository,audit.service,audit.handler}.ts`
+- `docs-v2/features/{users,audit}.md`
+
+---
 
 ### 2026-07-04 (sesi 36): i18n Error Handling (Option A) + Audit Log Action i18n + Fix Logout 404
 

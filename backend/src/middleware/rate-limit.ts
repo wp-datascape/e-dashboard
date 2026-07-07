@@ -32,13 +32,26 @@ setInterval(() => {
   }
 }, 60_000).unref()  // .unref() agar tidak mencegah proses exit
 
-function getIp(c: Context): string {
+export function getIp(c: Context): string {
   return (
     c.req.header('cf-connecting-ip') ??
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ??
     c.req.header('x-real-ip') ??
     'unknown'
   )
+}
+
+/**
+ * Key by authenticated user (bukan IP) — dipakai utk endpoint mutasi sensitif
+ * (RBAC/user) yang WAJIB lewat authMiddleware() duluan di chain (Layer 3
+ * `protectedApi.use('*', authMiddleware())` di router.ts), jadi c.var.user
+ * sudah pasti terisi. Rate-limit per-user (bukan per-IP) supaya kantor dengan
+ * banyak admin di 1 IP tidak saling memblokir, tapi 1 akun yang di-abuse/
+ * kompromis tetap dibatasi. Fallback ke IP kalau somehow user belum ada.
+ */
+export function keyByUser(c: Context): string {
+  const userId = c.var.user?.userId
+  return userId ? `user:${userId}` : getIp(c)
 }
 
 export function rateLimit(opts: RateLimitOptions) {

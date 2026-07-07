@@ -16,18 +16,46 @@ import {
   item_classification_rules,
   channel_divisions,
   companies,
+  company_branches,
   users,
 } from '@/db/schema'
-import type { NewInvoice } from '@/db/schema/invoices'
-import type { NewInvoiceItem } from '@/db/schema/invoice_items'
-import type { NewImportLog } from '@/db/schema/import_logs'
-import type { NewImportLogError } from '@/db/schema/import_log_errors'
-import type { NewItemClassificationRule } from '@/db/schema/item_classification_rules'
+import type { NewInvoice, NewInvoiceItem, NewImportLog, NewImportLogError, NewItemClassificationRule } from '@/db/schema'
 
 // ─── Date Helpers ────────────────────────────────────────────────────────────
 
 function toDateString(d: Date): string {
   return d.toISOString().split('T')[0]
+}
+
+// ─── Branch resolution (docs-v2/task/task001.md §4.6) ────────────────────────
+
+/**
+ * Resolve invoices.branch_id dari branch_name teks bebas (hasil Accurate/CSV) saat
+ * import — supaya invoice baru LANGSUNG punya branch_id terisi, tidak perlu jalanin
+ * script backfill manual (backend/scripts/backfill-invoice-branch-id.ts) tiap kali
+ * ada import baru. Match case-insensitive + trim, di-scope per company (branch cuma
+ * valid dalam company yang sama).
+ *
+ * branch_name NULL (Accurate tidak kasih info branch) → fallback ke branch "Lainnya"
+ * milik company itu (row asli, bukan NULL — lihat §4.6). branch_name terisi tapi
+ * tidak match branch manapun → tetap NULL, sinyal data kotor yang perlu diaudit
+ * manual (typo nama branch, dll), BUKAN diperlakukan sama dengan "tidak ada info".
+ */
+export async function findBranchIdByName(companyId: number, branchName: string | null): Promise<number | null> {
+  if (branchName) {
+    const [matched] = await db
+      .select({ id: company_branches.id })
+      .from(company_branches)
+      .where(and(eq(company_branches.company_id, companyId), sql`UPPER(TRIM(${company_branches.name})) = UPPER(TRIM(${branchName}))`))
+      .limit(1)
+    return matched?.id ?? null
+  }
+  const [fallback] = await db
+    .select({ id: company_branches.id })
+    .from(company_branches)
+    .where(and(eq(company_branches.company_id, companyId), eq(company_branches.name, 'Lainnya')))
+    .limit(1)
+  return fallback?.id ?? null
 }
 
 // ─── Import Logs ─────────────────────────────────────────────────────────────
@@ -117,14 +145,20 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
   const upperName = data.customer_name.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
 
-  // Lookup division dari channel_divisions berdasarkan channel_name
+  // Lookup division dari channel_divisions berdasarkan channel_name — di-scope company_id
+  // (rule company-specific menang atas rule global kalau kebetulan ada dua-duanya untuk
+  // channel_name yang sama), supaya tidak salah ambil mapping company lain (Task C8)
   let division: string | null = null
   if (data.channel_name) {
     const upperCh = data.channel_name.trim().toUpperCase()
     const [divRow] = await db
       .select({ division: channel_divisions.division })
       .from(channel_divisions)
-      .where(eq(channel_divisions.channel_name, upperCh))
+      .where(and(
+        eq(channel_divisions.channel_name, upperCh),
+        or(eq(channel_divisions.company_id, data.company_id), isNull(channel_divisions.company_id)),
+      ))
+      .orderBy(sql`${channel_divisions.company_id} IS NULL`)
       .limit(1)
     division = divRow?.division ?? null
   }

@@ -9,6 +9,12 @@ permissions
 user_roles
 role_permissions
 user_companies
+company_branches
+user_branches           -- child dari company_branches (Task001, §4)
+user_divisions          -- child dari company_branches, BUKAN dari companies (Task001, §4)
+accurate_credentials
+business_configs        -- sebelumnya bernama app_configs di draf awal
+item_classification_rules
 product_categories
 products
 customers
@@ -18,9 +24,11 @@ invoice_items
 high_margin_products
 import_logs
 import_log_errors
-metric_cache
+page_settings
 audit_logs
-app_configs
+
+Catatan: `metric_cache` (draf awal) TIDAK pernah diimplementasikan — metrik dihitung
+on-demand tanpa cache tabel terpisah, lihat `db/schema/index.ts` (export dikomentari).
 
 
 ## Core Tables
@@ -145,6 +153,29 @@ UNIQUE (company_id, UPPER(product_name))
 Diisi oleh import parser — setiap item baris faktur upsert ke sini.
 ID di-generate sistem, bukan dari Accurate (data Accurate tidak clean).
 
+### item_classification_rules
+id             serial PK
+
+company_id     FK companies nullable   -- null = global rule (berlaku semua company)
+
+match_type     varchar    -- keyword_item_name | keyword_category | price_range | exact_item_name | exact_category
+
+match_pattern  varchar    -- keyword (UPPERCASE) atau JSON range utk price_range: {"min": 500000}
+
+item_type      varchar    -- unit | consumable | sparepart | service
+
+priority       integer default 50   -- lebih tinggi = lebih prioritas
+
+is_active      boolean default true
+
+created_at     timestamp
+
+updated_at     timestamp
+
+Engine klasifikasi item 4-layer (`utils/classifier.ts`): Layer 1 keyword matching (nama item/
+kategori) → Layer 2 price range heuristic → Layer 3 DB lookup override (tabel ini) → Layer 4
+fallback ke 'unit' + needs_review. `match_pattern` selalu UPPERCASE (dinormalisasi saat input).
+
 ### high_margin_products
 id                   serial PK
 
@@ -209,7 +240,15 @@ total_gp         numeric
 
 channel_name     varchar nullable      -- dari kolom "Nama Tenaga Penjual" Accurate export, disimpan UPPERCASE. Bukan nama orang — nama channel penjualan (DC WEST, TOKOPEDIA, dll)
 
-branch_name      varchar nullable      -- dari kolom "Nama Cabang" Accurate export
+branch_name      varchar nullable      -- dari kolom "Nama Cabang" Accurate export (teks mentah)
+
+branch_id        FK company_branches nullable  -- di-resolve OTOMATIS dari branch_name saat
+                                                -- import (Task001 §3.3/§4.6, fix 2026-07-06,
+                                                -- findBranchIdByName() di import.repository.ts).
+                                                -- branch_name kosong -> fallback branch "Lainnya"
+                                                -- (row asli, bukan NULL). branch_name terisi tapi
+                                                -- tidak match branch manapun -> tetap NULL (sinyal
+                                                -- data kotor/typo, perlu diaudit manual).
 
 import_log_id    FK import_logs nullable
 
@@ -280,26 +319,24 @@ error_message text
 
 created_at    timestamp
 
-### metric_cache
-id            serial PK
+### metric_cache — **TIDAK PERNAH DIIMPLEMENTASIKAN**
+Draf awal (rencana cache per metric/period), tidak jadi dibuat — semua metrik dihitung
+on-demand langsung dari `invoices`/`invoice_items` tiap request, tanpa tabel cache terpisah.
+Struktur di bawah cuma arsip draf, BUKAN tabel yang ada di database:
 
-company_id    FK companies nullable   -- null = holding/all
+~~id            serial PK~~
 
-metric_name   varchar
+~~company_id    FK companies nullable   -- null = holding/all~~
 
-period_month  varchar                 -- YYYY-MM
+~~metric_name   varchar~~
 
-active_window integer                 -- 3 | 6 | 12
+~~period_month  varchar                 -- YYYY-MM~~
 
-value         jsonb
+~~active_window integer                 -- 3 | 6 | 12~~
 
-expires_at    timestamp
+~~value         jsonb~~
 
-created_at    timestamp
-
-updated_at    timestamp
-
-UNIQUE (company_id, metric_name, period_month, active_window)
+~~expires_at    timestamp~~
 
 ### audit_logs
 id          serial PK
@@ -326,16 +363,16 @@ request_id  varchar nullable          -- untuk distributed tracing
 
 created_at  timestamp
 
-### app_configs
+### business_configs
+(nama final — draf awal menyebutnya `app_configs`, key-value global sederhana, BUKAN
+per-company/is_secret seperti draf di bawah; kredensial Accurate malah punya tabel sendiri,
+lihat `accurate_credentials` di atas)
+
 id          serial PK
 
-key         varchar
+key         varchar unique
 
-value       text
-
-company_id  FK companies nullable     -- null = global
-
-is_secret   boolean default false     -- mask as "***" in API response
+value       varchar
 
 description text nullable
 
@@ -343,16 +380,14 @@ created_at  timestamp
 
 updated_at  timestamp
 
-UNIQUE (key, company_id)
-
-Key configs:
-dormant_threshold_months   -- default: 3
-
-high_margin_category_ids   -- comma-separated category IDs
-
-accurate_api_key           -- per company, is_secret=true
-
-accurate_api_url           -- per company
+Key yang sudah di-seed (per 2026-07-06, `db/seed.ts`):
+- `active_window_months` — window bulan "aktif" (default 1)
+- `dormant_threshold_months.b2b_dc` / `.b2b_project` / `.b2c` / `.manufacturing`
+- `repeat_order_target_pct`, `dormant_rate_alert_pct`, `reactivation_target_low_pct`,
+  `reactivation_target_high_pct` — target KPI M6/M8/M10
+- `branch_division_enforcement_enabled` — feature flag rollout Task001 (§F2/F3), default
+  `'false'` (bypass, cuma company scope yang berlaku); toggle via Settings → Threshold atau
+  `PATCH /api/v1/config/:key`
 
 ## Invoice Data Structure (Critical)
 invoices (1 row = 1 invoice header)
@@ -385,9 +420,9 @@ id              serial PK
 
 company_id      FK companies
 
-name            varchar               -- 'Pusat', 'Surabaya', 'Jakarta', 'Semarang'
+name            varchar               -- 'Lainnya', 'Surabaya', 'Jakarta', 'Semarang'
 
-code            varchar               -- 'PUSAT', 'SBY', 'JKT', 'SMG'
+code            varchar               -- 'LAINNYA', 'SBY', 'JKT', 'SMG'
 
 is_active       boolean default true
 
@@ -397,7 +432,48 @@ updated_at      timestamp
 
 UNIQUE (company_id, code)
 
-Tiap company punya minimal 1 branch (Pusat). PT KNT punya 3 branch terpisah karena masing-masing punya Accurate DB sendiri.
+Tiap company punya minimal 1 branch **"Lainnya"** — row ASLI (bukan NULL/virtual), dipakai
+sebagai bucket invoice yang `branch_name`-nya kosong (lihat Task001 §4.6). Revisi 2026-07-06:
+sebelumnya seed pakai "Pusat" sebagai default, ternyata tidak cocok dengan struktur Accurate
+riil (company 1 di produksi punya Jakarta+Surabaya asli, "Pusat" cuma nama generik yang salah) —
+"Pusat" di-repurpose jadi "Lainnya" untuk company yang memang tidak punya branch fisik lain
+(mis. company 3), sementara company yang punya branch riil (Jakarta/Surabaya) tetap dapat
+tambahan "Lainnya" terpisah sebagai bucket "tidak ada info branch". PT KNT punya 3 branch
+terpisah karena masing-masing punya Accurate DB sendiri.
+
+### user_branches
+user_id         FK users
+
+company_id      FK companies          -- redundan dari company_branches.company_id, disimpan
+                                       -- eksplisit utk sanity-check insert + hindari extra JOIN
+
+branch_id       FK company_branches
+
+created_at      timestamp
+
+PRIMARY KEY (user_id, company_id, branch_id)
+
+Kontrol akses level Branch (Task001 §3.1) — child dari Company. User cuma bisa lihat data
+branch yang di-assign eksplisit di sini; tanpa row sama sekali = default-deny total untuk
+company itu (bukan bypass "lihat semua branch").
+
+### user_divisions
+user_id         FK users
+
+branch_id       FK company_branches   -- BUKAN FK companies langsung — division cuma
+                                      -- bermakna dalam konteks satu branch tertentu
+
+division        varchar               -- distribution | project | e_commerce | intercompany
+                                       -- | freelancer | support | other
+
+created_at      timestamp
+
+PRIMARY KEY (user_id, branch_id, division)
+
+Kontrol akses level Division (Task001 §3.2) — child dari Branch, BUKAN child langsung dari
+Company (hierarki: Company -> Branch -> Division). Branch yang diizinkan tapi tidak punya
+row division sama sekali di sini = default-deny berjenjang (child dianggap kosong, bukan
+"tidak dibatasi") — lihat Task001 §4.4.
 
 ### accurate_credentials
 id              serial PK
@@ -439,21 +515,40 @@ id           serial PK
 
 channel_name varchar NOT NULL    -- nama channel UPPERCASE (cocok dengan invoices.channel_name)
 
-division     varchar NOT NULL    -- distribution | project | e_commerce | intercompany | freelancer | support
+division     varchar NOT NULL    -- distribution | project | e_commerce | intercompany | freelancer | support | other
 
 company_id   FK companies nullable  -- null = global rule (berlaku untuk semua company)
 
 created_at   timestamp
 
-SEEDED 21 baris mapping channel_name → division
+**'other'** ("Lainnya") BUKAN row eksplisit di tabel ini — itu nilai fallback via
+`COALESCE(channel_divisions.division, 'other')` di level query (Task001 §4.5, fix 2026-07-06,
+`utils/scope.ts`) untuk invoice yang `channel_name`-nya tidak match rule manapun di bawah.
+Tanpa COALESCE ini, baris ber-division NULL tidak pernah lolos filter scope RBAC meski user
+punya akses 'other' — bug nyata yang ditemukan lewat E2E test (Task001 Task G4).
 
-Mapping:
-- distribution  → DC WEST, DC EAST, DC WEST HEAD, DC EAST HEAD, DC EAST CARD
-- project       → SDR B2B WEST, B2B EAST, KAE WEST, NAS B2B EAST, NAS B2B WEST, B2B EAST CARD, SDR WEST CARD
-- e_commerce    → KASSEN OFFICIAL STORE, TOKOPEDIA, TIKTOKSHOP, LAZADA
-- intercompany  → KODE NIAGA TAMA, CODESHOP
-- freelancer    → SBY UDIN
+25 baris mapping channel_name → division (per 2026-07-06):
+- distribution  → DC EAST, DC EAST CARD, DC EAST HEAD, DC WEST, DC WEST HEAD, HEAD OF DC EAST, HEAD OF DC WEST, SAMPLE ORDER
+- project       → B2B EAST, B2B EAST CARD, KAE WEST, NAS B2B EAST, NAS B2B WEST, SDR B2B WEST, SDR WEST CARD
+- e_commerce    → KASSEN OFFICIAL STORE, LAZADA, TIKTOKSHOP, TOKOPEDIA
+- intercompany  → CODESHOP, KODE NIAGA TAMA
+- freelancer    → FREELANCER SBY UDIN, SBY UDIN
 - support       → SALES SUPPORT, SALES SUPPORT JKT
+
+### page_settings
+id          serial PK
+
+page_key    varchar unique   -- lowercase-with-dashes, e.g. 'dashboard', 'products-trend'
+
+ready       boolean default false   -- default false (safer — hidden sampai eksplisit ready)
+
+created_at  timestamp
+
+updated_at  timestamp
+
+Frontend cek `ready=true` sebelum render halaman; kalau `false` tampil "Under Maintenance"/
+kosong. Tidak ada FK ke tabel lain. Diatur lewat Settings → Feature Config di admin panel
+(beda dari `business_configs` — ini soal visibility MENU, bukan konfigurasi bisnis).
 
 ---
 
@@ -465,11 +560,24 @@ projects table           -- B2B project milestone tracking (confirm if MVP)
 
 ### Channel Division Filter (IMPLEMENTED):
 - `invoices.channel_name` (dari "Nama Tenaga Penjual" Accurate) → JOIN `channel_divisions.channel_name` → `channel_divisions.division`
-- Query param `business_unit` di `GET /customers` filter via `channel_divisions.division`
-- Nilai valid: `distribution | project | e_commerce | intercompany | freelancer | support`
+- Query param `business_unit`/`division` di hampir semua endpoint (customers, transactions,
+  dashboard, metrics) filter via `COALESCE(channel_divisions.division, 'other')`
+- Nilai valid: `distribution | project | e_commerce | intercompany | freelancer | support | other`
+
+### Branch Filter (IMPLEMENTED, Task001 §H2/H4, 2026-07-06):
+- `invoices.branch_id` (di-resolve otomatis dari `branch_name` saat import — lihat section
+  `invoices` di atas) → filter langsung via query param `branch_id`
+- Diterapkan di hampir semua halaman/endpoint: Customers, Transactions, Dashboard, Cross
+  Selling, Dormant Customer, Customer Metrics, Product Trend, High Margin, Products
+  (Category Performance). Dropdown filter di frontend mengikuti level akses user sendiri
+  (`useMyScope()`/`useScopedCompanyFilter()`) — beda dari `branchScope` RBAC enforcement,
+  ini murni filter laporan opsional.
+- Validasi akses: `assertBranchFilterAccess()` (`middleware/auth.ts`) — 403 kalau `branch_id`
+  yang diminta bukan hak user (bukan silently return kosong).
 
 ### Cara filter dashboard ke depan:
 ```
-GET /api/metrics/m1?company_id=1&period_month=2024-03&business_unit=distribution
+GET /api/v1/metrics/cross-selling?company_id=1&branch_id=6&period_end=2026-07-05&division=distribution
 ```
-Filter ini optional — jika tidak dikirim, hitung semua division.
+Filter `branch_id`/`division` optional — jika tidak dikirim, hitung semua branch/division
+dalam scope akses user (bukan berarti bypass RBAC, cuma tidak dipersempit lebih lanjut).

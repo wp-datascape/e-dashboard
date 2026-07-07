@@ -11,7 +11,8 @@ import type { TooltipContentProps } from 'recharts';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
-import { fmtRp, SectionLabel, Row } from './helpers';
+import { fmtRp } from './helpers';
+import { SectionLabel, Row } from './HelperComponents';
 
 function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();

@@ -72,6 +72,17 @@ Kolom wajib yang diparse (nama persis di template):
 
 Parser mendeteksi baris header secara dinamis (scan 10 baris pertama) — file boleh punya metadata/baris judul di atas header tanpa memengaruhi parsing.
 
+**Resolve `invoices.branch_id` otomatis (2026-07-06, docs-v2/task/task001.md §4.6)** — selain
+menyimpan `branch_name` mentah, saat create/update invoice sistem juga langsung resolve
+`branch_id` lewat `findBranchIdByName()` (`import.repository.ts`), di-cache per batch:
+- `branch_name` cocok (case-insensitive + trim) ke `company_branches.name` company itu → pakai id-nya.
+- `branch_name` kosong/NULL → fallback ke branch "Lainnya" milik company itu (row asli, bukan NULL).
+- `branch_name` terisi tapi tidak match branch manapun → `branch_id` tetap NULL (sinyal data
+  kotor/typo yang perlu diaudit manual, beda dari kasus "memang tidak ada info branch").
+
+Tidak perlu lagi jalankan script backfill manual (`backend/scripts/backfill-invoice-branch-id.ts`)
+setelah import baru — cuma relevan untuk invoice LAMA yang sudah ada sebelum fix ini.
+
 ---
 
 ## File Structure
@@ -352,7 +363,7 @@ Accurate memiliki `customer_code` — kode unik per customer yang stabil dan tid
 |------|-----------|
 | `backend/src/utils/parser.ts` | Tambah kolom `customer_code` ke `InvoiceRow` |
 | `backend/src/features/import/import.repository.ts` | `upsertCustomer()` — ubah dedup logic: cari by `customer_code` dulu, fallback ke name |
-| `backend/src/db/schema/customers.ts` | `customer_code` jadikan NOT NULL (setelah backfill) |
+| `backend/src/db/schema/schema-transaction.ts` (table `customers`) | `customer_code` jadikan NOT NULL (setelah backfill) |
 | `backend/src/features/customers/customers.repository.ts` | Ganti `last_invoice_date` dengan live query `MAX(invoices.invoice_date)` |
 
 **Dependency:**
@@ -363,7 +374,7 @@ Fix halaman Customer (ganti `last_invoice_date` stale dengan live query dari `in
 ## References
 
 - **Backend**: `backend/src/features/import/`
-- **DB Schema**: `backend/src/db/schema/import_logs.ts`
+- **DB Schema**: `backend/src/db/schema/schema-transaction.ts` (table `import_logs`)
 - **Utils**: `backend/src/utils/parser.ts` (parseCsv, parseExcel)
 - **Classification Rules + Import**: `features/classification.md`
 - **Channel Divisions + Import**: `features/channel-divisions.md`

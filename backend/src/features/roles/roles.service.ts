@@ -3,6 +3,7 @@ import { AppError, ErrorCode } from '@/errors'
 import { isDuplicateError } from '@/utils/response'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
+import { sendTelegramAlert } from '@/utils/telegram'
 import {
   findAllRoles,
   findRoleById,
@@ -106,4 +107,10 @@ export async function deleteRoleService(id: number, ctx: Context) {
     companyId: null,
     oldValue: { id: existing.id, name: existing.name },
   })
+
+  // Task002 Task E — hapus role selalu di-alert (aksi jarang, berdampak ke semua user
+  // yang sebelumnya punya role ini)
+  void sendTelegramAlert(
+    `*Role dihapus*\nRole: \`${existing.name}\`\nDihapus oleh: \`${ctx.var.user.email}\``,
+  )
 }

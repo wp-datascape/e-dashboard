@@ -1,14 +1,18 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export interface CustomerProductsRepoParams {
   cid: number
+  companyScopeIds?: number[]
   customerId: number
   categoryId?: number
   periodEnd: string
   activeWindow: number
   page: number
   perPage: number
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 export interface CustomerProductDbRow {
@@ -30,6 +34,9 @@ export async function fetchCustomerProducts(
   const catFilter = p.categoryId
     ? sql`AND ii.product_category_id = ${p.categoryId}`
     : sql``
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
 
   const rows = await db.execute(sql`
     SELECT
@@ -47,13 +54,18 @@ export async function fetchCustomerProducts(
     JOIN customers          c  ON c.id  = i.customer_id
     JOIN products           pr ON pr.id = ii.product_id
     JOIN product_categories pc ON pc.id = ii.product_category_id
+    LEFT JOIN channel_divisions cd
+      ON cd.channel_name = i.channel_name
+      AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
     WHERE i.deleted_at    IS NULL
       AND c.is_placeholder = false
       AND i.customer_id   = ${p.customerId}
-      AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+      AND ${companyCondI}
       AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.periodEnd}::date
       AND ii.product_category_id IS NOT NULL
+      AND ${branchCond}
+      AND ${divisionScopeCond}
       ${catFilter}
     GROUP BY pr.id, pr.product_name, pc.id, pc.name
     ORDER BY total_revenue DESC NULLS LAST

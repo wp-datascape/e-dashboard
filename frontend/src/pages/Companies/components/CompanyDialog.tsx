@@ -12,7 +12,7 @@ import type { Company, CreateCompanyPayload, UpdateCompanyPayload } from '@/type
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payload: any) => void;
+  onSubmit: (payload: CreateCompanyPayload | UpdateCompanyPayload | undefined) => void;
   isPending: boolean;
   error: ApiError | null;
   mode: 'create' | 'edit' | 'delete';

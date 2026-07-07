@@ -4,11 +4,14 @@ import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { useProductTrend } from '@/hooks/useProducts'
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget'
 
 function todayMonth(): string {
@@ -20,8 +23,17 @@ export default function ProductsTrend() {
   const theme = useTheme()
   const { t } = useTranslation()
 
+  const {
+    companies, showCompanyFilter,
+    companyId, setCompanyId,
+    branchId, setBranchId, branchOptions, showBranchFilter,
+    division, setDivision, divisionOptions,
+  } = useScopedCompanyFilter()
+
   const { data, isLoading } = useProductTrend({
-    company_id: 'all',
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    division: division || undefined,
     period_month: todayMonth(),
   })
 
@@ -31,12 +43,48 @@ export default function ProductsTrend() {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
-        {t('productsTrend.title')}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {t('productsTrend.subtitle')}
-      </Typography>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-start' },
+        justifyContent: 'space-between',
+        gap: 2,
+        mb: 3,
+      }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+            {t('productsTrend.title')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {t('productsTrend.subtitle')}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+          {showCompanyFilter && (
+            <TextField select size="small" label={t('common.company')} value={companyId} onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 180 }}>
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {companies.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+          {showBranchFilter && (
+            <TextField select size="small" label={t('common.branch')} value={branchId} onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {branchOptions.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+          <TextField select size="small" label={t('customers.detail.division')} value={division} onChange={(e) => setDivision(e.target.value as typeof division)} sx={{ minWidth: 160 }}>
+            <MenuItem value="">{t('common.all')}</MenuItem>
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      </Box>
 
       {/* KPI Row */}
       <Grid container spacing={2} sx={{ mb: 3 }}>

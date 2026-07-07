@@ -16,11 +16,11 @@
 
 import { Hono } from 'hono'
 import type { Hono as HonoType } from 'hono'
-import { cors } from 'hono/cors'
 import { env } from '@/config/env'
 import { registerErrorHandlers } from '@/errors'
 import { requestIdMiddleware } from '@/middleware/requestId'
 import { requestLogger } from '@/middleware/requestLogger'
+import { securityHeadersMiddleware, corsMiddleware } from '@/middleware/security'
 import { authMiddleware } from '@/middleware/auth'
 import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
@@ -62,15 +62,11 @@ export function createRouter(app: HonoType): void {
   registerErrorHandlers(app)
 
   // ─── LAYER 1: Global — semua request ────────────────────────────────────────
+  // Konfigurasi security headers + CORS ada di middleware/security.ts (Task002 §3 Task A)
   app.use('*', requestIdMiddleware)
   app.use('*', requestLogger)
-  app.use(
-    '*',
-    cors({
-      origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
-      credentials: true,
-    }),
-  )
+  app.use('*', securityHeadersMiddleware)
+  app.use('*', corsMiddleware)
 
   // ─── LAYER 2: Public routes — tidak butuh auth ──────────────────────────────
   app.route('/api/v1/auth', authRoutes)

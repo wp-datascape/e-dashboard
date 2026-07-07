@@ -44,6 +44,16 @@ const envSchema = z.object({
 
   // Encryption
   CREDENTIALS_ENCRYPTION_KEY: z.string().min(32, 'CREDENTIALS_ENCRYPTION_KEY must be at least 32 characters'),
+
+  // Account Lockout (Task002 Task C — konfigurasi via ENV, bukan hardcode, supaya
+  // threshold/durasi bisa diubah tanpa deploy kode baru)
+  ACCOUNT_LOCKOUT_THRESHOLD: z.coerce.number().int().positive().default(5),
+  ACCOUNT_LOCKOUT_DURATION_MINUTES: z.coerce.number().int().positive().default(30),
+
+  // Telegram Alert (Task002 Task E) — optional: kalau tidak diisi, sendTelegramAlert()
+  // no-op (skip diam-diam, tidak crash) supaya env lain (test/CI) tidak wajib setup bot.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

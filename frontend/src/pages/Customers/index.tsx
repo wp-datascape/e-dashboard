@@ -8,9 +8,8 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useCompanies } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
-import type { CustomerStatus, Division, CustomerRow } from '@/types/customers';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import type { CustomerStatus, CustomerRow, Division } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
@@ -19,14 +18,17 @@ import { formatIDR } from '@/utils/format';
 export default function Customers() {
   const { t } = useTranslation();
 
-  const { data: companies = [] } = useCompanies();
-  const showCompanyFilter = companies.length > 1;
-  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
+  const {
+    companies, showCompanyFilter,
+    companyId: companyFilter, setCompanyId: setCompanyFilter,
+    branchId: branchFilter, setBranchId: setBranchFilter, branchOptions, showBranchFilter,
+    division: divisionFilter, setDivision: setDivisionFilter, divisionOptions,
+  } = useScopedCompanyFilter();
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
-  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('');
-  const divisionOptions = useDivisionOptions(companyFilter);
+
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -40,13 +42,20 @@ export default function Customers() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset ke halaman 1 setiap kali filter berubah
-  useEffect(() => {
+  // Reset ke halaman 1 setiap kali filter berubah — pakai pola "adjust state during
+  // render" (dibandingkan ref filterKey sebelumnya), BUKAN useEffect terpisah, karena
+  // sumber perubahannya banyak (5 filter independen dari beberapa tempat berbeda,
+  // termasuk hook useScopedCompanyFilter) - tidak praktis digabung ke satu handler.
+  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [debouncedSearch, statusFilter, divisionFilter, companyFilter]);
+  }
 
   const queryParams = {
     company_id: companyFilter,
+    branch_id: branchFilter === 'all' ? undefined : branchFilter,
     search: debouncedSearch || undefined,
     status: (statusFilter || undefined) as CustomerStatus | undefined,
     business_unit: divisionFilter || undefined,
@@ -92,6 +101,14 @@ export default function Customers() {
             <MenuItem value="all">{t('common.all')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+        )}
+        {showBranchFilter && (
+          <TextField select size="small" label={t('common.branch')} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} sx={{ minWidth: 160 }}>
+            <MenuItem value="all">{t('common.all')}</MenuItem>
+            {branchOptions.map((b) => (
+              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
             ))}
           </TextField>
         )}

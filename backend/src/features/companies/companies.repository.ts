@@ -2,7 +2,7 @@ import { eq, sql, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { companies, company_branches } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
-import type { NewCompany } from '@/db/schema/companies'
+import type { NewCompany } from '@/db/schema'
 
 export async function findAllCompanies(companyIds?: number[]) {
   if (companyIds !== undefined && companyIds.length === 0) return []

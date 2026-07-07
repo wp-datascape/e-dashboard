@@ -39,6 +39,54 @@ interface EditableBranch {
   isEditing?: boolean;
 }
 
+// Komponen top-level (BUKAN didefinisikan di dalam BranchSection) — kalau didefinisikan
+// di dalam, identitasnya baru terbentuk ulang tiap render induk, bikin React menganggap
+// ini komponen BEDA tiap kali (full remount, TextField kehilangan fokus tiap ketik).
+function BranchEditForm({
+  name, code,
+  onNameChange, onCodeChange,
+  onSave, onCancel,
+  isPending,
+}: {
+  name: string; code: string;
+  onNameChange: (v: string) => void; onCodeChange: (v: string) => void;
+  onSave: () => void; onCancel: () => void;
+  isPending: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+      <TextField
+        size="small"
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder={t('companies.branchManagement.namePlaceholder')}
+        sx={{ flex: 1 }}
+      />
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          value={code}
+          onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
+          placeholder={t('companies.branchManagement.codePlaceholder')}
+          slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
+          sx={{ flex: { xs: 1, sm: 'none' }, width: { xs: 'auto', sm: 100 } }}
+        />
+        <Tooltip title={t('common.save')}>
+          <IconButton size="small" color="primary" onClick={onSave} disabled={isPending}>
+            <CheckIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('common.cancel')}>
+          <IconButton size="small" onClick={onCancel} disabled={isPending}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    </Box>
+  );
+}
+
 export function BranchSection({ open, onClose, company }: Props) {
   const { t } = useTranslation();
   const can = useCan();
@@ -117,47 +165,6 @@ export function BranchSection({ open, onClose, company }: Props) {
     borderRadius: 1,
   }
 
-  // Edit/Add form — stacks vertically on mobile
-  const EditForm = ({
-    name, code,
-    onNameChange, onCodeChange,
-    onSave, onCancel,
-  }: {
-    name: string; code: string;
-    onNameChange: (v: string) => void; onCodeChange: (v: string) => void;
-    onSave: () => void; onCancel: () => void;
-  }) => (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
-      <TextField
-        size="small"
-        value={name}
-        onChange={(e) => onNameChange(e.target.value)}
-        placeholder={t('companies.branchManagement.namePlaceholder')}
-        sx={{ flex: 1 }}
-      />
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-        <TextField
-          size="small"
-          value={code}
-          onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
-          placeholder={t('companies.branchManagement.codePlaceholder')}
-          slotProps={{ htmlInput: { style: { textTransform: 'uppercase' } } }}
-          sx={{ flex: { xs: 1, sm: 'none' }, width: { xs: 'auto', sm: 100 } }}
-        />
-        <Tooltip title={t('common.save')}>
-          <IconButton size="small" color="primary" onClick={onSave} disabled={isPending}>
-            <CheckIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t('common.cancel')}>
-          <IconButton size="small" onClick={onCancel} disabled={isPending}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    </Box>
-  )
-
   return (
     <Dialog
       open={open}
@@ -180,13 +187,14 @@ export function BranchSection({ open, onClose, company }: Props) {
             return (
               <Box key={branch.id} sx={cardSx}>
                 {isEditing ? (
-                  <EditForm
+                  <BranchEditForm
                     name={editValues.name}
                     code={editValues.code}
                     onNameChange={(v) => setEditValues((p) => ({ ...p, name: v }))}
                     onCodeChange={(v) => setEditValues((p) => ({ ...p, code: v }))}
                     onSave={() => handleSaveEdit(branch.id)}
                     onCancel={handleCancelEdit}
+                    isPending={isPending}
                   />
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 }, alignItems: { sm: 'center' } }}>
@@ -229,13 +237,14 @@ export function BranchSection({ open, onClose, company }: Props) {
             }}
           >
             {newBranch ? (
-              <EditForm
+              <BranchEditForm
                 name={newBranch.name}
                 code={newBranch.code}
                 onNameChange={(v) => setNewBranch((p) => ({ ...p!, name: v }))}
                 onCodeChange={(v) => setNewBranch((p) => ({ ...p!, code: v }))}
                 onSave={handleCreateBranch}
                 onCancel={() => setNewBranch(null)}
+                isPending={isPending}
               />
             ) : can('settings.branch:create') ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

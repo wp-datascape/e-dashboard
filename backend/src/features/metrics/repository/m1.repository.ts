@@ -2,6 +2,7 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 // active = new + active_existing = semua yang ada invoice dalam active_window (SSOT segment.helper)
 const CS_INV_CTE = (p: SegmentParams) => sql`
@@ -16,8 +17,11 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
       AND c.is_placeholder = false
       AND i.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.filterDate}::date
-      AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+      AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
       AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+      AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+      AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
+      AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
   )
 `
 
@@ -88,8 +92,11 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
         AND c.is_placeholder = false
         AND i.invoice_date >  ${p.filterDate}::date - INTERVAL '12 months'
         AND i.invoice_date <= ${p.filterDate}::date
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
         AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
+        AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
         AND ii.product_category_id IS NOT NULL
     ),
     monthly AS (

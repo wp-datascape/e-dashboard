@@ -1,23 +1,33 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 // ─── Params ───────────────────────────────────────────────────────────────────
 
 export interface HmDetailRepoParams {
   cid: number
+  companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
   page: number
   perPage: number
+  division?: string | null   // filter laporan - mirror business_unit di metrics lain
+  branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 export interface UpsellTargetRepoParams {
   cid: number
+  companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
   businessUnit: string | null
   page: number
   perPage: number
+  branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 // ─── DB Row types ─────────────────────────────────────────────────────────────
@@ -54,7 +64,8 @@ export interface UpsellTargetDbRow {
 
 // ─── Shared CTE template ──────────────────────────────────────────────────────
 
-function hmCatsCte(cid: number, periodEnd: string) {
+function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | undefined) {
+  const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', cid, companyScopeIds)
   return sql`
     hm_cats AS (
       SELECT DISTINCT
@@ -63,7 +74,7 @@ function hmCatsCte(cid: number, periodEnd: string) {
       LEFT JOIN products p ON p.id = hmp.product_id
       WHERE hmp.effective_from             <= ${periodEnd}::date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${periodEnd}::date)
-        AND (${cid}::int = 0 OR hmp.company_id = ${cid}::int)
+        AND ${companyCondHmp}
         AND COALESCE(hmp.product_category_id, p.product_category_id) IS NOT NULL
     )
   `
@@ -73,19 +84,31 @@ function hmCatsCte(cid: number, periodEnd: string) {
 
 export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRow[]> {
   const offset = (p.page - 1) * p.perPage
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     WITH
-    ${hmCatsCte(p.cid, p.periodEnd)},
+    ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds)},
     active AS (
       SELECT DISTINCT i.customer_id
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     ),
     hm_items AS (
       SELECT
@@ -96,12 +119,19 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       FROM invoice_items ii
       JOIN invoices  i ON i.id = ii.invoice_id
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     )
     SELECT
       pc.id                                                              AS category_id,
@@ -145,10 +175,14 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
 
 export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<UpsellTargetDbRow[]> {
   const offset = (p.page - 1) * p.perPage
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     WITH
-    ${hmCatsCte(p.cid, p.periodEnd)},
+    ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds)},
     -- Top-2 business_unit per HM category berdasarkan jumlah distinct buyer
     hm_affinity AS (
       SELECT product_category_id, business_unit
@@ -163,13 +197,19 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         FROM   invoice_items ii
         JOIN   invoices  i  ON i.id  = ii.invoice_id
         JOIN   customers c  ON c.id  = i.customer_id
+        LEFT JOIN channel_divisions cd
+          ON cd.channel_name = i.channel_name
+          AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         WHERE  i.deleted_at     IS NULL
           AND  c.is_placeholder  = false
-          AND  (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+          AND  ${companyCondI}
           AND  i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
           AND  i.invoice_date <= ${p.periodEnd}::date
           AND  c.business_unit  IS NOT NULL
           AND  ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
+          AND  (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+          AND  ${branchCond}
+          AND  ${divisionScopeCond}
         GROUP BY ii.product_category_id, c.business_unit
       ) ranked
       WHERE bu_rank <= 2
@@ -185,11 +225,17 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       FROM invoices i
       JOIN invoice_items ii ON ii.invoice_id = i.id
       JOIN customers    c  ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
       GROUP BY i.customer_id
     )
     SELECT

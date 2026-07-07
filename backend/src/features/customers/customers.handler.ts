@@ -1,14 +1,17 @@
 import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery, validateParam } from '@/utils/validator'
-import { resolveCompanyScope } from '@/middleware/auth'
+import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
 import { customersQuerySchema, customerIdParamSchema } from './customers.schema'
 import { getCustomers, getCustomerDetail } from './customers.service'
 
 export async function handleGetCustomers(c: Context) {
   const query = validateQuery(c, customersQuerySchema)
   const scopeIds = resolveCompanyScope(c, query.company_id)
-  const result = await getCustomers(query, scopeIds)
+  const branchScope = resolveBranchScope(c, scopeIds)
+  const divisionScope = resolveDivisionScope(c, branchScope)
+  if (query.branch_id) assertBranchFilterAccess(branchScope, query.branch_id)
+  const result = await getCustomers(query, scopeIds, branchScope, divisionScope)
   return paginated(c, result.data, {
     page: query.page,
     per_page: query.per_page,

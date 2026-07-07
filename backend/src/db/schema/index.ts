@@ -4,33 +4,25 @@
  * Re-export semua Drizzle table definitions.
  * Tambahkan export di sini setiap kali membuat schema baru.
  *
+ * Organisasi file per domain (2026-07-06, sebelumnya 1 file per tabel):
+ * - schema-auth.ts        — users, roles, permissions, role_permissions,
+ *                           user_roles, user_companies, audit_logs
+ * - schema-company.ts     — companies, company_branches, business_configs,
+ *                           accurate_credentials, user_branches, user_divisions
+ * - schema-product.ts     — product_categories, products, high_margin_products,
+ *                           item_classification_rules, channel_divisions
+ * - schema-transaction.ts — customers, invoices, invoice_items, import_logs,
+ *                           import_log_errors
+ * - page_settings.ts      — berdiri sendiri (tidak ada FK ke domain manapun)
+ *
  * Naming convention: snake_case plural (contoh: invoices, invoice_items, companies)
  * Setiap tabel wajib punya: id, created_at, updated_at
  * Soft delete via: deleted_at (nullable)
  */
 
-// Export schema — tambahkan export di sini setiap kali membuat schema baru.
-// Urutan sesuai migration order (FK dependencies).
-export * from './companies'
-export * from './users'
-export * from './roles'
-export * from './permissions'
-export * from './role_permissions'
-export * from './user_roles'
-export * from './user_companies'
+export * from './schema-auth'
+export * from './schema-company'
+export * from './schema-product'
+export * from './schema-transaction'
 export * from './page_settings'
-export * from './audit_logs'
-export * from './company_branches'
-export * from './accurate_credentials'
-export * from './business_configs'
-export * from './product_categories'
-export * from './products'
-export * from './high_margin_products'
-export * from './customers'
-export * from './invoices'
-export * from './invoice_items'
-export * from './import_logs'
-export * from './import_log_errors'
-export * from './item_classification_rules'
-export * from './channel_divisions'
 // export * from './metric_cache'

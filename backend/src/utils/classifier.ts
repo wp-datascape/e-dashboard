@@ -10,7 +10,7 @@
  */
 import { and, eq, or, isNull, desc } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { item_classification_rules } from '@/db/schema/item_classification_rules'
+import { item_classification_rules } from '@/db/schema'
 import { logger } from '@/utils/logger'
 
 // ─── Types ───────────────────────────────────────────────────────────────────

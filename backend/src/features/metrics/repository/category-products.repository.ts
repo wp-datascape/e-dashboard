@@ -1,13 +1,17 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 export interface CategoryProductsRepoParams {
   cid: number
+  companyScopeIds?: number[]
   categoryId: number
   periodEnd: string
   activeWindow: number
   page: number
   perPage: number
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, string[]>
 }
 
 export interface CategoryProductDbRow {
@@ -25,6 +29,9 @@ export async function fetchCategoryProducts(
   p: CategoryProductsRepoParams,
 ): Promise<CategoryProductDbRow[]> {
   const offset = (p.page - 1) * p.perPage
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
 
   const rows = await db.execute(sql`
     WITH items AS (
@@ -37,12 +44,17 @@ export async function fetchCategoryProducts(
       FROM invoice_items ii
       JOIN invoices  i ON i.id = ii.invoice_id
       JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
-        AND (${p.cid}::int = 0 OR i.company_id = ${p.cid}::int)
+        AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id = ${p.categoryId}::int
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     )
     SELECT
       pr.id                                                    AS product_id,

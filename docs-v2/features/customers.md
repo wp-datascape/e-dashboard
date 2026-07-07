@@ -259,7 +259,7 @@ FROM months m LEFT JOIN actuals a ON a.month = m.month
 ## References
 
 - **Backend**: `backend/src/features/customers/`
-- **DB Schema**: `backend/src/db/schema/customers.ts`, `backend/src/db/schema/channel_divisions.ts`
+- **DB Schema**: `backend/src/db/schema/schema-transaction.ts` (table `customers`), `schema-product.ts` (table `channel_divisions`)
 - **Config**: `backend/src/features/config/config.repository.ts` (`findAllConfigs`)
 - **Frontend Types**: `frontend/src/types/customers.ts`
 - **Frontend Page**: `frontend/src/pages/Customers/`

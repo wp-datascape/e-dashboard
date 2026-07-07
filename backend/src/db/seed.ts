@@ -1,7 +1,10 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, rolePermissions, businessConfigs } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { eq, and, inArray } from 'drizzle-orm'
+
+// Division: 6 value bisnis existing + 'other' ("Lainnya") — lihat docs-v2/task/task001.md §4.5
+const ALL_DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -10,8 +13,12 @@ const defaultCompanies = [
 ]
 
 const defaultBranches = [
-  // PT MKO — 1 branch (Pusat)
-  { company_code: 'PT MKO', name: 'Pusat', code: 'PUSAT', is_active: true },
+  // PT MKO — 3 branch riil (Jakarta, Surabaya) + 1 bucket "Lainnya" untuk invoice
+  // tanpa info branch dari Accurate (ditemukan lewat audit Task A5, 2026-07-06 —
+  // awalnya cuma di-seed 1 branch "Pusat" yang keliru, bukan branch riil).
+  { company_code: 'PT MKO', name: 'Lainnya', code: 'LAINNYA', is_active: true },
+  { company_code: 'PT MKO', name: 'Jakarta', code: 'JKT', is_active: true },
+  { company_code: 'PT MKO', name: 'Surabaya', code: 'SBY', is_active: true },
   // PT KNT — 3 branches
   { company_code: 'PT KNT', name: 'Surabaya', code: 'SBY', is_active: true },
   { company_code: 'PT KNT', name: 'Jakarta', code: 'JKT', is_active: true },
@@ -150,6 +157,9 @@ const defaultPermissions = [
   { name: 'access.user:create', description: 'Create User', category: 'Users' },
   { name: 'access.user:update', description: 'Update User', category: 'Users' },
   { name: 'access.user:delete', description: 'Delete User', category: 'Users' },
+  // Task002 Task C4 — permission TERPISAH dari access.user:update (bukan reuse) supaya
+  // bisa di-assign granular (mis. role support yang cuma boleh unlock, bukan full update)
+  { name: 'access.user:unlock', description: 'Unlock User Account', category: 'Users' },
   { name: 'access.role:menu',   description: 'Menu Roles',  category: 'Roles' },
   { name: 'access.role:view',   description: 'View Roles',  category: 'Roles' },
   { name: 'access.role:create', description: 'Create Role', category: 'Roles' },
@@ -193,9 +203,6 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
-  'access.user:menu', 'access.user:view',
-  'access.role:menu', 'access.role:view',
-  'access.permission:view',
   'audit.log:menu', 'audit.log:view',
 ]
 
@@ -231,6 +238,7 @@ const defaultBusinessConfigs = [
   { key: 'dormant_rate_alert_pct', value: '10', description: 'Ambang batas M8 Dormant Rate (%) — di atas nilai ini grafik tampil peringatan merah' },
   { key: 'reactivation_target_low_pct', value: '15', description: 'Target minimum M10 Customer Reactivation Rate (%) — batas bawah zona hijau' },
   { key: 'reactivation_target_high_pct', value: '20', description: 'Target ideal M10 Customer Reactivation Rate (%) — batas atas zona hijau' },
+  { key: 'branch_division_enforcement_enabled', value: 'false', description: 'Rollout bertahap isolasi Branch/Division (docs-v2/task/task001.md Task F2/F3) — set "true" utk aktifkan enforcement, default "false" (bypass, cuma company scope yang berlaku) supaya deploy awal tidak langsung memblokir user existing' },
 ]
 
 const defaultPageSettings = [
@@ -384,14 +392,17 @@ async function seedRoleDefaultPermissions(roleName: string, permissionNames: str
 }
 
 async function seedUserAssignments() {
-  console.log('Seeding user-roles & user-companies...')
+  console.log('Seeding user-roles & user-companies/branches/divisions...')
   try {
     const allRoles = await db.select({ id: roles.id, name: roles.name }).from(roles)
     const roleMap = Object.fromEntries(allRoles.map((r) => [r.name, r.id]))
     const cs = await db.select({ id: companies.id }).from(companies)
+    const allBranches = await db.select({ id: company_branches.id, company_id: company_branches.company_id }).from(company_branches)
 
-    // superadmin & admin test users: auto-assign semua company
-    // user test user: tidak di-assign company dari seed — assign manual via UI
+    // superadmin & admin test users: auto-assign semua company + semua branch + semua division
+    // (admin TIDAK bypass kode — lihat docs-v2/task/task001.md §2 — jadi tetap butuh row
+    // eksplisit di user_companies/user_branches/user_divisions, bukan cuma role check)
+    // user test user: tidak di-assign apa pun dari seed — assign manual via UI
     const assignments: { email: string; role: string; allCompanies: boolean }[] = [
       { email: 'admin@mail.com',     role: 'superadmin', allCompanies: true },
       { email: 'executif@mail.com',  role: 'admin',      allCompanies: true },
@@ -416,8 +427,25 @@ async function seedUserAssignments() {
           if (!ex) await db.insert(userCompanies).values({ user_id: u.id, company_id: c.id })
         }
         console.log(`  ok    ${cs.length} companies -> ${email}`)
+
+        const branchesInScope = allBranches.filter((b) => cs.some((c) => c.id === b.company_id))
+        for (const b of branchesInScope) {
+          const [ex] = await db.select({ userId: userBranches.user_id }).from(userBranches)
+            .where(and(eq(userBranches.user_id, u.id), eq(userBranches.branch_id, b.id))).limit(1)
+          if (!ex) await db.insert(userBranches).values({ user_id: u.id, company_id: b.company_id, branch_id: b.id })
+        }
+        console.log(`  ok    ${branchesInScope.length} branches -> ${email}`)
+
+        for (const b of branchesInScope) {
+          for (const division of ALL_DIVISION_VALUES) {
+            const [ex] = await db.select({ userId: userDivisions.user_id }).from(userDivisions)
+              .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division, division))).limit(1)
+            if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division })
+          }
+        }
+        console.log(`  ok    ${branchesInScope.length * ALL_DIVISION_VALUES.length} branch-divisions -> ${email}`)
       } else {
-        console.log(`  skip  companies -> ${email} (assign manual via UI)`)
+        console.log(`  skip  companies/branches/divisions -> ${email} (assign manual via UI)`)
       }
     }
   } catch (err) { console.error('  error:', err) }

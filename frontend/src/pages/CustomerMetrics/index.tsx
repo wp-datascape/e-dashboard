@@ -7,8 +7,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTranslation } from 'react-i18next';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
-import { useCompanies } from '@/hooks/useCompanies';
-import { useDivisionOptions } from '@/hooks/useDivisionOptions';
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { todayIsoDate } from './helpers';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
@@ -18,14 +17,17 @@ import { M7Expansion }   from './M7Expansion';
 
 export default function CustomerMetrics() {
   const { t } = useTranslation();
-  const [companyId,  setCompanyId]  = useState<number | 'all'>('all');
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
-  const [division,   setDivision]   = useState<string>('');
+  const {
+    companies,
+    companyId, setCompanyId,
+    branchId, setBranchId, branchOptions, showBranchFilter,
+    division, setDivision, divisionOptions,
+  } = useScopedCompanyFilter();
 
-  const { data: companies = [] } = useCompanies();
-  const divisionOptions = useDivisionOptions(companyId);
   const { data, isLoading } = useCustomerMetrics({
     company_id:  companyId,
+    branch_id:   branchId === 'all' ? undefined : branchId,
     period_end:  periodEnd,
     division:    division || undefined,
   });
@@ -66,10 +68,24 @@ export default function CustomerMetrics() {
             ))}
           </TextField>
 
+          {showBranchFilter && (
+            <TextField
+              select size="small" label={t('common.branch')}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            >
+              <MenuItem value="all">{t('common.all')}</MenuItem>
+              {branchOptions.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
           <TextField
             select size="small" label={t('common.filters.division')}
             value={division}
-            onChange={(e) => setDivision(e.target.value)}
+            onChange={(e) => setDivision(e.target.value as typeof division)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
@@ -96,6 +112,7 @@ export default function CustomerMetrics() {
         trend={trend}
         isLoading={isLoading}
         companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
         division={division || undefined}
       />
 
@@ -106,6 +123,7 @@ export default function CustomerMetrics() {
             isLoading={isLoading}
             hm={hm}
             companyId={companyId}
+            branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
             periodEnd={periodEnd}
           />
@@ -116,6 +134,7 @@ export default function CustomerMetrics() {
             value={ror?.value ?? 0}
             thresholdPct={ror?.target_pct ?? 80}
             companyId={companyId}
+            branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
             periodEnd={periodEnd}
           />

@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { company_branches } from '@/db/schema'
 import { handleDbError } from '@/utils/dbError'
-import type { NewCompanyBranch } from '@/db/schema/company_branches'
+import type { NewCompanyBranch } from '@/db/schema'
 
 export async function findBranchesByCompanyId(companyId: number) {
   try {

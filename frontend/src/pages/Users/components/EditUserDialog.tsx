@@ -6,12 +6,10 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
-import OutlinedInput from '@mui/material/OutlinedInput';
 import FormHelperText from '@mui/material/FormHelperText';
-import Checkbox from '@mui/material/Checkbox';
-import ListItemText from '@mui/material/ListItemText';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
+import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import { useTranslation } from 'react-i18next';
@@ -21,15 +19,16 @@ import { z } from 'zod';
 
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
+import { AssignmentTreePicker } from './AssignmentTreePicker';
 import type { ApiError } from '@/types/api';
 import { getApiErrorMessage } from '@/utils/apiError';
 import type { Role } from '@/types/rbac';
-import type { Company, User, UpdateUserPayload } from '@/types/users';
+import type { Company, User, UpdateUserPayload, CompanyAssignment } from '@/types/users';
 
 const editSchema = (t: (key: string) => string) => z.object({
   name: z.string().min(2, t('users.validation.nameMin')),
   role_id: z.number().int().min(1, t('users.validation.roleRequired')),
-  company_ids: z.array(z.number()).min(1, t('users.validation.companiesRequired')),
+  company_assignments: z.array(z.custom<CompanyAssignment>()).min(1, t('users.validation.companiesRequired')),
   is_active: z.boolean(),
   resetPassword: z.boolean(),
   newPassword: z.string(),
@@ -71,7 +70,7 @@ export function EditUserDialog({
     formState: { errors },
   } = useForm<EditFormData>({
     resolver: zodResolver(editSchema(t)),
-    defaultValues: { name: '', role_id: 0, company_ids: [], is_active: true, resetPassword: false, newPassword: '' },
+    defaultValues: { name: '', role_id: 0, company_assignments: [], is_active: true, resetPassword: false, newPassword: '' },
   });
 
   const resetPassword = watch('resetPassword');
@@ -82,7 +81,10 @@ export function EditUserDialog({
       reset({
         name: user.name,
         role_id: user.roles[0]?.id ?? 0,
-        company_ids: user.companies.map(c => c.id),
+        company_assignments: user.company_assignments.map(a => ({
+          company_id: a.company_id,
+          branches: a.branches.map(b => ({ branch_id: b.branch_id, divisions: b.divisions })),
+        })),
         is_active: user.is_active,
         resetPassword: false,
         newPassword: '',
@@ -94,7 +96,7 @@ export function EditUserDialog({
     onSubmit({
       name: data.name,
       role_ids: [data.role_id],
-      company_ids: data.company_ids,
+      company_assignments: data.company_assignments,
       is_active: data.is_active,
       ...(data.resetPassword ? { password: data.newPassword } : {}),
     });
@@ -161,36 +163,17 @@ export function EditUserDialog({
             )}
           />
 
-          {/* Companies */}
+          {/* Company -> Branch -> Division assignment tree */}
           <Controller
-            name="company_ids"
+            name="company_assignments"
             control={control}
             render={({ field, fieldState }) => (
-              <FormControl fullWidth size="small" error={!!fieldState.error}>
-                <InputLabel>{t('users.selectCompanies')}</InputLabel>
-                <Select
-                  multiple
-                  value={field.value ?? []}
-                  onChange={(e) => field.onChange(e.target.value as number[])}
-                  input={<OutlinedInput label={t('users.selectCompanies')} />}
-                  renderValue={(selected) =>
-                    companies
-                      .filter(c => (selected as number[]).includes(c.id))
-                      .map(c => c.name)
-                      .join(', ')
-                  }
-                >
-                  {companies.map(co => (
-                    <MenuItem key={co.id} value={co.id}>
-                      <Checkbox size="small" checked={(field.value ?? []).includes(co.id)} />
-                      <ListItemText primary={co.name} />
-                    </MenuItem>
-                  ))}
-                </Select>
-                {fieldState.error && (
-                  <FormHelperText>{fieldState.error.message}</FormHelperText>
-                )}
-              </FormControl>
+              <AssignmentTreePicker
+                companies={companies}
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
             )}
           />
 

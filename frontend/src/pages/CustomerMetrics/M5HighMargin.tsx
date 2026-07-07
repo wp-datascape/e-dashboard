@@ -11,7 +11,8 @@ import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, SectionLabel, monthToEndDate } from './helpers';
+import { fmtRp, monthToEndDate } from './helpers';
+import { SectionLabel } from './HelperComponents';
 
 function useHmColumns(t: TFunction): GridColDef[] {
   return [
@@ -30,11 +31,12 @@ interface Props {
   isLoading: boolean
   hm: { bought_pct: number; not_bought_pct: number } | undefined
   companyId: number | 'all'
+  branchId?: number
   division?: string
   periodEnd: string
 }
 
-export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: Props) {
+export function M5HighMargin({ isLoading, hm, companyId, branchId, division, periodEnd }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [hmDrillDate, setHmDrillDate] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function M5HighMargin({ isLoading, hm, companyId, division, periodEnd }: 
   const { data: hmBreakdown, isLoading: hmBreakdownLoading } = useHmBreakdown({
     period_end: hmDrillDate,
     company_id: companyId,
+    branch_id: branchId,
     division,
   });
 

@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 export const customersQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
   search: z.string().optional(),
   status: z.enum(['new', 'active', 'dormant', 'existing']).optional(),
-  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support']).optional(),
+  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
   sort_by: z
     .enum(['avg_monthly_revenue', 'lifetime_value', 'category_count', 'last_invoice_date'])
     .optional()

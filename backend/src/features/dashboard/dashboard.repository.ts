@@ -2,6 +2,7 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '@/features/metrics/segment.helper'
 import type { MonthlyTrendPoint } from './dashboard.types'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan estimasi total nilai (revenue) yang berpotensi hilang dari
@@ -13,7 +14,11 @@ import type { MonthlyTrendPoint } from './dashboard.types'
  * fetchDormantTrend agar month grid & definisi dormant align dengan M8/M10.
  */
 export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyTrendPoint[]> {
-  const { cid, filterDate, dormantMonths, division } = p
+  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -31,14 +36,17 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
       WHERE i.deleted_at IS NULL
-        AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+        AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
     ),
     scoped_cust AS (
       SELECT DISTINCT c.id AS cid
       FROM customers c
       WHERE c.is_placeholder = false
-        AND (${cid}::int = 0 OR c.company_id = ${cid}::int)
+        AND ${companyCondC}
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
     ),
     cxm AS (

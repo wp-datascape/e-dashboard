@@ -264,7 +264,7 @@ Seed data di-load via `bun run db:seed` → `backend/src/db/seed.ts`. Data ini b
 ## References
 
 - **Backend**: `backend/src/features/settings/channel-divisions.*`
-- **DB Schema**: `backend/src/db/schema/channel_divisions.ts`
+- **DB Schema**: `backend/src/db/schema/schema-product.ts` (table `channel_divisions`)
 - **Digunakan oleh**: `features/customers.md` (status logic + division filter)
 - **Frontend Page (CRUD)**: `frontend/src/pages/Settings/Divisions/`
 - **Frontend Import**: `frontend/src/pages/Import/components/UploadFileCard.tsx` (tipe `divisi`)

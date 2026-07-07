@@ -10,6 +10,7 @@ export function useCrossSelling(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: string;
+  branch_id?: number;
 }) {
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling', params],
@@ -23,6 +24,7 @@ export function useCustomerMetrics(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: string;
+  branch_id?: number;
 }) {
   return useQuery<CustomerMetricsData>({
     queryKey: ['metrics', 'customer-metrics', params],
@@ -32,30 +34,30 @@ export function useCustomerMetrics(params?: {
 }
 
 // ── M4 GP Drill-down ─────────────────────────────────────────────────────────
-export function useGpBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string }) {
+export function useGpBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string; branch_id?: number }) {
   return useQuery<GpBreakdownData>({
     queryKey: ['metrics', 'gp-breakdown', params],
-    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division }),
+    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M5 HM Drill-down ─────────────────────────────────────────────────────────
-export function useHmBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string }) {
+export function useHmBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string; branch_id?: number }) {
   return useQuery<HmBreakdownData>({
     queryKey: ['metrics', 'hm-breakdown', params],
-    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division }),
+    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M6 ROR Drill-down ─────────────────────────────────────────────────────────
-export function useRorBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string }) {
+export function useRorBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: string; branch_id?: number }) {
   return useQuery<RorBreakdownData>({
     queryKey: ['metrics', 'ror-breakdown', params],
-    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division }),
+    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -66,6 +68,7 @@ export function useDormantCustomer(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: string;
+  branch_id?: number;
 }) {
   return useQuery<DormantData>({
     queryKey: ['metrics', 'dormant-customer', params],

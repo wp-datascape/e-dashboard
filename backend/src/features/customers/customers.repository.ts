@@ -1,12 +1,18 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
-import { and, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
+import { and, or, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
 import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
+import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
 
-export async function findCustomers(params: CustomersQuery, scopeIds?: number[]) {
-  const { company_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
+export async function findCustomers(
+  params: CustomersQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, string[]>,
+) {
+  const { company_id, branch_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
   const offset = (page - 1) * per_page
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
 
@@ -61,11 +67,8 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
 
   const whereClause = conditions.length ? and(...conditions) : undefined
 
-  // Division filter: diapply setelah JOIN channel_divisions
+  // Division filter (business_unit param): diapply setelah JOIN channel_divisions
   const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
-  const whereWithDivision = divisionCond
-    ? whereClause ? and(whereClause, divisionCond) : divisionCond
-    : whereClause
 
   // Sort
   const isAsc = sort_dir === 'asc'
@@ -85,11 +88,29 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
     .selectDistinctOn([invoices.customer_id], {
       customer_id: invoices.customer_id,
       channel_name: invoices.channel_name,
+      branch_id: invoices.branch_id,
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
     .orderBy(invoices.customer_id, desc(invoices.invoice_date))
     .as('latest_sp')
+
+  // Branch/division scope (docs-v2/task/task001.md) — di-derive dari invoice TERBARU
+  // customer (latestSalespersonSq), konsisten dengan cara business_unit/division di atas
+  // sudah di-derive (satu division per customer dari invoice terakhir, bukan EXISTS
+  // lintas semua invoice miliknya)
+  const branchScopeCond = buildBranchCondition(customers.company_id, latestSalespersonSq.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division, divisionScope)
+  // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
+  // branchScopeCond (enforcement akses) meski keduanya nyasar ke kolom yang sama
+  const branchFilterCond = branch_id ? eq(latestSalespersonSq.branch_id, branch_id) : undefined
+
+  const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  )
+  const whereWithDivision = scopeConditions.length
+    ? whereClause ? and(whereClause, ...scopeConditions) : and(...scopeConditions)
+    : whereClause
 
   const [{ total }, rows] = await Promise.all([
     db
@@ -97,7 +118,13 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .where(whereWithDivision)
       .then(([r]) => r),
     db
@@ -126,7 +153,13 @@ export async function findCustomers(params: CustomersQuery, scopeIds?: number[])
         and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
       )
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
-      .leftJoin(channel_divisions, eq(channel_divisions.channel_name, latestSalespersonSq.channel_name))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+        ),
+      )
       .where(whereWithDivision)
       .groupBy(customers.id, companies.id, channel_divisions.division, liveDatesSq.live_last, liveDatesSq.live_first)
       .orderBy(orderByExpr)
@@ -158,9 +191,9 @@ export async function findCustomerDetail(customerId: number) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = sql`CURRENT_DATE`
 
-  // Ambil channel_name dari invoice terbaru → lookup division
+  // Ambil channel_name + company_id dari invoice terbaru → lookup division
   const [latestInv] = await db
-    .select({ channel_name: invoices.channel_name })
+    .select({ channel_name: invoices.channel_name, company_id: invoices.company_id })
     .from(invoices)
     .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
     .orderBy(desc(invoices.invoice_date))
@@ -170,7 +203,12 @@ export async function findCustomerDetail(customerId: number) {
     ? await db
         .select({ division: channel_divisions.division })
         .from(channel_divisions)
-        .where(eq(channel_divisions.channel_name, latestInv.channel_name))
+        .where(and(
+          eq(channel_divisions.channel_name, latestInv.channel_name),
+          or(eq(channel_divisions.company_id, latestInv.company_id), isNull(channel_divisions.company_id)),
+        ))
+        // Company-specific rule menang atas rule global kalau kebetulan ada dua-duanya
+        .orderBy(sql`${channel_divisions.company_id} IS NULL`)
         .limit(1)
     : []
 

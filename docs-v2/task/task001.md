@@ -238,58 +238,187 @@ Hasil akhir: user ini cuma bisa lihat data Company 1 / Branch 10 / Division dist
 
 ⚠️ Ini konsekuensi langsung dari hierarki + default-deny: admin harus assign division untuk **setiap branch** yang mau benar-benar bisa dilihat user, bukan cuma assign branch-nya saja. Task D2 (warning di UI) jadi makin penting karena ada 2 lapis yang bisa lupa di-assign (branch DAN division), bukan cuma 1.
 
+### 4.5 "Lainnya" untuk division — row/value asli, konsisten dengan branch (§4.6)
+
+**Keputusan final (2026-07-06):** sama seperti branch (§4.6), "Lainnya" untuk division **BUKAN** kategori virtual NULL+full-coverage (desain awal dibatalkan) — melainkan **value `division` asli** yang bisa di-assign biasa:
+
+- `channel_divisions.division` dapat value ke-7: **`'other'`** ("Lainnya"), di samping 6 value existing (`distribution|project|e_commerce|intercompany|freelancer|support`). Channel yang tidak match rule manapun di-assign eksplisit ke `division = 'other'` (lewat row `channel_divisions` biasa, atau default fallback saat tidak ada match — detail implementasi menyusul di Task C).
+- `user_divisions.division` bisa berisi `'other'` seperti value lain — admin assign akses ke division "Lainnya" per branch lewat UI RBAC (Task D1) seperti biasa.
+- **Tidak ada perubahan** di `buildDivisionCondition` (§4.3) — "Lainnya"/`'other'` diperlakukan identik dengan division lain: default-deny berlaku sama (user tidak lihat `'other'` kalau tidak di-assign eksplisit), tidak ada pengecualian/bypass.
+- `hasFullDivisionCoverage()` dan klausa `OR division IS NULL` di desain sebelumnya **dibatalkan** — tidak dibutuhkan lagi.
+
+Dampak: JOIN `channel_divisions` (Task C8) perlu strategi eksplisit untuk channel yang belum ada rule-nya — assign ke `division='other'` (row default per company, atau global) alih-alih dibiarkan tidak match/NULL.
+
+### 4.6 "Lainnya" untuk branch — **revisi (2026-07-06): row asli, bukan NULL+full-coverage**
+
+Desain awal §4.6 (full-coverage + `branch_id IS NULL`) **dibatalkan** setelah audit data riil (Task A5) di company 1 (`PT Mesin Kasir Online`). Temuan: `company_branches` cuma seed 1 baris ("Pusat") untuk company 1, padahal di Accurate company 1 sebenarnya punya 2 branch riil (**Jakarta**, **Surabaya**) — dan "Pusat" ternyata bukan branch sungguhan, tapi bucket untuk invoice yang memang tidak ada info branch di Accurate (branch_name NULL).
+
+**Keputusan final:** "Lainnya" adalah **row `company_branches` biasa** (bukan kategori virtual):
+- Row lama "Pusat" (`id=1, company_id=1`) di-**repurpose**: `name` → `'Lainnya'`, `code` → `'LAINNYA'`.
+- Ditambah 2 row branch riil baru untuk company 1: `Jakarta` (`JKT`), `Surabaya` (`SBY`).
+- Backfill (`scripts/backfill-invoice-branch-id.ts`): invoice dengan `branch_name` yang match nama branch (case-insensitive) → `branch_id` branch itu. Invoice dengan `branch_name` NULL (tidak ada info branch sama sekali) → `branch_id` = branch "Lainnya" company itu. Hasil di data lokal: 4214 baris match nama (Jakarta+Surabaya), 2208 baris NULL → "Lainnya". **0 baris tersisa NULL.**
+
+**Kenapa ini jauh lebih simpel dari desain full-coverage sebelumnya:** karena "Lainnya" adalah branch row asli dengan `id` sungguhan, `buildBranchCondition` (§4.3) TIDAK perlu diubah/ditambah klausa apa pun — "Lainnya" diperlakukan identik dengan Jakarta/Surabaya/branch lain: admin assign akses ke branch "Lainnya" seperti biasa lewat `user_branches`, default-deny berlaku sama seperti branch lain (bukan pengecualian). Tidak ada lagi kebutuhan `hasFullBranchCoverage()`, tidak ada lagi `allBranchesByCompany` lookup tambahan — Task B1/B4 **dibatalkan** kebutuhan tambahannya (lihat update Task B di §5).
+
+⚠️ **Follow-up wajib sebelum Task A4 dijalankan ke production (masuk Task E):** company 1 di production kemungkinan besar punya masalah struktural yang sama (`company_branches` cuma "Pusat", padahal Accurate riil punya Jakarta+Surabaya) — perlu audit & fix data yang sama (repurpose "Pusat"→"Lainnya" + insert branch riil) SEBELUM backfill dijalankan di production, bukan asumsi otomatis "Pusat" di company lain juga berarti "Lainnya" (company 3 kemungkinan besar memang single-branch sungguhan, bukan bucket "Lainnya" — perlu dicek per company, jangan digeneralisasi).
+
+**Konfirmasi (2026-07-06):** division (§4.5) ikut disederhanakan dengan pola yang sama — `division = 'other'` sebagai value asli yang bisa di-assign biasa di `user_divisions`, bukan NULL+full-coverage. Arsitektur branch dan division sekarang konsisten: keduanya pakai "value/row asli", tidak ada logic full-coverage di manapun.
+
+**Task yang perlu update:** Task G1 (test case: user tanpa assignment ke branch/division "Lainnya" tidak melihat baris itu, sama seperti division/branch lain manapun).
+
 ---
 
 ## 5. Breakdown Task
 
 ### Task A — Schema & Migration (Backend)
-- [ ] A1. Tulis Drizzle schema `user_divisions.ts`, `user_branches.ts`
-- [ ] A2. Tambah kolom `invoices.branch_id` (nullable dulu, FK ke `company_branches`)
-- [ ] A3. `drizzle-kit generate` + `drizzle-kit migrate`
-- [ ] A4. Script backfill `invoices.branch_id` dari `branch_name` (manual, ikuti pola `postgres.js` di `CRITICAL_RULES.md` § Migration Limitation)
-- [ ] A5. Audit hasil backfill — hitung berapa % baris invoices yang **tidak** ketemu `branch_id` (lihat Task E)
+- [x] A1. Tulis Drizzle schema `user_divisions.ts`, `user_branches.ts` — selesai.
+- [x] A2. Tambah kolom `invoices.branch_id` (nullable dulu, FK ke `company_branches`) — selesai.
+- [x] A3. `drizzle-kit generate` + `drizzle-kit migrate` — selesai.
+- [x] A4. Script backfill `invoices.branch_id` dari `branch_name` — selesai, `backend/scripts/backfill-invoice-branch-id.ts`.
+- [x] A5. Audit hasil backfill — selesai, 100% ter-backfill setelah perbaikan data company 1 (§4.6).
 
 ### Task B — Backend Core (Scope Resolver & Middleware)
-- [ ] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()`
-- [ ] B2. `middleware/auth.ts` — extend `authMiddleware()` load scope baru, extend tipe `c.var.user`
-- [ ] B3. `middleware/auth.ts` — `resolveBranchScope()` (input: `companyScopeIds`), `resolveDivisionScope()` (input: hasil `resolveBranchScope`, BUKAN companyScopeIds — lihat §4.2) — keduanya cuma cek `isSuperAdmin`, tidak ada bypass untuk role `admin`
-- [ ] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`, `buildDivisionCondition()` (2 helper terpisah, lihat §4.3)
-- [ ] B5. Seeder: assign row `user_companies`/`user_branches`/`user_divisions` eksplisit untuk user `admin` existing (bukan bypass kode) — lihat Task F1
+- [x] B1. `auth.repository.ts` — `getUserBranchScopes()`, `getUserDivisionScopes()` — selesai.
+- [x] B2. `middleware/auth.ts` — extend `authMiddleware()` load scope baru, extend tipe `c.var.user` — selesai (juga sudah diperluas lagi utk `enforcementEnabled` di Task F2/F3).
+- [x] B3. `middleware/auth.ts` — `resolveBranchScope()`/`resolveDivisionScope()` — selesai, 14 unit test (`auth.test.ts`).
+- [x] B4. `utils/scope.ts` (baru) — `buildBranchCondition()`/`buildDivisionCondition()` + varian raw — selesai, 17 unit test (`scope.test.ts`).
+- [x] B5. Seeder assign `user_companies`/`user_branches`/`user_divisions` — selesai untuk user seed dev; digeneralisasi ke SEMUA user lewat script terpisah di Task F1.
 
 ### Task C — Repository Updates (7 fitur existing yang sudah pakai `resolveCompanyScope`)
 Update tiap handler + repository untuk terima & apply `divisionScope`/`branchScope` di samping `companyScope` yang sudah ada:
-- [ ] C1. `customers.handler.ts` + `customers.repository.ts`
-- [ ] C2. `transactions.handler.ts` + `transactions.repository.ts`
-- [ ] C3. `products.handler.ts` + `products.repository.ts`
-- [ ] C4. `metrics.handler.ts` + `repository/{m1,m3m7,m4,m6,m8m10}.repository.ts`
-- [ ] C5. `import.handler.ts` + `import.repository.ts`
-- [ ] C6. `audit.handler.ts` + `audit.repository.ts` (audit log sendiri — tetap tampil semua atau ikut di-scope? perlu keputusan terpisah, biasanya audit log dikecualikan dari data-scoping demi keperluan investigasi)
-- [ ] C7. `settings/high-margin.handler.ts` + `high-margin.repository.ts`
-- [ ] C8. **Catatan tambahan ditemukan saat riset:** JOIN `channel_divisions` di semua repository di atas saat ini **tidak** match `company_id` pada kondisi JOIN-nya (cuma match `channel_name`) — sebelum enforcement division aktif, ini harus diperbaiki dulu supaya tidak salah scoping lintas company dengan `channel_name` yang kebetulan sama.
+- [x] C1. `customers.handler.ts` + `customers.repository.ts` — selesai (2026-07-06). Division/branch di-derive dari invoice terbaru customer, diverifikasi end-to-end (default-deny, division-restricted, branch-restricted).
+- [x] C2. `transactions.handler.ts` + `transactions.repository.ts` — selesai (2026-07-06), termasuk `findInvoiceDetail` (sebelumnya cuma company-scope, sekarang ikut branch/division).
+- [x] C3. `products.handler.ts` + `products.repository.ts` — **tidak perlu perubahan**. `products` cuma master data (nama, kategori, company_id), tidak ada dimensi branch/division sama sekali. Workbench "Product Trend" yang bersinggungan branch/division ternyata di fitur metrics (C4), bukan di sini.
+- [x] C4. `metrics.handler.ts` + 11 repository (bukan 5 seperti draf awal — ditemukan `avg-category`, `category-performance`, `category-products`, `customer-products`, `high-margin-penetration` juga butuh scope, plus `dashboard.repository.ts`) — selesai (2026-07-06). **Ditemukan & diperbaiki bug kritis sekalian**: `resolveCompanyScope()` dipanggil di semua 12 handler metrics tapi return value-nya dibuang — query jalan tanpa filter company sama sekali saat `company_id=all` diminta, untuk SEMUA role (bukan cuma superadmin/admin). Bug ini sudah ada SEBELUM task ini, tidak terkait branch/division — diperbaiki bersamaan karena wiring branchScope/divisionScope butuh companyScopeIds yang benar sebagai basis. Diverifikasi: user 1-company vs full-access user dapat `active_count` berbeda (588 vs 953) untuk request `company_id=all` yang sama.
+- [x] C5. `import.handler.ts` + `import.repository.ts` — **keputusan (2026-07-06)**: `import_logs` tetap company-scope saja (TIDAK ditambah branch/division scope). Alasan: 1 import log = 1 event upload yang bisa berisi invoice lintas banyak branch sekaligus, tidak ada relasi 1:1 branch/division di level log — beda dari `invoices` yang per-baris. Fix C8 (channel_divisions JOIN company_id) tetap diterapkan di `upsertCustomer()`.
+- [x] C6. `audit.handler.ts` + `audit.repository.ts` — **sudah diputuskan (§7.2)**: tetap di-scope `company_id` saja (pola existing, tidak berubah), TIDAK perlu tambah branch/division scope karena akses endpoint ini sudah dibatasi lewat permission ke role setingkat direktur/superadmin
+- [x] C7. `settings/high-margin.handler.ts` + `high-margin.repository.ts` — **tidak perlu perubahan**. `high_margin_products` cuma master data klasifikasi produk (company-wide, range tanggal efektif), tidak ada dimensi branch/division — status "produk ini high-margin" tidak berbeda per cabang. Sama seperti C3 (products) dan C5 (import_logs).
+- [x] C8. JOIN `channel_divisions` yang tidak match `company_id` — **selesai (2026-07-06)**. Sudah benar di semua file raw-SQL (metrics, dashboard, threshold, segment.helper — ternyata sudah diperbaiki sesi sebelumnya). Yang masih bolong (Drizzle query builder): `customers.repository.ts`, `transactions.repository.ts`, `import.repository.ts` — sudah diperbaiki, pakai pola `OR company_id IS NULL` + prioritaskan rule company-specific di atas rule global kalau kebetulan ada dua-duanya.
 
 ### Task D — RBAC UI (Frontend)
-- [ ] D1. `CreateUserDialog.tsx` / `EditUserDialog.tsx` — UI assignment 3 tingkat: pilih Company → per company pilih Branch → per branch pilih Division. Bukan 3 multi-select flat yang independen — struktur pohon, karena pilihan di tingkat bawah dibatasi oleh pilihan di tingkat atas
-- [ ] D2. Warning eksplisit di UI kalau ada company tanpa branch ter-assign, ATAU branch tanpa division ter-assign ("User ini tidak akan bisa lihat data apa pun di Branch X sampai division di-assign") — dua lapis peringatan, bukan cuma satu, sesuai §4.4
-- [ ] D3. `ViewUserDialog.tsx` — tampilkan pohon assignment Company→Branch→Division
-- [ ] D4. Backend: `user.schema.ts`, `user.service.ts`, `user.repository.ts` — terima payload nested `{ company_id, branch_ids: [{ branch_id, divisions: [] }] }`, replace pattern (mirror `replaceUserCompanies`) untuk ketiga tabel sekaligus dalam satu transaksi (supaya tidak ada state invalid, mis. division ter-assign tapi branch parent-nya dihapus)
-- [ ] D5. i18n — semua label baru wajib masuk `en.json` + `id.json` (lihat `CRITICAL_RULES.md`)
+- [x] D1. `CreateUserDialog.tsx` / `EditUserDialog.tsx` — selesai (2026-07-06). Komponen baru `AssignmentTreePicker.tsx` dipakai bersama di kedua dialog: pilih Company → per company pilih Branch (`useBranchesByCompany`, data asli) → per branch pilih Division. Struktur pohon, bukan 3 multi-select independen.
+- [x] D2. Warning eksplisit — selesai. Company tanpa branch & branch tanpa division masing-masing dapat `Alert` tersendiri di `AssignmentTreePicker`.
+- [x] D3. `ViewUserDialog.tsx` — selesai. Tampilkan pohon assignment read-only + warning yang sama.
+- [x] D4. Backend — selesai. `company_assignments: [{ company_id, branches: [{ branch_id, divisions: [] }] }]` (bukan `branch_ids` seperti draf awal — nama field disesuaikan saat implementasi). `replaceUserAssignments()` di `user.repository.ts` pakai `db.transaction()` untuk 3 tabel sekaligus.
+- [x] D5. i18n — selesai, termasuk label division (`users.divisions.*`, "Lainnya"/"Other" untuk `other`).
+
+**Diverifikasi end-to-end di browser** (real backend + real data, bukan cuma build/typecheck): login → Add User → pilih company → section branch muncul dengan warning D2 → pilih branch → section division muncul dengan warning D2 → pilih division → warning hilang. Tanpa error console. Verifikasi live untuk Edit/View dialog sempat terkendala rate-limiter login (fitur keamanan, bukan bug) — cukup diyakinkan lewat code review karena berbagi komponen `AssignmentTreePicker` yang sama dan lolos build.
 
 ### Task E — Data Audit & Backfill
-- [ ] E1. Audit `invoices.branch_name` vs `company_branches.name` — laporan % match/tidak match per company
-- [ ] E2. Untuk baris tidak match: putuskan strategi (perbaiki data source di Accurate, normalisasi manual, atau biarkan `branch_id NULL` dengan aturan eksplisit — lihat §6 risiko)
-- [ ] E3. Audit `invoices.channel_name` vs `channel_divisions.channel_name` — channel yang belum ter-mapping ke division manapun
+> **Konteks penting (2026-07-06):** DB lokal yang dipakai sepanjang sesi implementasi task ini **1:1 sama dengan DB production** saat ini (belum ada drift). Jadi semua audit & backfill di bawah **sudah benar-benar dieksekusi** dan hasilnya representatif untuk production — yang belum terjadi adalah eksekusi ke instance production (Railway) yang sesungguhnya, karena sesi ini cuma pegang akses ke DB lokal. Lihat **Runbook Deploy** di bawah untuk urutan eksekusi ke production saat merge+redeploy nanti.
+- [x] E1. Audit `invoices.branch_name` vs `company_branches.name` — selesai (Task A5). Company 1 (`PT Mesin Kasir Online`) ternyata cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya — lihat §4.6 dan §6.
+- [x] E2. Strategi baris tidak match — **sudah diputuskan & dieksekusi**: "Pusat" di-repurpose jadi "Lainnya" (branch riil, bukan NULL), branch riil Jakarta+Surabaya ditambahkan, backfill 100% (0 baris `branch_id` NULL tersisa). Script: `backend/scripts/backfill-invoice-branch-id.ts`.
+- [x] E3. Audit `invoices.channel_name` vs `channel_divisions.channel_name` — tercakup dalam keputusan division `'other'` (§4.5, §7.3) + fix `COALESCE` di Task G4.
 
 ### Task F — Rollout & Migrasi User Existing
-- [ ] F1. **Sebelum enforcement diaktifkan:** seeder backfill `user_branches`/`user_divisions` untuk **semua** user existing (termasuk role `admin` — admin TIDAK bypass, lihat §2) berdasarkan akses company mereka saat ini: assign ke SEMUA branch dalam company yang sudah mereka punya di `user_companies`, dan SEMUA division dalam tiap branch itu, supaya tidak ada yang tiba-tiba kehilangan akses saat fitur ini di-deploy
-- [ ] F2. Deploy schema + kode dengan scope resolver **tidak aktif** dulu (feature flag / semua scope map dianggap bypass) — validasi tidak ada regresi
-- [ ] F3. Aktifkan enforcement bertahap (mis. 1 company dulu) sambil pantau audit log/keluhan akses
-- [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder)
+- [x] F1. **Selesai & sudah dieksekusi (2026-07-06)** — script baru `backend/scripts/backfill-user-branch-division.ts` (idempotent, dry-run default + `--apply`): assign SEMUA branch + SEMUA division ke user existing berdasarkan `user_companies` yang sudah mereka punya, termasuk role `admin` (tidak bypass, lihat §2). Dijalankan di DB lokal: 11 pasangan (user, company) ter-backfill — 27 row `user_branches` + 189 row `user_divisions`.
+- [x] F2/F3. **Feature flag `branch_division_enforcement_enabled` — selesai (2026-07-06)**. `business_configs` key baru, default `'false'` (bypass total, cuma company scope yang berlaku — persis perilaku sebelum task001 ini). `authMiddleware()` load sekali per request, `resolveBranchScope`/`resolveDivisionScope` bypass total kalau flag off, tanpa peduli role. Admin nyalakan lewat **Settings → Threshold → General** (Switch, sudah ada UI-nya) atau langsung `PATCH /api/v1/config/branch_division_enforcement_enabled`. **Catatan:** ini flag GLOBAL, bukan per-company seperti draf awal §7.4 — per-company butuh redesain Map semantics `resolveBranchScope`, didesain ulang kalau nanti terbukti perlu granularitas segitu.
+- [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder). Ini tinggal soal kapan admin mulai pakai — UI-nya (Task D) sudah selesai.
+
+### Runbook Deploy ke Production (saat merge + redeploy)
+
+**Keputusan (2026-07-06):** karena app belum benar-benar dipakai user riil, data invoice/customer
+production saat ini **boleh hilang** — akan di-re-import ulang dari Accurate/CSV setelah deploy.
+Ini menyederhanakan proses jauh lebih banyak dibanding rencana awal (skip semua langkah backfill
+data lama sama sekali). Dua hal yang membuat ini aman:
+
+1. Migration schema sudah rapi — direstruktur (2026-07-06) jadi **4 file** selaras dengan
+   pengelompokan schema per-domain: `0000_schema_auth.sql`, `0001_schema_company.sql`,
+   `0002_schema_product.sql`, `0003_schema_transaction.sql` (`db/migrations/`). Berisi seluruh
+   tabel final termasuk perubahan Task001 (`user_branches`, `user_divisions`,
+   `invoices.branch_id`). Divalidasi 2x end-to-end di database sementara: migrate → seed →
+   `drizzle-kit generate` konfirmasi "No schema changes". Schema TS-nya sendiri (`db/schema/`)
+   juga direorganisasi dari 23 file per-tabel jadi 4 file per-domain (`schema-auth.ts`,
+   `schema-company.ts`, `schema-product.ts`, `schema-transaction.ts`) + `page_settings.ts`
+   berdiri sendiri — murni reorganisasi file, tidak ada perubahan struktur tabel.
+2. `seed.ts` (`defaultBranches`) sudah punya branch yang BENAR sejak awal untuk company 1 (Jakarta/
+   Surabaya/Lainnya, bukan "Pusat" lama) — jadi fresh seed langsung konsisten, tidak perlu diperbaiki
+   manual seperti temuan Task A5 di data lokal lama.
+3. Import invoice (CSV/Excel maupun Accurate) sekarang **otomatis resolve `branch_id`** saat data
+   masuk (`findBranchIdByName()`, `import.repository.ts`, fix 2026-07-06) — jadi
+   `backfill-invoice-branch-id.ts` tidak perlu dijalankan lagi untuk data yang diimpor ulang.
+
+**Langkah deploy (fresh start):**
+
+```bash
+# 1. Drop seluruh tabel di production (data invoice/customer lama boleh hilang - keputusan sadar)
+#    Cara paling aman: drop database lalu buat ulang kosong, BUKAN DROP SCHEMA di DB yang dipakai
+#    proses lain. Sesuaikan dengan cara akses DB production (Railway dashboard/psql).
+
+# 2. Migration schema dari nol (6 file migration, hasil akhir = schema penuh saat ini)
+DATABASE_URL="<production>" bun run db:migrate
+
+# 3. Seed data dasar (companies, branches yang SUDAH benar, permissions/roles, business_configs
+#    dengan flag enforcement default 'false', user seed dev)
+DATABASE_URL="<production>" bun run db:seed
+
+# 4. Deploy kode backend+frontend (enforcement masih OFF - F2, aman, tidak ada regresi user)
+
+# 5. Re-import invoice dari Accurate/CSV seperti biasa lewat halaman Import - branch_id
+#    ter-resolve otomatis saat proses import (tidak perlu script backfill manual)
+
+# 6. Buat user real (bukan cuma 2 seed dev) + atur assignment Company/Branch/Division lewat
+#    RBAC UI (Task D, sudah selesai) - karena database fresh, tidak ada "user existing yang
+#    kehilangan akses" (F1 backfill script tidak relevan di skenario ini, cukup dipakai kalau
+#    nanti ada migrasi dari DB LAMA yang datanya mau dipertahankan)
+
+# 7. Setelah user & assignment beres, verifikasi dulu tanpa enforcement, baru nyalakan flag
+#    lewat Settings > Threshold (atau PATCH /api/v1/config/branch_division_enforcement_enabled
+#    {"value":"true"})
+```
+
+**Script yang TIDAK perlu dijalankan** di skenario fresh-start ini (tapi tetap berguna kalau nanti
+ada migrasi dari database production LAMA yang datanya mau dipertahankan, bukan drop total):
+- `backend/scripts/backfill-invoice-branch-id.ts` — hanya relevan utk invoice LAMA yang sudah
+  ada branch_name tapi belum ada branch_id; invoice baru sudah auto-resolve saat import.
+- `backend/scripts/backfill-user-branch-division.ts` — hanya relevan utk user LAMA yang sudah
+  punya user_companies tapi belum ada branch/division; fresh seed tidak punya kondisi ini.
 
 ### Task G — Testing
-- [ ] G1. Unit test `resolveDivisionScope`/`resolveBranchScope`/`buildScopedCondition` — kasus bypass, default-deny (map kosong), multi-company beda scope
-- [ ] G2. E2E: user dengan division A di company 1 tidak bisa lihat data division B company 1
-- [ ] G3. E2E: user tanpa assignment branch sama sekali di company manapun → semua endpoint yang butuh branch scope return kosong, bukan error
-- [ ] G4. Regression: user existing (sebelum fitur ini) tetap bisa akses seperti biasa setelah Task F1 (backfill) selesai
+- [x] G1. Unit test `resolveBranchScope`/`resolveDivisionScope`/`build*Condition*` — selesai (2026-07-06), `backend/src/utils/scope.test.ts` (17 test) + `backend/src/middleware/auth.test.ts` (14 test). Kasus bypass, default-deny (map/array kosong), company/branch spesifik, multi-company beda scope, default-deny berjenjang §4.4.
+- [x] G2. E2E: user dengan division "distribution" saja tidak lihat division lain — selesai, `backend/src/test/scope-isolation.e2e.test.ts`.
+- [x] G3. E2E: user tanpa branch assignment sama sekali → endpoint customers & metrics return kosong (200), bukan error — selesai.
+- [x] G4. Regression: user full-coverage (semua branch+division, mirror seeder F1) vs superadmin bypass harus dapat total identik — selesai. **Test ini menemukan bug nyata**: division `NULL` (channel belum termapping ke `channel_divisions`) tidak pernah lolos filter `inArray`/`IN` walau `'other'` ada di daftar scope user (`NULL IN (...)` = SQL `UNKNOWN`, bukan `true`) — persis kasus yang didesain di §4.5 tapi belum benar-benar diimplementasikan di query. Diperbaiki: `buildDivisionCondition`/`buildDivisionConditionRaw` (`utils/scope.ts`) sekarang `COALESCE(division, 'other')` sebelum dicocokkan — otomatis berlaku ke semua 24 call site tanpa ubah repository satu-satu.
+
+**35 test total** (17+14 unit, 4 E2E), 0 fail. Jalankan dengan `cd backend && bun test`.
+
+### Task H — Filter Dropdown Sadar Level Akses (ditambahkan 2026-07-06, di luar rencana awal)
+
+Permintaan tambahan: dropdown filter Branch/Division di tiap halaman harus mengikuti level
+akses user sendiri (bukan cuma enforcement di backend, tapi opsi yang DITAWARKAN di UI):
+- User di-restrict ke division tertentu → dropdown division cuma opsi itu saja
+- User full-access di level branch (semua division dalam branch-nya) → dropdown division opsi penuh
+- User full-access di level company (semua branch) → dropdown branch JUGA opsi penuh
+
+- [x] H1. Backend — `GET /auth/me` diperluas dengan field `scope` (pohon Company→Branch→Division
+  milik user sendiri + flag `isFullBranchAccess`/`isFullDivisionAccess` per level). Lihat
+  `getMyScopeTree()` di `auth.repository.ts`.
+- [x] H2. Backend — filter laporan `branch_id` (mirror `business_unit` yang sudah ada, beda dari
+  `branchScope` enforcement) ditambahkan ke: Customers (`customers.schema/repository.ts`),
+  Dashboard (`dashboard.schema.ts` baru + threading penuh), dan `SegmentParams.branchFilter`
+  (SSOT `segment.helper.ts`) — otomatis berlaku ke m1/m3m7/m8m10 + `dashboard.repository.ts`
+  (dan bonus: gpBreakdown/hmBreakdown/rorBreakdown karena berbagi CTE builder yang sama).
+  `assertBranchFilterAccess()` (`middleware/auth.ts`) validasi branch_id yang diminta terhadap
+  scope user — 403 kalau bukan haknya.
+- [x] H3. Frontend — `useMyScope()` (baca `scope` dari `/auth/me`) + `scopeFilters.ts`
+  (`getScopedBranches`/`getScopedDivisions`) sebagai pola dasar. Diterapkan penuh di 2 halaman
+  pertama: **Customers** (`pages/Customers/index.tsx`) dan **Dashboard** (`pages/Dashboard/index.tsx`)
+  — dropdown Branch baru (tidak ada sebelumnya) + Division jadi sadar akses. Diverifikasi via
+  Playwright: pilih company → branch dropdown muncul terisi benar → data ter-filter sesuai,
+  tanpa console error.
+- [x] H4. **Selesai (2026-07-06)** — replikasi pola ke semua halaman: Cross Selling, Dormant
+  Customer, Customer Metrics (M4/M5/M6 breakdown), Transactions, Product Trend, High Margin
+  (2 tab: Category Penetration + Upsell Targets), Products (Category Performance). Backend:
+  `avg-category`, `high-margin-penetration` (2 fungsi), `category-performance` repository
+  ditambah `division`+`branchFilter` (sebelumnya cuma `branchScope`/`divisionScope` RBAC, tanpa
+  filter laporan) — pola sama seperti metrics lain: `(filter IS NULL OR kolom = filter)`.
+  `metrics.handler.ts`'s `resolveScope()` diperluas terima `branchId` opsional +
+  `assertBranchFilterAccess()` — fix gap: 12 handler metrics sebelumnya terima `branch_id` dari
+  query tapi tidak validasi akses sebelum sesi ini (403 sekarang konsisten di semua endpoint).
+  `category-products`/`customer-products` (dialog drill-down bertingkat) sengaja TIDAK disentuh
+  — hanya level halaman utama yang jadi scope permintaan, dialog turunan masih company-scope saja.
+  Frontend: `useScopedCompanyFilter()` (dibuat di H3) dipakai ulang di 7 halaman, DRY penuh.
+  Projects dilewati (masih halaman placeholder, belum ada fitur).
 
 ---
 
@@ -297,11 +426,11 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 | Risiko | Dampak | Mitigasi |
 |--------|--------|----------|
-| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | Task E — audit dulu sebelum enforcement, keputusan eksplisit soal NULL |
+| `invoices.branch_name` tidak match rapi ke `company_branches` | Backfill `branch_id` NULL di banyak baris → data "hilang" dari view user yang di-scope branch | **Sudah dieksekusi di data lokal (Task A4/A5, 2026-07-06):** ketemu company 1 cuma seed 1 branch ("Pusat") padahal Accurate riil punya Jakarta+Surabaya. Diperbaiki: repurpose "Pusat"→"Lainnya" + insert branch riil, backfill 100% (§4.6). **DB lokal = 1:1 production saat ini** — perbaikan yang sama perlu direplikasi manual ke production sebelum step 2 di Runbook Deploy (§5, Task E/F), karena backfill baru jalan di instance lokal, belum di instance production yang sesungguhnya.
 | JOIN `channel_divisions` existing tidak match `company_id` | Kalau dipakai juga untuk enforcement akses (bukan cuma filter laporan), bisa salah scoping lintas company | Task C8 — perbaiki JOIN condition dulu |
 | Default-deny **berjenjang** (Company→Branch→Division) | Admin assign branch tapi lupa assign division di bawahnya (atau sebaliknya) → user "hilang akses" mendadak di level yang lebih dalam, terlihat seperti bug padahal by design | Task D2 — warning eksplisit di 2 lapis (branch tanpa division, company tanpa branch) |
 | User existing (termasuk `admin`, karena admin tidak lagi bypass) tiba-tiba kehilangan akses saat fitur pertama kali deploy | Gangguan operasional besar kalau tidak di-migrasi dulu | Task F1 — wajib seeder backfill assignment dulu sebelum enforcement aktif, admin diperlakukan sama seperti user lain |
-| Audit log ikut ke-filter tanpa sengaja | Investigasi/kepatuhan jadi tidak lengkap kalau audit log ikut di-scope division/branch | Task C6 — putuskan eksplisit audit log dikecualikan dari scoping ini |
+| Audit log ikut ke-filter tanpa sengaja | ~~Investigasi/kepatuhan jadi tidak lengkap~~ — **sudah diputuskan (§7.2):** tetap company-scope, tidak turun ke branch/division | Task C6 sudah final, tidak perlu keputusan tambahan |
 
 ---
 
@@ -309,9 +438,14 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 ~~1. Bypass admin~~ — **sudah diputuskan**: hanya `superadmin` yang bypass, `admin` wajib assignment eksplisit (boleh lewat seeder). Lihat §2.
 
-2. **Audit log:** apakah `audit_logs` ikut di-scope branch/division, atau tetap full-visibility untuk keperluan investigasi (rekomendasi: tetap full, karena audit log punya endpoint & permission sendiri yang sudah lebih ketat)?
-3. **Baris data tanpa branch/division match (NULL):** default-nya hilang dari semua user yang di-scope pada dimensi itu, atau tetap tampil untuk semua (dianggap "tidak masuk dimensi manapun, jadi tidak difilter")?
-4. **Timing rollout:** deploy sekaligus semua fitur, atau bertahap per company (Task F3) sambil pantau dampaknya?
+~~2. Audit log~~ — **sudah diputuskan (2026-07-06)**: `audit_logs` **tetap di-scope `company_id`** (pola existing, tidak berubah) — beda dari rekomendasi awal draft ini ("tetap full"). Alasan: division tidak pernah punya hak lihat audit log sama sekali; akses ke endpoint ini dibatasi lewat permission khusus role setingkat direktur/superadmin. Karena batas akses sudah berhenti di company (tidak pernah turun ke branch/division), tidak perlu tambah branch/division scope di endpoint ini. Lihat update Task C6.
+
+~~3. Baris data tanpa branch/division match (NULL)~~ — **sudah diputuskan & final (2026-07-06, direvisi dari draf awal)**: baik branch maupun division punya kategori **"Lainnya"**, tapi bukan kategori virtual NULL+full-coverage seperti draf awal — melainkan **row/value asli**:
+   - **Branch:** "Lainnya" adalah row `company_branches` biasa (hasil repurpose branch "Pusat" yang ternyata bukan branch riil, ditemukan lewat audit Task A5 — lihat §4.6). Invoice tanpa `branch_name` di-backfill ke `branch_id` "Lainnya" ini, bukan dibiarkan NULL.
+   - **Division:** "Lainnya" adalah value asli `division='other'` di `channel_divisions`/`user_divisions`, di samping 6 value existing (lihat §4.5).
+   - Konsekuensinya: **tidak ada logic khusus** di `buildBranchCondition`/`buildDivisionCondition` (§4.3) untuk kategori ini — keduanya diperlakukan identik dengan branch/division lain, default-deny biasa, admin assign akses lewat `user_branches`/`user_divisions` seperti biasa. Jauh lebih simpel dari desain full-coverage yang sempat dirancang sebelumnya.
+
+~~4. Timing rollout~~ — **sudah diputuskan (2026-07-06)**: deploy sekaligus semua fitur, bukan bertahap per company. Prosesnya memang tidak berbeda secara teknis — schema, kode, dan migration ditulis & dirilis sekali untuk semua company. Task F3 (aktivasi bertahap) tetap dipertahankan, tapi cuma sebagai **toggle aktivasi** (feature flag `enforcement_enabled` per company), bukan proses build terpisah: Task A–D + F1 selesai dan dirilis sekaligus, lalu F2 (validasi tanpa enforcement) dan F3 (nyalakan bertahap) tinggal soal kapan flag di-flip per company. Alasan tetap pakai flag bertahap walau "prosesnya sama": sistem ini sudah live production, dan default-deny + risiko backfill `branch_id` yang belum tentu 100% bersih (Task E) berarti kalau ada company yang datanya kurang rapi, blast radius kesalahan kebatasi ke company itu dulu — bukan langsung semua user di semua company kehilangan akses bersamaan.
 
 ---
 

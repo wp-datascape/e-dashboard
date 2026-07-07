@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const divisionEnum = z
-  .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support'])
+  .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other'])
   .optional()
 
 export const crossSellingQuerySchema = z.object({
@@ -11,6 +11,7 @@ export const crossSellingQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 export type CrossSellingQuery = z.infer<typeof crossSellingQuerySchema>
 
@@ -21,6 +22,7 @@ export const customerMetricsQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 
 export type CustomerMetricsQuery = z.infer<typeof customerMetricsQuerySchema>
@@ -32,6 +34,7 @@ export const gpBreakdownQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 
 export type GpBreakdownQuery = z.infer<typeof gpBreakdownQuerySchema>
@@ -43,6 +46,7 @@ export const hmBreakdownQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 
 export type HmBreakdownQuery = z.infer<typeof hmBreakdownQuerySchema>
@@ -54,6 +58,7 @@ export const rorBreakdownQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 
 export type RorBreakdownQuery = z.infer<typeof rorBreakdownQuerySchema>
@@ -65,6 +70,7 @@ export const dormantCustomerQuerySchema = z.object({
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
 })
 
 export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>
@@ -79,6 +85,8 @@ export const categoryPerformanceQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -131,6 +139,8 @@ export const hmDetailQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -147,6 +157,7 @@ export const upsellTargetQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -182,6 +193,8 @@ export const avgCategoryQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')

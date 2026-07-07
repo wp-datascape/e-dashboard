@@ -15,10 +15,12 @@ function adaptUser(raw: Record<string, unknown>): User {
     // These fields only available after RBAC is implemented — default to empty array
     roles: (raw.roles as User['roles']) ?? [],
     companies: (raw.companies as User['companies']) ?? [],
+    company_assignments: (raw.company_assignments as User['company_assignments']) ?? [],
     permissions: (raw.permissions as string[]) ?? [],
     // Backend uses lastLoginAt (camelCase), frontend expects last_login_at (snake_case)
     last_login_at: (raw.last_login_at ?? null) as string | null,
     created_at: (raw.created_at) as string,
+    locked_until: (raw.locked_until ?? null) as string | null,
   };
 }
 
@@ -69,6 +71,18 @@ export const usersApi = {
   deleteUser: async (id: number): Promise<void> => {
     try {
       await api.delete(`/users/${id}`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: ApiError } };
+      if (axiosErr.response?.data) throw axiosErr.response.data as ApiError;
+      throw err;
+    }
+  },
+
+  // Task002 Task C4 — unlock manual (reset failed_login_count/locked_until)
+  unlockUser: async (id: number): Promise<User> => {
+    try {
+      const response = await api.post<ApiResponse<User>>(`/users/${id}/unlock`);
+      return response.data.data;
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: ApiError } };
       if (axiosErr.response?.data) throw axiosErr.response.data as ApiError;

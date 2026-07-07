@@ -1,7 +1,7 @@
 import { and, eq, inArray, or, isNull, lte, gte, desc, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { high_margin_products, products, product_categories, companies } from '@/db/schema'
-import type { NewHighMarginProduct } from '@/db/schema/high_margin_products'
+import type { NewHighMarginProduct } from '@/db/schema'
 
 export async function createHighMargin(data: NewHighMarginProduct) {
   const [result] = await db.insert(high_margin_products).values(data).returning()

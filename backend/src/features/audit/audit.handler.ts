@@ -19,6 +19,7 @@ export async function handleGetAuditLogs(c: Context) {
     date_from: query.date_from,
     date_to: query.date_to,
     scopeIds,
+    excludeSuperAdminActors: !c.var.user.isSuperAdmin,
   })
   return paginated(c, data, { page: query.page ?? 1, per_page: query.per_page ?? 50, total })
 }
@@ -30,6 +31,6 @@ export async function handleGetAuditActions(c: Context) {
 
 export async function handleGetAuditLogById(c: Context) {
   const { id } = validateParam(c, z.object({ id: z.coerce.number().int().positive() }))
-  const log = await getAuditLogById(id)
+  const log = await getAuditLogById(id, !c.var.user.isSuperAdmin)
   return success(c, log)
 }
