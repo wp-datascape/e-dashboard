@@ -33,4 +33,15 @@ export const authApi = {
     await api.post('/auth/logout');
     setCsrfToken(null);
   },
+
+  updatePreferences: async (preferences: UserPreferencesInput): Promise<UserPreferencesInput> => {
+    const response = await api.patch<ApiResponse<{ preferences: UserPreferencesInput }>>('/auth/me/preferences', preferences);
+    return response.data.data.preferences;
+  },
 };
+
+export interface UserPreferencesInput {
+  theme_mode?: 'light' | 'dark';
+  color_palette?: string;
+  language?: string;
+}

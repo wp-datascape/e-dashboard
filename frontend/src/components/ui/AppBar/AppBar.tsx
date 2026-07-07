@@ -7,11 +7,10 @@ import Tooltip from '@mui/material/Tooltip';
 import MenuIcon from '@mui/icons-material/Menu';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
-import LogoutIcon from '@mui/icons-material/Logout';
 import { useTranslation } from 'react-i18next';
 import { useThemeMode } from '@/theme/theme.context';
-import { useLogoutMutation } from '@/hooks/useAuth';
 import { AppLogo } from '@/components/ui/AppLogo';
+import { UserMenu } from '@/components/ui/UserMenu';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -21,7 +20,6 @@ interface AppBarProps {
 export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
   const { t } = useTranslation();
   const { toggleTheme, isDark } = useThemeMode();
-  const logoutMutation = useLogoutMutation();
 
   return (
     <MuiAppBar
@@ -29,10 +27,8 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
       elevation={0}
       sx={{
         zIndex: (theme) => theme.zIndex.drawer + 1,
-        bgcolor: 'background.paper',
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        color: 'text.primary',
+        // Background/color diambil dari MuiAppBar styleOverrides di theme (ikut
+        // palette user, lihat theme/index.ts) - sengaja TIDAK di-override di sini.
         // iOS standalone PWA (apple-mobile-web-app-status-bar-style: black-translucent
         // di index.html) bikin status bar jadi overlay transparan, bukan mendorong
         // konten ke bawah — tanpa ini, tombol menu di Toolbar ketutup status bar dan
@@ -58,7 +54,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
           <Typography
             variant="h6"
             noWrap
-            sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.95rem' }}
+            sx={{ fontWeight: 700, color: 'inherit', fontSize: '0.95rem' }}
           >
             {t('common.appName')}
           </Typography>
@@ -71,11 +67,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title={t('common.logout')}>
-          <IconButton color="inherit" onClick={() => logoutMutation.mutate()} size="small">
-            <LogoutIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <UserMenu />
       </Toolbar>
     </MuiAppBar>
   );

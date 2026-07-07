@@ -14,8 +14,19 @@ import {
   getMyScopeTree,
   recordFailedLogin,
   resetLoginAttempts,
+  updateUserPreferences,
 } from './auth.repository'
-import type { LoginDto } from './auth.schema'
+import type { LoginDto, UpdatePreferencesDto } from './auth.schema'
+import type { UserPreferences } from '@/db/schema'
+
+// Default preferensi kalau user belum pernah set apa pun (Task003) - fallback ini
+// biar user existing tidak tiba-tiba berubah tampilannya begitu fitur ini deploy;
+// frontend tetap boleh fallback lagi ke system preference/browser locale sendiri
+// kalau field-nya undefined (default di sini cuma utk color_palette yang memang
+// butuh nilai pasti, tidak ada "system preference" utk itu).
+const DEFAULT_PREFERENCES: UserPreferences = {
+  color_palette: 'blue',
+}
 
 function formatLockRemaining(lockedUntil: Date): string {
   const minutes = Math.ceil((lockedUntil.getTime() - Date.now()) / 60000)
@@ -156,5 +167,16 @@ export async function getMeService(userId: number, isSuperAdmin: boolean) {
       isSuperAdmin,
       companies: scopeCompanies,
     },
+    // Task003 — merge default supaya field yang belum pernah di-set (user existing,
+    // sebelum fitur ini ada) tetap punya nilai pasti, bukan undefined.
+    preferences: { ...DEFAULT_PREFERENCES, ...(user.preferences ?? {}) },
   }
+}
+
+export async function updateMyPreferencesService(userId: number, dto: UpdatePreferencesDto) {
+  const preferences = await updateUserPreferences(userId, dto)
+  if (!preferences) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid', 401)
+  }
+  return { ...DEFAULT_PREFERENCES, ...preferences }
 }

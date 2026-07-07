@@ -8,17 +8,41 @@ import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
+import CheckIcon from '@mui/icons-material/Check'
 import { useTranslation } from 'react-i18next'
-import { useTheme as useMuiTheme } from '@mui/material/styles'
 import { useThemeMode } from '@/theme/theme.context'
+import { PALETTES, PALETTE_KEYS, type PaletteKey } from '@/theme/palettes'
 import { SUPPORTED_LANGUAGES } from '@/i18n/index'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Card } from '@/components/ui'
+import { useUpdateMyPreferences } from '@/hooks/useAuth'
+
+const PALETTE_LABELS: Record<PaletteKey, string> = {
+  blue: 'config.appSettings.paletteBlue',
+  green: 'config.appSettings.paletteGreen',
+  yellow: 'config.appSettings.paletteYellow',
+}
 
 export default function AppSettingsPage() {
   const { t, i18n } = useTranslation()
-  const muiTheme = useMuiTheme()
-  const { mode, toggleTheme, isDark } = useThemeMode()
+  const { mode, toggleTheme, isDark, palette, setPalette } = useThemeMode()
+  const { mutate: updatePreferences } = useUpdateMyPreferences()
+
+  const handleToggleTheme = () => {
+    const next = isDark ? 'light' : 'dark'
+    toggleTheme()
+    updatePreferences({ theme_mode: next })
+  }
+
+  const handleChangeLanguage = (code: string) => {
+    void i18n.changeLanguage(code)
+    updatePreferences({ language: code })
+  }
+
+  const handleChangePalette = (key: PaletteKey) => {
+    setPalette(key)
+    updatePreferences({ color_palette: key })
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -33,7 +57,7 @@ export default function AppSettingsPage() {
             </Typography>
             <FormControl fullWidth>
               <InputLabel id="language-label">{t('common.language')}</InputLabel>
-              <Select labelId="language-label" value={i18n.language} label={t('common.language')} onChange={(e) => void i18n.changeLanguage(e.target.value as string)}>
+              <Select labelId="language-label" value={i18n.language} label={t('common.language')} onChange={(e) => handleChangeLanguage(e.target.value as string)}>
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <MenuItem key={lang.code} value={lang.code}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -66,7 +90,7 @@ export default function AppSettingsPage() {
                   </Typography>
                 </Box>
               </Box>
-              <FormControlLabel control={<Switch checked={isDark} onChange={toggleTheme} color="primary" />} label="" sx={{ m: 0 }} />
+              <FormControlLabel control={<Switch checked={isDark} onChange={handleToggleTheme} color="primary" />} label="" sx={{ m: 0 }} />
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
               {t('config.appSettings.themeHelper')}
@@ -79,19 +103,40 @@ export default function AppSettingsPage() {
             <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>
               {t('config.appSettings.paletteTitle', { mode })}
             </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+              {t('config.appSettings.paletteHelper')}
+            </Typography>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-              {[
-                { label: t('common.colorNames.primary'), bg: muiTheme.palette.primary.main, text: muiTheme.palette.primary.contrastText },
-                { label: t('common.colorNames.secondary'), bg: muiTheme.palette.secondary.main, text: muiTheme.palette.secondary.contrastText },
-                { label: t('common.colorNames.success'), bg: muiTheme.palette.success.main, text: muiTheme.palette.getContrastText(muiTheme.palette.success.main) },
-                { label: t('common.colorNames.warning'), bg: muiTheme.palette.warning.main, text: muiTheme.palette.getContrastText(muiTheme.palette.warning.main) },
-                { label: t('common.colorNames.error'), bg: muiTheme.palette.error.main, text: muiTheme.palette.getContrastText(muiTheme.palette.error.main) },
-                { label: t('common.colorNames.info'), bg: muiTheme.palette.info.main, text: muiTheme.palette.getContrastText(muiTheme.palette.info.main) },
-              ].map((color) => (
-                <Box key={color.label} sx={{ width: 72, height: 72, bgcolor: color.bg, border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography variant="caption" sx={{ color: color.text, fontWeight: 600, fontSize: '0.65rem', textAlign: 'center' }}>{color.label}</Typography>
-                </Box>
-              ))}
+              {PALETTE_KEYS.map((key) => {
+                const swatch = isDark ? PALETTES[key].primary.dark : PALETTES[key].primary.light
+                const selected = palette === key
+                return (
+                  <Box
+                    key={key}
+                    onClick={() => handleChangePalette(key)}
+                    sx={{
+                      width: 88,
+                      height: 88,
+                      bgcolor: swatch,
+                      border: '2px solid',
+                      borderColor: selected ? 'text.primary' : 'transparent',
+                      borderRadius: 1,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.5,
+                      transition: 'border-color 0.15s',
+                    }}
+                  >
+                    {selected && <CheckIcon sx={{ color: '#fff', fontSize: 20 }} />}
+                    <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.65rem', textAlign: 'center' }}>
+                      {t(PALETTE_LABELS[key])}
+                    </Typography>
+                  </Box>
+                )
+              })}
             </Box>
           </Box>
         </Stack>
