@@ -238,7 +238,7 @@ const defaultBusinessConfigs = [
   { key: 'dormant_rate_alert_pct', value: '10', description: 'Ambang batas M8 Dormant Rate (%) — di atas nilai ini grafik tampil peringatan merah' },
   { key: 'reactivation_target_low_pct', value: '15', description: 'Target minimum M10 Customer Reactivation Rate (%) — batas bawah zona hijau' },
   { key: 'reactivation_target_high_pct', value: '20', description: 'Target ideal M10 Customer Reactivation Rate (%) — batas atas zona hijau' },
-  { key: 'branch_division_enforcement_enabled', value: 'false', description: 'Rollout bertahap isolasi Branch/Division (docs-v2/task/task001.md Task F2/F3) — set "true" utk aktifkan enforcement, default "false" (bypass, cuma company scope yang berlaku) supaya deploy awal tidak langsung memblokir user existing' },
+  { key: 'branch_division_enforcement_enabled', value: 'true', description: 'Isolasi akses Branch/Division — "true" berarti user non-superadmin dibatasi ke branch/division yang di-assign, "false" cuma company scope yang berlaku' },
 ]
 
 const defaultPageSettings = [
