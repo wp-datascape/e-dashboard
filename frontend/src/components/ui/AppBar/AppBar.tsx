@@ -3,14 +3,11 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Box from '@mui/material/Box';
-import Tooltip from '@mui/material/Tooltip';
 import MenuIcon from '@mui/icons-material/Menu';
-import LightModeIcon from '@mui/icons-material/LightMode';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
 import { useTranslation } from 'react-i18next';
-import { useThemeMode } from '@/theme/theme.context';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { UserMenu } from '@/components/ui/UserMenu';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -19,7 +16,6 @@ interface AppBarProps {
 
 export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
   const { t } = useTranslation();
-  const { toggleTheme, isDark } = useThemeMode();
 
   return (
     <MuiAppBar
@@ -61,11 +57,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
         </Box>
 
         {/* Actions */}
-        <Tooltip title={isDark ? t('common.lightMode') : t('common.darkMode')}>
-          <IconButton color="inherit" onClick={toggleTheme} size="small">
-            {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-          </IconButton>
-        </Tooltip>
+        <ThemeToggle />
 
         <UserMenu />
       </Toolbar>
