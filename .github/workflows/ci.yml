@@ -53,6 +53,9 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
+      - name: Dependency audit
+        run: bun audit --audit-level=high
+
       - name: Migrate database
         run: bun run db:migrate
 
@@ -86,6 +89,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Dependency audit
+        run: bun audit --audit-level=high
 
       - name: Build (sudah termasuk typecheck)
         run: bun run build
