@@ -312,7 +312,10 @@ Update tiap handler + repository untuk terima & apply `divisionScope`/`branchSco
 
 ### Task F — Rollout & Migrasi User Existing
 - [x] F1. **Selesai & sudah dieksekusi (2026-07-06)** — script baru `backend/scripts/backfill-user-branch-division.ts` (idempotent, dry-run default + `--apply`): assign SEMUA branch + SEMUA division ke user existing berdasarkan `user_companies` yang sudah mereka punya, termasuk role `admin` (tidak bypass, lihat §2). Dijalankan di DB lokal: 11 pasangan (user, company) ter-backfill — 27 row `user_branches` + 189 row `user_divisions`.
-- [x] F2/F3. **Feature flag `branch_division_enforcement_enabled` — selesai (2026-07-06)**. `business_configs` key baru, default `'false'` (bypass total, cuma company scope yang berlaku — persis perilaku sebelum task001 ini). `authMiddleware()` load sekali per request, `resolveBranchScope`/`resolveDivisionScope` bypass total kalau flag off, tanpa peduli role. Admin nyalakan lewat **Settings → Threshold → General** (Switch, sudah ada UI-nya) atau langsung `PATCH /api/v1/config/branch_division_enforcement_enabled`. **Catatan:** ini flag GLOBAL, bukan per-company seperti draf awal §7.4 — per-company butuh redesain Map semantics `resolveBranchScope`, didesain ulang kalau nanti terbukti perlu granularitas segitu.
+- [x] F2/F3. **Feature flag `branch_division_enforcement_enabled` — selesai (2026-07-06)**. `business_configs` key baru, awalnya default `'false'` (bypass total, cuma company scope yang berlaku — persis perilaku sebelum task001 ini). `authMiddleware()` load sekali per request, `resolveBranchScope`/`resolveDivisionScope` bypass total kalau flag off, tanpa peduli role. Admin nyalakan lewat **Settings → Threshold → General** (Switch, sudah ada UI-nya) atau langsung `PATCH /api/v1/config/branch_division_enforcement_enabled`. **Catatan:** ini flag GLOBAL, bukan per-company seperti draf awal §7.4 — per-company butuh redesain Map semantics `resolveBranchScope`, didesain ulang kalau nanti terbukti perlu granularitas segitu.
+  **Update (2026-07-07):** default diubah jadi `'true'` (enforcement aktif by default) — keputusan
+  eksplisit user, rollout bertahap dianggap sudah tidak diperlukan lagi. Diterapkan ke seed
+  (`backend/src/db/seed.ts`) dan database lokal+production yang sudah live.
 - [ ] F4. Setelah stabil, buka RBAC UI untuk admin mulai atur assignment granular per user baru (assignment admin baru pun tetap lewat form yang sama — tidak ada bypass, cuma proses awal migrasinya yang dipercepat lewat seeder). Ini tinggal soal kapan admin mulai pakai — UI-nya (Task D) sudah selesai.
 
 ### Runbook Deploy ke Production (saat merge + redeploy)
@@ -419,6 +422,17 @@ akses user sendiri (bukan cuma enforcement di backend, tapi opsi yang DITAWARKAN
   — hanya level halaman utama yang jadi scope permintaan, dialog turunan masih company-scope saja.
   Frontend: `useScopedCompanyFilter()` (dibuat di H3) dipakai ulang di 7 halaman, DRY penuh.
   Projects dilewati (masih halaman placeholder, belum ada fitur).
+- [x] H5. **Bug ditemukan & diperbaiki (2026-07-07)** — `getScopedBranches()`/`getScopedDivisions()`
+  (`scopeFilters.ts`) memperlakukan `companyId==='all'` **selalu unrestricted**, padahal itu cuma
+  boleh berlaku untuk superadmin. Dampak: user non-superadmin yang company dropdown-nya
+  tersembunyi (cuma punya 1 company, jadi `companyId` state stuck di `'all'`) — opsi
+  branch/division dropdown jatuh ke daftar mentah tanpa scope sama sekali (leak). Fix: untuk
+  non-superadmin, `companyId==='all'` sekarang hitung union branch/division dari SEMUA company
+  yang di-assign, bukan bypass total. Sekalian dikonsolidasi jadi 1 komponen JSX reusable
+  `components/filters/ScopeFilterFields.tsx` (gating `showCompanyFilter`/`showBranchFilter`/
+  `showDivisionFilter` konsisten — sebelumnya disalin-tempel beda-beda per halaman, ada yang
+  division-nya malah tanpa gate sama sekali) dipasang di semua 9 halaman yang pakai
+  `useScopedCompanyFilter()`.
 
 ---
 

@@ -61,6 +61,8 @@ updated_at  timestamp
 
 deleted_at  timestamp nullable    -- soft delete
 
+preferences jsonb default '{}'    -- Task003: { theme_mode, color_palette, language } - self-service via PATCH /auth/me/preferences
+
 ### roles
 id          serial PK
 
