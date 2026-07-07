@@ -44,7 +44,7 @@ export const DonutChartWidget = ({
       </Box>
 
       <Box sx={{ position: 'relative' }}>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={height} debounce={200}>
           <PieChart onClick={onChartClick} style={onChartClick ? { cursor: 'pointer' } : undefined}>
             <Pie
               data={data}

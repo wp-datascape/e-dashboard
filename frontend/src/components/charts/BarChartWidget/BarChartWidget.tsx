@@ -119,7 +119,7 @@ export const BarChartWidget = ({
       </Box>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
+      <ResponsiveContainer width="100%" height={height} debounce={200}>
         <BarChart
           data={data}
           layout={isHorizontal ? 'vertical' : 'horizontal'}

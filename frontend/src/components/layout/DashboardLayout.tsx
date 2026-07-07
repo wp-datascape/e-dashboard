@@ -5,7 +5,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 
 import { DashboardAppBar } from '@/components/ui/AppBar';
-import { Sidebar, SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from '@/components/ui/Sidebar';
+import { Sidebar } from '@/components/ui/Sidebar';
 import { Footer } from '@/components/ui/Footer';
 
 interface DashboardLayoutProps {
@@ -20,8 +20,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
   const closeSidebar = () => setSidebarOpen(false);
 
-  const drawerWidth = sidebarOpen ? SIDEBAR_WIDTH : SIDEBAR_COLLAPSED_WIDTH;
-
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
       {/* ── App Bar ───────────────────────────────────── */}
@@ -35,19 +33,23 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       />
 
       {/* ── Right side: content + footer ──────────────── */}
+      {/* flexGrow:1 TANPA width/transition eksplisit di sini (dulu ada, dihapus) —
+          Drawer variant="permanent" ikut normal flex flow (beda dari variant="temporary"
+          di mobile yang render via Portal/fixed, TIDAK ikut flex flow, makanya mobile
+          tetap butuh width:100% eksplisit). Sebelumnya ada 2 transisi width PARALEL
+          (Drawer + Box ini) untuk 1 efek visual yang sama — dobel reflow tiap frame,
+          padahal flexGrow:1 SUDAH otomatis mengikuti lebar Drawer saudaranya berapa pun
+          nilainya saat itu (termasuk nilai antara selama animasi), tanpa perlu transisi
+          sendiri. Menghapus salah satu sumber reflow paralel ini, bukan menghilangkan
+          reflow sepenuhnya (width itu sendiri secara CSS memang reflow-triggering,
+          transform tidak bisa dipakai di sini karena chart di dalam BENERAN butuh
+          ukuran box yang berubah, bukan cuma pergeseran visual). */}
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
           flexGrow: 1,
-          width: isMobile ? '100%' : `calc(100% - ${drawerWidth}px)`,
-          transition: (t) =>
-            t.transitions.create('width', {
-              easing: t.transitions.easing.sharp,
-              duration: sidebarOpen
-                ? t.transitions.duration.enteringScreen
-                : t.transitions.duration.leavingScreen,
-            }),
+          width: isMobile ? '100%' : undefined,
           overflow: 'hidden',
         }}
       >

@@ -72,7 +72,7 @@ export const AreaChartWidget = ({
       </Box>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
+      <ResponsiveContainer width="100%" height={height} debounce={200}>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <defs>
             {series.map((s) => (

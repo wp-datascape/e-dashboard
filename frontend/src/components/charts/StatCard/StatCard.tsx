@@ -139,7 +139,7 @@ export const StatCard = ({
               alignItems: 'center',
             }}
           >
-            <ResponsiveContainer width="100%" height={56}>
+            <ResponsiveContainer width="100%" height={56} debounce={200}>
               <LineChart
                 data={data}
                 margin={{ top: 4, right: 2, left: 2, bottom: 4 }}

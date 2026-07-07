@@ -62,7 +62,7 @@ export const RadialBarWidget = ({
         sx={{ position: 'relative', cursor: onChartClick ? 'pointer' : 'default' }}
         onClick={onChartClick}
       >
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={height} debounce={200}>
           <RadialBarChart
             cx="50%"
             cy="50%"

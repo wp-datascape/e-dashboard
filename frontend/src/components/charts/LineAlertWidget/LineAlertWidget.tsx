@@ -62,7 +62,7 @@ export const LineAlertWidget = ({
         )}
       </Box>
 
-      <ResponsiveContainer width="100%" height={height}>
+      <ResponsiveContainer width="100%" height={height} debounce={200}>
         <ComposedChart data={data} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
