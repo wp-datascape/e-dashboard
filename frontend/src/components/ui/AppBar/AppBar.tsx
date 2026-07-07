@@ -8,10 +8,10 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LogoutIcon from '@mui/icons-material/Logout';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useTranslation } from 'react-i18next';
 import { useThemeMode } from '@/theme/theme.context';
 import { useLogoutMutation } from '@/hooks/useAuth';
+import { AppLogo } from '@/components/ui/AppLogo';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -54,7 +54,7 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
 
         {/* Brand */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-          <AutoAwesomeIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+          <AppLogo sx={{ fontSize: 20 }} />
           <Typography
             variant="h6"
             noWrap

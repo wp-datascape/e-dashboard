@@ -14,7 +14,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { Card } from '@/components/ui';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { AppLogo } from '@/components/ui/AppLogo';
 
 // UI Components
 import { TextField } from '@/components/ui/TextField';
@@ -84,7 +84,7 @@ export default function Login() {
       >
         {/* Brand Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-          <AutoAwesomeIcon sx={{ color: 'primary.main', fontSize: 22 }} />
+          <AppLogo sx={{ fontSize: 22 }} />
           <Typography
             variant="body1"
             sx={{
