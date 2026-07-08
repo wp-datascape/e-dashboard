@@ -76,7 +76,14 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           // MUI Select tidak render teks MenuItem terpilih kalau value === '' kecuali
           // displayEmpty di-set - beda dari Entity/Branch yang pakai sentinel 'all'
           // (non-empty), jadi selalu tampil normal tanpa perlu ini.
-          slotProps={{ select: { displayEmpty: true } }}
+          // inputLabel.shrink:true WAJIB juga - InputLabel MUI menentukan posisi
+          // "shrink" (mengecil ke atas border) berdasarkan ADA-TIDAKNYA value, dan
+          // string kosong dianggap "tidak ada value" walau displayEmpty bikin Select-nya
+          // sendiri tetap tampilkan teks placeholder. Tanpa ini label "Division" tetap di
+          // posisi awal (belum mengecil) SEKALIGUS teks "All Divisions" tampil di tempat
+          // yang sama - dua teks bertumpuk. Entity/Branch tidak butuh ini karena value-nya
+          // selalu non-empty ('all' atau angka), shrink otomatis benar dari value itu sendiri.
+          slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
         >
           <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
           {divisionOptions.map((opt) => (
