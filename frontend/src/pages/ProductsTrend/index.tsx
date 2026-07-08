@@ -47,10 +47,10 @@ export default function ProductsTrend() {
         mb: 3,
       }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+          <Typography variant="pageTitle" sx={{ mb: 0.5 }}>
             {t('productsTrend.title')}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="pageSubtitle">
             {t('productsTrend.subtitle')}
           </Typography>
         </Box>

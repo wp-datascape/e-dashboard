@@ -344,36 +344,41 @@ export default function ProductsHighMargin() {
         mb: 3,
       }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+          <Typography variant="pageTitle" sx={{ mb: 0.5 }}>
             {t('productsHighMargin.title')}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="pageSubtitle">
             {t('productsHighMargin.subtitle')}
           </Typography>
         </Box>
 
-        <Stack direction="row" spacing={1.5}
-          sx={{ width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Box+gap, BUKAN Stack+spacing — Stack pakai margin negatif utk spacing yang
+            tidak menangani jarak antar-baris dengan benar saat flexWrap:'wrap' aktif
+            (keterbatasan dikenal MUI), field yang wrap ke baris baru jadi nempel/numpuk
+            tanpa jarak vertikal. gap CSS di Box menangani kedua arah (row+column) dengan
+            benar meski wrap. 8 halaman lain yang pakai ScopeFilterFields sudah benar
+            pakai pola ini - cuma halaman ini yang masih pakai Stack lama. */}
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
             size="small" label={t('common.filters.month')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
-            sx={{ minWidth: 150 }}
+            sx={{ width: { xs: '100%', sm: 150 } }}
           />
 
           <TextField
             select size="small" label={t('common.filters.activeWindow')}
             value={activeWindow}
             onChange={(e) => setActiveWindow(Number(e.target.value))}
-            sx={{ minWidth: 130 }}
+            sx={{ width: { xs: '100%', sm: 130 } }}
           >
             <MenuItem value={3}>{t('common.filters.window3Months')}</MenuItem>
             <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
             <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
           </TextField>
-        </Stack>
+        </Box>
       </Box>
 
       {/* Summary chips */}

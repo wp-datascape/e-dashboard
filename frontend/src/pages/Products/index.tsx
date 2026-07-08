@@ -144,10 +144,10 @@ export default function Products() {
         mb: 3,
       }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+          <Typography variant="pageTitle" sx={{ mb: 0.5 }}>
             {t('products.title')}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="pageSubtitle">
             {t('products.subtitle')}
           </Typography>
         </Box>

@@ -160,8 +160,8 @@ export default function IntegrationPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('nav.configIntegration')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('config.integration.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configIntegration')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('config.integration.subtitle')}</Typography>
 
       <Card sx={{ p: 3 }}>
         {status === 'saved' && (

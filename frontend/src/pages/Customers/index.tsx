@@ -88,8 +88,8 @@ export default function Customers() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('customers.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('customers.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('customers.title')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('customers.subtitle')}</Typography>
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 240 }} />

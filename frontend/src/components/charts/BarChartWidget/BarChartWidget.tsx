@@ -119,7 +119,9 @@ export const BarChartWidget = ({
       </Box>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
+      {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
+          (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
+      <ResponsiveContainer width="100%" height={height} debounce={140}>
         <BarChart
           data={data}
           layout={isHorizontal ? 'vertical' : 'horizontal'}

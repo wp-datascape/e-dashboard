@@ -190,7 +190,7 @@ export default function Users() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography variant="pageTitle">
           {t('users.title')}
         </Typography>
         {can('access.user:create') && (

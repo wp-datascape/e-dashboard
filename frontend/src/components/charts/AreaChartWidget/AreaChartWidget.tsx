@@ -72,7 +72,9 @@ export const AreaChartWidget = ({
       </Box>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
+      {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
+          (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
+      <ResponsiveContainer width="100%" height={height} debounce={80}>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <defs>
             {series.map((s) => (

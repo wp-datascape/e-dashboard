@@ -71,7 +71,7 @@ export function Dialog({
       <DialogTitle component="div" sx={{ p: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, px: 3, py: 2 }}>
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Box sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{title}</Box>
+            <Box sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>{title}</Box>
             {subtitle}
           </Box>
           {hasHeaderExtras && (

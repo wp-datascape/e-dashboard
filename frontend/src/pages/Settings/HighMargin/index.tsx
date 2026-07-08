@@ -195,8 +195,8 @@ export default function HighMarginSettings() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>{t('highMargin.title')}</Typography>
-          <Typography variant="body2" color="text.secondary">{t('highMargin.subtitle')}</Typography>
+          <Typography variant="pageTitle">{t('highMargin.title')}</Typography>
+          <Typography variant="pageSubtitle">{t('highMargin.subtitle')}</Typography>
         </Box>
         {can('settings.product:create') && (
           <Button

@@ -55,8 +55,8 @@ export default function Transactions() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('transactions.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('transactions.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('transactions.title')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('transactions.subtitle')}</Typography>
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ minWidth: 240 }} />

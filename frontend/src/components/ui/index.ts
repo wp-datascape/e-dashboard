@@ -13,3 +13,4 @@ export * from './StatusChip';
 export * from './DatePicker';
 export * from './ProgressBar';
 export * from './ActionMenu';
+export * from './ThemeToggle';

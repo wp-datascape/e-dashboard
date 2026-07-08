@@ -76,18 +76,29 @@ function NavButton({
         <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
           {item.icon}
         </ListItemIcon>
-        {!collapsed && (
-          <ListItemText
-            primary={t(item.labelKey)}
-            slotProps={{
-              primary: {
-                variant: 'body2',
-                noWrap: true,
-                sx: { fontWeight: active ? 600 : 400, color: active ? 'primary.main' : 'text.primary', fontSize: '0.82rem' },
-              },
-            }}
-          />
-        )}
+        {/* Selalu di-render (bukan collapsed && <ListItemText/>) — sebelumnya teks
+            unmount/mount INSTAN pas collapsed berubah, jadi kedip tiba-tiba di tengah
+            animasi lebar drawer yang smooth. Sekarang fade opacity sinkron durasi/easing
+            dengan transisi width Drawer (lihat 'transition: width' di bawah), pointerEvents
+            none saat collapsed supaya tidak ke-klik teks yang sedang transparan. */}
+        <ListItemText
+          primary={t(item.labelKey)}
+          sx={{
+            opacity: collapsed ? 0 : 1,
+            transition: (theme) => theme.transitions.create('opacity', {
+              easing: theme.transitions.easing.sharp,
+              duration: collapsed ? theme.transitions.duration.leavingScreen : theme.transitions.duration.enteringScreen,
+            }),
+            pointerEvents: collapsed ? 'none' : 'auto',
+          }}
+          slotProps={{
+            primary: {
+              variant: 'body2',
+              noWrap: true,
+              sx: { fontWeight: active ? 600 : 400, color: active ? 'primary.main' : 'text.primary', fontSize: '0.82rem' },
+            },
+          }}
+        />
       </ListItemButton>
     </Tooltip>
   )
@@ -250,6 +261,11 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           overflowX: 'hidden',
+          // will-change: 'width' — hint browser siapkan compositing layer lebih awal
+          // sebelum transisi mulai. Dipasang permanen di sini (BUKAN di banyak
+          // elemen/card - itu yang harus dihindari, boros memori GPU) karena ini cuma
+          // 1 elemen navigasi tunggal yang memang selalu jadi sumber animasi ini.
+          willChange: 'width',
           transition: (theme) =>
             theme.transitions.create('width', {
               easing: theme.transitions.easing.sharp,
@@ -282,13 +298,18 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
               {section.groupLabelKey && (
                 <>
                   <Divider sx={{ mt: 0.5, mb: 0 }} />
-                  {!collapsed && (
+                  {/* Collapse (bukan !collapsed && <Box/>) — label ini makan RUANG
+                      VERTIKAL (padding+tinggi teks), beda dari ListItemText nav item yang
+                      cuma di-clip horizontal oleh overflowX:hidden Drawer. Collapse
+                      animasikan height-nya jadi 0 dengan smooth (+ fade bawaan), bukan
+                      unmount instan yang bikin konten di bawahnya "loncat" naik tiba-tiba. */}
+                  <Collapse in={!collapsed} timeout="auto" unmountOnExit>
                     <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
                       <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.disabled', display: 'block' }}>
                         {section.groupLabelKey && t(section.groupLabelKey)}
                       </Typography>
                     </Box>
-                  )}
+                  </Collapse>
                 </>
               )}
 

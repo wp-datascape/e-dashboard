@@ -218,10 +218,10 @@ export default function AuditLog() {
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ mb: 1 }}>
+        <Typography variant="pageTitle" sx={{ mb: 1 }}>
           {t('auditLog.title')}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="pageSubtitle">
           {t('auditLog.description')}
         </Typography>
       </Box>

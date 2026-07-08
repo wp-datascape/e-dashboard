@@ -136,8 +136,8 @@ export default function DivisionsSettings() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>{t('divisions.title')}</Typography>
-          <Typography variant="body2" color="text.secondary">{t('divisions.subtitle')}</Typography>
+          <Typography variant="pageTitle">{t('divisions.title')}</Typography>
+          <Typography variant="pageSubtitle">{t('divisions.subtitle')}</Typography>
         </Box>
         {can('settings.channel.division:create') && (
           <Button

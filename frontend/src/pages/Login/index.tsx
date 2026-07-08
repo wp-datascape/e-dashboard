@@ -84,7 +84,24 @@ export default function Login() {
       >
         {/* Brand Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-          <AppLogo sx={{ fontSize: 22 }} />
+          {/* AppLogo murni outline putih (tanpa fill) - transparan, hilang total kalau
+              langsung ditaruh di atas card putih (Login pakai background.paper, putih
+              di light mode). Beda dari AppBar yang backgroundnya selalu gelap/berwarna
+              secara alami. Bungkus lingkaran gelap KHUSUS di sini saja, bukan di
+              AppLogo.tsx sendiri (AppBar tidak butuh ini). */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              bgcolor: '#0a0a0f',
+            }}
+          >
+            <AppLogo sx={{ fontSize: 22 }} />
+          </Box>
           <Typography
             variant="body1"
             sx={{

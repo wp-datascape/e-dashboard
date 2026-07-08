@@ -22,8 +22,8 @@ export default function ImportPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t('import.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('import.subtitle')}</Typography>
+      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('import.title')}</Typography>
+      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('import.subtitle')}</Typography>
 
       <Stack spacing={3}>
         <Grid container spacing={3} sx={{ alignItems: 'stretch' }}>

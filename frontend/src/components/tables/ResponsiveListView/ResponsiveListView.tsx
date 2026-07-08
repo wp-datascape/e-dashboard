@@ -124,9 +124,14 @@ function AutoCard({
           </Box>
         )}
         {fields.map((col, idx) => (
-          <Box key={col.field}>
+          // minWidth:0 WAJIB di container field — default flex item punya min-width:auto
+          // (ikut lebar konten, TIDAK bisa menyusut di bawah itu), jadi teks panjang tanpa
+          // spasi (mis. entity_key/URL/ID teknis) mendorong Box ini lebih lebar dari Card,
+          // keluar dari batas card. minWidth:0 izinkan Box menyusut penuh ke lebar parent,
+          // baru wordBreak di bawah bisa benar-benar efektif membungkus teksnya.
+          <Box key={col.field} sx={{ minWidth: 0 }}>
             {idx > 0 && <Divider sx={{ my: 1 }} />}
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Typography
                 variant="caption"
                 color="text.secondary"
@@ -135,11 +140,14 @@ function AutoCard({
                 {col.headerName ?? col.field}
               </Typography>
               {col.renderCell ? (
-                <Box sx={{ height: 32, display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ minHeight: 32, display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
                   {col.renderCell(makeCellParams(col))}
                 </Box>
               ) : (
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                >
                   {formatColumnValue(row, col)}
                 </Typography>
               )}
@@ -249,7 +257,7 @@ export function ResponsiveListView({
     <Card sx={{ overflow: 'hidden' }}>
       {title && (
         <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
             {title}
           </Typography>
         </Box>

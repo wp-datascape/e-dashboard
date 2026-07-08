@@ -65,7 +65,10 @@
     "paletteHelper": "Choose an accent color for buttons and highlights. Saved to your account and applied wherever you log in.",
     "paletteBlue": "Blue",
     "paletteGreen": "Green",
-    "paletteYellow": "Yellow"
+    "paletteYellow": "Yellow",
+    "palettePurple": "Purple",
+    "paletteRose": "Rose",
+    "paletteIndigo": "Indigo"
   },
   "pageSettings": {
     "title": "Page Visibility",

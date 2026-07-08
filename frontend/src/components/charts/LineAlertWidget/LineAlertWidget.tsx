@@ -62,7 +62,9 @@ export const LineAlertWidget = ({
         )}
       </Box>
 
-      <ResponsiveContainer width="100%" height={height}>
+      {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
+          (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
+      <ResponsiveContainer width="100%" height={height} debounce={320}>
         <ComposedChart data={data} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"

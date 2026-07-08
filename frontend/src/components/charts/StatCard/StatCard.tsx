@@ -139,7 +139,13 @@ export const StatCard = ({
               alignItems: 'center',
             }}
           >
-            <ResponsiveContainer width="100%" height={56}>
+            {/* debounce: nilai DIBEDAKAN sengaja per tipe widget (50/80/140/200/260/320/380)
+                supaya kalau banyak chart render bersamaan di 1 halaman (mis. halaman
+                Customer Metrics dengan 5 widget sekaligus), redraw SVG-nya TIDAK numpuk
+                di tick JS yang sama - itu yang bikin frame drop besar (diukur: 100ms
+                single spike) saat sidebar toggle. Nilai berbeda = redraw menyebar ke
+                beberapa frame terpisah, bukan 1 long-task raksasa. */}
+            <ResponsiveContainer width="100%" height={56} debounce={50}>
               <LineChart
                 data={data}
                 margin={{ top: 4, right: 2, left: 2, bottom: 4 }}
