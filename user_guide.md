@@ -643,11 +643,14 @@ Gambaran paling luas: siapa saja pihak yang berinteraksi dengan sistem, dan apa 
 ```mermaid
 flowchart LR
     User([Pengguna Aplikasi<br/>Admin / Eksekutif / Staf])
+    FileImport[[File Faktur<br/>CSV / Excel]]
     Sistem((Sistem<br/>Executive Dashboard))
     Accurate[[Accurate Online API]]
     Telegram[[Telegram]]
 
-    User -->|Login, Upload File Faktur,<br/>Atur RBAC/Settings| Sistem
+    User -->|Login, Atur RBAC/Settings| Sistem
+    User -->|Export manual dari Accurate| FileImport
+    FileImport -->|Upload lewat halaman Import| Sistem
     Sistem -->|Tampilan KPI, Hasil Import,<br/>Notifikasi Sesi| User
 
     Sistem -->|Test Connection kredensial| Accurate
@@ -656,7 +659,7 @@ flowchart LR
     Sistem -->|Alert aksi sensitif<br/>lockout, privilege escalation, dsb| Telegram
 ```
 
-> Catatan: panah ke Accurate Online cuma mencakup **Test Connection** — bukan penarikan data invoice otomatis, karena fitur sinkronisasi belum tersambung (lihat §7.7).
+> Catatan: jalur data faktur yang **benar-benar berfungsi** sekarang adalah lewat **File Faktur** (export manual dari Accurate Online → upload ke halaman Import, lihat §7.2). Panah ke **Accurate Online API** cuma mencakup **Test Connection** — bukan penarikan data invoice otomatis, karena fitur sinkronisasi langsung belum tersambung (lihat §7.7).
 
 ### 10.2 DFD Level 1 — Proses Utama
 
