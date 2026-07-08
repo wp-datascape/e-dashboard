@@ -6,19 +6,17 @@ import SvgIcon, { type SvgIconProps } from '@mui/material/SvgIcon';
  * di-reimplement sebagai SvgIcon supaya bisa dipakai inline (AppBar, Login) dengan
  * sizing/margin yang konsisten dengan icon MUI lain.
  *
- * Bentuk semanggi diisi solid gelap + outline putih tipis MENGELILINGI siluetnya
- * (stroke tergambar center-of-path, jadi separuh lebar stroke "keluar" dari fill,
- * membentuk garis tepi putih) - BUKAN lagi badge lingkaran hitam solid di belakang.
- * Kombinasi fill gelap + outline putih ini tetap kebaca di background apapun:
- * outline putih yang beri kontras di AppBar berwarna/gelap, fill gelap yang beri
- * kontras di Login card putih (light mode). Sisa area (di luar siluet) transparan.
+ * Murni outline putih (fill="none" di semua elemen) - lingkaran DAN bentuk semanggi
+ * cuma garis tepi, tidak ada fill solid apapun. Transparan penuh di background
+ * apapun ini duduk di atasnya.
  */
 export function AppLogo(props: SvgIconProps) {
   return (
     <SvgIcon viewBox="0 0 100 100" {...props}>
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#FFFFFF" strokeWidth={3} />
       <g
         transform="translate(50,50) scale(2.15)"
-        fill="#0a0a0f"
+        fill="none"
         stroke="#FFFFFF"
         strokeWidth={1.6}
         strokeLinejoin="round"
