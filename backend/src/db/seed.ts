@@ -239,6 +239,7 @@ const defaultBusinessConfigs = [
   { key: 'reactivation_target_low_pct', value: '15', description: 'Target minimum M10 Customer Reactivation Rate (%) — batas bawah zona hijau' },
   { key: 'reactivation_target_high_pct', value: '20', description: 'Target ideal M10 Customer Reactivation Rate (%) — batas atas zona hijau' },
   { key: 'branch_division_enforcement_enabled', value: 'true', description: 'Isolasi akses Branch/Division — "true" berarti user non-superadmin dibatasi ke branch/division yang di-assign, "false" cuma company scope yang berlaku' },
+  { key: 'accurate_sync_enabled', value: 'false', description: 'Tombol "Sync Now" (sinkronisasi otomatis faktur dari Accurate Online) di halaman Import — nonaktif secara default, nyalakan hanya setelah integrasi sinkronisasi selesai dikonfigurasi' },
 ]
 
 const defaultPageSettings = [

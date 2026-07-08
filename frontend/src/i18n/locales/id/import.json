@@ -10,7 +10,8 @@
     "title": "Sinkronisasi dari Accurate API",
     "subtitle": "Tarik faktur langsung dari Accurate Online dan simpan ke database",
     "submit": "Sinkronisasi Sekarang",
-    "info": "Membutuhkan kunci API Accurate yang valid yang dikonfigurasi di Konfigurasi."
+    "info": "Membutuhkan kunci API Accurate yang valid yang dikonfigurasi di Konfigurasi.",
+    "featureOff": "Sinkronisasi otomatis belum tersedia. Minta admin mengaktifkan toggle \"Tombol Sinkron Accurate\" di Settings → Threshold kalau sudah siap, atau gunakan unggah file sebagai gantinya."
   },
   "form": {
     "title": "Impor Baru",

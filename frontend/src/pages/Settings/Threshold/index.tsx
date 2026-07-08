@@ -49,12 +49,14 @@ function getGeneralLabels(t: TFunction): Record<string, string> {
   return {
     active_window_months: t('config.generalSection.activeWindowLabel'),
     branch_division_enforcement_enabled: t('config.generalSection.enforcementLabel'),
+    accurate_sync_enabled: t('config.generalSection.accurateSyncLabel'),
   }
 }
 function getGeneralDesc(t: TFunction): Record<string, string> {
   return {
     active_window_months: t('config.generalSection.activeWindowDesc'),
     branch_division_enforcement_enabled: t('config.generalSection.enforcementDesc'),
+    accurate_sync_enabled: t('config.generalSection.accurateSyncDesc'),
   }
 }
 const DORMANT_PREFIX = 'dormant_threshold_months.'

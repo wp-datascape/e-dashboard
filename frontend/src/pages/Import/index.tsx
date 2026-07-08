@@ -6,6 +6,7 @@ import Grid from '@mui/material/Grid'
 import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useImport'
+import { useConfig } from '@/hooks/usePageSettings'
 import { UploadFileCard } from './components/UploadFileCard'
 import { AccurateApiCard } from './components/AccurateApiCard'
 import { ImportLogsTable } from './components/ImportLogsTable'
@@ -13,6 +14,12 @@ import { ImportLogsTable } from './components/ImportLogsTable'
 export default function ImportPage() {
   const { t } = useTranslation()
   const { data: companies = [] } = useCompanies()
+  const { data: configs = [] } = useConfig()
+  // Default false (fail-closed) selama config belum termuat - lebih aman drpd tombol
+  // sempat aktif duluan lalu "flash" jadi nonaktif begitu configs resolve, yang bisa
+  // kepencet user pas transisi itu.
+  const accurateSyncItem = configs.find((c) => c.key === 'accurate_sync_enabled')
+  const accurateSyncEnabled = accurateSyncItem?.value === 'true'
 
   const [fileImporting, setFileImporting]         = useState(false)
   const [accurateImporting, setAccurateImporting] = useState(false)
@@ -38,6 +45,7 @@ export default function ImportPage() {
             <AccurateApiCard
               companies={companies}
               disabled={fileImporting}
+              featureEnabled={accurateSyncEnabled}
               onPendingChange={onAccuratePending}
             />
           </Grid>

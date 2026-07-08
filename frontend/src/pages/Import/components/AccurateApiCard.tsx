@@ -19,10 +19,15 @@ import type { ImportResult } from '@/types/import'
 interface AccurateApiCardProps {
   companies: Company[]
   disabled?: boolean
+  /** Feature flag `accurate_sync_enabled` (business_configs) - beda dari `disabled`
+   * (yang cuma sementara, mis. lagi ada import file lain jalan). Kalau false, tombol
+   * sync mati permanen sampai admin nyalakan lewat Settings > Threshold, dan alasannya
+   * ditampilkan eksplisit (bukan cuma disabled tanpa penjelasan). */
+  featureEnabled?: boolean
   onPendingChange?: (pending: boolean) => void
 }
 
-export function AccurateApiCard({ companies, disabled = false, onPendingChange }: AccurateApiCardProps) {
+export function AccurateApiCard({ companies, disabled = false, featureEnabled = true, onPendingChange }: AccurateApiCardProps) {
   const { t } = useTranslation()
   const can = useCan()
   const [companyId, setCompanyId] = useState<number | ''>('')
@@ -38,7 +43,7 @@ export function AccurateApiCard({ companies, disabled = false, onPendingChange }
     onPendingChange?.(isPending)
   }, [isPending, onPendingChange])
 
-  const isDisabled = isPending || disabled
+  const isDisabled = isPending || disabled || !featureEnabled
 
   const handleSubmit = () => {
     if (isDisabled) return
@@ -60,7 +65,7 @@ export function AccurateApiCard({ companies, disabled = false, onPendingChange }
   }
 
   return (
-    <Card sx={{ p: 3, height: '100%', opacity: disabled && !isPending ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+    <Card sx={{ p: 3, height: '100%', opacity: (disabled || !featureEnabled) && !isPending ? 0.5 : 1, transition: 'opacity 0.2s' }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
         <Box sx={{ p: 1, bgcolor: 'secondary.main', color: 'secondary.contrastText', display: 'flex' }}>
           <SyncIcon fontSize="small" />
@@ -87,9 +92,15 @@ export function AccurateApiCard({ companies, disabled = false, onPendingChange }
           disabled={isDisabled}
         />
 
-        <Alert severity="info" sx={{ py: 1 }}>
-          <Typography variant="caption">{t('import.accurate.info')}</Typography>
-        </Alert>
+        {featureEnabled ? (
+          <Alert severity="info" sx={{ py: 1 }}>
+            <Typography variant="caption">{t('import.accurate.info')}</Typography>
+          </Alert>
+        ) : (
+          <Alert severity="warning" sx={{ py: 1 }}>
+            <Typography variant="caption">{t('import.accurate.featureOff')}</Typography>
+          </Alert>
+        )}
 
         {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
         {result && <ResultBanner result={result} onClose={() => setResult(null)} />}
