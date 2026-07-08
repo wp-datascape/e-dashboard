@@ -160,7 +160,7 @@ export default function Products() {
             sx={{ minWidth: { xs: '100%', sm: 180 } }}
           />
 
-          <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
+          <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
             size="small" label={t('common.filters.month')} type="month"

@@ -157,7 +157,7 @@ export default function CrossSelling() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-          <ScopeFilterFields filter={scopeFilter} sx={{ width: { xs: '100%', sm: 'auto' } }} />
+          <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
             size="small" label={t('crossSelling.filterDateEnd')}
