@@ -74,7 +74,7 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           onChange={(e) => setDivision(e.target.value as typeof division)}
           sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
         >
-          <MenuItem value="">{t('common.all')}</MenuItem>
+          <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
           {divisionOptions.map((opt) => (
             <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
           ))}
