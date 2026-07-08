@@ -73,6 +73,10 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           value={division}
           onChange={(e) => setDivision(e.target.value as typeof division)}
           sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
+          // MUI Select tidak render teks MenuItem terpilih kalau value === '' kecuali
+          // displayEmpty di-set - beda dari Entity/Branch yang pakai sentinel 'all'
+          // (non-empty), jadi selalu tampil normal tanpa perlu ini.
+          slotProps={{ select: { displayEmpty: true } }}
         >
           <MenuItem value="">{t('common.filters.allDivisions')}</MenuItem>
           {divisionOptions.map((opt) => (
