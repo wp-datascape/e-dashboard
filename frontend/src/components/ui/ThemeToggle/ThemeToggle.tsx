@@ -77,6 +77,14 @@ export function ThemeToggle({ sx }: ThemeToggleProps) {
         position: 'relative',
         width: 64,
         height: 32,
+        // flexShrink:0 WAJIB - parent Toolbar/Box (AppBar) flex row, default flexShrink:1
+        // bikin browser boleh mengompres elemen ini kalau ruang Toolbar mepet (mobile,
+        // menu+judul+toggle+avatar berdesakan di 390px). width:64 cuma flex-basis, TETAP
+        // bisa dikompres tanpa flexShrink:0 - terbukti terukur: box toggle 64px persis di
+        // desktop tapi susut jadi 63.58px di mobile. Susut sedikit ini bikin knob (posisi
+        // absolute pakai translateX PIKSEL TETAP) tidak lagi pas di tepi track yang sudah
+        // menyusut - beda dari tampilan desktop yang track-nya utuh 64px.
+        flexShrink: 0,
         p: `${TRACK_PADDING}px`,
         borderRadius: 999,
         cursor: 'pointer',
