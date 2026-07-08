@@ -27,7 +27,7 @@
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

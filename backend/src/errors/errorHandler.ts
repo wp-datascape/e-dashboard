@@ -76,7 +76,7 @@ export function registerErrorHandlers(app: Hono): void {
     // ZodError — seharusnya sudah ditangani di handler via validateBody/Query/Param
     // Jika sampai sini, ada yang melempar ZodError langsung
     if (err instanceof ZodError) {
-      const messages = err.errors
+      const messages = err.issues
         .map((e) => `${e.path.join('.')}: ${e.message}`)
         .join('; ')
 

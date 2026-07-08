@@ -37,7 +37,7 @@ export async function handleImportFile(c: Context) {
     // Validate params
     const parsed = importFileSchema.safeParse({ company_id: companyId, period_month: periodMonth })
     if (!parsed.success) {
-      return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.errors.map(e => e.message).join(', '), 400)
+      return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.issues.map((e) => e.message).join(', '), 400)
     }
 
     const arrayBuffer = await file.arrayBuffer()
@@ -86,7 +86,7 @@ export async function handleImportFileStream(c: Context) {
 
   const parsed = importFileSchema.safeParse({ company_id: companyId, period_month: periodMonth })
   if (!parsed.success) {
-    return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.errors.map(e => e.message).join(', '), 400)
+    return error(c, ErrorCode.VALIDATION_ERROR, parsed.error.issues.map((e) => e.message).join(', '), 400)
   }
 
   resolveCompanyScope(c, parsed.data.company_id)
