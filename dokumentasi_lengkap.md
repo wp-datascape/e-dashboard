@@ -595,14 +595,57 @@ erDiagram
     INVOICES ||--o{ INVOICE_ITEMS : terdiri_dari
     IMPORT_LOGS ||--o{ INVOICES : menghasilkan
 
-    COMPANIES { int id PK, varchar code UK, varchar name }
-    COMPANY_BRANCHES { int id PK, int company_id FK, varchar name }
-    CUSTOMERS { int id PK, int company_id FK, varchar customer_code, varchar customer_name }
-    PRODUCT_CATEGORIES { int id PK, int company_id FK, varchar name, varchar item_type }
-    PRODUCTS { int id PK, int company_id FK, varchar product_name, int product_category_id FK }
-    INVOICES { int id PK, int company_id FK, int customer_id FK, int branch_id FK, varchar invoice_number UK, date invoice_date, numeric total_revenue, numeric total_gp }
-    INVOICE_ITEMS { int id PK, int invoice_id FK, int product_id FK, numeric revenue, numeric gross_profit }
-    IMPORT_LOGS { int id PK, int company_id FK, varchar source, varchar status }
+    COMPANIES {
+        int id PK
+        varchar code UK
+        varchar name
+    }
+    COMPANY_BRANCHES {
+        int id PK
+        int company_id FK
+        varchar name
+    }
+    CUSTOMERS {
+        int id PK
+        int company_id FK
+        varchar customer_code
+        varchar customer_name
+    }
+    PRODUCT_CATEGORIES {
+        int id PK
+        int company_id FK
+        varchar name
+        varchar item_type
+    }
+    PRODUCTS {
+        int id PK
+        int company_id FK
+        varchar product_name
+        int product_category_id FK
+    }
+    INVOICES {
+        int id PK
+        int company_id FK
+        int customer_id FK
+        int branch_id FK
+        varchar invoice_number UK
+        date invoice_date
+        numeric total_revenue
+        numeric total_gp
+    }
+    INVOICE_ITEMS {
+        int id PK
+        int invoice_id FK
+        int product_id FK
+        numeric revenue
+        numeric gross_profit
+    }
+    IMPORT_LOGS {
+        int id PK
+        int company_id FK
+        varchar source
+        varchar status
+    }
 ```
 
 ### 13.4 ERD — Akses dan Keamanan (RBAC)
@@ -620,10 +663,34 @@ erDiagram
     USERS ||--o{ USER_DIVISIONS : "scope division"
     USERS ||--o{ AUDIT_LOGS : melakukan
 
-    USERS { int id PK, varchar name, varchar email UK, boolean is_active, int failed_login_count, timestamp locked_until, int token_version }
-    ROLES { int id PK, varchar name UK, boolean is_system }
-    PERMISSIONS { int id PK, varchar name UK, varchar category }
-    AUDIT_LOGS { int id PK, int actor_id FK, varchar action, varchar entity, jsonb old_value, jsonb new_value, varchar ip_address }
+    USERS {
+        int id PK
+        varchar name
+        varchar email UK
+        boolean is_active
+        int failed_login_count
+        timestamp locked_until
+        int token_version
+    }
+    ROLES {
+        int id PK
+        varchar name UK
+        boolean is_system
+    }
+    PERMISSIONS {
+        int id PK
+        varchar name UK
+        varchar category
+    }
+    AUDIT_LOGS {
+        int id PK
+        int actor_id FK
+        varchar action
+        varchar entity
+        jsonb old_value
+        jsonb new_value
+        varchar ip_address
+    }
 ```
 
 Notasi `||--o{` berarti "satu wajib ke nol-atau-banyak".
