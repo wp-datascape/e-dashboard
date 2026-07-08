@@ -1,69 +1,56 @@
-# Executive Dashboard — Dokumentasi Produk & Panduan Penggunaan
+# Executive Dashboard — Panduan Penggunaan
 
-> Dokumen ini merangkum **seluruh kapabilitas** Executive Dashboard — dari sistem keamanan tingkat enterprise, manajemen akses dinamis, hingga modul-modul analitik bisnis yang jadi andalan aplikasi. Ditulis sebagai bahan presentasi ke stakeholder sekaligus panduan penggunaan sehari-hari.
+> Petunjuk penggunaan aplikasi Executive Dashboard — mencakup login, keamanan, manajemen akses, pengaturan, cara pakai tiap menu KPI dari awal sampai akhir beserta dasar perhitungannya, cara import data, dan diagram arsitektur data. Setiap bagian disertai screenshot langsung dari aplikasi.
 
 ---
 
 ## Daftar Isi
 
-1. [Ringkasan Eksekutif](#1-ringkasan-eksekutif)
-2. [Keamanan Tingkat Enterprise](#2-keamanan-tingkat-enterprise)
-3. [Manajemen Akses Dinamis (RBAC)](#3-manajemen-akses-dinamis-rbac)
-4. [Personalisasi Pengguna](#4-personalisasi-pengguna)
-5. [Modul & Fitur Andalan](#5-modul--fitur-andalan)
-6. [Metodologi Perhitungan KPI](#6-metodologi-perhitungan-kpi)
-7. [Import Data & Integrasi](#7-import-data--integrasi)
-8. [Audit Trail](#8-audit-trail)
-9. [Aplikasi Mobile (PWA)](#9-aplikasi-mobile-pwa)
-10. [Arsitektur Data](#10-arsitektur-data)
+1. [Login dan Orientasi Awal](#1-login-dan-orientasi-awal)
+2. [Keamanan Aplikasi](#2-keamanan-aplikasi)
+3. [Manajemen Akses (RBAC)](#3-manajemen-akses-rbac)
+4. [Isolasi Data — Company, Branch, Division](#4-isolasi-data--company-branch-division)
+5. [Pengaturan Aplikasi](#5-pengaturan-aplikasi)
+6. [Dashboard — Halaman Utama](#6-dashboard--halaman-utama)
+7. [Customer Workbench](#7-customer-workbench)
+8. [Product & Portfolio](#8-product--portfolio)
+9. [Transaction & Revenue](#9-transaction--revenue)
+10. [Import Data](#10-import-data)
+11. [Audit Log](#11-audit-log)
+12. [Aplikasi Mobile (PWA)](#12-aplikasi-mobile-pwa)
+13. [Diagram Arsitektur Data](#13-diagram-arsitektur-data)
 
 ---
 
-## 1. Ringkasan Eksekutif
+## 1. Login dan Orientasi Awal
 
-**Executive Dashboard** adalah platform business intelligence untuk perusahaan holding dengan banyak entitas — mengubah data faktur penjualan mentah menjadi **10 indikator kinerja (KPI)** siap pakai, dengan sistem akses berlapis yang memastikan setiap orang di organisasi hanya melihat data yang memang jadi kewenangannya.
+Buka aplikasi di browser, masukkan email dan password.
 
-**Cakupan yang sudah dibangun:**
+![Halaman Login](docs-v2/documentation/screenshots/01-login.png)
 
-| Area | Cakupan |
+Setelah login, tampilan utama terdiri dari:
+
+| Bagian | Isi |
 |---|---|
-| Modul analitik bisnis | 4 workbench (Executive Dashboard, Customer, Product & Portfolio, Transaction & Revenue) — 10 halaman KPI aktif |
-| Indikator kinerja | 10 KPI (M1–M10), dihitung real-time dari data transaksi, bukan angka statis |
-| Keamanan | 7 lapis proteksi berbeda — rate limiting, account lockout, invalidasi sesi otomatis, notifikasi real-time, security headers, CORS, audit trail penuh |
-| Manajemen akses | RBAC dinamis — 88 permission granular di 24 kategori, plus hierarki isolasi data 3 tingkat (Company → Branch → Division) |
-| Personalisasi | 2 bahasa penuh, mode terang/gelap, 6 pilihan warna aksen — semua tersimpan ke akun |
-| Import data | 4 jalur import (faktur, channel division, klasifikasi item, user), dengan mesin klasifikasi otomatis 4-lapis |
-| Platform | Progressive Web App — bisa di-install seperti aplikasi native di HP/desktop tanpa app store |
+| Sidebar (kiri) | Daftar menu, dikelompokkan per grup: Executive Dashboard, Customer Workbench, Product & Portfolio, Transaction & Revenue, Administration. Bisa diciutkan jadi ikon lewat tombol hamburger di pojok kiri atas. |
+| AppBar (atas) | Nama aplikasi, tombol ganti tema terang/gelap, avatar akun di pojok kanan. |
+| Avatar (kanan atas) | Klik untuk lihat profil (nama, email, Company/Branch/Division yang diakses) dan tombol Logout. |
 
-**Alur bisnis inti:**
-
-```
-Admin import faktur (upload file Excel/CSV)
-        ↓
-Sistem parse, validasi, klasifikasi otomatis, dan simpan ke database
-        ↓
-Sistem hitung 10 KPI secara real-time (bukan cache statis)
-        ↓
-Setiap pengguna melihat dashboard sesuai hak akses & scope data masing-masing
-```
-
-**Teknologi yang dipakai** (untuk kredibilitas teknis): backend Bun + Hono + PostgreSQL, frontend React 19 + TypeScript + MUI. Seluruh perhitungan KPI dilakukan di server, bukan di browser — memastikan konsistensi angka di mana pun diakses.
+Menu yang muncul di sidebar berbeda per akun, tergantung permission yang di-assign (lihat §3).
 
 ---
 
-## 2. Keamanan Tingkat Enterprise
+## 2. Keamanan Aplikasi
 
-Aplikasi ini dibangun dengan standar keamanan berlapis — bukan sekadar login-password biasa, tapi rangkaian proteksi yang lazim dipakai aplikasi finansial/perbankan skala menengah-besar.
+### 2.1 Autentikasi dan Sesi
 
-### 2.1 Autentikasi & Manajemen Sesi
+Login menghasilkan dua token: **access token** (berlaku 15 menit) dan **refresh token** (berlaku 7 hari). Keduanya disimpan sebagai cookie `httpOnly`, artinya tidak bisa diakses lewat JavaScript di browser. Access token yang kedaluwarsa di-refresh otomatis di background menggunakan refresh token, tanpa perlu login ulang.
 
-- Token akses (JWT) berumur pendek (15 menit) + token refresh (7 hari), keduanya disimpan sebagai cookie `httpOnly` — **tidak bisa dicuri lewat serangan JavaScript/XSS** karena browser sendiri yang mengunci aksesnya dari script halaman.
-- Setiap aksi yang mengubah data wajib menyertakan token CSRF — mencegah situs pihak ketiga menyamar mengirim request atas nama pengguna yang sedang login.
-- Password di-hash dengan algoritma bcrypt (cost factor 12) — bahkan admin sistem tidak bisa melihat password asli siapa pun.
+Setiap request yang mengubah data (create/update/delete) wajib menyertakan token CSRF (`X-CSRF-Token`). Password disimpan dalam bentuk hash bcrypt (cost factor 12) — password asli tidak pernah tersimpan dalam bentuk terbuka.
 
 ### 2.2 Pembatasan Percobaan (Rate Limiting)
 
-Setiap endpoint sensitif dibatasi jumlah percobaan dalam jendela waktu tertentu untuk mencegah serangan brute-force dan penyalahgunaan otomatis:
+Setiap endpoint sensitif dibatasi jumlah percobaan dalam jendela waktu tertentu. Kalau limit terlampaui, request ditolak dengan kode HTTP 429.
 
 | Aksi | Batas | Jendela | Dihitung Per |
 |---|---|---|---|
@@ -82,80 +69,63 @@ Setiap endpoint sensitif dibatasi jumlah percobaan dalam jendela waktu tertentu 
 | Test koneksi Accurate | 10x | 5 menit | Akun |
 | Import file | 5x | 10 menit | Akun |
 
-### 2.3 Penguncian Akun Otomatis (Account Lockout)
+Endpoint yang hanya membaca data tidak dibatasi.
 
-Lapisan kedua di atas rate-limit IP — mengunci **akun spesifik** setelah **5 kali gagal login berturut-turut**, terkunci selama **30 menit** (kedua angka ini dikonfigurasi lewat environment variable, bukan hardcode — bisa disesuaikan kapan saja tanpa deploy ulang). Selama terkunci, password yang benar sekalipun tetap ditolak. Admin bisa membuka kunci manual dari halaman Users.
+### 2.3 Penguncian Akun Otomatis
+
+Terpisah dari rate-limit per-IP di atas, akun individual otomatis terkunci setelah **5 kali gagal login berturut-turut**, terkunci selama **30 menit**. Kedua angka ini diatur lewat environment variable di server, bisa diubah tanpa deploy ulang aplikasi. Selama terkunci, password yang benar sekalipun tetap ditolak. Login yang berhasil mereset hitungan ke nol.
+
+Admin dengan permission `access.user:unlock` dapat membuka kunci akun secara manual dari halaman Users — muncul chip status "Terkunci" pada baris user yang terkunci beserta tombol untuk membukanya.
 
 ### 2.4 Invalidasi Sesi Otomatis
 
-Kalau admin mereset password seorang user, **seluruh sesi aktif user itu di semua perangkat langsung tidak valid** — bukan menunggu token kedaluwarsa secara alami. Krusial untuk skenario akun dicurigai kompromis: begitu password direset, akses attacker (kalau ada) langsung terputus instan.
+Kalau admin mereset password seorang user, seluruh sesi aktif user itu di semua perangkat langsung menjadi tidak valid — user akan diminta login ulang di request berikutnya, tanpa menunggu token kedaluwarsa secara alami.
 
-### 2.5 Notifikasi Keamanan Real-Time
+### 2.5 Notifikasi ke Telegram
 
-Sistem terintegrasi dengan **Telegram** untuk mengirim notifikasi instan saat terjadi aksi berisiko tinggi:
+Sistem mengirim notifikasi ke channel Telegram saat terjadi:
 
-- Akun terkunci (indikasi percobaan serangan)
-- Peningkatan hak akses — user baru diberi role admin/superadmin, atau permission Access Control di-assign ke role manapun
-- Aksi destruktif — penghapusan akun admin atau role
-- Reset password ke akun admin/superadmin
-- Pembukaan kunci akun manual
+1. Akun terkunci (5x gagal login berturut-turut)
+2. User baru dibuat dengan role admin/superadmin, atau user existing baru diberi role tersebut
+3. Permission kategori Access Control (Users/Roles/Permissions) di-assign ke role apa pun
+4. Penghapusan akun admin atau penghapusan role
+5. Reset password ke akun admin/superadmin
+6. Pembukaan kunci akun manual oleh admin
 
-Tim keamanan/IT mendapat visibilitas real-time tanpa perlu memeriksa log secara manual.
+### 2.6 Proteksi Tingkat Jaringan
 
-### 2.6 Perlindungan Tingkat Jaringan
-
-- **CORS** — hanya domain yang di-whitelist eksplisit yang boleh memanggil API, bukan akses terbuka.
-- **Security Headers** — `X-Frame-Options: DENY` (anti-clickjacking), `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` (paksa HTTPS di production), `Referrer-Policy: no-referrer`.
-- Error server **tidak pernah** membocorkan stack trace atau detail teknis internal ke pengguna.
-
-### 2.7 Audit Trail Menyeluruh
-
-Lihat bagian [§8 Audit Trail](#8-audit-trail).
+- **CORS** — hanya domain yang di-whitelist eksplisit di environment variable yang bisa memanggil API.
+- **Security headers** — `X-Frame-Options: DENY` (halaman tidak bisa disisipkan ke iframe situs lain), `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` (memaksa HTTPS, aktif di production), `Referrer-Policy: no-referrer`.
+- Error server tidak pernah menampilkan stack trace ke pengguna.
 
 ---
 
-## 3. Manajemen Akses Dinamis (RBAC)
+## 3. Manajemen Akses (RBAC)
 
-Sistem hak akses di aplikasi ini **sepenuhnya dinamis** — dikelola langsung dari dashboard admin, tanpa perlu sentuh baris kode apa pun untuk menambah role atau mengubah kewenangan.
+Sistem permission diatur dari dashboard, tanpa perlu ubah kode program.
 
-### 3.1 Dua Sumbu Akses yang Independen
+### 3.1 Dua Sumbu Akses
 
 | Sumbu | Menjawab | Diatur di |
 |---|---|---|
-| **Permission (Role)** | "Boleh melakukan APA?" | Halaman RBAC |
-| **Scope (Company/Branch/Division)** | "Boleh lihat data SIAPA/MANA?" | Halaman Users |
+| Permission (Role) | Boleh melakukan apa | Halaman RBAC |
+| Scope (Company/Branch/Division) | Boleh lihat data yang mana | Halaman Users |
 
-Dua user dengan role identik tetap bisa melihat data yang sama sekali berbeda kalau scope mereka berbeda — dan sebaliknya. Analoginya: **Permission = jabatan/wewenang**, **Scope = wilayah kerja**.
+Dua axis ini independen. Dua user dengan role sama bisa melihat data berbeda kalau scope-nya berbeda, dan sebaliknya.
 
-### 3.2 Skala Granularitas
+### 3.2 Halaman RBAC (Roles)
 
-**88 permission** tersebar di **24 kategori** — mencakup seluruh modul aplikasi (Dashboard, Customer, Product, Transaction, Settings, Configuration, Access Control, Audit Log). Setiap halaman punya permission `:menu` (visibilitas di sidebar) terpisah dari permission aksi (`:view`/`:create`/`:update`/`:delete`/`:export`) — jadi kontrolnya sangat presisi, bukan cuma "boleh akses halaman ini atau tidak".
+![Halaman RBAC](docs-v2/documentation/screenshots/18-rbac.png)
 
-Contoh: user bisa diberi akses membuka menu Customer tapi tanpa hak Export — tombol Export otomatis tidak akan pernah muncul di layarnya, dan permintaan langsung ke server pun akan ditolak (validasi dobel: tampilan DAN backend).
+Daftar role beserta jumlah permission yang dimiliki masing-masing. Role `superadmin` ditandai "System" (tidak bisa dihapus/di-rename). Role `admin` dan `user` bisa disesuaikan atau dihapus.
 
-### 3.3 Role Bawaan
+Klik ikon perisai pada satu role untuk membuka dialog **Set Permission**:
 
-| Role | Cakupan |
-|---|---|
-| **Super Admin** | Akses penuh tanpa kecuali, termasuk Configuration (Integrasi Accurate, Feature Flags) yang eksklusif untuknya |
-| **Admin** | Akses penuh ke seluruh modul bisnis inti; di Administration terbatas view+update saja (tanpa create/delete), Configuration tidak bisa diakses sama sekali |
-| **User** | View + export saja di modul bisnis inti, tanpa akses Administration |
+![Dialog Set Permission](docs-v2/documentation/screenshots/19-set-permission-dialog.png)
 
-Ketiganya bisa disesuaikan sepenuhnya, atau dibuat role custom baru sesuai struktur organisasi (contoh: "Sales Manager Cabang Jakarta" dengan kombinasi permission spesifik).
+Dialog ini menampilkan daftar kategori (Permissions, Roles, Users, Audit Log, Churn Risk, Classification, Features, Import, Integration, Cross Selling, dst — 24 kategori total) yang bisa dicari lewat kolom filter di atas. Tiap kategori menampilkan progress (contoh: "3/3", "2/3") menunjukkan berapa dari total permission di kategori itu yang sudah aktif untuk role tersebut. Klik satu kategori untuk membuka/tutup daftar checkbox permission di dalamnya.
 
-### 3.4 Hierarki Isolasi Data 3 Tingkat
-
-```
-Company (Perusahaan/Entitas)
-   └── Branch (Cabang)
-          └── Division (Divisi/Channel bisnis)
-```
-
-Akses berjenjang — harus punya akses Company dulu sebelum bisa diberi akses Branch di dalamnya, dan seterusnya. User tanpa akses eksplisit ke suatu Company/Branch/Division **tidak akan melihat data apa pun dari situ** (default deny, bukan default allow). Super Admin melewati seluruh pembatasan ini.
-
-Data milik akun Super Admin sendiri (di daftar User maupun Audit Log) **disembunyikan total** dari siapa pun yang bukan Super Admin — lapisan privasi tambahan di level tertinggi organisasi.
-
-### 3.5 Daftar Lengkap 24 Kategori Permission
+**Daftar lengkap 24 kategori dan aksi yang tersedia:**
 
 | Kategori | Prefix Key | Aksi yang Tersedia |
 |---|---|---|
@@ -184,182 +154,400 @@ Data milik akun Super Admin sendiri (di daftar User maupun Audit Log) **disembun
 | Permissions | `access.permission` | view, update |
 | Audit Log | `audit.log` | menu, view, export |
 
-### 3.6 Cara Kerja Pemberian Akses
+Setiap halaman punya permission `:menu` (menentukan tampil/tidaknya menu di sidebar) terpisah dari permission aksi (`:view`/`:create`/`:update`/`:delete`/`:export`). Contoh: kalau user diberi `customer:menu` tanpa `customer:export`, menu Customer tetap muncul dan bisa dibuka, tapi tombol Export tidak akan tampil.
 
-Membuat role baru dan mengatur kewenangannya hanya butuh beberapa klik dari halaman RBAC — tanpa sentuh kode:
+**Cara membuat role baru:**
+1. Klik **Add Role** di halaman RBAC, isi nama dan deskripsi.
+2. Role baru dibuat tanpa permission apa pun (kosong total).
+3. Klik ikon perisai role tersebut, centang kombinasi permission yang diperlukan.
+4. Klik **Done**.
 
-1. Klik **Add Role**, isi nama & deskripsi (contoh: "Sales Manager Cabang").
-2. Klik ikon perisai **Assign Permissions** — terbuka dialog matrix checklist per kategori, kolom aksi otomatis menyesuaikan permission yang tersedia untuk kategori itu.
-3. Centang kombinasi yang diinginkan, simpan.
-4. Dari halaman Users, assign role tadi ke pengguna, sekaligus tentukan scope Company/Branch/Division-nya secara berjenjang.
+### 3.3 Halaman Users
 
-Seluruh proses ini live — begitu disimpan, langsung berlaku di request berikutnya, tanpa perlu restart aplikasi atau deploy ulang.
+![Halaman User Management](docs-v2/documentation/screenshots/17-users.png)
 
----
+Daftar seluruh pengguna: nama, email, role, daftar Company yang diakses (chip), status (Active/Terkunci), dan waktu login terakhir. Kolom "Actions" berisi menu untuk edit, reset password, kunci/buka-kunci akun, dan hapus (sesuai permission yang dimiliki viewer).
 
-## 4. Personalisasi Pengguna
-
-Setiap pengguna bisa menyesuaikan tampilan sesuai preferensi pribadi, **tersimpan ke akun** (bukan hanya di satu browser) — konsisten di perangkat mana pun mereka login:
-
-- **Bahasa:** Indonesia / English — 100% cakupan, tidak ada teks yang belum diterjemahkan
-- **Tema:** Terang / Gelap, dengan animasi transisi melingkar yang halus
-- **Warna aksen:** 6 pilihan (Biru, Hijau, Kuning, Ungu, Merah Muda, Indigo) — memengaruhi warna tombol, judul halaman, dan AppBar di seluruh aplikasi
+**Cara assign akses ke user:**
+1. Klik **Add User** atau pilih Edit pada user existing.
+2. Pilih Role (menentukan sumbu Permission, lihat §3.1).
+3. Pilih Company, lalu Branch di dalam Company itu, lalu Division di dalam Branch itu — berjenjang (menentukan sumbu Scope). Satu user bisa diberi lebih dari satu kombinasi Company/Branch/Division.
 
 ---
 
-## 5. Modul & Fitur Andalan
+## 4. Isolasi Data — Company, Branch, Division
 
-Bagian ini adalah inti dari apa yang dilihat dan dipakai pengguna sehari-hari — dijelaskan mendalam per halaman, termasuk data apa yang disajikan dan interaksi drill-down yang tersedia.
+Data ditata dalam 3 tingkat hierarki:
 
-### 5.1 Executive Dashboard — Ringkasan Sekali Pandang
+```
+Company (Perusahaan/Entitas)
+   └── Branch (Cabang)
+          └── Division (Divisi/Channel bisnis)
+```
 
-Halaman pertama setelah login. Menyajikan **seluruh 10 KPI dalam satu layar**, tanpa perlu berpindah-pindah halaman untuk mendapat gambaran menyeluruh kondisi bisnis.
+Akses berjenjang: user harus diberi akses ke sebuah Company dulu sebelum bisa diberi akses ke Branch di dalamnya, dan harus punya akses Branch dulu sebelum bisa diberi akses Division di dalam branch itu. User tanpa akses eksplisit ke suatu Company/Branch/Division tidak akan melihat data apa pun dari situ — defaultnya adalah tidak bisa lihat, bukan bisa lihat semua.
 
-**Baris pertama** — 10 kartu ringkas, satu per KPI: nilai terkini, indikator naik/turun dibanding periode sebelumnya, dan grafik mini tren. **Baris kedua** — 8 grafik lebih besar yang memvisualisasikan KPI utama dengan jenis chart yang disesuaikan karakter datanya (batang, area, donat, radial, garis dengan zona alert, bullet chart). **Setiap kartu dan grafik bisa diklik** untuk langsung membuka halaman detail KPI terkait.
+Super Admin melewati seluruh pembatasan ini dan selalu melihat semua data.
 
-| KPI | Yang Diukur | Cara Baca |
-|---|---|---|
-| Cross Selling Ratio | % pelanggan aktif yang beli >1 kategori sekaligus | Makin tinggi = pelanggan makin "lengket", peluang bundling makin besar |
-| Avg Category per Customer | Rata-rata jenis kategori dibeli per pelanggan | Mendekati 1 = pelanggan cenderung monoton beli 1 jenis produk |
-| Avg Revenue Existing Customer | Rata-rata pendapatan per pelanggan lama aktif | Tren turun = sinyal awal pelanggan lama mengurangi belanja |
-| Avg Gross Profit Existing Customer | Sama seperti di atas, dari sisi laba, dipecah 3 tingkat (Atas/Tengah/Bawah) | Porsi "Tier Bawah" membesar = margin sedang tertekan |
-| High Margin Penetration | % pelanggan lama yang beli produk margin tinggi | Rendah = peluang upsell margin tinggi belum tergarap |
-| Repeat Order Rate | % pelanggan lama yang order >1x dalam 30 hari | Hijau = capai target, Merah = jauh di bawah target |
-| Customer Expansion Rate | % pelanggan lama yang belanjanya NAIK | Tinggi = pertumbuhan organik dari pelanggan existing |
-| Dormant Customer Rate | % dari SELURUH pelanggan yang 90 hari tanpa transaksi | Ada garis ambang batas — lewati itu, perlu perhatian khusus |
-| Dormant Customer Value | Estimasi rupiah "hilang" per pelanggan dormant | Diurutkan dari kerugian terbesar — prioritas follow-up |
-| Customer Reactivation Rate | % pelanggan dormant yang berhasil "dibangunkan" | Target minimum 15–20% |
+Data milik akun Super Admin sendiri (di daftar User maupun Audit Log) disembunyikan dari siapa pun yang bukan Super Admin, walaupun role itu punya permission `access.user:view`/`audit.log:view`.
 
-### 5.2 Customer Workbench — Analisis Mendalam Seputar Pelanggan
-
-#### Customer — Profil 360° Pelanggan
-
-Daftar master seluruh pelanggan dengan kolom: kode, nama, perusahaan, divisi, status (Aktif/Existing/Dormant/New), jumlah kategori produk, rata-rata belanja bulanan, lifetime value, tanggal transaksi terakhir, dan total faktur. Bisa dicari berdasarkan nama/kode.
-
-**Klik satu pelanggan** membuka dialog profil lengkap — bukan sekadar ringkasan, tapi gambaran 360° dalam satu tampilan:
-- Identitas, status, dan divisi (dalam bentuk chip berwarna)
-- 4 kotak metrik ringkas: Lifetime Value, Rata-rata Revenue Bulanan, Jumlah Kategori, Total Faktur
-- Daftar seluruh kategori produk yang pernah dibeli
-- **Grafik kombinasi tren revenue vs gross profit bulanan** — melihat pola profitabilitas pelanggan dari waktu ke waktu
-- Daftar faktur terbaru (nomor, tanggal, revenue, GP per faktur)
-
-Semua ini didapat tanpa perlu berpindah halaman — cocok untuk tim sales/account manager yang butuh gambaran cepat sebelum menghubungi pelanggan.
-
-#### Expansion Targets — Pertumbuhan Pelanggan Existing (M3–M7)
-
-5 metrik: Avg Revenue, Avg Gross Profit (dengan breakdown tier), High Margin Penetration, Repeat Order Rate, Customer Expansion Rate.
-
-**Fitur drill-down unggulan:**
-- **Klik batang bulan pada grafik Gross Profit** → modal breakdown lengkap: ringkasan GP existing customer, total existing, avg GP/customer, dan **threshold median** yang dipakai untuk membagi 3 tier. Tabel ranking lengkap per pelanggan (nama, kode, GP, % kontribusi, tier) dengan chip warna berbeda per tier. **Tombol export PDF langsung tersedia** — sekali klik menghasilkan laporan siap kirim ke manajemen.
-- **Klik grafik radial Repeat Order Rate** → modal breakdown: total existing, jumlah repeat buyer, dan rate keseluruhan. Tabel ranking pelanggan dengan chip jumlah order (warna berjenjang sesuai frekuensi — makin sering order, makin mencolok warnanya) dan total revenue per pelanggan — langsung terlihat siapa pelanggan paling loyal.
-- Kalau ada 1 pelanggan yang menyumbang lebih dari 25% total revenue/GP bulan itu, **muncul tanda peringatan otomatis** di grafik — sinyal dini risiko konsentrasi pelanggan.
-
-#### Churn Risk — Deteksi Dini Pelanggan Berisiko (M8–M10)
-
-3 metrik: Dormant Rate (dengan garis ambang batas kritis), Dormant Value (ranking horizontal pelanggan dengan potensi kerugian terbesar — langsung terlihat prioritas follow-up tanpa perlu menghitung manual), dan Reactivation Rate (seberapa efektif upaya "membangunkan" pelanggan dormant, ditampilkan sebagai bullet chart terhadap target).
-
-#### Cross Sell Matrix — Pola Pembelian Silang (M1–M2)
-
-2 metrik ringkas (Cross Selling Ratio, Avg Category per Customer) dilengkapi **heatmap Customer × Kategori Produk** — visualisasi matrix yang langsung menunjukkan pola kombinasi pembelian mana yang paling sering muncul, dasar kuat untuk merancang strategi bundling produk. Di bawah heatmap, tabel detail per pelanggan menunjukkan kepemilikan tiap kategori (Unit/Consumable/Sparepart) dalam bentuk chip Ya/Tidak, plus jumlah kategori total dan revenue.
-
-### 5.3 Product & Portfolio — Kinerja Produk
-
-#### Product Ledger
-
-Daftar seluruh kategori produk berikut performanya: status high-margin, total revenue, total GP, margin %, jumlah pelanggan pembeli, jumlah transaksi, dan bulan terakhir terjual — default terurut dari revenue tertinggi.
-
-**Klik satu kategori** membuka detail lengkap: badge status (High Margin/Service bila relevan), 6 kotak ringkasan (Total Revenue, Total GP, Margin %, Jumlah Invoice, Jumlah Customer, Bulan Terakhir Terjual), dan tabel seluruh produk di dalam kategori itu (nama, revenue, GP, margin % dengan chip warna sesuai tingkat margin, jumlah invoice, jumlah customer unik) — memetakan produk mana yang jadi kontributor utama dalam satu kategori.
-
-#### High Margin Push — Mesin Upsell
-
-Dua tab kerja: **Category Penetration** (persentase pelanggan existing yang sudah membeli tiap kategori high-margin) dan **Upsell Targets** — daftar pelanggan yang BELUM membeli kategori high-margin tertentu, siap jadi target langsung tim sales.
-
-**Klik target upsell** membuka riwayat lengkap pembelian pelanggan itu: rata-rata revenue/bulan, tanggal transaksi terakhir, dan tabel seluruh produk yang pernah dibeli (kategori, nama produk, revenue, GP, margin % berwarna, jumlah invoice) — bisa difilter ke satu kategori spesifik. Tim sales bisa langsung tahu apa yang sudah dibeli pelanggan sebelum menawarkan produk margin tinggi tambahan yang relevan.
-
-#### Product Trend
-
-Tren rata-rata jumlah kategori yang dibeli per pelanggan dari waktu ke waktu — indikator apakah pola belanja pelanggan makin bervariasi (bagus) atau makin sempit (perlu perhatian).
-
-### 5.4 Transaction & Revenue — Buku Besar Transaksi
-
-#### Transaction Ledger
-
-Catatan lengkap seluruh faktur: nomor, tanggal, perusahaan, pelanggan, divisi/channel, total revenue, total GP, margin %, jumlah kategori dalam faktur, dan sumber data (upload manual atau sinkron Accurate) — bisa difilter Company/Branch/Division/periode seperti modul lain, jadi satu sumber kebenaran (single source of truth) untuk seluruh riwayat transaksi holding.
+Filter Company/Branch/Division muncul di hampir semua halaman data — opsi yang tampil di dropdown filter sudah disaring sesuai scope akses user yang sedang login.
 
 ---
 
-## 6. Metodologi Perhitungan KPI
+## 5. Pengaturan Aplikasi
 
-Seluruh 10 KPI dihitung **real-time di server** langsung dari data faktur — tidak ada angka "beku"/cache lama. Status pelanggan (Aktif/Existing/Dormant/New) selalu dihitung relatif terhadap tanggal yang dipilih, dengan window 30 hari rolling untuk "aktif" dan 90 hari untuk "dormant".
+Halaman **Administration → Settings → App Settings**:
 
-| KPI | Formula Inti |
+![Halaman App Settings](docs-v2/documentation/screenshots/20-app-settings.png)
+
+| Pengaturan | Pilihan |
 |---|---|
-| **M1** Cross Selling Ratio | Pelanggan aktif dengan ≥2 kategori berbeda ÷ Total pelanggan aktif |
-| **M2** Avg Category/Customer | Total kategori unik terjual ÷ Jumlah pelanggan aktif |
-| **M3** Avg Revenue/Customer | Total revenue existing yang transaksi ÷ Jumlah existing yang transaksi |
-| **M4** Avg GP/Customer | Total GP existing yang transaksi ÷ Jumlah existing yang transaksi, dipecah 3 tier berbasis median |
-| **M5** High Margin Penetration | Existing pembeli produk high-margin ÷ TOTAL existing (termasuk yang tidak transaksi) |
-| **M6** Repeat Order Rate | Existing dengan ≥2 invoice dalam 30 hari ÷ TOTAL existing |
-| **M7** Customer Expansion Rate | Existing dengan revenue naik vs 30 hari sebelumnya ÷ TOTAL existing |
-| **M8** Dormant Customer Rate | Pelanggan >90 hari tanpa transaksi ÷ SELURUH pelanggan |
-| **M9** Dormant Customer Value | Rata-rata revenue bulanan historis × jumlah bulan dormant |
-| **M10** Reactivation Rate | Dormant periode lalu yang kembali transaksi ÷ Total dormant periode lalu |
+| Bahasa | Indonesia / English |
+| Tema | Terang / Gelap |
+| Warna aksen | Biru, Hijau, Kuning, Ungu, Merah Muda, Indigo (6 pilihan) |
 
-Produk "high-margin" (dipakai M5) ditentukan **otomatis dari data** — margin rate aktual tiap produk dihitung tiap bulan, lalu dibandingkan terhadap threshold (median otomatis, atau nilai tetap yang bisa diatur admin di Settings → Threshold). Target KPI (M6, M8, M10) juga bisa dikustomisasi admin tanpa perlu update aplikasi.
+Semua pilihan tersimpan ke akun (bukan hanya di satu browser) — tetap sama walau login dari perangkat lain. Warna aksen memengaruhi warna tombol, judul halaman, dan AppBar. Warna status (hijau=sukses, kuning=peringatan, merah=error) tidak berubah mengikuti palette — tetap sama di semua pilihan warna, supaya sinyal status tidak membingungkan.
 
 ---
 
-## 7. Import Data & Integrasi
+## 6. Dashboard — Halaman Utama
 
-### 7.1 Empat Jalur Import Terpusat
+Halaman pertama setelah login (menu **Dashboard**).
 
-Satu halaman Import menangani 4 jenis data: **Faktur** (sumber utama seluruh KPI), **Channel Divisions** (mapping channel penjualan ke divisi bisnis), **Klasifikasi Item** (aturan otomatis jenis barang), dan **User Baru** (bulk-create akun). Setiap jenis dilengkapi **tombol Download Template** — file siap pakai dengan deskripsi kolom dan contoh data, cara paling efektif mencegah kesalahan format saat upload.
+![Halaman Dashboard](docs-v2/documentation/screenshots/02-dashboard.png)
 
-### 7.2 Mesin Klasifikasi Otomatis 4-Lapis
+Filter di bagian atas (Entity, Division) menentukan cakupan data yang ditampilkan — opsi yang muncul otomatis mengikuti hak akses user. Halaman terdiri dari:
 
-Setiap item faktur diklasifikasikan otomatis ke 4 tipe (unit/consumable/sparepart/service) lewat rule engine bertingkat: kata kunci nama item → kata kunci kategori → rentang harga → fallback. Parser juga toleran terhadap variasi nama kolom (Indonesia/Inggris) dan mendeteksi header secara dinamis, sehingga proses import tetap lancar meski format file sedikit bervariasi.
+- **10 kartu ringkas** (baris pertama) — satu per KPI, menampilkan nilai saat ini, perubahan dibanding periode sebelumnya, dan grafik mini tren.
+- **8 grafik** (baris berikutnya) — memvisualisasikan KPI utama dengan jenis chart yang berbeda-beda (batang, area, donat, radial, garis dengan zona ambang batas, bullet chart).
 
-### 7.3 Integrasi Accurate Online
+Kartu dan grafik yang punya ikon panah kecil di pojok kanan atas bisa diklik untuk membuka halaman detail KPI terkait.
 
-Kredensial API tersimpan **terenkripsi** (AES-256-GCM), lengkap dengan fitur Test Connection untuk validasi sebelum dipakai. *(Catatan transparansi: fitur sinkronisasi otomatis data faktur langsung dari Accurate masih dalam tahap pengembangan — alur kerja saat ini tetap export manual dari Accurate lalu upload lewat halaman Import.)*
+| KPI | Yang Diukur |
+|---|---|
+| Cross Selling Ratio | Persentase pelanggan aktif yang membeli lebih dari 1 kategori produk |
+| Avg Product Category | Rata-rata jumlah kategori produk yang dibeli per pelanggan aktif |
+| Avg Revenue | Rata-rata pendapatan per pelanggan lama (existing) yang aktif |
+| Avg Gross Profit | Rata-rata laba kotor per pelanggan lama yang aktif |
+| High Margin Penetration | Persentase pelanggan lama yang membeli produk margin tinggi |
+| Repeat Order Rate | Persentase pelanggan lama yang order lebih dari 1 kali dalam 30 hari |
+| Customer Expansion Rate | Persentase pelanggan lama yang belanjanya naik dibanding 30 hari sebelumnya |
+| Dormant Customer Rate | Persentase seluruh pelanggan yang 90 hari tanpa transaksi |
+| Dormant Customer Value | Estimasi nilai rupiah yang hilang dari pelanggan dormant |
+| Customer Reactivation Rate | Persentase pelanggan dormant yang kembali bertransaksi |
+
+Definisi status pelanggan yang jadi dasar semua KPI di atas:
+
+| Status | Kondisi |
+|---|---|
+| Aktif | Ada transaksi dalam 30 hari terakhir dari tanggal acuan |
+| Existing | Pertama kali beli sebelum 30 hari terakhir, dan masih bertransaksi dalam 90 hari terakhir |
+| Dormant | Tidak ada transaksi sama sekali dalam 90 hari terakhir |
+| New | Pertama kali beli dalam 30 hari terakhir |
 
 ---
 
-## 8. Audit Trail
+## 7. Customer Workbench
 
-Setiap aksi yang mengubah data (tambah/ubah/hapus) di seluruh aplikasi **otomatis tercatat permanen** — tidak bisa diubah atau dihapus siapa pun lewat aplikasi. Setiap entry mencatat: pelaku, jenis aksi, data sebelum & sesudah perubahan, konteks perusahaan, alamat IP, dan waktu kejadian — dapat difilter dan ditelusuri kapan saja lewat halaman Audit Log. Fondasi penting untuk kepatuhan (compliance) dan investigasi insiden.
+### 7.1 Customer
+
+Daftar master seluruh pelanggan.
+
+![Halaman Customer List](docs-v2/documentation/screenshots/03-customer-list.png)
+
+Kolom: kode, nama, perusahaan, divisi, status, jumlah kategori produk, rata-rata belanja bulanan, lifetime value, tanggal transaksi terakhir, total faktur. Ketik di kolom pencarian untuk mencari pelanggan tertentu.
+
+Klik satu baris untuk membuka dialog detail pelanggan:
+
+![Dialog Detail Pelanggan](docs-v2/documentation/screenshots/04-customer-detail-dialog.png)
+
+Isinya: kode dan nama, status dan division (chip), channel penjualan, 4 kotak metrik (Lifetime Value, Rata-rata Revenue Bulanan, Jumlah Kategori, Total Faktur), daftar kategori yang pernah dibeli, grafik kombinasi tren revenue vs gross profit bulanan, dan daftar faktur terbaru (nomor, tanggal, revenue, GP). Dialog ini murni tampilan — tidak ada filter atau export di dalamnya.
+
+### 7.2 Expansion Targets
+
+Berisi 5 metrik (M3–M7) terkait pelanggan existing.
+
+![Halaman Expansion Targets](docs-v2/documentation/screenshots/05-expansion-targets.png)
+
+**M3 — Average Revenue per Existing Customer**
+
+```
+Avg Revenue = Total revenue existing yang transaksi ÷ Jumlah existing yang transaksi
+```
+
+Ditampilkan sebagai grafik kombinasi (batang = total revenue, garis solid = average, garis putus-putus = median) untuk 12 bulan. Kalau 1 pelanggan menyumbang lebih dari 25% total revenue bulan itu, muncul tanda peringatan (⚠) di atas batang bulan tersebut.
+
+**M4 — Average Gross Profit per Existing Customer**
+
+```
+Avg GP = Total GP existing yang transaksi ÷ Jumlah existing yang transaksi
+```
+
+Dipecah 3 tier berdasarkan median GP bulan itu: **Tier Atas** (GP > median), **Tier Tengah** (50%–100% median), **Tier Bawah** (< 50% median). Klik salah satu batang bulan untuk membuka modal breakdown:
+
+![Modal GP Breakdown](docs-v2/documentation/screenshots/06-gp-breakdown-modal.png)
+
+Modal menampilkan ringkasan (Gross Profit Existing Customer, Total Existing, Avg GP/Customer, Median Threshold, jumlah existing yang transaksi bulan itu) dan tabel ranking pelanggan (nomor urut, nama, kode, GP, persentase kontribusi terhadap total, tier). Tombol unduh (ikon panah bawah di pojok kanan atas dialog) mengekspor tabel yang sama ke PDF.
+
+**M5 — High Margin Product Penetration**
+
+```
+M5 (%) = Existing customer yang beli ≥1 produk high-margin ÷ TOTAL existing customer
+```
+
+Denominator mencakup seluruh existing customer, termasuk yang tidak bertransaksi bulan itu. Produk "high-margin" ditentukan otomatis dari data: margin rate tiap produk dihitung tiap bulan (gross profit ÷ revenue), lalu dibandingkan terhadap threshold (median otomatis, atau nilai tetap yang diatur admin di Settings → Threshold).
+
+**M6 — Repeat Order Rate**
+
+```
+M6 (%) = Existing customer dengan ≥2 invoice dalam 30 hari ÷ TOTAL existing customer
+```
+
+Target metrik ini bisa diatur admin (default 80%) di Settings → Threshold. Klik grafik radial untuk membuka modal breakdown:
+
+![Modal ROR Breakdown](docs-v2/documentation/screenshots/07-ror-breakdown-modal.png)
+
+Modal menampilkan total existing customer, jumlah yang melakukan repeat order, dan rate keseluruhan, beserta tabel ranking (kalau ada pelanggan dengan repeat order pada periode yang dipilih — pada contoh di atas, tidak ada existing customer yang order lebih dari 1x pada bulan itu, sehingga tabel kosong).
+
+**M7 — Customer Expansion Rate**
+
+```
+Window sekarang   = revenue existing dalam 30 hari terakhir
+Window sebelumnya = revenue existing dalam 30 hari sebelum itu
+
+M7 (%) = Existing dengan revenue_sekarang > revenue_sebelumnya ÷ TOTAL existing customer
+```
+
+Pelanggan yang tidak order di window sebelumnya tapi order sekarang tetap dihitung sebagai "naik".
+
+### 7.3 Churn Risk
+
+Berisi 3 metrik (M8–M10) terkait pelanggan yang berhenti transaksi.
+
+![Halaman Churn Risk](docs-v2/documentation/screenshots/08-churn-risk.png)
+
+**M8 — Dormant Customer Rate**
+
+```
+M8 (%) = Pelanggan dengan transaksi terakhir >90 hari lalu ÷ SELURUH pelanggan di database
+```
+
+Ditampilkan dengan garis ambang batas (default 10%, bisa diatur admin) — area di atas garis itu ditandai sebagai kondisi kritis.
+
+**M9 — Dormant Customer Value**
+
+```
+M9 = Rata-rata revenue bulanan historis (sebelum dormant) × Jumlah bulan sudah dormant
+```
+
+Ditampilkan sebagai ranking horizontal, diurutkan dari potensi kerugian terbesar.
+
+**M10 — Customer Reactivation Rate**
+
+```
+M10 (%) = Pelanggan dormant periode lalu yang kembali order ÷ Total pelanggan dormant periode lalu
+```
+
+Target minimum yang disarankan 15–20%, ditampilkan sebagai bullet chart terhadap target itu.
+
+### 7.4 Cross Sell Matrix
+
+Berisi 2 metrik (M1–M2) plus matrix Customer × Kategori Produk.
+
+![Halaman Cross Sell Matrix](docs-v2/documentation/screenshots/09-cross-sell-matrix.png)
+
+**M1 — Cross Selling Ratio**
+
+```
+M1 (%) = Pelanggan aktif dengan ≥2 kategori produk berbeda ÷ TOTAL pelanggan aktif
+```
+
+**M2 — Average Category per Customer**
+
+```
+M2 = Total kategori unik yang terjual di periode ini ÷ Jumlah pelanggan aktif di periode ini
+```
+
+Di bawah kedua metrik itu, heatmap menunjukkan kombinasi Customer × Kategori (Unit/Consumable/Sparepart), dan tabel di bawahnya menampilkan detail per pelanggan (kode, nama, chip kepemilikan tiap kategori, jumlah kategori, total revenue).
 
 ---
 
-## 9. Aplikasi Mobile (PWA)
+## 8. Product & Portfolio
 
-Aplikasi bisa **di-install** ke homescreen HP maupun desktop layaknya aplikasi native — tanpa App Store/Play Store. Berjalan standalone (tanpa address bar browser), tampilan otomatis menyesuaikan antara mode desktop (tabel penuh) dan mobile (tampilan kartu). Data selalu diambil fresh dari server — tidak pernah menampilkan angka KPI dari cache lama, memastikan akurasi real-time bahkan dalam mode aplikasi terinstal.
+### 8.1 Product Ledger
+
+![Halaman Product Ledger](docs-v2/documentation/screenshots/10-product-ledger.png)
+
+Daftar kategori produk: status high-margin, total revenue, total GP, margin %, jumlah pelanggan pembeli, jumlah transaksi, bulan terakhir terjual. Default terurut dari revenue tertinggi.
+
+Klik satu kategori untuk membuka detail:
+
+![Dialog Category Products](docs-v2/documentation/screenshots/11-category-products-dialog.png)
+
+Menampilkan 6 kotak ringkasan (Total Revenue, Total GP, Margin, Invoices, Customers, Last Sold) dan tabel seluruh produk di dalam kategori itu (nama produk, revenue, GP, margin dengan chip warna, jumlah invoice, jumlah customer unik).
+
+### 8.2 High Margin Push
+
+![Halaman High Margin Push](docs-v2/documentation/screenshots/12-high-margin-push.png)
+
+Dua tab: **Category Penetration** (persentase pelanggan existing yang sudah membeli tiap kategori high-margin) dan **Upsell Targets**.
+
+![Tab Upsell Targets](docs-v2/documentation/screenshots/13-upsell-targets-tab.png)
+
+Tab Upsell Targets menampilkan daftar pelanggan yang belum membeli kategori high-margin tertentu pada periode yang dipilih (tampilan "No data available" pada contoh di atas berarti tidak ada kandidat upsell pada periode itu — bisa dicoba dengan mengganti bulan atau Active Window). Klik satu baris pelanggan membuka dialog riwayat pembelian: rata-rata revenue/bulan, tanggal transaksi terakhir, dan tabel produk yang sudah dibeli (kategori, nama produk, revenue, GP, margin, jumlah invoice), dengan opsi filter ke satu kategori tertentu.
+
+### 8.3 Product Trend
+
+![Halaman Product Trend](docs-v2/documentation/screenshots/15-product-trend.png)
+
+Tren rata-rata jumlah kategori yang dibeli per pelanggan, dibandingkan periode berjalan dengan periode sebelumnya.
 
 ---
 
-## 10. Arsitektur Data
+## 9. Transaction & Revenue
 
-Diagram berikut ditulis dalam sintaks **Mermaid** — otomatis tampil sebagai gambar di GitHub, GitLab, dan editor Markdown modern. Kalau viewer tidak mendukung, salin ke [mermaid.live](https://mermaid.live) untuk melihat hasilnya.
+### 9.1 Transaction Ledger
 
-### 10.1 Diagram Konteks (DFD Level 0)
+![Halaman Transaction Ledger](docs-v2/documentation/screenshots/16-transaction-ledger.png)
+
+Daftar seluruh faktur: nomor, tanggal, perusahaan, pelanggan, divisi/channel, total revenue, total GP, margin %, jumlah kategori dalam faktur, sumber data (upload file atau sinkron Accurate). Bisa difilter Company/Branch/Division/periode seperti halaman lain.
+
+### 9.2 Project Milestone
+
+Halaman ini masih placeholder — belum ada fitur aktif di baliknya.
+
+---
+
+## 10. Import Data
+
+Semua data masuk lewat satu halaman terpusat (**Administration → Configuration → Import**):
+
+![Halaman Import](docs-v2/documentation/screenshots/21-import.png)
+
+### 10.1 Empat Jenis Import
+
+| Jenis | Kebutuhan | Isi |
+|---|---|---|
+| Faktur | Company + periode | Data invoice — sumber utama seluruh KPI |
+| Channel Divisions | Company | Mapping channel penjualan → Division |
+| Klasifikasi Item | Company | Aturan otomatis jenis barang |
+| User Baru | — | Bulk-create akun pengguna |
+
+Setiap jenis punya tombol **Template** — file `.xlsx` siap pakai berisi judul, deskripsi kolom, dan contoh data. Memakai template ini adalah cara paling efektif mencegah error format saat upload, karena nama kolom dan nilai enum yang salah adalah dua penyebab error import yang paling sering terjadi.
+
+### 10.2 Cara Import Faktur
+
+Terlihat pada screenshot di atas, ada dua opsi metode:
+
+1. **Upload file** — terima `.csv` atau `.xlsx`, maksimal 10MB. Ini metode yang berfungsi saat ini.
+2. **Sync from Accurate API** — panel ini ada di UI, tapi tombol "Sync Now" dalam keadaan nonaktif dengan catatan: *"Automatic sync is not yet available. Ask an admin to enable the 'Accurate Sync Button' toggle in Settings → Threshold once it's ready, or use the file upload instead."* Fitur sinkronisasi otomatis langsung dari Accurate Online masih dalam pengembangan — alur kerja yang berfungsi sekarang adalah export manual dari Accurate Online menjadi file, lalu upload lewat opsi pertama.
+
+### 10.3 Logic Parsing File Faktur
+
+Parser mengenali banyak variasi nama kolom sekaligus (Indonesia dan Inggris) — tidak memaksa satu bentuk nama kolom baku. Contoh, kolom nomor faktur bisa ditulis sebagai salah satu dari: `invoice_number`, `Invoice No`, `No Faktur`, `Nomor Faktur`, `Faktur`, `Invoice`.
+
+Setiap nama kolom dinormalisasi (diubah huruf kecil, karakter selain huruf/angka/spasi/underscore dibuang, spasi diganti underscore) sebelum dicocokkan ke daftar alias — sehingga `"No. Faktur"`, `"no_faktur"`, dan `"NO FAKTUR"` semuanya dikenali sebagai kolom yang sama.
+
+**Kolom yang wajib ada** (minimal salah satu aliasnya ditemukan di file): nomor faktur, tanggal, kode pelanggan, nama pelanggan, kategori produk, revenue, gross profit. Kalau ada kolom wajib yang tidak ditemukan sama sekali, seluruh import ditolak sejak awal dengan pesan kolom apa yang hilang.
+
+Untuk file export resmi Accurate ("Rincian Faktur Penjualan"), parser memindai 10 baris pertama untuk menemukan baris header (dikenali dari keberadaan kolom persis `"Tanggal"` dan `"Sales Invoice"`) — file boleh punya baris judul/metadata di atas tabel data. Setelah header ditemukan, parser memvalidasi semua kolom yang ada memang dikenali (menolak kalau ada kolom asing yang tidak dikenali sama sekali).
+
+Baris yang dilewati otomatis (tidak dianggap error): baris kosong, baris footer laporan (mengandung teks seperti "ACCURATE Accounting System", "Tercetak pada", "Halaman"), atau baris yang nomor invoice-nya tidak diawali `SI.` atau `INV-`.
+
+**Validasi per baris data:** nomor faktur, tanggal, kode pelanggan, nama pelanggan tidak boleh kosong. Kolom angka harus bisa di-parse sebagai angka (koma otomatis dikonversi ke titik desimal) — kalau gagal, baris itu dicatat sebagai error dan dilewati, baris lain tetap diproses. Format tanggal yang didukung: `DD/MM/YYYY`, `YYYY-MM-DD`, dan format teks Accurate seperti `"02 Jun 2026"`.
+
+Setelah parsing dan validasi, sistem mengklasifikasi item (lihat §10.4), me-resolve nama cabang ke `branch_id` (cocok berdasarkan nama, case-insensitive; kalau nama cabang kosong masuk ke branch "Lainnya"; kalau terisi tapi tidak cocok, dibiarkan kosong sebagai sinyal perlu diperiksa manual), lalu menyimpan data: faktur baru di-insert, faktur dengan nomor yang sudah ada di-update (item lama dihapus, item baru dimasukkan) — sehingga mengimpor ulang file yang sama tidak menggandakan data.
+
+### 10.4 Logic Klasifikasi Otomatis Jenis Barang
+
+Setiap baris item faktur diklasifikasikan ke salah satu dari 4 tipe (unit, consumable, sparepart, service) lewat 4 lapis pemeriksaan berurutan:
+
+```
+Lapis 1 — keyword_item_name : cocokkan kata kunci pada nama item
+Lapis 2 — keyword_category  : cocokkan kata kunci pada nama kategori
+Lapis 3 — price_range       : berdasarkan rentang harga satuan
+Lapis 4 — fallback          : kalau tidak ada yang cocok, default ke 'unit'
+```
+
+Kalau ada lebih dari satu aturan yang cocok, aturan dengan priority tertinggi yang dipakai:
+
+| Jenis Pencocokan | Priority Default |
+|---|---|
+| Nama item persis sama | 100 |
+| Kategori persis sama | 90 |
+| Kata kunci di nama item | 70 |
+| Kata kunci di kategori | 50 |
+| Rentang harga | 30 |
+
+Aturan bisa berlaku global (semua Company) atau khusus satu Company — aturan yang dibuat lewat halaman Import selalu ter-scope ke Company yang dipilih saat upload.
+
+### 10.5 Logic Mapping Channel ke Division
+
+Nilai mentah "Nama Tenaga Penjual"/channel penjualan dari data faktur dipetakan ke satu dari 6 kategori Division:
+
+| Division | Contoh Channel |
+|---|---|
+| distribution | DC WEST, DC EAST |
+| project | SDR B2B WEST, KAE WEST |
+| e_commerce | TOKOPEDIA, TIKTOKSHOP, LAZADA |
+| intercompany | Transaksi antar-entitas holding |
+| freelancer | Salesperson lepas |
+| support | Sales support / channel internal |
+
+Mapping ini bisa berbeda per Company atau berlaku global. Kalau nama channel baru muncul di data faktur tapi belum ada pemetaannya, customer terkait tampil dengan Division kosong — perlu ditambahkan mapping baru di Settings → Channel Divisions atau lewat import ulang.
+
+### 10.6 Import User Massal
+
+Kolom template: `name` (wajib), `email` (wajib), `role` (opsional, nama role yang sudah ada), `company_code` (opsional, bisa lebih dari satu dipisah koma).
+
+Saat upload, admin mengisi satu password default yang dipakai untuk semua akun baru dari file itu (bukan per baris, tidak disimpan permanen di server). Aturan per baris: nama/email kosong → error baris; email sudah terdaftar → dilewati (bukan error, aman untuk import ulang); nama role tidak ditemukan → error baris; kode company tidak ditemukan → error baris.
+
+### 10.7 Penanganan Error Import
+
+Untuk semua jenis import, kegagalan di satu baris tidak menggagalkan keseluruhan file — baris valid tetap masuk, baris gagal dicatat terpisah (nomor baris + pesan error) untuk diperbaiki dan diimpor ulang. Riwayat tiap operasi import faktur tersimpan dan bisa dilihat kembali di bagian "Import History" pada halaman yang sama.
+
+### 10.8 Kredensial Accurate Online
+
+Kredensial API (token, signature secret) dienkripsi (AES-256-GCM) sebelum disimpan ke database — tidak pernah dikirim kembali ke browser dalam bentuk terbuka. Tersedia tombol Test Connection untuk validasi sebelum kredensial dipakai.
+
+---
+
+## 11. Audit Log
+
+![Halaman Audit Log](docs-v2/documentation/screenshots/22-audit-log.png)
+
+Setiap aksi yang mengubah data (tambah/ubah/hapus) di seluruh aplikasi tercatat di sini — bersifat permanen, tidak ada endpoint untuk mengubah atau menghapus entry. Kolom yang dicatat: waktu, jenis aksi, pelaku, tabel yang terpengaruh, ID item, dan alamat IP. Bisa difilter berdasarkan jenis aksi dan rentang tanggal. Entry dengan pelaku Super Admin tidak terlihat oleh viewer non-Super-Admin (lihat §4).
+
+---
+
+## 12. Aplikasi Mobile (PWA)
+
+Aplikasi bisa di-install ke homescreen HP maupun desktop lewat browser (tanpa App Store/Play Store) — cari opsi "Add to Home Screen"/"Install App" di menu browser. Setelah terinstall, aplikasi berjalan standalone tanpa address bar browser. Tampilan otomatis menyesuaikan antara mode desktop (tabel penuh) dan mode mobile (tampilan kartu). Data KPI selalu diambil langsung dari server, tidak pernah ditampilkan dari cache lama.
+
+---
+
+## 13. Diagram Arsitektur Data
+
+Diagram berikut ditulis dalam sintaks Mermaid — tampil sebagai gambar di GitHub, GitLab, dan editor Markdown yang mendukungnya. Kalau viewer tidak mendukung, salin ke [mermaid.live](https://mermaid.live).
+
+### 13.1 Diagram Konteks (DFD Level 0)
 
 ```mermaid
 flowchart LR
-    User([Pengguna Aplikasi<br/>Admin / Eksekutif / Staf])
-    Sistem((Sistem<br/>Executive Dashboard))
+    User([Pengguna Aplikasi])
+    Sistem((Sistem Executive Dashboard))
     Accurate[[Accurate Online API]]
     Telegram[[Telegram]]
 
-    User -->|Login, Upload File Faktur,<br/>Atur RBAC/Settings| Sistem
-    Sistem -->|Tampilan KPI, Hasil Import,<br/>Notifikasi Sesi| User
-
+    User -->|Login, Upload File, Atur RBAC/Settings| Sistem
+    Sistem -->|Tampilan KPI, Hasil Import, Notifikasi Sesi| User
     Sistem -->|Test Connection kredensial| Accurate
     Accurate -->|Hasil validasi koneksi| Sistem
-
     Sistem -->|Alert aksi sensitif| Telegram
 ```
 
-### 10.2 Proses Utama (DFD Level 1)
+### 13.2 Proses Utama (DFD Level 1)
 
 ```mermaid
 flowchart TD
@@ -367,37 +555,31 @@ flowchart TD
     Pengguna([Pengguna])
     FileUpload[/File CSV / Excel/]
 
-    Admin -->|Upload| P1(("1.0<br/>Parse & Validasi File"))
+    Admin -->|Upload| P1(("1.0 Parse & Validasi File"))
     FileUpload --> P1
-
-    P1 -->|Baris valid| P2(("2.0<br/>Klasifikasi Item<br/>+ Resolve Branch/Division"))
+    P1 -->|Baris valid| P2(("2.0 Klasifikasi Item + Resolve Branch"))
     P1 -->|Baris gagal| DS7[(import_log_errors)]
-
     DS4[(item_classification_rules)] -.baca aturan.-> P2
     DS8[(channel_divisions)] -.baca mapping.-> P2
-
-    P2 --> P3(("3.0<br/>Dedup & Simpan"))
+    P2 --> P3(("3.0 Dedup & Simpan"))
     P3 --> DS1[(invoices)]
     P3 --> DS2[(invoice_items)]
-    P3 --> DS3[(customers / products /<br/>product_categories)]
-
-    Pengguna -->|Buka Dashboard, pilih filter| P4(("4.0<br/>Hitung KPI Real-Time"))
+    P3 --> DS3[(customers / products / product_categories)]
+    Pengguna -->|Buka Dashboard, pilih filter| P4(("4.0 Hitung KPI Real-Time"))
     DS1 --> P4
     DS2 --> P4
     DS3 --> P4
     P4 -->|KPI real-time, tidak di-cache| Pengguna
-
-    Pengguna -->|Email + Password| P5(("5.0<br/>Autentikasi & RBAC"))
-    DS10[(users / roles / permissions /<br/>scope tables)] --> P5
+    Pengguna -->|Email + Password| P5(("5.0 Autentikasi & RBAC"))
+    DS10[(users / roles / permissions / scope tables)] --> P5
     P5 -->|Token + Permission| Pengguna
-
-    P3 -.setiap mutasi.-> P6(("6.0<br/>Audit + Alert"))
+    P3 -.setiap mutasi.-> P6(("6.0 Audit + Alert"))
     P5 -.aksi sensitif.-> P6
     P6 --> DS11[(audit_logs)]
     P6 -.notifikasi.-> Telegram2[[Telegram]]
 ```
 
-### 10.3 ERD — Data Transaksi & Master
+### 13.3 ERD — Data Transaksi & Master
 
 ```mermaid
 erDiagram
@@ -423,7 +605,7 @@ erDiagram
     IMPORT_LOGS { int id PK, int company_id FK, varchar source, varchar status }
 ```
 
-### 10.4 ERD — Akses & Keamanan (RBAC)
+### 13.4 ERD — Akses dan Keamanan (RBAC)
 
 ```mermaid
 erDiagram
@@ -444,18 +626,4 @@ erDiagram
     AUDIT_LOGS { int id PK, int actor_id FK, varchar action, varchar entity, jsonb old_value, jsonb new_value, varchar ip_address }
 ```
 
-**Cara membaca notasi relasi:** `||--o{` berarti "satu wajib ke nol-atau-banyak".
-
----
-
-## Ringkasan Pencapaian
-
-Executive Dashboard dibangun sebagai platform business intelligence yang tidak berhenti di "menampilkan angka" — tapi memberi konteks, keamanan, dan kontrol akses setara aplikasi enterprise:
-
-- **10 KPI real-time**, dihitung langsung dari data transaksi, bukan laporan statis bulanan.
-- **7 lapis pertahanan keamanan** berjalan simultan — rate limiting, account lockout, invalidasi sesi otomatis, notifikasi real-time, security headers, CORS, dan audit trail penuh.
-- **RBAC dinamis** dengan 88 permission granular dan hierarki isolasi data 3 tingkat — struktur akses yang bisa mengikuti organisasi seluas apa pun tanpa perlu developer turun tangan tiap kali ada perubahan struktur.
-- **Drill-down di hampir setiap grafik** — dari angka ringkasan sampai ke daftar pelanggan/produk individual, lengkap dengan export PDF di titik-titik yang paling dibutuhkan (breakdown Gross Profit).
-- **Progressive Web App** — pengalaman aplikasi native tanpa biaya/kerumitan distribusi lewat app store.
-
-Dokumen ini akan terus diperbarui seiring pengembangan fitur baru.
+Notasi `||--o{` berarti "satu wajib ke nol-atau-banyak".
