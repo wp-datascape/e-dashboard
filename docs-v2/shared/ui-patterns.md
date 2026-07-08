@@ -242,6 +242,63 @@ import { StatusChip } from '@/components/ui'
 
 ---
 
+## Filter Bar — Box+gap, BUKAN Stack+spacing (fix sesi 39)
+
+Container filter yang bisa **wrap** ke baris baru di layar sempit (mis. deretan `ScopeFilterFields` + `DatePicker` + `Select` di header halaman) **WAJIB** pakai `Box` dengan CSS `gap`, bukan `Stack` dengan prop `spacing`.
+
+```tsx
+// ✅ Benar
+<Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+  <ScopeFilterFields filter={scopeFilter} />
+  <DatePicker ... />
+</Box>
+
+// ❌ Salah — Stack+spacing TIDAK menangani jarak antar-baris dengan benar saat wrap
+<Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+  <ScopeFilterFields filter={scopeFilter} />
+  <DatePicker ... />
+</Stack>
+```
+
+**Kenapa:** `Stack` implementasi `spacing` pakai margin negatif pada children, cuma didesain untuk 1 baris. Begitu `flexWrap:'wrap'` aktif dan child jatuh ke baris baru, margin itu tidak menghasilkan jarak VERTIKAL yang benar antar baris (keterbatasan dikenal MUI) — field yang wrap nempel langsung ke field di baris atasnya (label field baru bertumpuk sama border field sebelumnya). `Box` + CSS `gap` menangani kedua arah (row-gap dan column-gap) dengan benar, termasuk saat wrap.
+
+Field individual di dalam container ber-wrap juga harus `width:{xs:'100%', sm:<value>}`, bukan cuma `minWidth` — lihat `ScopeFilterFields.tsx` untuk pola lengkapnya (field 100% lebar di mobile otomatis "memaksa" baris baru sendiri lewat `flexWrap`, hasilnya stack rapi 1 kolom tanpa perlu ubah `direction` parent).
+
+## Custom Typography Variant — Wajib Daftar `variantMapping` (fix sesi 39)
+
+Kalau nambah custom Typography variant (module augmentation `@mui/material/styles`, contoh: `pageTitle`/`pageSubtitle` di `theme/index.ts`), variant itu **TIDAK otomatis** dapat elemen HTML semantik seperti variant bawaan MUI (`h1`-`h6`→`<h1>`-`<h6>`, `body1`/`body2`→`<p>`, dst).
+
+```ts
+// theme/index.ts — WAJIB daftar variantMapping, bukan cuma definisi style di typography object
+components: {
+  MuiTypography: {
+    defaultProps: {
+      variantMapping: {
+        pageTitle: 'h1',
+        pageSubtitle: 'p',
+      },
+    },
+  },
+},
+```
+
+**Kenapa:** tanpa `variantMapping`, MUI fallback render variant custom sebagai `<span>` (elemen **inline**). Dua `Typography` custom-variant yang berurutan (mis. judul + subjudul halaman) akan nempel di baris yang sama, bukan bertumpuk ke bawah seperti `h5`+`body2` sebelumnya — bug ini baru kelihatan setelah deploy, tidak ketauan dari `tsc`/lint karena secara TYPE valid.
+
+## flexShrink:0 — Elemen Fixed-Size di Dalam Flex Container yang Bisa Kehabisan Ruang (fix sesi 39)
+
+Elemen dengan `width`/`height` eksplisit (bukan responsif) yang duduk di dalam flex container yang **bisa kehabisan ruang** di viewport sempit (contoh nyata: `ThemeToggle` di `AppBar` Toolbar mobile — menu+judul+toggle+avatar berdesakan di 390px) **wajib** `flexShrink: 0`.
+
+```tsx
+sx={{
+  width: 64,
+  height: 32,
+  flexShrink: 0,  // wajib - tanpa ini width:64 cuma jadi flex-basis, TETAP bisa dikompres
+  ...
+}}
+```
+
+**Kenapa:** default `flexShrink` flex item adalah `1` — kalau total children flex container lebih lebar dari ruang tersedia, browser boleh mengompres SEMUA children dengan `flexShrink>0` secara proporsional, TERMASUK yang sudah punya `width` eksplisit (`width` di situasi ini cuma jadi *flex-basis*, titik awal sebelum shrink dihitung, bukan jaminan ukuran final). Kalau elemen itu punya child dengan posisi `absolute` + offset piksel TETAP di dalamnya (pola umum toggle/slider/knob), hasil kompresi sub-piksel bikin child itu tidak lagi presisi di posisi yang di-desain — gejalanya baru kelihatan bedanya kalau dibandingkan LANGSUNG dengan viewport yang tidak kena kompresi (mis. desktop vs mobile side-by-side), sulit ketauan cuma dari 1 viewport.
+
 ## Theme & Visual Convention
 
 Desain aplikasi menggunakan **flat style** — tidak ada rounded corner pada card dan panel.
@@ -322,6 +379,14 @@ permissions[] didapat dari response /auth/login dan /auth/refresh -- tidak perlu
 | BulletChartWidget | Custom CSS bullet | Value vs target band |
 
 Mapping per metrik (M1-M10) -> executive-dashboard/metrics.md, bukan di sini.
+
+### ResponsiveContainer — `debounce` Dibedakan Per Widget (fix sesi 39)
+
+Semua widget di atas render `<ResponsiveContainer debounce={N}>` dengan nilai `N` **berbeda-beda per tipe widget** (50-380ms, lihat masing-masing file komponen) — BUKAN kebetulan/tidak konsisten, ini sengaja.
+
+**Kenapa:** halaman dengan banyak chart sekaligus (mis. Customer Metrics, 5+ widget) yang semua pakai `debounce` SAMA bikin semua chart redraw di tick JS yang (nyaris) sama persis saat parent resize (mis. toggle sidebar) — menumpuk jadi satu long-task besar (terukur: 100ms, setara 6x waktu frame normal, jeda kelihatan). Nilai debounce yang di-stagger menyebarkan redraw ke beberapa frame terpisah.
+
+**Rule:** kalau nambah widget chart baru yang dipakai di halaman dengan chart lain, jangan reuse nilai debounce yang sama persis dengan widget lain di halaman yang sama — pilih nilai yang belum dipakai (rentang 50-400ms cukup, di bawah durasi transisi UI yang memicunya).
 
 ### RadialBarWidget — Props Penting
 
@@ -650,6 +715,23 @@ if (collapsed) {
 Mode full (sidebar terbuka) tidak berubah — tetap pakai `Collapse` inline (`expanded` state, toggle on click) seperti sebelumnya. Flyout `Menu` cuma untuk mode collapsed karena tidak ada ruang untuk expand inline.
 
 **Rule**: kalau nambah `NavItem` baru dengan `children` (grup submenu), fitur flyout ini otomatis berlaku — tidak perlu setup tambahan, cukup pastikan tiap child punya `icon` (dipakai sebagai `ListItemIcon` di dalam `MenuItem`).
+
+## AppLogo — Outline Putih Murni, Transparan (fix sesi 39)
+
+`AppLogo.tsx` (four-leaf clover) dan `public/favicon.svg` (sumber PWA icon PNG) render murni **outline putih** (`fill="none"` di semua elemen — lingkaran pembungkus DAN bentuk semanggi), tidak ada fill solid apapun. Background transparan total.
+
+**Konsekuensi WAJIB diperhatikan kalau logo dipakai di halaman/context baru:** outline putih murni HANYA kebaca di atas background gelap/berwarna (AppBar — selalu gelap/berwarna secara alami). Di atas background PUTIH/terang (`background.paper` light mode, mis. Login card), logo **hilang total** (putih di atas putih).
+
+**Pola di context terang** (lihat `Login/index.tsx`): bungkus `AppLogo` dengan `Box` lingkaran gelap KHUSUS di halaman itu saja — jangan ubah `AppLogo.tsx` sendiri (AppBar tidak butuh bungkus ini).
+
+```tsx
+<Box sx={{ width: 34, height: 34, borderRadius: '50%', bgcolor: '#0a0a0f',
+  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  <AppLogo sx={{ fontSize: 22 }} />
+</Box>
+```
+
+**Kalau ubah desain logo:** wajib sinkron 2 tempat (`AppLogo.tsx` untuk pemakaian inline React + `public/favicon.svg` untuk tab browser/PWA), lalu regenerate PNG turunannya (`public/icons/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`) — PNG-PNG ini file terpisah, TIDAK otomatis ikut berubah kalau cuma SVG-nya diedit. `icon-maskable-512.png` beda kebutuhan (fill solid + background opaque wajib, OS crop ke bentuk lain dan transparansi bisa terlihat rusak) — jangan ikut disamakan ke gaya outline transparan. Script `scripts/gen-icons.mjs` yang ada di repo **STALE** (desain lightning-bolt lama sebelum clover) — jangan dipakai, generate manual pakai Playwright screenshot dari markup SVG yang sama.
 
 ## PWA — Safe Area Inset (Status Bar iOS) — fix sesi 33
 
