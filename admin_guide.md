@@ -1,6 +1,6 @@
-# User Guide — Executive Dashboard
+# Admin & Technical Guide — Executive Dashboard
 
-> Dokumen referensi lengkap seluruh fitur aplikasi, disusun sebagai bahan untuk membuat buku petunjuk pengguna. Mencakup keamanan, pengaturan, struktur menu, dan detail formula tiap metrik.
+> Dokumen referensi untuk **administrator sistem dan tim teknis** — keamanan, RBAC, konfigurasi, logic import/klasifikasi, formula perhitungan metrik, dan diagram arsitektur data (DFD/ERD). Untuk panduan pemakaian aplikasi sehari-hari oleh pengguna bisnis (membaca dashboard, memakai filter, dsb.), lihat `end_user_guide.md`.
 
 ---
 
