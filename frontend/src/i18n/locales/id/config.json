@@ -132,7 +132,9 @@
     "activeWindowLabel": "Window Bulan Aktif",
     "activeWindowDesc": "Window bulan aktif: customer dianggap aktif jika ada transaksi dalam N bulan terakhir",
     "enforcementLabel": "Isolasi Akses Branch/Division",
-    "enforcementDesc": "\"Aktif\" berarti user non-superadmin dibatasi ke branch/division yang di-assign; \"Nonaktif\" berarti cuma company scope yang berlaku"
+    "enforcementDesc": "\"Aktif\" berarti user non-superadmin dibatasi ke branch/division yang di-assign; \"Nonaktif\" berarti cuma company scope yang berlaku",
+    "accurateSyncLabel": "Tombol Sinkron Accurate",
+    "accurateSyncDesc": "Mengatur tombol \"Sync Now\" di halaman Import. Saat nonaktif, tombol jadi disabled dan pengguna melihat catatan bahwa sinkronisasi otomatis belum tersedia."
   },
   "periodInfo": {
     "title": "Tentang Periode (period_month)",

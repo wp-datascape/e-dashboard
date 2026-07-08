@@ -132,7 +132,9 @@
     "activeWindowLabel": "Active Window (months)",
     "activeWindowDesc": "Active window in months: a customer is considered active if there is a transaction within the last N months",
     "enforcementLabel": "Branch/Division Access Isolation",
-    "enforcementDesc": "\"On\" means non-superadmin users are restricted to their assigned branch/division; \"Off\" means only company scope applies"
+    "enforcementDesc": "\"On\" means non-superadmin users are restricted to their assigned branch/division; \"Off\" means only company scope applies",
+    "accurateSyncLabel": "Accurate Sync Button",
+    "accurateSyncDesc": "Controls the \"Sync Now\" button on the Import page. When off, the button is disabled and users see a note explaining that automatic sync is not yet available."
   },
   "periodInfo": {
     "title": "About Period Month (period_month)",

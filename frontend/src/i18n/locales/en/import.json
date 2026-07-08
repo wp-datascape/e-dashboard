@@ -10,7 +10,8 @@
     "title": "Sync from Accurate API",
     "subtitle": "Pull invoices directly from Accurate Online and save to database",
     "submit": "Sync Now",
-    "info": "Requires a valid Accurate API key configured in Config."
+    "info": "Requires a valid Accurate API key configured in Config.",
+    "featureOff": "Automatic sync is not yet available. Ask an admin to enable the \"Accurate Sync Button\" toggle in Settings → Threshold once it's ready, or use the file upload instead."
   },
   "form": {
     "title": "New Import",
