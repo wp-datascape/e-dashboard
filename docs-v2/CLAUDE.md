@@ -16,7 +16,8 @@ Status   : Frontend ~99% | Backend ~98% | live di production (Railway backend + 
 ## Read Order
 1. `CRITICAL_RULES.md` — hard constraints, tech stack, conventions
 2. `CURRENT_STATE.md` — what's done, what's next, blockers
-3. Module docs based on task:
+3. `MEMORY.md` — technical debt & pelajaran kerja yang tervalidasi, cek dulu sebelum ambil keputusan desain baru
+4. Module docs based on task:
 
 | Working on...         | Read                                    |
 |-----------------------|-----------------------------------------|
