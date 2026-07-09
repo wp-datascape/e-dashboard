@@ -6,7 +6,9 @@ export const invoicesQuerySchema = z.object({
     .optional()
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
-  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
+  // Filter laporan — string bebas (bukan enum hardcode), dinamis per company/branch,
+  // lihat docs-v2/task/task004.md. Kode tidak valid cukup hasilkan list kosong.
+  business_unit: z.string().min(1).max(50).optional(),
   customer_search: z.string().optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),

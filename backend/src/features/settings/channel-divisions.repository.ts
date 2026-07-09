@@ -4,7 +4,7 @@ import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import type { CreateChannelDivisionDto, UpdateChannelDivisionDto, ListChannelDivisionsQuery } from './channel-divisions.schema'
 
 export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
-  const { division, company_id, search } = params
+  const { division, company_id, branch_id, search } = params
 
   const conditions = []
 
@@ -20,6 +20,16 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
     )
   }
 
+  if (branch_id) {
+    // tampilkan: rule milik branch ini + rule company-wide (branch_id null)
+    conditions.push(
+      or(
+        eq(channel_divisions.branch_id, branch_id),
+        isNull(channel_divisions.branch_id),
+      )!,
+    )
+  }
+
   if (search) {
     conditions.push(ilike(channel_divisions.channel_name, `%${search}%`))
   }
@@ -31,6 +41,7 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
       division: channel_divisions.division,
       company_id: channel_divisions.company_id,
       company_name: companies.name,
+      branch_id: channel_divisions.branch_id,
       created_at: channel_divisions.created_at,
       updated_at: channel_divisions.updated_at,
     })
@@ -38,29 +49,6 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
     .leftJoin(companies, eq(channel_divisions.company_id, companies.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(channel_divisions.channel_name)
-}
-
-/**
- * Nilai divisi unik yang benar-benar punya mapping untuk company ini (rule
- * company + rule global) — dipakai dropdown filter divisi (useDivisionOptions)
- * yang tersebar di banyak halaman. Sengaja TIDAK ikut channel_name di sini
- * (beda dari findChannelDivisions) supaya endpoint ini bisa dibuka tanpa
- * requirePermission('settings.channel.division:view') — nama channel penjualan
- * asli tetap hanya kelihatan lewat endpoint mapping penuh yang tetap terproteksi.
- */
-export async function findDistinctDivisions(companyId: number | 'all'): Promise<string[]> {
-  const conditions = []
-  if (companyId !== 'all') {
-    conditions.push(or(eq(channel_divisions.company_id, companyId), isNull(channel_divisions.company_id))!)
-  }
-
-  const rows = await db
-    .selectDistinct({ division: channel_divisions.division })
-    .from(channel_divisions)
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(channel_divisions.division)
-
-  return rows.map((r) => r.division)
 }
 
 export async function findChannelDivisionById(id: number) {
@@ -98,6 +86,7 @@ export async function createChannelDivision(data: CreateChannelDivisionDto) {
       channel_name: data.channel_name,
       division: data.division,
       company_id: data.company_id ?? null,
+      branch_id: data.branch_id ?? null,
     })
     .returning()
   return result
@@ -136,4 +125,24 @@ export async function findUnmappedChannelNames(cid: number): Promise<string[]> {
     ORDER BY i.channel_name
   `)
   return (rows as unknown[]).map((r) => (r as { channel_name: string }).channel_name)
+}
+
+/**
+ * Derive branch_id dari histori invoice riil untuk 1 channel_name di company
+ * tertentu — SSOT dari data faktur, bukan diketik manual (task005 §6, revisi
+ * B6 2026-07-09). Return null kalau channel belum pernah muncul di invoice
+ * company ini, atau muncul di >1 branch berbeda (ambigu — fallback company-wide,
+ * jangan menebak).
+ */
+export async function findConsistentBranchIdForChannel(channelName: string, companyId: number): Promise<number | null> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT i.branch_id
+    FROM invoices i
+    WHERE i.deleted_at IS NULL
+      AND i.channel_name = ${channelName}
+      AND i.company_id = ${companyId}
+      AND i.branch_id IS NOT NULL
+  `)
+  const branchIds = (rows as unknown[]).map((r) => (r as { branch_id: number }).branch_id)
+  return branchIds.length === 1 ? branchIds[0] : null
 }

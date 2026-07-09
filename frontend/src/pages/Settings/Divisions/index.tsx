@@ -5,55 +5,49 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import TextField from '@mui/material/TextField'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import ImportExportIcon from '@mui/icons-material/ImportExport'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef } from '@mui/x-data-grid'
-import { Card, Button, ActionMenu } from '@/components/ui'
+import { Card, Button, ActionMenu, StatusChip } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { DivisionChip } from '@/pages/Customers/components/DivisionChip'
 import { useCompanies } from '@/hooks/useCompanies'
 import {
-  useChannelDivisions,
-  useCreateChannelDivision,
-  useUpdateChannelDivision,
-  useDeleteChannelDivision,
-} from '@/hooks/useChannelDivisions'
-import { useDivisionOptions } from '@/hooks/useDivisionOptions'
-import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
-import type { Division } from '@/types/customers'
-import { DivisionMappingDialog } from './components/DivisionMappingDialog'
+  useDivisions,
+  useCreateDivision,
+  useUpdateDivision,
+  useDeleteDivision,
+} from '@/hooks/useDivisions'
+import type { DivisionRow, CreateDivisionPayload, UpdateDivisionPayload } from '@/types/divisions'
 import { useCan } from '@/hooks/useCan'
+import { DivisionDialog } from './components/DivisionDialog'
+import { DivisionMappingSection } from './components/DivisionMappingSection'
 
-type DialogMode = 'create' | 'edit' | null
+type DialogMode = 'create' | 'edit' | 'mapping' | null
 
 export default function DivisionsSettings() {
   const { t } = useTranslation()
   const can = useCan()
 
   // ── Filter state ──
-  const [divisionFilter, setDivisionFilter] = useState<NonNullable<Division> | ''>('')
-  const [search, setSearch] = useState('')
-  // Opsi filter diambil dari mapping riil yang sudah di-import ke channel_divisions
-  const divisionOptions = useDivisionOptions('all')
+  const [companyFilter, setCompanyFilter] = useState<number | ''>('')
 
   // ── Dialog / selection state ──
   const [dialogMode, setDialogMode] = useState<DialogMode>(null)
-  const [selected, setSelected] = useState<ChannelDivisionRow | null>(null)
+  const [selected, setSelected] = useState<DivisionRow | null>(null)
 
   // ── Data ──
   const { data: companies = [] } = useCompanies()
-  const { data: rows = [], isLoading } = useChannelDivisions({
-    division: divisionFilter || undefined,
-    search: search || undefined,
+  const { data: rows = [], isLoading } = useDivisions({
+    company_id: companyFilter === '' ? undefined : companyFilter,
   })
 
   // ── Mutations ──
-  const { mutate: create, isPending: isCreating, error: createError, reset: resetCreate } = useCreateChannelDivision()
-  const { mutate: update, isPending: isUpdating, error: updateError, reset: resetUpdate } = useUpdateChannelDivision()
-  const { mutate: remove } = useDeleteChannelDivision()
+  const { mutate: create, isPending: isCreating, error: createError, reset: resetCreate } = useCreateDivision()
+  const { mutate: update, isPending: isUpdating, error: updateError, reset: resetUpdate } = useUpdateDivision()
+  const { mutate: remove } = useDeleteDivision()
 
   // ── Handlers ──
   const closeDialog = () => {
@@ -63,48 +57,62 @@ export default function DivisionsSettings() {
     resetUpdate()
   }
 
-  const handleCreate = (payload: CreateChannelDivisionPayload) => {
+  const handleCreate = (payload: CreateDivisionPayload) => {
     create(payload, { onSuccess: closeDialog })
   }
 
-  const handleUpdate = (id: number, payload: UpdateChannelDivisionPayload) => {
+  const handleUpdate = (id: number, payload: UpdateDivisionPayload) => {
     update({ id, payload }, { onSuccess: closeDialog })
   }
 
-  const handleDelete = (id: number) => remove(id)
+  const handleDelete = (row: DivisionRow) => {
+    if (window.confirm(t('divisions.deleteConfirm', { name: row.name }))) remove(row.id)
+  }
 
   // ── Columns ──
-  const columns: GridColDef<ChannelDivisionRow>[] = [
+  const columns: GridColDef<DivisionRow>[] = [
     {
-      field: 'channel_name',
-      headerName: t('divisions.channelName'),
+      field: 'code',
+      headerName: t('divisions.code'),
+      width: 120,
+      renderCell: ({ value }) => <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{value}</Typography>,
+    },
+    { field: 'name', headerName: t('divisions.name'), flex: 1, minWidth: 160 },
+    {
+      field: 'company_name',
+      headerName: t('divisions.company'),
       flex: 1,
-      minWidth: 180,
-      renderCell: ({ value }) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{value}</Typography>
+      minWidth: 160,
+      renderCell: ({ value }) => value ?? '—',
+    },
+    {
+      field: 'branch_name',
+      headerName: t('divisions.branch'),
+      width: 130,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" color={row.branch_id ? 'text.primary' : 'text.secondary'}>
+          {row.branch_id ? row.branch_name ?? `#${row.branch_id}` : t('divisions.branchAll')}
+        </Typography>
       ),
     },
     {
-      field: 'division',
-      headerName: t('divisions.division'),
+      field: 'dormant_bucket',
+      headerName: t('divisions.dormantBucket'),
       width: 140,
-      renderCell: ({ value }) => <DivisionChip division={value as Division} />,
+      renderCell: ({ value }) => t(`divisions.dormantBuckets.${value}`),
     },
     {
-      field: 'company_name',
-      headerName: t('divisions.scope'),
-      flex: 1,
-      minWidth: 140,
-      renderCell: ({ row }) => (
-        <Typography variant="body2" color={row.company_id ? 'text.primary' : 'text.secondary'}>
-          {row.company_name ?? t('divisions.scopeGlobal')}
-        </Typography>
+      field: 'is_active',
+      headerName: t('common.status'),
+      width: 110,
+      renderCell: ({ value }) => (
+        <StatusChip label={value ? t('common.active') : t('common.inactive')} color={value ? 'success' : 'default'} />
       ),
     },
     {
       field: '_actions',
       headerName: '',
-      width: 70,
+      width: 90,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
@@ -114,16 +122,22 @@ export default function DivisionsSettings() {
             {
               label: t('common.edit'),
               icon: <EditIcon />,
-              onClick: () => { setSelected(row); setDialogMode('edit') },
-              hidden: !can('settings.channel.division:update'),
+              onClick: () => { resetUpdate(); setSelected(row); setDialogMode('edit') },
+              hidden: !can('settings.division:update'),
+            },
+            {
+              label: t('divisions.manageMapping'),
+              icon: <ImportExportIcon />,
+              onClick: () => { setSelected(row); setDialogMode('mapping') },
+              hidden: !can('settings.channel.division:view'),
             },
             {
               label: t('common.delete'),
               icon: <DeleteIcon />,
-              onClick: () => handleDelete(row.id),
+              onClick: () => handleDelete(row),
               color: 'error',
               dividerBefore: true,
-              hidden: !can('settings.channel.division:delete'),
+              hidden: !can('settings.division:delete'),
             },
           ]}
         />
@@ -139,62 +153,49 @@ export default function DivisionsSettings() {
           <Typography variant="pageTitle">{t('divisions.title')}</Typography>
           <Typography variant="pageSubtitle">{t('divisions.subtitle')}</Typography>
         </Box>
-        {can('settings.channel.division:create') && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setDialogMode('create')}
-            mobileIconOnly
-          >
+        {can('settings.division:create') && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { resetCreate(); setDialogMode('create') }} mobileIconOnly>
             {t('divisions.add')}
           </Button>
         )}
       </Box>
 
       {/* Filters */}
-      <Card sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-            <InputLabel>{t('divisions.division')}</InputLabel>
+      {companies.length > 1 && (
+        <Card sx={{ p: 2, mb: 2 }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+            <InputLabel>{t('divisions.company')}</InputLabel>
             <Select
-              value={divisionFilter}
-              label={t('divisions.division')}
-              onChange={(e) => setDivisionFilter(e.target.value as NonNullable<Division> | '')}
+              value={companyFilter}
+              label={t('divisions.company')}
+              onChange={(e) => setCompanyFilter(e.target.value as number | '')}
             >
               <MenuItem value="">{t('common.all')}</MenuItem>
-              {divisionOptions.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              {companies.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
             </Select>
           </FormControl>
+        </Card>
+      )}
 
-          <TextField
-            size="small"
-            label={t('common.search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('divisions.searchPlaceholder')}
-            sx={{ width: { xs: '100%', sm: 240 } }}
-          />
-        </Box>
-      </Card>
+      <ResponsiveListView rows={rows} columns={columns} loading={isLoading} />
 
-      <ResponsiveListView
-        rows={rows}
-        columns={columns}
-        loading={isLoading}
-      />
-
-      <DivisionMappingDialog
-        open={dialogMode !== null}
-        mode={dialogMode ?? 'create'}
+      <DivisionDialog
+        open={dialogMode === 'create' || dialogMode === 'edit'}
+        mode={dialogMode === 'edit' ? 'edit' : 'create'}
         selected={selected}
-        companies={companies}
         isPending={isCreating || isUpdating}
         error={createError ?? updateError}
         onClose={closeDialog}
         onCreate={handleCreate}
         onUpdate={handleUpdate}
+      />
+
+      <DivisionMappingSection
+        open={dialogMode === 'mapping'}
+        onClose={closeDialog}
+        division={selected}
       />
     </Box>
   )

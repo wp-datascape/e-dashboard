@@ -1,13 +1,31 @@
 {
-  "title": "Channel Divisions",
-  "subtitle": "Map channel names (from Accurate) to sales divisions",
-  "add": "Add Mapping",
-  "addMapping": "Add Channel Mapping",
-  "editMapping": "Edit Channel Mapping",
-  "channelName": "Channel Name",
-  "channelNameHelp": "Selected from real channel names in invoice data that don't have a division mapping yet.",
-  "division": "Division",
-  "scope": "Scope",
-  "scopeGlobal": "Global (all companies)",
-  "searchPlaceholder": "Search channel name..."
+  "title": "Divisions",
+  "subtitle": "Manage the division catalog per company/branch, and channel mappings within each division",
+  "add": "Add Division",
+  "company": "Company",
+  "branch": "Branch",
+  "branchAll": "All branches",
+  "code": "Code",
+  "codeHelp": "Lowercase code, e.g. \"counter\" or \"u_card\" — used internally, not shown to end users",
+  "name": "Name",
+  "dormantBucket": "Dormant Bucket",
+  "dormantBuckets": {
+    "b2b_dc": "B2B — Distribution Channel",
+    "b2b_project": "B2B — Project",
+    "b2c": "B2C",
+    "manufacturing": "Manufacturing"
+  },
+  "manageMapping": "Edit Mapping",
+  "deleteConfirm": "Delete division \"{{name}}\"? This won't delete existing channel mappings, but they will lose their division reference.",
+  "dialog": {
+    "addTitle": "Add Division",
+    "editTitle": "Edit Division"
+  },
+  "mapping": {
+    "title": "Channel Mapping",
+    "empty": "No channels mapped to this division yet.",
+    "addChannel": "Channel Name",
+    "addChannelPlaceholder": "Select an unmapped channel...",
+    "deleteConfirm": "Remove this channel mapping?"
+  }
 }

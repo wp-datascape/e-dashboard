@@ -25,8 +25,6 @@ import postgres from 'postgres'
 
 const APPLY = process.argv.includes('--apply')
 
-const ALL_DIVISIONS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
-
 async function main() {
   const sql = postgres(process.env.DATABASE_URL!)
 
@@ -81,7 +79,17 @@ async function main() {
       `
       branchRowsInserted += insertedBranch.count
 
-      for (const division of ALL_DIVISIONS) {
+      // Kode divisi aktif untuk (company, branch) diambil dinamis dari katalog
+      // `divisions` (company-wide + branch-specific), bukan array hardcode lagi
+      // — lihat docs-v2/task/task004.md.
+      const activeDivisions = await sql`
+        SELECT DISTINCT code FROM divisions
+        WHERE is_active = true
+          AND company_id = ${row.company_id}
+          AND (branch_id = ${branch.id} OR branch_id IS NULL)
+      `
+
+      for (const { code: division } of activeDivisions) {
         const insertedDivision = await sql`
           INSERT INTO user_divisions (user_id, branch_id, division)
           VALUES (${row.user_id}, ${branch.id}, ${division})

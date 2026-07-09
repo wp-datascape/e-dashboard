@@ -35,9 +35,9 @@ export const channelDivisionsApi = {
     return res.data.data
   },
 
-  listDivisionValues: async (companyId: number | 'all'): Promise<string[]> => {
+  listDivisionValues: async (companyId: number | 'all', branchId?: number): Promise<string[]> => {
     const res = await api.get<ApiResponse<string[]>>('/settings/channel-divisions/values', {
-      params: { company_id: companyId },
+      params: { company_id: companyId, branch_id: branchId },
     })
     return res.data.data
   },

@@ -39,6 +39,7 @@ import { configRoutes } from '@/features/config/config.route'
 import { auditRoutes } from '@/features/audit/audit.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
+import { divisionsRoutes } from '@/features/settings/divisions.route'
 import { docsRoutes } from '@/features/docs/docs.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/classification-rules', classificationRoutes)
   protectedApi.route('/settings/high-margin', highMarginRoutes)
   protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
+  protectedApi.route('/settings/divisions', divisionsRoutes)
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)

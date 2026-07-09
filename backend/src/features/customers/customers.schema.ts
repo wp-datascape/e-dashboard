@@ -5,7 +5,9 @@ export const customersQuerySchema = z.object({
   branch_id: z.coerce.number().int().positive().optional(),
   search: z.string().optional(),
   status: z.enum(['new', 'active', 'dormant', 'existing']).optional(),
-  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
+  // Filter laporan — string bebas (bukan enum hardcode), dinamis per company/branch,
+  // lihat docs-v2/task/task004.md. Kode tidak valid cukup hasilkan list kosong.
+  business_unit: z.string().min(1).max(50).optional(),
   sort_by: z
     .enum(['avg_monthly_revenue', 'lifetime_value', 'category_count', 'last_invoice_date'])
     .optional()

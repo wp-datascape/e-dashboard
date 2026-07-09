@@ -11,10 +11,8 @@ import {
   userDivisions,
   companies,
   company_branches,
+  divisions,
 } from '@/db/schema'
-
-// 6 value bisnis existing + 'other' ("Lainnya") - lihat docs-v2/task/task001.md §4.5
-const ALL_DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
 
 export async function findActiveUserByEmail(email: string) {
   const result = await db
@@ -141,7 +139,7 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
   const companyIds = await getUserCompanyIds(userId)
   if (companyIds.length === 0) return []
 
-  const [companyRows, branchScopes, divisionScopes, allBranchRows] = await Promise.all([
+  const [companyRows, branchScopes, divisionScopes, allBranchRows, catalogRows] = await Promise.all([
     db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, companyIds)),
     getUserBranchScopes(userId),
     getUserDivisionScopes(userId),
@@ -149,6 +147,12 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
       .select({ id: company_branches.id, name: company_branches.name, company_id: company_branches.company_id })
       .from(company_branches)
       .where(inArray(company_branches.company_id, companyIds)),
+    // Katalog divisi aktif per company/branch (docs-v2/task/task004.md) — pengganti
+    // ALL_DIVISION_VALUES hardcode lama, dipakai hitung isFullDivisionAccess dinamis.
+    db
+      .select({ company_id: divisions.company_id, branch_id: divisions.branch_id, code: divisions.code })
+      .from(divisions)
+      .where(and(inArray(divisions.company_id, companyIds), eq(divisions.is_active, true))),
   ])
 
   const divisionsByBranch = new Map<number, string[]>()
@@ -169,6 +173,20 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
     allBranchesByCompany.get(b.company_id)!.push({ id: b.id, name: b.name })
   }
 
+  // Company-wide (branch_id null) vs branch-specific catalog codes, union-kan
+  // saat dipakai (mirror findActiveDivisionCodesForScope di divisions.repository.ts)
+  const companyWideCodes = new Map<number, string[]>()
+  const branchSpecificCodes = new Map<number, string[]>()
+  for (const row of catalogRows) {
+    if (row.branch_id === null) {
+      if (!companyWideCodes.has(row.company_id)) companyWideCodes.set(row.company_id, [])
+      companyWideCodes.get(row.company_id)!.push(row.code)
+    } else {
+      if (!branchSpecificCodes.has(row.branch_id)) branchSpecificCodes.set(row.branch_id, [])
+      branchSpecificCodes.get(row.branch_id)!.push(row.code)
+    }
+  }
+
   return companyRows.map((company) => {
     const assignedBranchIds = new Set(assignedBranchIdsByCompany.get(company.id) ?? [])
     const allBranches = allBranchesByCompany.get(company.id) ?? []
@@ -177,9 +195,13 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
     const branches: MyScopeBranch[] = allBranches
       .filter((b) => assignedBranchIds.has(b.id))
       .map((b) => {
-        const divisions = divisionsByBranch.get(b.id) ?? []
-        const isFullDivisionAccess = ALL_DIVISION_VALUES.every((d) => divisions.includes(d))
-        return { branch_id: b.id, branch_name: b.name, isFullDivisionAccess, divisions }
+        const divisions_ = divisionsByBranch.get(b.id) ?? []
+        const allCodesForBranch = [...new Set([
+          ...(companyWideCodes.get(company.id) ?? []),
+          ...(branchSpecificCodes.get(b.id) ?? []),
+        ])]
+        const isFullDivisionAccess = allCodesForBranch.length > 0 && allCodesForBranch.every((d) => divisions_.includes(d))
+        return { branch_id: b.id, branch_name: b.name, isFullDivisionAccess, divisions: divisions_ }
       })
 
     return { company_id: company.id, company_name: company.name, isFullBranchAccess, branches }

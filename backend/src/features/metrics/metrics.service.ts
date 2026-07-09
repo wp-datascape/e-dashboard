@@ -1,5 +1,5 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantBucketKey, resolveDormantMonths } from '@/features/config/threshold'
 import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -36,7 +36,10 @@ export async function resolveSegmentParams(
   const cid = companyId === 'all' ? 0 : companyId
   let dormantMonths: number
   if (division) {
-    const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
+    // cid=0 (semua company) + filter division spesifik: ambigu company mana
+    // yang jadi acuan dormant_bucket-nya, fallback 'b2b_dc' (konsisten dengan
+    // behavior lama utk kode tidak dikenal)
+    const dormantKey = cid !== 0 ? await resolveDormantBucketKey(cid, branchId ?? null, division) : 'b2b_dc'
     dormantMonths = dormant[dormantKey]
   } else {
     dormantMonths = await resolveDormantMonths(cid, dormant)

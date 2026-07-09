@@ -225,10 +225,42 @@ Division **bukan** kolom di `invoices`. Join dilakukan via `channel_divisions`:
 LEFT JOIN channel_divisions cd
   ON  cd.channel_name  = i.channel_name
   AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+  AND (cd.branch_id   = i.branch_id  OR cd.branch_id   IS NULL)
 WHERE (${division}::text IS NULL OR cd.division = ${division}::text)
 ```
 
-Pattern ini konsisten di seluruh repository metrics.
+Pattern ini konsisten di seluruh repository metrics (`branch_id` ditambahkan task004, 2026-07-09 — division sekarang bisa spesifik per cabang, bukan cuma per company).
+
+---
+
+## Additive vs Non-Additive Count — Kenapa Total Per-Filter Bisa ≠ Jumlah dari Tiap Cabang
+
+**Pertanyaan yang sering muncul**: kalau filter Branch=Jakarta dapat 34 kategori, Branch=Surabaya dapat 30, Branch=Other dapat 62 — kenapa Branch=All Branches cuma 79, bukan 34+30+62=126? Ini **bukan bug**, tapi konsekuensi dari `GROUP BY` — union himpunan selalu ≤ jumlah ukuran tiap himpunan kalau ada overlap, dan whether overlap mungkin terjadi tergantung **kolom apa yang jadi unit hitung**.
+
+Aturan cepat: cek apakah kolom yang di-`GROUP BY`/`COUNT(DISTINCT ...)` itu **1:1 dengan branch** atau tidak.
+
+| Metrik | Unit hitung | 1 unit bisa muncul di >1 branch? | Additive? |
+|---|---|---|---|
+| **Invoice count** | `invoices.id` | **Tidak** — `invoices.branch_id` cuma 1 nilai per baris | ✅ **Selalu additive** (dijamin skema) |
+| **Customer count** | `customers.id` (distinct per filter) | **Bisa** — 1 customer bisa transaksi di beberapa branch berbeda | ⚠️ **Additive kalau kebetulan tidak ada customer lintas-branch**, TIDAK dijamin. Selisih = jumlah customer yang transaksi di >1 branch dalam window yang sama |
+| **Category count** (`category-performance.repository.ts`, `GROUP BY product_category_id`) | `product_categories.id` | **Sangat mungkin** — produk umum (mis. barcode scanner/printer) lazim dijual di semua cabang | ❌ **Umumnya TIDAK additive**, overlap-nya bisa besar |
+
+**Cara verifikasi cepat** (ganti kondisi sesuai kebutuhan):
+```sql
+-- Contoh: cek berapa customer yang transaksi di >1 branch dalam window yang sama
+-- (source overlap untuk metrik customer count)
+SELECT COUNT(*) FROM (
+  SELECT i.customer_id
+  FROM invoices i
+  WHERE i.deleted_at IS NULL AND i.company_id = :cid
+    AND i.invoice_date > :periodEnd::date - :activeWindow::int * INTERVAL '1 month'
+    AND i.invoice_date <= :periodEnd::date
+  GROUP BY i.customer_id
+  HAVING COUNT(DISTINCT i.branch_id) > 1
+) x;
+```
+
+**Implikasi UX**: JANGAN asumsikan "Total (All Branches)" = Σ per-branch untuk metrik non-additive (kategori, dan customer kalau ada overlap). Kalau butuh tampilan breakdown yang truly additive (mis. stacked bar chart per branch yang totalnya harus pas), pakai `invoice_count`/`total_revenue` (selalu additive) — bukan `customer_count`/jumlah baris kategori.
 
 ---
 

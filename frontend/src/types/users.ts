@@ -13,11 +13,9 @@ export interface UserCompany {
 }
 
 // Isolasi data Company/Branch/Division (docs-v2/task/task001.md).
-// "other" = kategori "Lainnya" - value asli, di-assign biasa seperti division lain.
-export const DIVISION_VALUES = [
-  'distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other',
-] as const;
-export type DivisionValue = typeof DIVISION_VALUES[number];
+// Dulu union tetap 7 nilai (DIVISION_VALUES) — sekarang string dinamis per
+// company/branch, diambil dari katalog `divisions` (task004/task005 Session C).
+export type DivisionValue = string;
 
 export interface BranchAssignment {
   branch_id: number;

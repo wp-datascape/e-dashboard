@@ -17,8 +17,10 @@ import {
   boolean,
   timestamp,
   unique,
+  uniqueIndex,
   primaryKey,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { users } from './schema-auth'
 
 // ─── companies ────────────────────────────────────────────────────────────────
@@ -65,6 +67,46 @@ export const company_branches = pgTable(
 
 export type CompanyBranch = typeof company_branches.$inferSelect
 export type NewCompanyBranch = typeof company_branches.$inferInsert
+
+// ─── divisions ──────────────────────────────────────────────────────────────────
+
+/**
+ * Katalog divisi per company, opsional per branch — baris DB asli (mirror pola
+ * company_branches), BUKAN enum global. `code` adalah string yang sama yang
+ * dipakai di channel_divisions.division & user_divisions.division (varchar
+ * biasa, sengaja TIDAK dijadikan FK/ID supaya 24 call site RBAC scope di
+ * utils/scope.ts tidak perlu diubah — lihat docs-v2/task/task004.md).
+ *
+ * branch_id NULL = berlaku company-wide (semua branch); diisi = spesifik 1
+ * branch (mis. "Sales Counter" KNT berbeda per cabang).
+ */
+export const divisions = pgTable(
+  'divisions',
+  {
+    id: serial('id').primaryKey(),
+    company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+    branch_id: integer('branch_id').references(() => company_branches.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    code: varchar('code', { length: 50 }).notNull(),
+    // b2b_dc | b2b_project | b2c | manufacturing — lihat ThresholdConfig['dormant']
+    // (features/config/threshold.ts)
+    dormant_bucket: varchar('dormant_bucket', { length: 20 }).notNull().default('b2b_dc'),
+    is_active: boolean('is_active').notNull().default(true),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    unq_division_company_branch_code: unique('unq_division_company_branch_code').on(table.company_id, table.branch_id, table.code),
+    // Partial unique index — UNIQUE biasa tidak menangkap duplikat company-wide
+    // karena NULL tidak collide dengan NULL lain di Postgres.
+    unq_division_company_code_global: uniqueIndex('unq_division_company_code_global')
+      .on(table.company_id, table.code)
+      .where(sql`${table.branch_id} IS NULL`),
+  }),
+)
+
+export type Division = typeof divisions.$inferSelect
+export type NewDivision = typeof divisions.$inferInsert
 
 // ─── business_configs ─────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ import {
   listChannelDivisionsQuerySchema,
   channelDivisionIdParamSchema,
   unmappedChannelsQuerySchema,
+  listDivisionValuesQuerySchema,
 } from './channel-divisions.schema'
 import {
   listChannelDivisionsService,
@@ -27,8 +28,8 @@ export async function handleListChannelDivisions(c: Context) {
 }
 
 export async function handleListDivisionValues(c: Context) {
-  const query = validateQuery(c, unmappedChannelsQuerySchema)
-  const result = await listDivisionValuesService(query.company_id)
+  const query = validateQuery(c, listDivisionValuesQuerySchema)
+  const result = await listDivisionValuesService(query.company_id, query.branch_id)
   return success(c, result)
 }
 

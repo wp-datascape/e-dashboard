@@ -23,7 +23,23 @@ import {
 } from './user.repository'
 import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
-import type { CreateUserDto, UpdateUserDto } from './user.schema'
+import { validateDivisionCode } from '@/features/settings/divisions.service'
+import type { CreateUserDto, UpdateUserDto, CompanyAssignmentDto } from './user.schema'
+
+/**
+ * Validasi tiap kode divisi di company_assignments terhadap katalog dinamis
+ * `divisions` per (company_id, branch_id) — pengganti z.enum() hardcode lama.
+ * Lihat docs-v2/task/task004.md.
+ */
+async function validateCompanyAssignments(assignments: CompanyAssignmentDto[]) {
+  for (const company of assignments) {
+    for (const branch of company.branches) {
+      for (const division of branch.divisions) {
+        await validateDivisionCode(company.company_id, branch.branch_id, division)
+      }
+    }
+  }
+}
 
 // Task002 Task E — role berwenang tinggi, dipakai deteksi aksi sensitif utk alert Telegram
 const HIGH_PRIVILEGE_ROLES = new Set(['superadmin', 'admin'])
@@ -57,6 +73,7 @@ export async function createUserService(dto: CreateUserDto, ctx: Context) {
       await replaceUserRoles(user!.id, role_ids)
     }
     if (company_assignments && company_assignments.length > 0) {
+      await validateCompanyAssignments(company_assignments)
       await replaceUserAssignments(user!.id, company_assignments)
     }
 
@@ -100,6 +117,12 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
 
   // Extract relation fields before updating user data
   const { role_ids, company_assignments, ...userData } = dto
+
+  // Validasi divisi PALING AWAL (sebelum mutasi apa pun) supaya kalau gagal,
+  // tidak ada partial update (field user/role sudah keburu ke-update duluan)
+  if (company_assignments !== undefined) {
+    await validateCompanyAssignments(company_assignments)
+  }
 
   // Hash password baru kalau admin reset password user ini
   const passwordReset = userData.password !== undefined

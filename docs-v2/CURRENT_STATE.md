@@ -272,6 +272,37 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 
 ## Catatan Sesi Terakhir
 
+### 2026-07-09 (sesi 40): Division Dinamis per Company/Branch (Task004 backend + Task005 frontend) — Postmortem Sesi Berbelok-belok
+
+> Baca detail teknis lengkap di `docs-v2/task/task004.md` (backend) dan `docs-v2/task/task005.md` (frontend, 4 sesi A-D). Bagian ini fokus ke **narasi & pelajaran** — sesi ini terasa "kacau tanpa arah" karena beberapa kali berbelok akibat bukti data yang muncul belakangan, bukan karena scope creep asal-asalan. Penting dibaca dulu sebelum lanjut sesi berikutnya supaya tidak mengulang jalan yang sama.
+
+**Masalah awal**: `division` (kategori sub-channel penjualan: distribution/project/e_commerce/intercompany/freelancer/support/other) adalah **enum hardcode global 7-nilai**, dipakai sama rata untuk 3 company holding (MKO/KNT/SKI). Taksonomi itu sebenarnya cuma milik PT MKO — KNT (model bisnis: Sales Counter + U-Card, dipecah per cabang) dan SKI (fokus manufaktur, Sales/Marketing) dipaksa masuk kategori yang tidak relevan.
+
+**Alur berbelok (kronologis, kenapa tiap belokan terjadi):**
+1. **Task004 (backend)** dibangun: tabel master baru `divisions` (mirip `company_branches`, per company+branch), ganti ~12 titik enum hardcode, RBAC scope TIDAK disentuh (division tetap `varchar`, cuma sumber validasinya yang jadi dinamis). Selesai & lolos test.
+2. **Task005 (frontend)**, sengaja dipecah 4 sesi kerja terpisah (A filter dropdown, B halaman admin Divisions, C RBAC picker, D warna chip) — masing-masing diverifikasi sebelum lanjut ke sesi berikutnya.
+3. **Titik belok #1** — saat verifikasi ulang, user tunjukkan bukti data faktur riil: channel "DC WEST" SELALU Jakarta, "DC EAST" SELALU Surabaya. Katalog seed awal menandai `distribution`/`project` MKO sebagai **company-wide**, padahal faktanya branch-specific. Bukan bug kode, tapi katalog yang salah merepresentasikan bisnis.
+4. **Titik belok #2** — perbaikan sempat mau dilakukan dengan **edit seed.ts langsung**. User tolak keras: *"kenapa harus seed kalau ada fungsi import?"* — koreksi data bisnis harus lewat API/CRUD yang sudah ada (`PATCH/POST /settings/divisions`), bukan hardcode ulang ke bootstrap script. Ini dieksekusi lewat API.
+5. **Titik belok #3 (paling penting)** — pertanyaan itu berkembang jadi pertanyaan arsitektur: kalau taksonomi sudah dikoreksi lewat API, **untuk apa `seedDivisions()` masih ada sama sekali**? Jawaban akhir: `channel_divisions` (mapping channel_name→division) SUDAH berisi keputusan admin soal kode divisi yang berlaku — tidak masuk akal ada langkah terpisah "daftarkan dulu kode divisinya" (baik lewat seed maupun lewat fitur bulk-import Divisions baru yang sempat diusulkan dan ditolak user).
+
+**Resolusi final (bukan cuma tambal, tapi keputusan desain permanen)**:
+- `divisions.service.ts` punya **2 fungsi validasi dengan filosofi beda** untuk 2 use-case beda:
+  - `validateDivisionCode()` — STRICT, tolak kode tak dikenal. Dipakai HANYA untuk RBAC assign user (`user.service.ts`) — assign akses ke divisi tidak boleh auto-create divisi baru.
+  - `ensureDivisionCode()` — auto-create kalau kode belum ada di katalog. Dipakai di `channel-divisions.service.ts` (create/update/import) — mapping ini sendiri adalah SSOT keputusan kode divisi.
+- **`seedDivisions()`/`defaultDivisions` dihapus total dari `seed.ts`.** Katalog `divisions` sekarang murni terisi dari pemakaian nyata, bukan bootstrap hardcode. Konsekuensi diterima: di DB benar-benar kosong (fresh install), akun test admin/executif akan dapat 0 grant division sampai mapping channel pertama dibuat — dianggap benar (sistem baru memang belum ada kategorisasi bisnis apa pun untuk di-grant), bukan bug.
+- Bonus temuan sepanjang jalan: kolom `branch_id` baru ditambahkan ke `channel_divisions` (awalnya sempat mau di-skip karena `channel_name` KNT "sudah unik per cabang", dikoreksi user — jangan andalkan format string implisit, harus relasi eksplisit, lihat `feedback_no_shortcuts_explicit_relations` di memory); import bulk CSV/XLSX auto-derive `branch_id` dari histori `invoices.branch_id` (bukan kolom manual — dihindari karena rawan typo/duplikat kode cabang, mis. "SMG" vs "SMRG").
+
+**Pelajaran untuk sesi berikutnya**:
+- Kalau user menunjukkan bukti data riil (invoice/faktur) yang kontradiktif dengan asumsi desain, itu **prioritas di atas rencana yang sudah disepakati** — jangan defensif mempertahankan desain awal.
+- Kalau ada CRUD/API yang sudah dibuat untuk suatu data, **jangan pernah "jalan pintas" edit seed.ts** untuk koreksi data bisnis — seed cuma bootstrap DB baru, bukan tempat iterasi pemahaman bisnis yang terus berubah.
+- Sebelum menambah mekanisme baru ("perlu didaftarkan dulu di tempat X"), cek dulu apakah data yang sudah ada (di sini: form mapping channel_divisions) sebenarnya SUDAH menyiratkan keputusan yang dicari — kalau iya, auto-derive/auto-create dari situ, jangan bikin sumber kebenaran baru yang terpisah.
+
+**Verifikasi akhir**: `bunx tsc --noEmit` bersih (FE+BE), `bun test` backend 38 pass/0 fail, `bun run db:seed` dijalankan ulang tanpa `seedDivisions()` — sukses, tetap grant 31 branch-division ke akun test karena katalog sudah terisi dari koreksi API sesi ini.
+
+**Status commit**: dikerjakan di branch `dev`, di-commit & push ke branch baru `Feature` (bukan `dev` langsung) — belum di-merge, menunggu review.
+
+---
+
 ### 2026-07-08 (sesi 39): Perf Chart + Fix Responsive Mobile + Theme pageTitle/pageSubtitle + 3 Palette Baru + Logo & Toggle
 
 **Perf — frame drop saat toggle sidebar (lanjutan sesi 38's `contain:layout`/`will-change`):**

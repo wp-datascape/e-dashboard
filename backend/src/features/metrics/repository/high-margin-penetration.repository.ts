@@ -100,6 +100,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
@@ -122,6 +123,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
@@ -200,6 +202,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         LEFT JOIN channel_divisions cd
           ON cd.channel_name = i.channel_name
           AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+          AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
         WHERE  i.deleted_at     IS NULL
           AND  c.is_placeholder  = false
           AND  ${companyCondI}
@@ -228,6 +231,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}

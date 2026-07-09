@@ -191,21 +191,24 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
       let invoiceId = batchInvoiceCache.get(invoiceKey)
 
       if (!invoiceId) {
-        // ── Customer upsert ───────────────────────────────────────────────
-        const customer = await upsertCustomer({
-          company_id: companyId,
-          customer_name: row.customer_name,
-          invoice_date: invoiceDate,
-          channel_name: row.channel_name,
-        })
-
         // ── Resolve branch_id dari branch_name (§4.6) — cache per batch ────
+        // Dipindah SEBELUM customer upsert (revisi task004) supaya lookup
+        // division di upsertCustomer ikut match branch_id, bukan cuma company_id.
         const branchCacheKey = row.branch_name ?? ''
         let branchId = batchBranchIdCache.get(branchCacheKey)
         if (branchId === undefined) {
           branchId = await findBranchIdByName(companyId, row.branch_name ?? null)
           batchBranchIdCache.set(branchCacheKey, branchId)
         }
+
+        // ── Customer upsert ───────────────────────────────────────────────
+        const customer = await upsertCustomer({
+          company_id: companyId,
+          customer_name: row.customer_name,
+          invoice_date: invoiceDate,
+          channel_name: row.channel_name,
+          branch_id: branchId,
+        })
 
         const existingInvoice = await findInvoiceByNumber(companyId, row.invoice_number)
 

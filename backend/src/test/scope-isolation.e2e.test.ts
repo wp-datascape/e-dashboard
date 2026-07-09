@@ -12,9 +12,9 @@
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { Hono } from 'hono'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs } from '@/db/schema'
+import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs, divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
 
@@ -99,7 +99,13 @@ beforeAll(async () => {
     .where(eq(company_branches.company_id, COMPANY_ID))
   allBranchIds = branches.map((b) => b.id)
 
-  const ALL_DIVISIONS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
+  // Kode divisi aktif diambil dari katalog `divisions` yang sudah di-seed untuk
+  // COMPANY_ID (bukan array hardcode lagi) — lihat docs-v2/task/task004.md.
+  const divisionRows = await db
+    .select({ code: divisions.code })
+    .from(divisions)
+    .where(and(eq(divisions.company_id, COMPANY_ID), eq(divisions.is_active, true)))
+  const ALL_DIVISIONS = [...new Set(divisionRows.map((d) => d.code))]
 
   // G4: full-coverage user - semua branch + semua division (mirror seeder Task F1)
   fullAccessUser = await createTestUser('e2e-full', {

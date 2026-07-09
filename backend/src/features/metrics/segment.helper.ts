@@ -16,7 +16,6 @@ export {
   cteExistingCustomers,
   cteDormantCustomers,
   monthEndDate,
-  divisionToDormantKey,
 
   // Backward-compat aliases untuk metrics.repository.ts yang sudah ada
   cteEstablishedCustomers as sqlExistingCustomers,

@@ -4,7 +4,6 @@ import { useDivisionOptions } from './useDivisionOptions';
 import { useMyScope } from './useMyScope';
 import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
 import { formatEnumLabel } from '@/utils/format';
-import type { Division } from '@/types/customers';
 
 /**
  * State + opsi filter Company/Branch/Division yang dipakai berulang di tiap
@@ -22,7 +21,7 @@ export function useScopedCompanyFilter() {
 
   const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
   const [branchId, setBranchIdState] = useState<number | 'all'>('all');
-  const [division, setDivision] = useState<NonNullable<Division> | ''>('');
+  const [division, setDivision] = useState<string>('');
 
   // Company berganti -> branch+division direset; branch berganti -> division
   // direset (opsi di bawahnya mungkin sudah tidak valid). Reset langsung di setter
@@ -51,9 +50,11 @@ export function useScopedCompanyFilter() {
   const showBranchFilter = branchOptions.length > 1;
 
   const scopedDivisions = getScopedDivisions(myScope, companyId, branchId);
-  const fullDivisionOptions = useDivisionOptions(companyId);
+  // branchId==='all' (belum ada branch dipilih) -> undefined, supaya useDivisionOptions
+  // union semua branch di company itu (bukan cuma company-wide) — lihat task005.md §2.
+  const fullDivisionOptions = useDivisionOptions(companyId, branchId === 'all' ? undefined : branchId);
   const divisionOptions = scopedDivisions.restricted
-    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
+    ? scopedDivisions.options.map((value) => ({ value, label: formatEnumLabel(value) }))
     : fullDivisionOptions;
   const showDivisionFilter = divisionOptions.length > 1;
 

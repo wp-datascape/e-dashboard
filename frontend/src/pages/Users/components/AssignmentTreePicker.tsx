@@ -13,8 +13,8 @@ import Alert from '@mui/material/Alert';
 import { useTranslation } from 'react-i18next';
 
 import { useBranchesByCompany } from '@/hooks/useCompanies';
+import { useDivisionOptions } from '@/hooks/useDivisionOptions';
 import type { Company, CompanyBranch } from '@/types/companies';
-import { DIVISION_VALUES } from '@/types/users';
 import type { CompanyAssignment, BranchAssignment, DivisionValue } from '@/types/users';
 
 interface AssignmentTreePickerProps {
@@ -137,43 +137,71 @@ function CompanyBranchSection({
         </Select>
       </FormControl>
 
-      {assignment.branches.map((b) => {
-        const branch = branches.find((br: CompanyBranch) => br.id === b.branch_id);
-        return (
-          <Box key={b.branch_id} sx={{ pl: 2, mb: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              {branch?.name ?? ''}
-            </Typography>
+      {assignment.branches.map((b) => (
+        <BranchDivisionSection
+          key={b.branch_id}
+          companyId={assignment.company_id}
+          branchName={branches.find((br: CompanyBranch) => br.id === b.branch_id)?.name ?? ''}
+          branchAssignment={b}
+          onChange={(divisions) => updateBranchDivisions(b.branch_id, divisions)}
+        />
+      ))}
+    </Box>
+  );
+}
 
-            {/* D2: warning branch tanpa division ter-assign */}
-            {b.divisions.length === 0 && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                {t('users.warningNoDivision', { branch: branch?.name ?? '' })}
-              </Alert>
-            )}
+// Komponen terpisah (bukan inline di dalam .map()) — useDivisionOptions() adalah
+// hook, tidak boleh dipanggil di dalam callback .map() (Rules of Hooks). Tiap
+// baris branch fetch katalog divisi sendiri, di-scope company+branch yang
+// sedang di-assign (task005 Session C — dulu DIVISION_VALUES hardcode 7 kode
+// MKO, sekarang dinamis per company/branch).
+function BranchDivisionSection({
+  companyId,
+  branchName,
+  branchAssignment,
+  onChange,
+}: {
+  companyId: number;
+  branchName: string;
+  branchAssignment: BranchAssignment;
+  onChange: (divisions: DivisionValue[]) => void;
+}) {
+  const { t } = useTranslation();
+  const divisionOptions = useDivisionOptions(companyId, branchAssignment.branch_id);
+  const labelByValue = new Map(divisionOptions.map((opt) => [opt.value, opt.label]));
 
-            <FormControl fullWidth size="small">
-              <InputLabel>{t('users.selectDivisions')}</InputLabel>
-              <Select
-                multiple
-                value={b.divisions}
-                onChange={(e) => updateBranchDivisions(b.branch_id, e.target.value as DivisionValue[])}
-                input={<OutlinedInput label={t('users.selectDivisions')} />}
-                renderValue={(selected) =>
-                  (selected as DivisionValue[]).map((d) => t(`users.divisions.${d}`)).join(', ')
-                }
-              >
-                {DIVISION_VALUES.map((d) => (
-                  <MenuItem key={d} value={d}>
-                    <Checkbox size="small" checked={b.divisions.includes(d)} />
-                    <ListItemText primary={t(`users.divisions.${d}`)} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        );
-      })}
+  return (
+    <Box sx={{ pl: 2, mb: 1.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        {branchName}
+      </Typography>
+
+      {/* D2: warning branch tanpa division ter-assign */}
+      {branchAssignment.divisions.length === 0 && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          {t('users.warningNoDivision', { branch: branchName })}
+        </Alert>
+      )}
+
+      <FormControl fullWidth size="small">
+        <InputLabel>{t('users.selectDivisions')}</InputLabel>
+        <Select
+          multiple
+          value={branchAssignment.divisions}
+          onChange={(e) => onChange(e.target.value as DivisionValue[])}
+          input={<OutlinedInput label={t('users.selectDivisions')} />}
+          renderValue={(selected) =>
+            (selected as DivisionValue[]).map((d) => labelByValue.get(d) ?? d).join(', ')
+          }
+        >
+          {divisionOptions.map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>
+              <Checkbox size="small" checked={branchAssignment.divisions.includes(opt.value)} />
+              <ListItemText primary={opt.label} />
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
     </Box>
   );
 }

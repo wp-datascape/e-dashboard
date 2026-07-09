@@ -17,7 +17,6 @@
 
 import { db } from '@/config/db'
 import { sql, and, or } from 'drizzle-orm'
-import { divisionToDormantKey } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -105,6 +104,7 @@ export async function getCustomerSegments(
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND ${branchCond}
@@ -255,6 +255,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd
             ON cd.channel_name = ix.channel_name
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
+            AND (cd.branch_id = ix.branch_id OR cd.branch_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
@@ -291,6 +292,7 @@ export function cteNewCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd
             ON cd.channel_name = ix.channel_name
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
+            AND (cd.branch_id = ix.branch_id OR cd.branch_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
@@ -341,6 +343,7 @@ export function cteActiveCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd
             ON cd.channel_name = ix.channel_name
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
+            AND (cd.branch_id = ix.branch_id OR cd.branch_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
@@ -389,6 +392,7 @@ export function cteExistingCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd
             ON cd.channel_name = ix.channel_name
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
+            AND (cd.branch_id = ix.branch_id OR cd.branch_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
@@ -404,6 +408,7 @@ export function cteExistingCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd2
             ON cd2.channel_name = ix2.channel_name
             AND (cd2.company_id = ix2.company_id OR cd2.company_id IS NULL)
+            AND (cd2.branch_id = ix2.branch_id OR cd2.branch_id IS NULL)
           WHERE ix2.customer_id = c.id
             AND ix2.deleted_at IS NULL
             AND ${companyCondIx2}
@@ -439,6 +444,7 @@ export function cteDormantCustomers(p: SegmentParams) {
           LEFT JOIN channel_divisions cd
             ON cd.channel_name = ix.channel_name
             AND (cd.company_id = ix.company_id OR cd.company_id IS NULL)
+            AND (cd.branch_id = ix.branch_id OR cd.branch_id IS NULL)
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
@@ -459,5 +465,3 @@ export function monthEndDate(month: string): string {
   const d = new Date(y, m, 0).getDate()
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
-
-export { divisionToDormantKey }

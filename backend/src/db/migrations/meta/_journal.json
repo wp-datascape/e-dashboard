@@ -64,6 +64,20 @@
       "when": 1783416027811,
       "tag": "0008_lowly_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783568566178,
+      "tag": "0009_sour_midnight",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783568951815,
+      "tag": "0010_green_chameleon",
+      "breakpoints": true
     }
   ]
 }

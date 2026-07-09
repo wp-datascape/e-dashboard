@@ -68,6 +68,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
@@ -94,6 +95,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date

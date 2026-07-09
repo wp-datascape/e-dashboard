@@ -1,13 +1,31 @@
 {
-  "title": "Channel Division",
-  "subtitle": "Petakan nama channel (dari Accurate) ke divisi penjualan",
-  "add": "Tambah Mapping",
-  "addMapping": "Tambah Mapping Channel",
-  "editMapping": "Edit Mapping Channel",
-  "channelName": "Nama Channel",
-  "channelNameHelp": "Dipilih dari channel name riil di data faktur yang belum punya mapping divisi.",
-  "division": "Divisi",
-  "scope": "Lingkup",
-  "scopeGlobal": "Global (semua perusahaan)",
-  "searchPlaceholder": "Cari nama channel..."
+  "title": "Divisi",
+  "subtitle": "Kelola katalog divisi per company/branch, dan mapping channel di dalam tiap divisi",
+  "add": "Tambah Divisi",
+  "company": "Company",
+  "branch": "Cabang",
+  "branchAll": "Semua cabang",
+  "code": "Kode",
+  "codeHelp": "Kode huruf kecil, mis. \"counter\" atau \"u_card\" — dipakai internal, tidak tampil ke end user",
+  "name": "Nama",
+  "dormantBucket": "Kategori Dormant",
+  "dormantBuckets": {
+    "b2b_dc": "B2B — Distribution Channel",
+    "b2b_project": "B2B — Project",
+    "b2c": "B2C",
+    "manufacturing": "Manufaktur"
+  },
+  "manageMapping": "Edit Mapping",
+  "deleteConfirm": "Hapus divisi \"{{name}}\"? Mapping channel yang sudah ada tidak ikut terhapus, tapi kehilangan referensi divisinya.",
+  "dialog": {
+    "addTitle": "Tambah Divisi",
+    "editTitle": "Edit Divisi"
+  },
+  "mapping": {
+    "title": "Mapping Channel",
+    "empty": "Belum ada channel yang di-mapping ke divisi ini.",
+    "addChannel": "Nama Channel",
+    "addChannelPlaceholder": "Pilih channel yang belum di-mapping...",
+    "deleteConfirm": "Hapus mapping channel ini?"
+  }
 }

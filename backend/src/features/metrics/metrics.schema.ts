@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-const divisionEnum = z
-  .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other'])
-  .optional()
+// Filter laporan — string bebas (bukan enum hardcode), dinamis per company/branch,
+// lihat docs-v2/task/task004.md. Kode tidak valid cukup hasilkan list kosong.
+const divisionEnum = z.string().min(1).max(50).optional()
 
 export const crossSellingQuerySchema = z.object({
   company_id: z

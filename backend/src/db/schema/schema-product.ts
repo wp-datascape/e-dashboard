@@ -17,7 +17,7 @@ import {
   integer,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { companies } from './schema-company'
+import { companies, company_branches } from './schema-company'
 import { users } from './schema-auth'
 
 // ─── product_categories ───────────────────────────────────────────────────────
@@ -114,14 +114,21 @@ export type NewItemClassificationRule = typeof item_classification_rules.$inferI
 
 /**
  * Mapping channel_name -> divisi channel penjualan. company_id nullable = rule
- * global (berlaku semua company). Cocok dengan invoices.channel_name (UPPERCASE).
+ * global (berlaku semua company). branch_id nullable = rule company-wide
+ * (berlaku semua branch company itu); diisi = spesifik 1 branch (mis. "Sales
+ * Counter" KNT beda mapping per cabang). branch_id SENGAJA relasi eksplisit
+ * (FK), bukan implisit dari format channel_name — lihat docs-v2/task/task004.md
+ * §revisi 2026-07-09. Cocok dengan invoices.channel_name (UPPERCASE).
  */
 export const channel_divisions = pgTable('channel_divisions', {
   id: serial('id').primaryKey(),
   // null = global rule (berlaku untuk semua company)
   company_id: integer('company_id').references(() => companies.id, { onDelete: 'cascade' }),
+  // null = company-wide rule (berlaku semua branch); harus null kalau company_id null
+  branch_id: integer('branch_id').references(() => company_branches.id, { onDelete: 'cascade' }),
   channel_name: varchar('channel_name', { length: 255 }).notNull(),
   // distribution | project | e_commerce | intercompany | freelancer | support | other
+  // (MKO) — nilai lain untuk company selain MKO, lihat tabel `divisions` (katalog dinamis)
   division: varchar('division', { length: 50 }).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

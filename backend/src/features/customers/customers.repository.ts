@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
 import { and, or, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
-import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantMonths, resolveDormantBucketKey } from '@/features/config/threshold'
 import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
@@ -123,6 +123,7 @@ export async function findCustomers(
         and(
           eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
           or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+          or(eq(channel_divisions.branch_id, latestSalespersonSq.branch_id), isNull(channel_divisions.branch_id)),
         ),
       )
       .where(whereWithDivision)
@@ -158,6 +159,7 @@ export async function findCustomers(
         and(
           eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
           or(eq(channel_divisions.company_id, customers.company_id), isNull(channel_divisions.company_id)),
+          or(eq(channel_divisions.branch_id, latestSalespersonSq.branch_id), isNull(channel_divisions.branch_id)),
         ),
       )
       .where(whereWithDivision)
@@ -191,13 +193,17 @@ export async function findCustomerDetail(customerId: number) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = sql`CURRENT_DATE`
 
-  // Ambil channel_name + company_id dari invoice terbaru → lookup division
+  // Ambil channel_name + company_id + branch_id dari invoice terbaru → lookup division
   const [latestInv] = await db
-    .select({ channel_name: invoices.channel_name, company_id: invoices.company_id })
+    .select({ channel_name: invoices.channel_name, company_id: invoices.company_id, branch_id: invoices.branch_id })
     .from(invoices)
     .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
     .orderBy(desc(invoices.invoice_date))
     .limit(1)
+
+  const branchMatchCond = latestInv?.branch_id
+    ? or(eq(channel_divisions.branch_id, latestInv.branch_id), isNull(channel_divisions.branch_id))!
+    : isNull(channel_divisions.branch_id)
 
   const [divRow] = latestInv?.channel_name
     ? await db
@@ -206,13 +212,16 @@ export async function findCustomerDetail(customerId: number) {
         .where(and(
           eq(channel_divisions.channel_name, latestInv.channel_name),
           or(eq(channel_divisions.company_id, latestInv.company_id), isNull(channel_divisions.company_id)),
+          branchMatchCond,
         ))
-        // Company-specific rule menang atas rule global kalau kebetulan ada dua-duanya
-        .orderBy(sql`${channel_divisions.company_id} IS NULL`)
+        // Rule paling spesifik menang: company+branch match > company match > global
+        .orderBy(sql`${channel_divisions.company_id} IS NULL`, sql`${channel_divisions.branch_id} IS NULL`)
         .limit(1)
     : []
 
-  const divisionKey = BU_DORMANT_KEY_MAP[divRow?.division ?? ''] ?? 'b2b_dc'
+  const divisionKey = latestInv?.company_id && divRow?.division
+    ? await resolveDormantBucketKey(latestInv.company_id, latestInv.branch_id ?? null, divRow.division)
+    : 'b2b_dc'
   const dormantMonths = dormant[divisionKey]
 
   const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`

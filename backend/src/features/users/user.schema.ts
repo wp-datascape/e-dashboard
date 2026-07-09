@@ -2,16 +2,17 @@ import { z } from 'zod'
 
 // ─── Isolasi data Company/Branch/Division (docs-v2/task/task001.md) ──────────
 
-export const DIVISION_VALUES = [
-  'distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other',
-] as const
-
+// divisions: dulu z.array(z.enum(7 nilai hardcode global)) — sekarang string
+// bebas, divalidasi dinamis di service layer terhadap katalog `divisions` per
+// (company_id, branch_id) — lihat divisions.service.ts validateDivisionCode()
+// dan docs-v2/task/task004.md.
+//
 // Assignment berjenjang: pilih Company -> per company pilih Branch -> per branch pilih Division.
 // Company boleh punya branches: [] (dipilih tapi belum ada branch ter-assign) - default-deny total
 // untuk company itu sampai branch di-assign, lihat task001.md §4.4 (Task D2 warning).
 const branchAssignmentSchema = z.object({
   branch_id: z.number().int().positive(),
-  divisions: z.array(z.enum(DIVISION_VALUES)),
+  divisions: z.array(z.string().min(1).max(50)),
 })
 
 const companyAssignmentSchema = z.object({

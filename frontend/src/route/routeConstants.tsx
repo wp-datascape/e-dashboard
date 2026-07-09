@@ -58,7 +58,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Administration — Settings ────────────────────────────────────────────
   'settings-app':         { path: '/settings/app',           element: withLayout(<AppSettings />),           protected: true, permissionKey: 'settings.app:view' },
   'companies':            { path: '/companies',              element: withLayout(<Companies />),             protected: true, permissionKey: 'settings.company:view' },
-  'settings-divisions':   { path: '/settings/divisions',     element: withLayout(<DivisionsSettings />),     protected: true, permissionKey: 'settings.channel.division:view' },
+  'settings-divisions':   { path: '/settings/divisions',     element: withLayout(<DivisionsSettings />),     protected: true, permissionKey: 'settings.division:view' },
   'settings-high-margin': { path: '/settings/high-margin',   element: withLayout(<HighMarginSettings />),    protected: true, permissionKey: 'settings.product:view' },
   'settings-threshold':   { path: '/settings/threshold',     element: withLayout(<ThresholdSettings />),     protected: true, permissionKey: 'settings.threshold:view' },
   // ── Administration — Configuration ───────────────────────────────────────

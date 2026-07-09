@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
+import { formatEnumLabel } from '@/utils/format';
 import type { User } from '@/types/users';
 
 interface ViewUserDialogProps {
@@ -103,7 +104,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
                           ) : (
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.25 }}>
                               {b.divisions.map((d) => (
-                                <StatusChip key={d} label={t(`users.divisions.${d}`)} color="default" size="small" />
+                                <StatusChip key={d} label={formatEnumLabel(d)} color="default" size="small" />
                               ))}
                             </Box>
                           )}

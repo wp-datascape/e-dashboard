@@ -1,0 +1,2 @@
+ALTER TABLE "channel_divisions" ADD COLUMN "branch_id" integer;--> statement-breakpoint
+ALTER TABLE "channel_divisions" ADD CONSTRAINT "channel_divisions_branch_id_company_branches_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."company_branches"("id") ON DELETE cascade ON UPDATE no action;

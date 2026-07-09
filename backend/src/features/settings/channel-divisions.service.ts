@@ -4,6 +4,9 @@ import * as XLSX from 'xlsx'
 import { AppError, ErrorCode } from '@/utils/error'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
+import { findBranchById } from '@/features/companies/branch.repository'
+import { ensureDivisionCode } from './divisions.service'
+import { findDivisionCodesForFilter } from './divisions.repository'
 import {
   findChannelDivisions,
   findChannelDivisionById,
@@ -13,7 +16,7 @@ import {
   updateChannelDivision,
   deleteChannelDivision,
   findUnmappedChannelNames,
-  findDistinctDivisions,
+  findConsistentBranchIdForChannel,
 } from './channel-divisions.repository'
 import type {
   ListChannelDivisionsQuery,
@@ -21,8 +24,21 @@ import type {
   UpdateChannelDivisionDto,
 } from './channel-divisions.schema'
 
-const VALID_DIVISIONS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support'] as const
-type DivisionValue = typeof VALID_DIVISIONS[number]
+/**
+ * Validasi branch_id (kalau diisi) — harus eksis dan milik company_id yang
+ * sama. company_id null (rule global) tidak boleh dipasangkan branch_id
+ * (branch selalu milik 1 company spesifik, jadi tidak ada "branch global").
+ */
+async function assertValidBranchScope(companyId: number | null | undefined, branchId: number | null | undefined) {
+  if (!branchId) return
+  if (!companyId) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 'branch_id tidak bisa diisi tanpa company_id (branch selalu milik 1 company)', 400)
+  }
+  const branch = await findBranchById(branchId)
+  if (!branch || branch.company_id !== companyId) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 'branch_id tidak valid untuk company ini', 400)
+  }
+}
 
 export async function listChannelDivisionsService(query: ListChannelDivisionsQuery) {
   try {
@@ -33,9 +49,9 @@ export async function listChannelDivisionsService(query: ListChannelDivisionsQue
   }
 }
 
-export async function listDivisionValuesService(companyId: number | 'all') {
+export async function listDivisionValuesService(companyId: number | 'all', branchId?: number) {
   try {
-    return await findDistinctDivisions(companyId)
+    return await findDivisionCodesForFilter(companyId, branchId)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar divisi', 500)
@@ -58,6 +74,10 @@ export async function createChannelDivisionService(body: CreateChannelDivisionDt
     if (existing.length > 0) {
       throw new AppError(ErrorCode.DUPLICATE_ENTRY, `Channel "${body.channel_name}" sudah ada`, 409)
     }
+    await assertValidBranchScope(body.company_id, body.branch_id)
+    // SSOT kode divisi = keputusan admin yang tertulis di form/file mapping ini
+    // sendiri — auto-create katalog kalau belum ada, bukan tolak (task005 §6).
+    await ensureDivisionCode(body.company_id, body.branch_id ?? null, body.division)
     const result = await createChannelDivision(body)
 
     await logAudit(ctx, {
@@ -87,6 +107,13 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
         throw new AppError(ErrorCode.DUPLICATE_ENTRY, `Channel "${body.channel_name}" sudah ada`, 409)
       }
     }
+
+    const finalCompanyId = body.company_id !== undefined ? body.company_id : existing.company_id
+    const finalBranchId = body.branch_id !== undefined ? body.branch_id : existing.branch_id
+    await assertValidBranchScope(finalCompanyId, finalBranchId)
+
+    const finalDivision = body.division ?? existing.division
+    if (finalCompanyId) await ensureDivisionCode(finalCompanyId, finalBranchId ?? null, finalDivision)
 
     const result = await updateChannelDivision(id, body)
 
@@ -150,16 +177,27 @@ export async function importChannelDivisionsService(
     const rowNum = i + 2
 
     const channelName = row.channel_name?.toUpperCase().trim()
-    const division = row.division?.toLowerCase().trim() as DivisionValue | undefined
+    const division = row.division?.toLowerCase().trim()
 
     if (!channelName) {
       errors.push({ row: rowNum, message: 'channel_name wajib diisi' })
       continue
     }
-    if (!division || !(VALID_DIVISIONS as readonly string[]).includes(division)) {
-      errors.push({ row: rowNum, message: `division "${division ?? ''}" tidak valid. Pilihan: ${VALID_DIVISIONS.join(', ')}` })
+    if (!division) {
+      errors.push({ row: rowNum, message: 'division wajib diisi' })
       continue
     }
+    // Branch di-derive dari histori invoice riil (SSOT dari data faktur),
+    // BUKAN diketik manual — revisi B6 (task005 §6, 2026-07-09). Kalau channel
+    // ini konsisten cuma pernah muncul di 1 branch, otomatis pakai itu; kalau
+    // belum pernah ada di invoice atau nyebar ke >1 branch (ambigu), fallback
+    // company-wide (branch_id null) seperti sebelumnya — tidak pernah menebak.
+    const branchId = await findConsistentBranchIdForChannel(channelName, companyId)
+
+    // Kode divisi = keputusan admin yang tertulis di file import ini sendiri —
+    // auto-create katalog kalau belum ada, tidak perlu didaftarkan terpisah
+    // dulu di tempat lain (task005 §6, revisi 2026-07-09).
+    await ensureDivisionCode(companyId, branchId, division)
 
     const existing = await findChannelDivisionByNameAndCompany(channelName, companyId)
     if (existing) {
@@ -167,7 +205,7 @@ export async function importChannelDivisionsService(
       continue
     }
 
-    await createChannelDivision({ channel_name: channelName, division, company_id: companyId })
+    await createChannelDivision({ channel_name: channelName, division, company_id: companyId, branch_id: branchId })
     added++
   }
 
@@ -188,7 +226,10 @@ export function getChannelDivisionsTemplate(): ArrayBuffer {
   const title       = ['Template Import Channel Divisions', '']
   const descriptions = [
     'Nama channel penjualan\n(harus UPPERCASE, cocok dengan kolom "Nama Tenaga Penjual" di faktur)',
-    'Divisi channel\nPilihan: distribution | project | e_commerce | intercompany | freelancer | support',
+    'Kode divisi channel — harus sudah terdaftar untuk company ini (lihat halaman Divisions).\n' +
+      'Cabang TIDAK perlu diisi manual — otomatis di-deteksi dari histori faktur channel ini\n' +
+      '(kalau channel cuma pernah muncul di 1 cabang). Kalau channel belum ada di faktur atau\n' +
+      'muncul di >1 cabang, mapping jadi company-wide (berlaku semua cabang).',
   ]
   const headers  = ['channel_name', 'division']
   const examples = [
@@ -206,7 +247,7 @@ export function getChannelDivisionsTemplate(): ArrayBuffer {
 
   const ws = XLSX.utils.aoa_to_sheet([title, descriptions, headers, ...examples])
   ws['!cols'] = [{ wch: 32 }, { wch: 48 }]
-  ws['!rows'] = [{ hpt: 20 }, { hpt: 42 }, { hpt: 20 }]
+  ws['!rows'] = [{ hpt: 20 }, { hpt: 70 }, { hpt: 20 }]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Channel Divisions')

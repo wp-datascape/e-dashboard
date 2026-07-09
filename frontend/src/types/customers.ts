@@ -1,6 +1,8 @@
 // frontend/src/types/customers.ts
 
-export type Division = 'distribution' | 'project' | 'e_commerce' | 'intercompany' | 'freelancer' | 'support' | null;
+// Dulu union tetap 6 nilai — sekarang string bebas (dinamis per company/branch),
+// lihat docs-v2/task/task004.md + task005.md.
+export type Division = string | null;
 export type CustomerStatus = 'active' | 'dormant' | 'new' | 'existing';
 
 export interface CustomerRow {

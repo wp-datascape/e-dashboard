@@ -2,9 +2,7 @@ import { db } from '@/config/db'
 import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { eq, and, inArray } from 'drizzle-orm'
-
-// Division: 6 value bisnis existing + 'other' ("Lainnya") — lihat docs-v2/task/task001.md §4.5
-const ALL_DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
+import { findActiveDivisionCodesForScope } from '@/features/settings/divisions.repository'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -120,6 +118,13 @@ const defaultPermissions = [
   { name: 'settings.channel.division:create', description: 'Create Channel Division', category: 'Channel Division' },
   { name: 'settings.channel.division:update', description: 'Update Channel Division', category: 'Channel Division' },
   { name: 'settings.channel.division:delete', description: 'Delete Channel Division', category: 'Channel Division' },
+  // Divisions — katalog master divisi per company/branch (task004), beda dari
+  // Channel Division (mapping channel_name -> kode divisi)
+  { name: 'settings.division:menu',   description: 'Menu Divisions',   category: 'Divisions' },
+  { name: 'settings.division:view',   description: 'View Divisions',   category: 'Divisions' },
+  { name: 'settings.division:create', description: 'Create Division', category: 'Divisions' },
+  { name: 'settings.division:update', description: 'Update Division', category: 'Divisions' },
+  { name: 'settings.division:delete', description: 'Delete Division', category: 'Divisions' },
   // Product Settings (High Margin mapping)
   { name: 'settings.product:menu',   description: 'Menu Product Settings', category: 'Product Settings' },
   { name: 'settings.product:view',   description: 'View Product Settings', category: 'Product Settings' },
@@ -201,6 +206,7 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.company:menu', 'settings.company:view', 'settings.company:update',
   'settings.branch:view', 'settings.branch:update',
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
+  'settings.division:menu', 'settings.division:view', 'settings.division:update',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'audit.log:menu', 'audit.log:view',
@@ -437,14 +443,20 @@ async function seedUserAssignments() {
         }
         console.log(`  ok    ${branchesInScope.length} branches -> ${email}`)
 
+        // Kode divisi aktif per branch diambil dinamis dari katalog `divisions`
+        // (company-wide + branch-specific), bukan array hardcode lagi — lihat
+        // docs-v2/task/task004.md.
+        let totalDivisionsAssigned = 0
         for (const b of branchesInScope) {
-          for (const division of ALL_DIVISION_VALUES) {
+          const codes = await findActiveDivisionCodesForScope(b.company_id, b.id)
+          for (const division of codes) {
             const [ex] = await db.select({ userId: userDivisions.user_id }).from(userDivisions)
               .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division, division))).limit(1)
             if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division })
+            totalDivisionsAssigned++
           }
         }
-        console.log(`  ok    ${branchesInScope.length * ALL_DIVISION_VALUES.length} branch-divisions -> ${email}`)
+        console.log(`  ok    ${totalDivisionsAssigned} branch-divisions -> ${email}`)
       } else {
         console.log(`  skip  companies/branches/divisions -> ${email} (assign manual via UI)`)
       }

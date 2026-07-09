@@ -61,6 +61,7 @@ export async function findInvoices(
         and(
           eq(channel_divisions.channel_name, invoices.channel_name),
           or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+          or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
         ),
       )
       .where(whereWithDivision)
@@ -89,6 +90,7 @@ export async function findInvoices(
         and(
           eq(channel_divisions.channel_name, invoices.channel_name),
           or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+          or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
         ),
       )
       .leftJoin(import_logs, eq(import_logs.id, invoices.import_log_id))
@@ -162,6 +164,7 @@ export async function findInvoiceDetail(
       and(
         eq(channel_divisions.channel_name, invoices.channel_name),
         or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+        or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
       ),
     )
     .where(and(...conditions))
