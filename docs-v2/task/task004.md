@@ -133,9 +133,21 @@ Setelah §7, muncul pertanyaan lanjutan dari user: kalau koreksi taksonomi dilak
 - Konsekuensi yang disadari & diterima: di DB benar-benar kosong (fresh install), `seedUserAssignments()` akan meng-grant **0 baris** `user_divisions` ke akun test admin@mail.com/executif@mail.com (loop-nya query `findActiveDivisionCodesForScope` yang sekarang kosong). Ini dianggap benar, bukan bug — sistem yang benar-benar baru memang belum punya kategorisasi bisnis apa pun untuk di-grant; begitu channel mapping pertama dibuat/diimpor, katalog terisi otomatis dan grant berikutnya (manual lewat UI atau re-run seed) akan menemukan kode yang sudah ada.
 - Diverifikasi: `bunx tsc --noEmit` bersih, `bun test` 38 pass/0 fail, dan `bun run db:seed` dijalankan ulang di DB lokal (yang sudah berisi katalog divisions dari koreksi §7) — log menunjukkan tidak ada lagi baris "Seeding divisions...", langsung lanjut ke seed roles/users, dan `seedUserAssignments()` tetap berhasil grant 31 branch-division ke admin@mail.com/executif@mail.com karena katalog sudah terisi dari sesi sebelumnya.
 
+## 9. Technical Debt Diketahui — `divisions.code` Varchar, Bukan FK (dicatat 2026-07-09, belum dikerjakan)
+
+**Ini akar penyebab sebagian besar "belokan" di sesi task004/task005.** Keputusan desain awal (§3): `channel_divisions.division`/`user_divisions.division` tetap `varchar` yang dicocokkan ke `divisions.code` sebagai string, BUKAN foreign key numerik (`division_id → divisions.id`). Alasan saat itu: supaya 24 titik RBAC scope (`utils/scope.ts`) yang membandingkan string tidak perlu disentuh sama sekali — murni pertimbangan hemat effort jangka pendek.
+
+**Konsekuensi yang baru disadari setelah semua pivot terjadi** — effort itu tidak hilang, cuma pindah tempat & dibayar berkali-kali dengan bentuk lain:
+
+1. **`channel_divisions` terpaksa punya kolom `branch_id` sendiri (duplikat)**, padahal kalau `channel_divisions.division_id` adalah FK asli ke `divisions.id`, branch sudah otomatis ikut (`divisions` sendiri sudah punya `branch_id`). Sekarang ada 2 kolom `branch_id` di 2 tabel berbeda yang harus tetap sinkron secara manual — potensi bug "data tidak sinkron" yang sifatnya struktural, bukan cuma kesalahan input.
+2. **Integritas cuma dijaga di application code**, bukan di database. Kode divisi yang tidak valid TIDAK ditolak oleh Postgres — cuma ditolak (atau di-auto-create) oleh `validateDivisionCode()`/`ensureDivisionCode()` di service layer. Perdebatan panjang "kode tak dikenal harus ditolak atau di-auto-create" (§8) itu sendiri adalah gejala dari tidak adanya foreign key constraint, bukan pertanyaan bisnis murni.
+3. **1 `code` boleh muncul di banyak baris `divisions`** (mis. `distribution` ada baris untuk Jakarta *dan* Surabaya) — string kode sendirian tidak cukup mengidentifikasi divisi yang dimaksud, harus selalu dicocokkan bareng `branch_id` di ~32 lokasi JOIN manual di 18 file (Task B5), alih-alih 1 JOIN via FK yang otomatis bawa semua kolom terkait.
+
+**Kalau nanti diperbaiki ke akar** (`channel_divisions.division_id`/`user_divisions.division_id` jadi FK asli ke `divisions.id`): ketiga masalah di atas hilang sekaligus — integritas dijamin DB, tidak perlu kolom `branch_id` duplikat, tidak ada ambiguitas kode. Tapi konsekuensinya besar: 24 titik `utils/scope.ts` + ~32 titik JOIN yang baru saja ditulis di task004 perlu ditulis ulang dari perbandingan string ke join by `division_id` (integer). **Belum dikerjakan, sengaja ditunda** — dicatat di sini supaya sesi berikutnya tidak mengulang analisis dari nol, dan supaya keputusan ini dipertimbangkan matang-matang (mungkin sekalian saat [[Future UUID Migration]] kalau itu jadi dieksekusi) alih-alih ditambal lagi sepotong-sepotong.
+
 ---
 
-**Status akhir**: ✅ Backend (Fase 1) selesai — schema, migration, CRUD divisions, validasi dinamis di 12 lokasi, RBAC scope, dormant threshold, semua terverifikasi. Taksonomi MKO dikoreksi lewat API (§7). Katalog divisi sekarang murni auto-create dari mapping channel, `seedDivisions()` dihapus (§8). Frontend (task005) selesai penuh.
+**Status akhir**: ✅ Backend (Fase 1) selesai — schema, migration, CRUD divisions, validasi dinamis di 12 lokasi, RBAC scope, dormant threshold, semua terverifikasi. Taksonomi MKO dikoreksi lewat API (§7). Katalog divisi sekarang murni auto-create dari mapping channel, `seedDivisions()` dihapus (§8). Frontend (task005) selesai penuh. **Technical debt diketahui**: `divisions.code` varchar bukan FK — akar penyebab sebagian pivot desain sesi ini, belum diperbaiki (§9).
 
 ---
 

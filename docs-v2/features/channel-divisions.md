@@ -247,7 +247,7 @@ PT SKI (company-wide — cuma 1 branch: Pusat):
 
 ## Implementation Notes
 
-- **`code` di `divisions` bukan FK dari `channel_divisions.division`/`user_divisions.division`** — sengaja tetap varchar, lihat penjelasan di §Tabel `divisions` di atas
+- **`code` di `divisions` bukan FK dari `channel_divisions.division`/`user_divisions.division`** — sengaja tetap varchar, lihat penjelasan di §Tabel `divisions` di atas. ⚠️ **Technical debt diketahui**: keputusan ini adalah akar penyebab beberapa masalah desain (kolom `branch_id` terpaksa duplikat di `channel_divisions`, integritas cuma dijaga application-code bukan DB, 1 kode bisa ambigu di banyak baris) — detail lengkap & rencana perbaikan di `task/task004.md` §9
 - **Pre-check duplikat di service (CRUD channel_divisions)**: `findChannelDivisionByName()` sebelum INSERT
 - **`channel_name` UPPERCASE**: normalisasi di Zod schema
 - **Soft delete `divisions`, hard delete `channel_divisions`**: divisi direferensikan RBAC & histori (soft delete), mapping channel tidak (hard delete aman)

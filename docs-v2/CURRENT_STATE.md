@@ -299,6 +299,8 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 
 **Verifikasi akhir**: `bunx tsc --noEmit` bersih (FE+BE), `bun test` backend 38 pass/0 fail, `bun run db:seed` dijalankan ulang tanpa `seedDivisions()` — sukses, tetap grant 31 branch-division ke akun test karena katalog sudah terisi dari koreksi API sesi ini.
 
+**Technical debt ditemukan lewat diskusi post-mortem (dicatat, belum dikerjakan)**: akar dari sebagian besar belokan di atas adalah keputusan awal membuat `divisions.code` tetap `varchar` (bukan FK numerik `division_id → divisions.id`), demi menghindari perubahan di 24 titik `utils/scope.ts`. Konsekuensinya: `channel_divisions` terpaksa punya `branch_id` duplikat (bukan otomatis ikut lewat FK), integritas kode divisi cuma dijaga application-code (bukan constraint DB — persis yang memicu perdebatan reject-vs-auto-create di atas), dan 1 kode bisa ambigu di banyak baris (perlu tie-break manual di ~32 JOIN). Detail & opsi perbaikan: `task/task004.md` §9.
+
 **Status commit**: dikerjakan di branch `dev`, di-commit & push ke branch baru `Feature` (bukan `dev` langsung) — belum di-merge, menunggu review.
 
 ---
