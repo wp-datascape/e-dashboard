@@ -11,7 +11,7 @@ export async function fetchHmBreakdown(
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
@@ -25,7 +25,7 @@ export async function fetchHmBreakdown(
         hmp.company_id = i.company_id
         AND (hmp.product_id = ii.product_id OR hmp.product_category_id = ii.product_category_id)
       )
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)

@@ -14,7 +14,7 @@ export interface HmDetailRepoParams {
   division?: string | null   // filter laporan - mirror business_unit di metrics lain
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 export interface UpsellTargetRepoParams {
@@ -27,7 +27,7 @@ export interface UpsellTargetRepoParams {
   perPage: number
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 // ─── DB Row types ─────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | u
 export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRow[]> {
   const offset = (p.page - 1) * p.perPage
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
@@ -97,7 +97,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       SELECT DISTINCT i.customer_id
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -106,7 +106,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -120,7 +120,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       FROM invoice_items ii
       JOIN invoices  i ON i.id = ii.invoice_id
       JOIN customers c ON c.id = i.customer_id
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -130,7 +130,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -178,7 +178,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
 export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<UpsellTargetDbRow[]> {
   const offset = (p.page - 1) * p.perPage
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const branchFilter = p.branchFilter ?? null
 
@@ -199,7 +199,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         FROM   invoice_items ii
         JOIN   invoices  i  ON i.id  = ii.invoice_id
         JOIN   customers c  ON c.id  = i.customer_id
-        LEFT JOIN channel_divisions cd
+        LEFT JOIN division_channels cd
           ON cd.channel_name = i.channel_name
           AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
           AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -228,7 +228,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       FROM invoices i
       JOIN invoice_items ii ON ii.invoice_id = i.id
       JOIN customers    c  ON c.id = i.customer_id
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)

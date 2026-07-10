@@ -14,7 +14,7 @@ import {
   import_logs,
   import_log_errors,
   item_classification_rules,
-  channel_divisions,
+  division_channels,
   companies,
   company_branches,
   users,
@@ -145,27 +145,24 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
   const upperName = data.customer_name.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
 
-  // Lookup division dari channel_divisions berdasarkan channel_name — di-scope
+  // Lookup division dari division_channels berdasarkan channel_name — di-scope
   // company_id + branch_id (rule paling spesifik menang: company+branch match >
   // company match > global), supaya tidak salah ambil mapping company/cabang
   // lain (Task C8, revisi task004 §branch_id eksplisit)
   let division: string | null = null
   if (data.channel_name) {
     const upperCh = data.channel_name.trim().toUpperCase()
-    const branchMatchCond = data.branch_id
-      ? or(eq(channel_divisions.branch_id, data.branch_id), isNull(channel_divisions.branch_id))!
-      : isNull(channel_divisions.branch_id)
     const [divRow] = await db
-      .select({ division: channel_divisions.division })
-      .from(channel_divisions)
+      .select({ division_id: division_channels.division_id })
+      .from(division_channels)
       .where(and(
-        eq(channel_divisions.channel_name, upperCh),
-        or(eq(channel_divisions.company_id, data.company_id), isNull(channel_divisions.company_id)),
-        branchMatchCond,
+        eq(division_channels.channel_name, upperCh),
+        or(eq(division_channels.company_id, data.company_id), isNull(division_channels.company_id)),
+        isNull(division_channels.company_id),
       ))
-      .orderBy(sql`${channel_divisions.company_id} IS NULL`, sql`${channel_divisions.branch_id} IS NULL`)
+      .orderBy(sql`${division_channels.company_id} IS NULL`)
       .limit(1)
-    division = divRow?.division ?? null
+    division = divRow?.division_id?.toString() ?? null
   }
 
   // Cari existing customer by company_id + UPPER(customer_name)
@@ -201,7 +198,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
     }
     // Update business_unit hanya jika invoice ini lebih baru (pakai last_invoice_date baru)
     if (division && newLastDate.getTime() === data.invoice_date.getTime()) {
-      updateData.business_unit = division
+      updateData.business_unit = division as string
     }
 
     const [updated] = await db
@@ -220,7 +217,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
       is_placeholder: PLACEHOLDER_NAMES.has(upperName),
       first_invoice_date: invoiceDateStr,
       last_invoice_date: invoiceDateStr,
-      business_unit: division ?? undefined,
+      business_unit: division,
     })
     .returning()
   return created

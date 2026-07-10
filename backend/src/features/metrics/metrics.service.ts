@@ -20,7 +20,7 @@ function todayDate(): string {
 export interface MetricsScope {
   companyScopeIds?: number[]
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 export async function resolveSegmentParams(
@@ -29,7 +29,7 @@ export async function resolveSegmentParams(
   division?: string,
   companyScopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
   branchId?: number,
 ): Promise<SegmentParams> {
   const { activeMonths, dormant } = await loadThresholds()

@@ -1,8 +1,8 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs, branch_divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
-import { eq, and, inArray } from 'drizzle-orm'
-import { findActiveDivisionCodesForScope } from '@/features/settings/divisions.repository'
+import { eq, and, inArray, or, isNull } from 'drizzle-orm'
+import { findActiveDivisionCodesForScope } from '@/features/settings/branch-divisions.repository'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -443,16 +443,26 @@ async function seedUserAssignments() {
         }
         console.log(`  ok    ${branchesInScope.length} branches -> ${email}`)
 
-        // Kode divisi aktif per branch diambil dinamis dari katalog `divisions`
-        // (company-wide + branch-specific), bukan array hardcode lagi — lihat
-        // docs-v2/task/task004.md.
+        // Division ID dari katalog `branch_divisions` untuk (company, branch) —
+        // resolve kode divisi ke ID integer (FK), lalu insert ke user_divisions.
         let totalDivisionsAssigned = 0
         for (const b of branchesInScope) {
           const codes = await findActiveDivisionCodesForScope(b.company_id, b.id)
-          for (const division of codes) {
+          if (codes.length === 0) continue
+          // Resolve kode → ID dari branch_divisions
+          const idRows = await db
+            .select({ id: branch_divisions.id })
+            .from(branch_divisions)
+            .where(and(
+              eq(branch_divisions.company_id, b.company_id),
+              inArray(branch_divisions.code, codes),
+              eq(branch_divisions.is_active, true),
+              or(eq(branch_divisions.branch_id, b.id), isNull(branch_divisions.branch_id)),
+            ))
+          for (const row of idRows) {
             const [ex] = await db.select({ userId: userDivisions.user_id }).from(userDivisions)
-              .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division, division))).limit(1)
-            if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division })
+              .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division_id, row.id))).limit(1)
+            if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division_id: row.id })
             totalDivisionsAssigned++
           }
         }

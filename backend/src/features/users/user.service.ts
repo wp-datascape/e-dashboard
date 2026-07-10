@@ -23,7 +23,7 @@ import {
 } from './user.repository'
 import { findRoleByName } from '@/features/roles/roles.repository'
 import { findCompanyByCode } from '@/features/companies/companies.repository'
-import { validateDivisionCode } from '@/features/settings/divisions.service'
+import { validateDivisionCode } from '@/features/settings/branch-divisions.service'
 import type { CreateUserDto, UpdateUserDto, CompanyAssignmentDto } from './user.schema'
 
 /**

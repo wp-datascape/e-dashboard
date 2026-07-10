@@ -11,7 +11,7 @@ export async function fetchRorBreakdown(
   const { cid, filterDate, activeMonths, division, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
 
   const rows = await db.execute(sql`
@@ -22,7 +22,7 @@ export async function fetchRorBreakdown(
              COUNT(DISTINCT i.id)::int           AS invoice_count,
              SUM(i.total_revenue::numeric)        AS total_revenue
       FROM invoices i
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -30,7 +30,7 @@ export async function fetchRorBreakdown(
         AND ${companyCondI}
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND ${branchCond}
         AND ${divisionScopeCond}
       GROUP BY i.customer_id

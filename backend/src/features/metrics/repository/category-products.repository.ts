@@ -11,7 +11,7 @@ export interface CategoryProductsRepoParams {
   page: number
   perPage: number
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 export interface CategoryProductDbRow {
@@ -30,7 +30,7 @@ export async function fetchCategoryProducts(
 ): Promise<CategoryProductDbRow[]> {
   const offset = (p.page - 1) * p.perPage
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
 
   const rows = await db.execute(sql`
@@ -44,7 +44,7 @@ export async function fetchCategoryProducts(
       FROM invoice_items ii
       JOIN invoices  i ON i.id = ii.invoice_id
       JOIN customers c ON c.id = i.customer_id
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)

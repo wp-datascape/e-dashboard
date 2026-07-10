@@ -84,8 +84,7 @@ export function assertCompanyAccess(c: Context, companyId: number | 'all'): void
  *
  * Returns:
  *   undefined                    → superadmin → bypass, lihat semua branch
- *   Map<company_id, branch_id[]> → non-superadmin, cuma company+branch yang di-assign eksplisit
- *                                   (map kosong / company tidak ada di key = default deny total company itu)
+ *   Map<company_id, branch_id[]> → non-superadmin, cuma company+branch yang di-assign
  *
  * Input companyScopeIds = hasil resolveCompanyScope() — branch di company yang SUDAH
  * tersaring di luar companyScopeIds ikut tersaring juga di sini.
@@ -107,38 +106,38 @@ export function resolveBranchScope(
 }
 
 /**
- * Resolve division scope — child dari branch scope, BUKAN company scope (docs-v2/task/task001.md §4.2).
+ * Resolve division scope — child dari branch scope (docs-v2/task/task001.md §4.2).
+ *
+ * Returns:
+ *   undefined                    → superadmin → bypass, lihat semua division
+ *   Map<branch_id, division_id[]> → non-superadmin, cuma division yang di-assign
+ *
+ * 2026-07-10: scopeMap sekarang Map<number, number[]> (division_id integer),
+ * bukan Map<number, string[]> (division code string).
  *
  * Input branchScope = hasil resolveBranchScope() (bukan companyScopeIds) — division cuma
- * bermakna dalam branch yang SUDAH lolos resolveBranchScope. Kalau branchScope bypass
- * (undefined, superadmin), division ikut bypass otomatis.
+ * bermakna dalam branch yang SUDAH lolos resolveBranchScope.
  */
 export function resolveDivisionScope(
   c: Context,
   branchScope: Map<number, number[]> | undefined,
-): Map<number, string[]> | undefined {
+): Map<number, number[]> | undefined {
   const { divisionScopes, isSuperAdmin, enforcementEnabled } = c.var.user
   if (isSuperAdmin || !enforcementEnabled) return undefined
 
   const allowedBranchIds = new Set(branchScope ? [...branchScope.values()].flat() : [])
-  const map = new Map<number, string[]>()
-  for (const { branch_id, division } of divisionScopes as { branch_id: number; division: string }[]) {
+  const map = new Map<number, number[]>()
+  for (const { branch_id, division_id } of divisionScopes as { branch_id: number; division_id: number }[]) {
     if (!allowedBranchIds.has(branch_id)) continue
     if (!map.has(branch_id)) map.set(branch_id, [])
-    map.get(branch_id)!.push(division)
+    map.get(branch_id)!.push(division_id)
   }
   return map
 }
 
 /**
  * Validasi filter branch_id yang di-request eksplisit lewat query param (BUKAN
- * enforcement scope, tapi filter laporan opsional — mirror `business_unit`/`company_id`
- * yang sudah ada). branchScope = hasil resolveBranchScope() di atas.
- *
- * undefined (bypass) → lolos apa pun. Map (enforcement aktif) → branchId harus ada
- * di salah satu company yang di-assign user, kalau tidak throw 403 (bukan silently
- * kosong — user perlu tahu filter yang dipilih memang bukan haknya, bukan cuma
- * kebetulan tidak ada data).
+ * enforcement scope, tapi filter laporan opsional). branchScope = hasil resolveBranchScope().
  */
 export function assertBranchFilterAccess(
   branchScope: Map<number, number[]> | undefined,
@@ -156,7 +155,6 @@ export function authMiddleware() {
     const token = getCookie(c, 'access_token')
     if (!token) throw new AppError(ErrorCode.UNAUTHORIZED, 'Tidak terautentikasi', 401)
 
-    // verifyToken throws AppError(UNAUTHORIZED) if invalid or expired
     const payload = verifyToken(token)
 
     if (MUTATION_METHODS.has(c.req.method.toUpperCase())) {
@@ -175,9 +173,6 @@ export function authMiddleware() {
       getUserTokenVersion(payload.userId),
     ])
 
-    // Invalidasi sesi (Task002 Task D) — access token yang diterbitkan SEBELUM password
-    // direset punya tokenVersion lama; begitu password direset (token_version di-increment
-    // di DB), token lama otomatis ditolak di request berikutnya walau belum expired.
     if (currentTokenVersion === null || payload.tokenVersion !== currentTokenVersion) {
       throw new AppError(ErrorCode.UNAUTHORIZED, 'Sesi tidak valid, silakan login ulang', 401)
     }

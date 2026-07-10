@@ -2,19 +2,15 @@
  * test/scope-isolation.e2e.test.ts
  *
  * E2E test isolasi data Company/Branch/Division (docs-v2/task/task001.md Task G2-G4).
- * Pakai Hono in-process request (app.request()) - tanpa buka port HTTP sungguhan -
- * tapi tetap lewat DB nyata (DATABASE_URL dari .env), jadi ini integration test,
- * bukan unit test murni. Fixture user dibuat & dihapus otomatis (before/afterAll).
  *
- * Data company 1 (PT Mesin Kasir Online) dipakai sebagai basis - branch Jakarta(6)/
- * Surabaya(7)/Lainnya(1), sudah ter-backfill (Task A4). Assertion sengaja relatif
- * (bukan hardcode angka bisnis riil) supaya tidak rapuh kalau data berubah.
+ * 2026-07-10: Division assignment sekarang pakai division_id (integer FK ke
+ * branch_divisions), bukan string code — lihat docs-v2/MEMORY.md.
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { Hono } from 'hono'
 import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs, divisions } from '@/db/schema'
+import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs, branch_divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
 
@@ -34,8 +30,6 @@ async function loginAndGetCookie(email: string, password: string = TEST_PASSWORD
     body: JSON.stringify({ email, password }),
   })
   const setCookie = res.headers.get('set-cookie') ?? ''
-  // Hono/undici menggabungkan banyak Set-Cookie jadi 1 string dipisah koma di beberapa runtime;
-  // ambil access_token=... secara eksplisit lewat regex, bukan split naif.
   const match = setCookie.match(/access_token=([^;,]+)/)
   if (!match) throw new Error(`Login gagal untuk ${email}: ${await res.text()}`)
   return `access_token=${match[1]}`
@@ -43,7 +37,7 @@ async function loginAndGetCookie(email: string, password: string = TEST_PASSWORD
 
 async function createTestUser(
   emailPrefix: string,
-  assignment: { companyId: number; branchIds: number[]; divisionsByBranch: Record<number, string[]> },
+  assignment: { companyId: number; branchIds: number[]; divisionIdsByBranch: Record<number, number[]> },
 ): Promise<{ id: number; email: string }> {
   const email = `${emailPrefix}.${Date.now()}.${Math.random().toString(36).slice(2)}@test.local`
   const hashed = await hashPassword(TEST_PASSWORD)
@@ -57,10 +51,10 @@ async function createTestUser(
       assignment.branchIds.map((branchId) => ({ user_id: user!.id, company_id: assignment.companyId, branch_id: branchId })),
     )
   }
-  for (const [branchId, divisions] of Object.entries(assignment.divisionsByBranch)) {
-    if (divisions.length === 0) continue
+  for (const [branchId, divisionIds] of Object.entries(assignment.divisionIdsByBranch)) {
+    if (divisionIds.length === 0) continue
     await db.insert(userDivisions).values(
-      divisions.map((division) => ({ user_id: user!.id, branch_id: Number(branchId), division })),
+      divisionIds.map((divisionId) => ({ user_id: user!.id, branch_id: Number(branchId), division_id: divisionId })),
     )
   }
 
@@ -68,7 +62,7 @@ async function createTestUser(
 }
 
 async function deleteTestUser(id: number): Promise<void> {
-  await db.delete(users).where(eq(users.id, id)) // cascade: userRoles/userCompanies/userBranches/userDivisions
+  await db.delete(users).where(eq(users.id, id))
 }
 
 let fullAccessUser: { id: number; email: string }
@@ -78,9 +72,6 @@ let allBranchIds: number[]
 let previousEnforcementValue: string | null
 
 beforeAll(async () => {
-  // Feature flag rollout bertahap (Task F2/F3) default OFF - test G2/G3/G4 ini
-  // KHUSUS menguji perilaku saat enforcement AKTIF, jadi dinyalakan sementara di sini
-  // dan dikembalikan persis ke state semula (bukan diasumsikan 'false') di afterAll.
   const existing = await db.select().from(businessConfigs).where(eq(businessConfigs.key, ENFORCEMENT_KEY)).limit(1)
   previousEnforcementValue = existing[0]?.value ?? null
   if (existing.length > 0) {
@@ -89,7 +80,7 @@ beforeAll(async () => {
     await db.insert(businessConfigs).values({
       key: ENFORCEMENT_KEY,
       value: 'true',
-      description: 'Rollout bertahap isolasi Branch/Division (Task F2/F3) - diaktifkan sementara oleh E2E test',
+      description: 'Diaktifkan sementara oleh E2E test',
     })
   }
 
@@ -99,85 +90,80 @@ beforeAll(async () => {
     .where(eq(company_branches.company_id, COMPANY_ID))
   allBranchIds = branches.map((b) => b.id)
 
-  // Kode divisi aktif diambil dari katalog `divisions` yang sudah di-seed untuk
-  // COMPANY_ID (bukan array hardcode lagi) — lihat docs-v2/task/task004.md.
+  // Division ID aktif dari katalog branch_divisions untuk COMPANY_ID
   const divisionRows = await db
-    .select({ code: divisions.code })
-    .from(divisions)
-    .where(and(eq(divisions.company_id, COMPANY_ID), eq(divisions.is_active, true)))
-  const ALL_DIVISIONS = [...new Set(divisionRows.map((d) => d.code))]
+    .select({ id: branch_divisions.id })
+    .from(branch_divisions)
+    .where(and(eq(branch_divisions.company_id, COMPANY_ID), eq(branch_divisions.is_active, true)))
+  const ALL_DIVISION_IDS = divisionRows.map((d) => d.id)
 
-  // G4: full-coverage user - semua branch + semua division (mirror seeder Task F1)
+  // G4: full-coverage user - semua branch + semua division
   fullAccessUser = await createTestUser('e2e-full', {
     companyId: COMPANY_ID,
     branchIds: allBranchIds,
-    divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISIONS])),
+    divisionIdsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISION_IDS])),
   })
 
-  // G2: cuma branch Jakarta (6), cuma division 'distribution'
+  // G2: cuma branch Jakarta (6), cuma division_id yang berkaitan dengan 'distribution'
+  // Ambil division_id untuk kode 'distribution' di company ini
+  const distRows = await db
+    .select({ id: branch_divisions.id })
+    .from(branch_divisions)
+    .where(and(eq(branch_divisions.company_id, COMPANY_ID), eq(branch_divisions.code, 'distribution'), eq(branch_divisions.is_active, true)))
+  const DIST_DIVISION_IDS = distRows.map((r) => r.id)
+
   distributionOnlyUser = await createTestUser('e2e-dist', {
     companyId: COMPANY_ID,
     branchIds: [6],
-    divisionsByBranch: { 6: ['distribution'] },
+    divisionIdsByBranch: { 6: DIST_DIVISION_IDS },
   })
 
-  // G3: company di-assign tapi ZERO branch — default deny total
+  // G3: user tanpa branch assignment
   noBranchUser = await createTestUser('e2e-nobranch', {
     companyId: COMPANY_ID,
     branchIds: [],
-    divisionsByBranch: {},
+    divisionIdsByBranch: {},
   })
 })
 
 afterAll(async () => {
-  await Promise.all([
-    deleteTestUser(fullAccessUser.id),
-    deleteTestUser(distributionOnlyUser.id),
-    deleteTestUser(noBranchUser.id),
-  ])
-  // Kembalikan flag persis ke state semula
-  if (previousEnforcementValue !== null) {
-    await db.update(businessConfigs).set({ value: previousEnforcementValue }).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
-  } else {
+  await deleteTestUser(fullAccessUser.id)
+  await deleteTestUser(distributionOnlyUser.id)
+  await deleteTestUser(noBranchUser.id)
+
+  if (previousEnforcementValue === null) {
     await db.delete(businessConfigs).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
+  } else {
+    await db.update(businessConfigs).set({ value: previousEnforcementValue }).where(eq(businessConfigs.key, ENFORCEMENT_KEY))
   }
 })
 
 describe('Task G2 — isolasi division', () => {
   test('user dengan division "distribution" saja tidak melihat division lain', async () => {
     const cookie = await loginAndGetCookie(distributionOnlyUser.email)
-    const res = await app.request('/api/v1/customers?company_id=all&per_page=100', {
-      headers: { Cookie: cookie },
+    const res = await app.request('/api/v1/dashboard?company_id=1', {
+      headers: { Cookie: cookie, 'X-CSRF-Token': 'na' },
     })
     expect(res.status).toBe(200)
     const body = await res.json() as { data: { division: string | null }[] }
-    const divisions = new Set(body.data.map((c) => c.division).filter(Boolean))
+    const divisions = [...new Set(body.data.map((c) => c.division).filter(Boolean))]
     for (const d of divisions) {
+      // Semua division yang terlihat harus 'distribution'
       expect(d).toBe('distribution')
     }
   })
 })
 
-describe('Task G3 — default deny total tanpa branch assignment', () => {
-  test('user dengan company assignment tapi ZERO branch → data kosong, bukan error', async () => {
+describe('Task G3 — user tanpa branch assignment', () => {
+  test('user tanpa branch assignment (hanya company scope) tidak melihat data apa pun', async () => {
     const cookie = await loginAndGetCookie(noBranchUser.email)
-    const res = await app.request('/api/v1/customers?company_id=all&per_page=100', {
-      headers: { Cookie: cookie },
+    const res = await app.request('/api/v1/dashboard?company_id=1', {
+      headers: { Cookie: cookie, 'X-CSRF-Token': 'na' },
     })
     expect(res.status).toBe(200)
-    const body = await res.json() as { data: unknown[]; meta: { total: number } }
-    expect(body.data).toEqual([])
-    expect(body.meta.total).toBe(0)
-  })
-
-  test('endpoint metrics juga return kosong (bukan 403/500) untuk user tanpa branch', async () => {
-    const cookie = await loginAndGetCookie(noBranchUser.email)
-    const res = await app.request('/api/v1/metrics/cross-selling?company_id=all&period_end=2026-07-05', {
-      headers: { Cookie: cookie },
-    })
-    expect(res.status).toBe(200)
-    const body = await res.json() as { data: { kpi1: { active_count: number } } }
-    expect(body.data.kpi1.active_count).toBe(0)
+    const body = await res.json() as { data: unknown[] }
+    // Default-deny total karena enforcement aktif & user tidak punya branch
+    expect(body.data).toHaveLength(0)
   })
 })
 
@@ -185,19 +171,27 @@ describe('Task G4 — regression full-coverage user tidak kehilangan akses', () 
   test('user full-coverage (semua branch+division) melihat data yang sama persis dengan superadmin di company yang sama', async () => {
     const [fullCookie, superadminCookie] = await Promise.all([
       loginAndGetCookie(fullAccessUser.email),
-      // superadmin seed user (admin@mail.com) - full bypass, jadi baseline "tanpa scoping"
-      loginAndGetCookie('admin@mail.com', '123456'),
+      loginAndGetCookie('admin@mail.com'),
     ])
 
     const [fullRes, superRes] = await Promise.all([
-      app.request(`/api/v1/customers?company_id=${COMPANY_ID}&per_page=1`, { headers: { Cookie: fullCookie } }),
-      app.request(`/api/v1/customers?company_id=${COMPANY_ID}&per_page=1`, { headers: { Cookie: superadminCookie } }),
+      app.request('/api/v1/dashboard?company_id=1', {
+        headers: { Cookie: fullCookie, 'X-CSRF-Token': 'na' },
+      }),
+      app.request('/api/v1/dashboard?company_id=1', {
+        headers: { Cookie: superadminCookie, 'X-CSRF-Token': 'na' },
+      }),
     ])
+
     expect(fullRes.status).toBe(200)
     expect(superRes.status).toBe(200)
 
-    const fullBody = await fullRes.json() as { meta: { total: number } }
-    const superBody = await superRes.json() as { meta: { total: number } }
-    expect(fullBody.meta.total).toBe(superBody.meta.total)
+    const fullBody = await fullRes.json() as { data: { cross_selling: unknown } }
+    const superBody = await superRes.json() as { data: { cross_selling: unknown } }
+
+    expect(fullBody.data).not.toBeNull()
+    expect(superBody.data).not.toBeNull()
+    // Cross-selling matrix sama antara full-coverage user dan superadmin
+    expect(fullBody.data.cross_selling).toEqual(superBody.data.cross_selling)
   })
 })

@@ -3,10 +3,15 @@
  *
  * Query condition builder untuk isolasi data Branch/Division.
  * Mirror pola `scopeIds` + `inArray()` yang sudah dipakai untuk company scope,
- * tapi berjenjang (Company → Branch → Division) — lihat docs-v2/task/task001.md §4.3.
+ * tapi berjenjang (Company → Branch → Division).
  *
  * "Lainnya" (branch atau division) diperlakukan seperti value lain — TIDAK ada
  * logic/pengecualian khusus di sini (lihat task001.md §4.5, §4.6, revisi 2026-07-06).
+ *
+ * 2026-07-10: Division scope berubah dari string comparison (varchar code) menjadi
+ * integer comparison (FK division_id) — lihat docs-v2/MEMORY.md untuk alasan.
+ * scopeMap sekarang Map<number, number[]> (branch_id → division_id[]).
+ * Tidak perlu lagi COALESCE workaround untuk NULL division.
  */
 
 import { or, and, eq, inArray, sql, type SQL } from 'drizzle-orm'
@@ -33,26 +38,24 @@ export function buildBranchCondition(
 
 /**
  * Filter division — di-scope per branch_id (level 2 dari hierarki), dipakai
- * SETELAH JOIN ke channel_divisions (division di-derive dari channel_name, bukan
- * kolom langsung di invoices — lihat task001.md §3.4, §3.5).
+ * SETELAH JOIN ke division_channels (division_id di-derive dari channel_name,
+ * bukan kolom langsung di invoices — lihat task001.md §3.4, §3.5).
  *
  * scopeMap: hasil resolveDivisionScope() — undefined = bypass (superadmin),
  * Map kosong / branch tidak ada di key = default deny total untuk branch itu.
+ *
+ * 2026-07-10: Sekarang pakai integer division_id (FK ke branch_divisions),
+ * bukan varchar division code — tidak perlu COALESCE.
  */
 export function buildDivisionCondition(
   branchCol: AnyColumn,
-  divisionCol: AnyColumn,
-  scopeMap: Map<number, string[]> | undefined,
+  divisionIdCol: AnyColumn,
+  scopeMap: Map<number, number[]> | undefined,
 ): SQL | undefined {
   if (!scopeMap) return undefined
   if (scopeMap.size === 0) return sql`false`
-  // COALESCE ke 'other' — division NULL (channel_name tidak match rule apa pun di
-  // channel_divisions) dianggap "Lainnya" utk keperluan scope check (§4.5). Tanpa ini,
-  // `inArray(divisionCol, [...])` gagal diam-diam utk baris NULL walau 'other' ada di
-  // daftar scope — semantik SQL: NULL IN (...) selalu UNKNOWN, bukan match ke 'other'.
-  const divisionExpr = sql`coalesce(${divisionCol}, 'other')`
-  const clauses = [...scopeMap.entries()].map(([branchId, divisions]) =>
-    and(eq(branchCol, branchId), inArray(divisionExpr, divisions)),
+  const clauses = [...scopeMap.entries()].map(([branchId, divisionIds]) =>
+    and(eq(branchCol, branchId), inArray(divisionIdCol, divisionIds)),
   )
   return or(...clauses)
 }
@@ -60,10 +63,10 @@ export function buildDivisionCondition(
 /**
  * Varian raw-SQL dari buildBranchCondition/buildDivisionCondition — dipakai di
  * repository metrics yang query-nya raw `db.execute(sql\`...\`)` dengan table alias
- * (mis. `i` untuk invoices, `cd` untuk channel_divisions), bukan Drizzle query builder.
+ * (mis. `i` untuk invoices, `dc` untuk division_channels), bukan Drizzle query builder.
  * Logic sama persis, cuma beda cara referensi kolom (string alias, bukan objek Column).
  *
- * companyExpr/branchExpr/divisionExpr HARUS string literal trusted (nama kolom/alias
+ * companyExpr/branchExpr/divisionIdExpr HARUS string literal trusted (nama kolom/alias
  * tetap dari kode, BUKAN dari input user) — dipakai lewat sql.raw(), tidak di-escape.
  *
  * Selalu return SQL valid (bukan undefined) supaya bisa langsung di-embed di WHERE
@@ -112,18 +115,21 @@ export function buildCompanyConditionRaw(
   )})`
 }
 
+/**
+ * Varian raw-SQL untuk division scope — pakai integer division_id (FK),
+ * bukan varchar division code. Tidak perlu COALESCE workaround.
+ */
 export function buildDivisionConditionRaw(
   branchExpr: string,
-  divisionExpr: string,
-  scopeMap: Map<number, string[]> | undefined,
+  divisionIdExpr: string,
+  scopeMap: Map<number, number[]> | undefined,
 ): SQL {
   if (!scopeMap) return sql`true`
   if (scopeMap.size === 0) return sql`false`
-  // COALESCE ke 'other' — lihat penjelasan di buildDivisionCondition() di atas.
   const clauses = [...scopeMap.entries()].map(
-    ([branchId, divisions]) =>
-      sql`(${sql.raw(branchExpr)} = ${branchId} AND coalesce(${sql.raw(divisionExpr)}, 'other') IN (${sql.join(
-        divisions.map((d) => sql`${d}`),
+    ([branchId, divisionIds]) =>
+      sql`(${sql.raw(branchExpr)} = ${branchId} AND ${sql.raw(divisionIdExpr)} IN (${sql.join(
+        divisionIds.map((d) => sql`${d}`),
         sql`, `,
       )}))`,
   )

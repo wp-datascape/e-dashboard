@@ -2,7 +2,7 @@
  * db/schema/schema-product.ts
  *
  * Tabel-tabel domain Product: product_categories, products, high_margin_products,
- * item_classification_rules, channel_divisions.
+ * item_classification_rules, division_channels (dulu channel_divisions, 2026-07-10).
  */
 
 import {
@@ -17,7 +17,7 @@ import {
   integer,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { companies, company_branches } from './schema-company'
+import { companies, company_branches, branch_divisions } from './schema-company'
 import { users } from './schema-auth'
 
 // ─── product_categories ───────────────────────────────────────────────────────
@@ -110,29 +110,25 @@ export const item_classification_rules = pgTable('item_classification_rules', {
 export type ItemClassificationRule = typeof item_classification_rules.$inferSelect
 export type NewItemClassificationRule = typeof item_classification_rules.$inferInsert
 
-// ─── channel_divisions ────────────────────────────────────────────────────────
+// ─── division_channels (renamed from channel_divisions, 2026-07-10) ───────────
 
 /**
- * Mapping channel_name -> divisi channel penjualan. company_id nullable = rule
- * global (berlaku semua company). branch_id nullable = rule company-wide
- * (berlaku semua branch company itu); diisi = spesifik 1 branch (mis. "Sales
- * Counter" KNT beda mapping per cabang). branch_id SENGAJA relasi eksplisit
- * (FK), bukan implisit dari format channel_name — lihat docs-v2/task/task004.md
- * §revisi 2026-07-09. Cocok dengan invoices.channel_name (UPPERCASE).
+ * Mapping channel_name -> divisi channel penjualan. company_id WAJIB diisi
+ * (tidak ada rule global lagi — 2026-07-10). division_id adalah FK eksplisit
+ * ke branch_divisions.id (bukan varchar division — lihat docs-v2/MEMORY.md).
+ *
+ * Cocok dengan invoices.channel_name (UPPERCASE).
  */
-export const channel_divisions = pgTable('channel_divisions', {
+export const division_channels = pgTable('division_channels', {
   id: serial('id').primaryKey(),
-  // null = global rule (berlaku untuk semua company)
-  company_id: integer('company_id').references(() => companies.id, { onDelete: 'cascade' }),
-  // null = company-wide rule (berlaku semua branch); harus null kalau company_id null
-  branch_id: integer('branch_id').references(() => company_branches.id, { onDelete: 'cascade' }),
+  // WAJIB diisi — tidak ada rule global lagi (revisi 2026-07-10)
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  // FK eksplisit ke branch_divisions.id (bukan varchar division)
+  division_id: integer('division_id').notNull().references(() => branch_divisions.id, { onDelete: 'cascade' }),
   channel_name: varchar('channel_name', { length: 255 }).notNull(),
-  // distribution | project | e_commerce | intercompany | freelancer | support | other
-  // (MKO) — nilai lain untuk company selain MKO, lihat tabel `divisions` (katalog dinamis)
-  division: varchar('division', { length: 50 }).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-export type ChannelDivision = typeof channel_divisions.$inferSelect
-export type NewChannelDivision = typeof channel_divisions.$inferInsert
+export type DivisionChannel = typeof division_channels.$inferSelect
+export type NewDivisionChannel = typeof division_channels.$inferInsert

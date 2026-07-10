@@ -68,20 +68,19 @@ export const company_branches = pgTable(
 export type CompanyBranch = typeof company_branches.$inferSelect
 export type NewCompanyBranch = typeof company_branches.$inferInsert
 
-// ─── divisions ──────────────────────────────────────────────────────────────────
+// ─── branch_divisions (renamed from `divisions`, 2026-07-10) ───────────────────
 
 /**
  * Katalog divisi per company, opsional per branch — baris DB asli (mirror pola
- * company_branches), BUKAN enum global. `code` adalah string yang sama yang
- * dipakai di channel_divisions.division & user_divisions.division (varchar
- * biasa, sengaja TIDAK dijadikan FK/ID supaya 24 call site RBAC scope di
- * utils/scope.ts tidak perlu diubah — lihat docs-v2/task/task004.md).
+ * company_branches), BUKAN enum global. `code` adalah string identifier unik
+ * dalam scope (company, branch). Relasi eksplisit via FK `division_id` di
+ * tabel lain — lihat docs-v2/task/task004.md dan docs-v2/MEMORY.md.
  *
  * branch_id NULL = berlaku company-wide (semua branch); diisi = spesifik 1
  * branch (mis. "Sales Counter" KNT berbeda per cabang).
  */
-export const divisions = pgTable(
-  'divisions',
+export const branch_divisions = pgTable(
+  'branch_divisions',
   {
     id: serial('id').primaryKey(),
     company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
@@ -105,8 +104,8 @@ export const divisions = pgTable(
   }),
 )
 
-export type Division = typeof divisions.$inferSelect
-export type NewDivision = typeof divisions.$inferInsert
+export type BranchDivision = typeof branch_divisions.$inferSelect
+export type NewBranchDivision = typeof branch_divisions.$inferInsert
 
 // ─── business_configs ─────────────────────────────────────────────────────────
 
@@ -175,25 +174,28 @@ export const userBranches = pgTable(
 export type UserBranch = typeof userBranches.$inferSelect
 export type NewUserBranch = typeof userBranches.$inferInsert
 
-// ─── user_divisions (junction: users <-> division per branch, child dari Branch) ─
+// ─── user_divisions (junction: users <-> branch_divisions per branch, child dari Branch) ─
 
 /**
  * Kontrol akses level Division — child dari Branch, BUKAN child langsung dari
  * Company (Company -> Branch -> Division). company_id tidak diulang di sini
  * karena sudah pasti didapat lewat company_branches.company_id (branch cuma
  * dimiliki 1 company). Lihat docs-v2/task/task001.md §3.2.
+ *
+ * `division_id` adalah FK eksplisit ke branch_divisions.id (revisi 2026-07-10,
+ * sebelumnya varchar `division` — lihat docs-v2/MEMORY.md untuk alasan).
  */
 export const userDivisions = pgTable(
   'user_divisions',
   {
     user_id: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     branch_id: integer('branch_id').notNull().references(() => company_branches.id, { onDelete: 'cascade' }),
-    // distribution | project | e_commerce | intercompany | freelancer | support | other
-    division: varchar('division', { length: 50 }).notNull(),
+    // FK eksplisit ke branch_divisions.id — bukan varchar lagi
+    division_id: integer('division_id').notNull().references(() => branch_divisions.id, { onDelete: 'cascade' }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.user_id, table.branch_id, table.division] }),
+    pk: primaryKey({ columns: [table.user_id, table.branch_id, table.division_id] }),
   }),
 )
 

@@ -15,7 +15,7 @@
 
 import { sql } from 'drizzle-orm'
 import { findAllConfigs } from './config.repository'
-import { findDormantBucket } from '@/features/settings/divisions.repository'
+import { findDormantBucket } from '@/features/settings/branch-divisions.repository'
 import { db } from '@/config/db'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -163,16 +163,16 @@ export async function resolveDormantMonths(
   dormant: ThresholdConfig['dormant'],
 ): Promise<number> {
   const result = await db.execute(sql`
-    SELECT cd.division, i.company_id AS invoice_company_id, COUNT(*) AS cnt
+    SELECT cd.division_id, i.company_id AS invoice_company_id, COUNT(*) AS cnt
     FROM invoices i
-    JOIN channel_divisions cd
+    JOIN division_channels cd
       ON cd.channel_name = i.channel_name
      AND (cd.company_id = ${cid === 0 ? null : cid}::int OR cd.company_id IS NULL)
      AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
     WHERE i.deleted_at IS NULL
       AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
       AND i.channel_name IS NOT NULL
-    GROUP BY cd.division, i.company_id
+    GROUP BY cd.division_id, i.company_id
     ORDER BY cnt DESC
     LIMIT 1
   `)

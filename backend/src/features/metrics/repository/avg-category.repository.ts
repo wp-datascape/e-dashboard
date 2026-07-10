@@ -10,7 +10,7 @@ export interface AvgCategoryRepoParams {
   division?: string | null   // filter laporan (mirror business_unit di metrics lain)
   branchFilter?: number | null // filter laporan (mirror branch_id di metrics lain)
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 export interface AvgCategoryTrendRow {
@@ -22,7 +22,7 @@ export interface AvgCategoryTrendRow {
 // Pola sama dengan fetchCrossSellingTrend (m1.repository.ts).
 export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<AvgCategoryTrendRow[]> {
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
@@ -47,7 +47,7 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
       JOIN invoice_items ii ON ii.invoice_id = i.id
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -57,7 +57,7 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ${companyCondI}
         AND ii.product_category_id IS NOT NULL
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

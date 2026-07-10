@@ -11,7 +11,7 @@ import {
   userDivisions,
   companies,
   company_branches,
-  divisions,
+  branch_divisions,
 } from '@/db/schema'
 
 export async function findActiveUserByEmail(email: string) {
@@ -48,12 +48,6 @@ export async function findActiveUserById(userId: number) {
   return result[0] ?? null
 }
 
-/**
- * Update preferensi user sendiri (Task003) — MERGE partial ke kolom JSONB yang ada
- * (bukan replace penuh) supaya field yang tidak dikirim di body PATCH tetap
- * dipertahankan. Fetch-merge-update di JS (bukan operator Postgres `||` via sql`` raw
- * template) - lebih predictable ketimbang interpolasi sql`` untuk jsonb merge.
- */
 export async function updateUserPreferences(userId: number, partial: Record<string, unknown>) {
   const [current] = await db
     .select({ preferences: users.preferences })
@@ -71,12 +65,6 @@ export async function updateUserPreferences(userId: number, partial: Record<stri
   return result[0]?.preferences ?? null
 }
 
-/**
- * Invalidasi sesi (Task002 Task D) — dipanggil authMiddleware tiap request untuk
- * bandingkan vs tokenVersion di JWT. Query ringan terpisah (bukan lewat
- * findActiveUserById) supaya bisa masuk Promise.all batch yang sudah ada di
- * authMiddleware tanpa nambah round-trip baru.
- */
 export async function getUserTokenVersion(userId: number): Promise<number | null> {
   const result = await db
     .select({ token_version: users.token_version })
@@ -105,9 +93,9 @@ export async function getUserBranchScopes(
 
 export async function getUserDivisionScopes(
   userId: number,
-): Promise<{ branch_id: number; division: string }[]> {
+): Promise<{ branch_id: number; division_id: number }[]> {
   return db
-    .select({ branch_id: userDivisions.branch_id, division: userDivisions.division })
+    .select({ branch_id: userDivisions.branch_id, division_id: userDivisions.division_id })
     .from(userDivisions)
     .where(eq(userDivisions.user_id, userId))
 }
@@ -116,7 +104,7 @@ export interface MyScopeBranch {
   branch_id: number
   branch_name: string
   isFullDivisionAccess: boolean
-  divisions: string[]
+  division_ids: number[]
 }
 export interface MyScopeCompany {
   company_id: number
@@ -132,8 +120,9 @@ export interface MyScopeCompany {
  * di backend, tapi UX-nya juga tidak menawarkan opsi yang bakal 403/kosong).
  *
  * isFullBranchAccess/isFullDivisionAccess = true kalau assignment user mencakup
- * SEMUA branch/division yang ada (dibanding total company_branches / 7 value tetap) -
- * dipakai frontend utk nentuin apakah tampilkan opsi "All" atau daftar terbatas saja.
+ * SEMUA branch/division yang ada (dibanding total company_branches / total divisi katalog).
+ *
+ * 2026-07-10: divisions sekarang berupa integer division_id (FK), bukan string code.
  */
 export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> {
   const companyIds = await getUserCompanyIds(userId)
@@ -147,18 +136,17 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
       .select({ id: company_branches.id, name: company_branches.name, company_id: company_branches.company_id })
       .from(company_branches)
       .where(inArray(company_branches.company_id, companyIds)),
-    // Katalog divisi aktif per company/branch (docs-v2/task/task004.md) — pengganti
-    // ALL_DIVISION_VALUES hardcode lama, dipakai hitung isFullDivisionAccess dinamis.
+    // Katalog divisi aktif per company/branch — sekarang pakai branch_divisions
     db
-      .select({ company_id: divisions.company_id, branch_id: divisions.branch_id, code: divisions.code })
-      .from(divisions)
-      .where(and(inArray(divisions.company_id, companyIds), eq(divisions.is_active, true))),
+      .select({ company_id: branch_divisions.company_id, branch_id: branch_divisions.branch_id, id: branch_divisions.id })
+      .from(branch_divisions)
+      .where(and(inArray(branch_divisions.company_id, companyIds), eq(branch_divisions.is_active, true))),
   ])
 
-  const divisionsByBranch = new Map<number, string[]>()
-  for (const { branch_id, division } of divisionScopes) {
-    if (!divisionsByBranch.has(branch_id)) divisionsByBranch.set(branch_id, [])
-    divisionsByBranch.get(branch_id)!.push(division)
+  const divisionIdsByBranch = new Map<number, number[]>()
+  for (const { branch_id, division_id } of divisionScopes) {
+    if (!divisionIdsByBranch.has(branch_id)) divisionIdsByBranch.set(branch_id, [])
+    divisionIdsByBranch.get(branch_id)!.push(division_id)
   }
 
   const assignedBranchIdsByCompany = new Map<number, number[]>()
@@ -173,17 +161,16 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
     allBranchesByCompany.get(b.company_id)!.push({ id: b.id, name: b.name })
   }
 
-  // Company-wide (branch_id null) vs branch-specific catalog codes, union-kan
-  // saat dipakai (mirror findActiveDivisionCodesForScope di divisions.repository.ts)
-  const companyWideCodes = new Map<number, string[]>()
-  const branchSpecificCodes = new Map<number, string[]>()
+  // Katalog division_id per branch
+  const companyWideDivisionIds = new Map<number, number[]>()
+  const branchSpecificDivisionIds = new Map<number, number[]>()
   for (const row of catalogRows) {
     if (row.branch_id === null) {
-      if (!companyWideCodes.has(row.company_id)) companyWideCodes.set(row.company_id, [])
-      companyWideCodes.get(row.company_id)!.push(row.code)
+      if (!companyWideDivisionIds.has(row.company_id)) companyWideDivisionIds.set(row.company_id, [])
+      companyWideDivisionIds.get(row.company_id)!.push(row.id)
     } else {
-      if (!branchSpecificCodes.has(row.branch_id)) branchSpecificCodes.set(row.branch_id, [])
-      branchSpecificCodes.get(row.branch_id)!.push(row.code)
+      if (!branchSpecificDivisionIds.has(row.branch_id)) branchSpecificDivisionIds.set(row.branch_id, [])
+      branchSpecificDivisionIds.get(row.branch_id)!.push(row.id)
     }
   }
 
@@ -195,13 +182,13 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
     const branches: MyScopeBranch[] = allBranches
       .filter((b) => assignedBranchIds.has(b.id))
       .map((b) => {
-        const divisions_ = divisionsByBranch.get(b.id) ?? []
-        const allCodesForBranch = [...new Set([
-          ...(companyWideCodes.get(company.id) ?? []),
-          ...(branchSpecificCodes.get(b.id) ?? []),
+        const divisionIds_ = divisionIdsByBranch.get(b.id) ?? []
+        const allDivisionIdsForBranch = [...new Set([
+          ...(companyWideDivisionIds.get(company.id) ?? []),
+          ...(branchSpecificDivisionIds.get(b.id) ?? []),
         ])]
-        const isFullDivisionAccess = allCodesForBranch.length > 0 && allCodesForBranch.every((d) => divisions_.includes(d))
-        return { branch_id: b.id, branch_name: b.name, isFullDivisionAccess, divisions: divisions_ }
+        const isFullDivisionAccess = allDivisionIdsForBranch.length > 0 && allDivisionIdsForBranch.every((d) => divisionIds_.includes(d))
+        return { branch_id: b.id, branch_name: b.name, isFullDivisionAccess, division_ids: divisionIds_ }
       })
 
     return { company_id: company.id, company_name: company.name, isFullBranchAccess, branches }
@@ -232,13 +219,6 @@ export async function updateLastLogin(userId: number): Promise<void> {
   await db.update(users).set({ last_login_at: new Date() }).where(eq(users.id, userId))
 }
 
-/**
- * Account lockout (Task002 Task C) — dipanggil setiap password salah. Increment
- * failed_login_count; kalau sudah mencapai threshold (ENV ACCOUNT_LOCKOUT_THRESHOLD),
- * set locked_until = now + durasi (ENV ACCOUNT_LOCKOUT_DURATION_MINUTES).
- * Return failed_login_count TERBARU (setelah increment) supaya service tahu apakah
- * baru saja jadi locked di percobaan ini (utk pesan error yang lebih jelas).
- */
 export async function recordFailedLogin(userId: number, threshold: number, lockDurationMinutes: number): Promise<{ failedCount: number; justLocked: boolean }> {
   const [row] = await db
     .update(users)
@@ -257,10 +237,6 @@ export async function recordFailedLogin(userId: number, threshold: number, lockD
   return { failedCount, justLocked }
 }
 
-/**
- * Reset failed_login_count + locked_until — dipanggil saat login SUKSES (percobaan
- * gagal sebelumnya tidak relevan lagi), atau saat admin unlock manual (Task C4).
- */
 export async function resetLoginAttempts(userId: number): Promise<void> {
   await db.update(users).set({ failed_login_count: 0, locked_until: null }).where(eq(users.id, userId))
 }

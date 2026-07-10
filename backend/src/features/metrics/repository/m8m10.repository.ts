@@ -10,7 +10,7 @@ import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditi
 export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
   const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
@@ -28,13 +28,13 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
     inv AS (
       SELECT i.customer_id, i.invoice_date
       FROM invoices i
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -134,7 +134,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
 export async function fetchDormantValueRanking(p: SegmentParams): Promise<DormantValueRow[]> {
   const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
@@ -143,14 +143,14 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
     inv AS (
       SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
       FROM invoices i
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

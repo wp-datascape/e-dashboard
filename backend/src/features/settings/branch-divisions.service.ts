@@ -12,8 +12,8 @@ import {
   updateDivision,
   deactivateDivision,
   findActiveDivisionCodesForScope,
-} from './divisions.repository'
-import type { CreateDivisionDto, UpdateDivisionDto, ListDivisionsQuery } from './divisions.schema'
+} from './branch-divisions.repository'
+import type { CreateDivisionDto, UpdateDivisionDto, ListDivisionsQuery } from './branch-divisions.schema'
 
 export async function listDivisionsService(query: ListDivisionsQuery) {
   if (query.company_id) await getCompanyById(query.company_id)
@@ -47,10 +47,10 @@ export async function createDivisionService(dto: CreateDivisionDto, ctx: Context
       is_active: dto.is_active ?? true,
     })
 
-    logger.info('[divisions] Division created', { id: row.id, company_id: dto.company_id, code: dto.code })
+    logger.info('[branch-divisions] Division created', { id: row.id, company_id: dto.company_id, code: dto.code })
     await logAudit(ctx, {
       action: 'division.create',
-      entity: 'divisions',
+      entity: 'branch_divisions',
       entityId: row.id,
       companyId: dto.company_id,
       newValue: { name: row.name, code: row.code, branch_id: row.branch_id, dormant_bucket: row.dormant_bucket },
@@ -69,10 +69,10 @@ export async function updateDivisionService(id: number, dto: UpdateDivisionDto, 
     if (dto.branch_id) await assertBranchBelongsToCompany(existing.company_id, dto.branch_id)
 
     const updated = await updateDivision(id, dto)
-    logger.info('[divisions] Division updated', { id })
+    logger.info('[branch-divisions] Division updated', { id })
     await logAudit(ctx, {
       action: 'division.update',
-      entity: 'divisions',
+      entity: 'branch_divisions',
       entityId: id,
       companyId: existing.company_id,
       oldValue: { name: existing.name, code: existing.code, branch_id: existing.branch_id, dormant_bucket: existing.dormant_bucket, is_active: existing.is_active },
@@ -89,10 +89,10 @@ export async function updateDivisionService(id: number, dto: UpdateDivisionDto, 
 export async function deleteDivisionService(id: number, ctx: Context) {
   const existing = await getDivisionByIdService(id)
   const updated = await deactivateDivision(id)
-  logger.info('[divisions] Division deactivated (soft delete)', { id })
+  logger.info('[branch-divisions] Division deactivated (soft delete)', { id })
   await logAudit(ctx, {
     action: 'division.delete',
-    entity: 'divisions',
+    entity: 'branch_divisions',
     entityId: id,
     companyId: existing.company_id,
     oldValue: { is_active: existing.is_active },
@@ -101,17 +101,10 @@ export async function deleteDivisionService(id: number, ctx: Context) {
   return updated
 }
 
-/**
- * Validasi 1 kode divisi terhadap katalog aktif untuk (company, branch) —
- * pengganti z.enum() hardcode. Dipakai RBAC user assignment — grant akses ke
- * user HARUS ke divisi yang sudah nyata ada (tidak masuk akal auto-create
- * divisi baru cuma karena assign user), beda dari channel mapping (lihat
- * ensureDivisionCode di bawah).
- */
-export async function validateDivisionCode(companyId: number, branchId: number | null, code: string): Promise<void> {
-  const codes = await findActiveDivisionCodesForScope(companyId, branchId)
-  if (!codes.includes(code)) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, `Divisi "${code}" tidak valid untuk company/branch ini`, 400)
+export async function validateDivisionCode(companyId: number, branchId: number | null, divisionId: number): Promise<void> {
+  const division = await findDivisionById(divisionId)
+  if (!division || division.company_id !== companyId || (branchId !== null && division.branch_id !== branchId)) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, `Division ID ${divisionId} tidak valid untuk company/branch ini`, 400)
   }
 }
 
@@ -122,16 +115,6 @@ function defaultNameFromCode(code: string): string {
     .join(' ')
 }
 
-/**
- * Pastikan 1 kode divisi terdaftar di katalog untuk (company, branch) — kalau
- * belum ada, OTOMATIS dibuatkan (nama default dari kode, dormant_bucket
- * default 'b2b_dc', bisa diedit belakangan lewat halaman Divisions).
- *
- * Dipakai channel-divisions (create/update/import) — SSOT-nya adalah keputusan
- * admin yang tertulis di file/form mapping channel_name→division itu sendiri
- * (task005 §6, revisi 2026-07-09, atas masukan user: tidak perlu seed/import
- * terpisah buat "daftarkan dulu kode divisinya", cukup 1 mekanisme mapping ini).
- */
 export async function ensureDivisionCode(companyId: number, branchId: number | null, code: string): Promise<void> {
   const codes = await findActiveDivisionCodesForScope(companyId, branchId)
   if (codes.includes(code)) return
@@ -145,10 +128,8 @@ export async function ensureDivisionCode(companyId: number, branchId: number | n
       dormant_bucket: 'b2b_dc',
       is_active: true,
     })
-    logger.info('[divisions] Division auto-created dari channel mapping', { id: row.id, company_id: companyId, branch_id: branchId, code })
+    logger.info('[branch-divisions] Division auto-created', { id: row.id, company_id: companyId, branch_id: branchId, code })
   } catch (err) {
-    // Race condition (2 mapping ke-import bersamaan pakai kode baru yang sama) —
-    // kode sudah ada sekarang, itu yang kita mau, aman diabaikan.
     if (!isDuplicateError(err)) throw err
   }
 }

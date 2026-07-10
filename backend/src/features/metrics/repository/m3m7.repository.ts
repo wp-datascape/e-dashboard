@@ -37,7 +37,7 @@ export type TrendRow = {
 export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
   const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
@@ -65,13 +65,13 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
              i.total_revenue::numeric AS rev,
              i.total_gp::numeric      AS gp
       FROM invoices i
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -92,7 +92,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         hmp.company_id = i.company_id
         AND (hmp.product_id = ii.product_id OR hmp.product_category_id = ii.product_category_id)
       )
-      LEFT JOIN channel_divisions cd
+      LEFT JOIN division_channels cd
         ON cd.channel_name = i.channel_name
         AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
         AND (cd.branch_id = i.branch_id OR cd.branch_id IS NULL)
@@ -100,7 +100,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::text IS NULL OR cd.division_id = ${division}::text)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

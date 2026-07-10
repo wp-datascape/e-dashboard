@@ -1,5 +1,5 @@
 import { db } from '@/config/db'
-import { invoices, invoice_items, customers, companies, channel_divisions, import_logs } from '@/db/schema'
+import { invoices, invoice_items, customers, companies, division_channels, import_logs } from '@/db/schema'
 import { and, eq, inArray, isNull, sql, desc, asc, ilike, or, gte, lte } from 'drizzle-orm'
 import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
 import type { InvoicesQuery } from './transactions.schema'
@@ -8,7 +8,7 @@ export async function findInvoices(
   params: InvoicesQuery,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   const { company_id, branch_id, business_unit, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
   const offset = (page - 1) * per_page
@@ -31,10 +31,10 @@ export async function findInvoices(
   if (date_to) conditions.push(lte(invoices.invoice_date, date_to))
 
   const whereClause = and(...conditions)
-  const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
+  const divisionCond = business_unit ? eq(division_channels.division_id, business_unit) : undefined
   const branchFilterCond = branch_id ? eq(invoices.branch_id, branch_id) : undefined
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
-  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, division_channels.division_id, divisionScope)
   const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
@@ -57,11 +57,11 @@ export async function findInvoices(
       .from(invoices)
       .innerJoin(customers, eq(invoices.customer_id, customers.id))
       .leftJoin(
-        channel_divisions,
+        division_channels,
         and(
-          eq(channel_divisions.channel_name, invoices.channel_name),
-          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
-          or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
+          eq(division_channels.channel_name, invoices.channel_name),
+          or(eq(division_channels.company_id, invoices.company_id), isNull(division_channels.company_id)),
+          or(eq(division_channels.company_id, invoices.branch_id), isNull(division_channels.company_id)),
         ),
       )
       .where(whereWithDivision)
@@ -74,7 +74,7 @@ export async function findInvoices(
         customer_id:    customers.id,
         customer_code:  customers.customer_code,
         customer_name:  customers.customer_name,
-        division:       channel_divisions.division,
+        division:       division_channels.division_id,
         company_id:     companies.id,
         company_name:   companies.name,
         total_revenue:  invoices.total_revenue,
@@ -86,17 +86,17 @@ export async function findInvoices(
       .innerJoin(customers, eq(invoices.customer_id, customers.id))
       .innerJoin(companies, eq(invoices.company_id, companies.id))
       .leftJoin(
-        channel_divisions,
+        division_channels,
         and(
-          eq(channel_divisions.channel_name, invoices.channel_name),
-          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
-          or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
+          eq(division_channels.channel_name, invoices.channel_name),
+          or(eq(division_channels.company_id, invoices.company_id), isNull(division_channels.company_id)),
+          or(eq(division_channels.company_id, invoices.branch_id), isNull(division_channels.company_id)),
         ),
       )
       .leftJoin(import_logs, eq(import_logs.id, invoices.import_log_id))
       .leftJoin(invoice_items, eq(invoice_items.invoice_id, invoices.id))
       .where(whereWithDivision)
-      .groupBy(invoices.id, customers.id, channel_divisions.division, companies.id, import_logs.source)
+      .groupBy(invoices.id, customers.id, division_channels.division_id, companies.id, import_logs.source)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -132,14 +132,14 @@ export async function findInvoiceDetail(
   invoiceId: number,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   if (scopeIds && scopeIds.length === 0) return null
 
   const conditions = [eq(invoices.id, invoiceId), isNull(invoices.deleted_at)]
   if (scopeIds) conditions.push(inArray(invoices.company_id, scopeIds))
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
-  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, division_channels.division_id, divisionScope)
   if (branchScopeCond) conditions.push(branchScopeCond)
   if (divisionScopeCond) conditions.push(divisionScopeCond)
 
@@ -160,11 +160,11 @@ export async function findInvoiceDetail(
     .innerJoin(customers, eq(invoices.customer_id, customers.id))
     .innerJoin(companies, eq(invoices.company_id, companies.id))
     .leftJoin(
-      channel_divisions,
+      division_channels,
       and(
-        eq(channel_divisions.channel_name, invoices.channel_name),
-        or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
-        or(eq(channel_divisions.branch_id, invoices.branch_id), isNull(channel_divisions.branch_id)),
+        eq(division_channels.channel_name, invoices.channel_name),
+        or(eq(division_channels.company_id, invoices.company_id), isNull(division_channels.company_id)),
+        or(eq(division_channels.company_id, invoices.branch_id), isNull(division_channels.company_id)),
       ),
     )
     .where(and(...conditions))

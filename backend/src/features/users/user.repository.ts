@@ -73,7 +73,7 @@ async function fetchRolesAndCompaniesByUserIds(userIds: number[]) {
 // 3 query terpisah (bukan JOIN bertingkat) - alasan sama seperti fetchRolesAndCompaniesByUserIds:
 // hindari cartesian product sebelum di-assemble di JS.
 async function fetchAssignmentTreeByUserIds(userIds: number[]) {
-  type BranchNode = { branch_id: number; branch_name: string; divisions: string[] }
+  type BranchNode = { branch_id: number; branch_name: string; divisions: number[] }
   type CompanyNode = { company_id: number; company_name: string; branches: BranchNode[] }
   const treeByUser = new Map<number, CompanyNode[]>()
 
@@ -96,16 +96,16 @@ async function fetchAssignmentTreeByUserIds(userIds: number[]) {
       .innerJoin(company_branches, eq(userBranches.branch_id, company_branches.id))
       .where(inArray(userBranches.user_id, userIds)),
     db
-      .select({ userId: userDivisions.user_id, branchId: userDivisions.branch_id, division: userDivisions.division })
+      .select({ userId: userDivisions.user_id, branchId: userDivisions.branch_id, division_id: userDivisions.division_id })
       .from(userDivisions)
       .where(inArray(userDivisions.user_id, userIds)),
   ])
 
-  const divisionsByUserBranch = new Map<string, string[]>()
-  for (const { userId, branchId, division } of divisionRows) {
+  const divisionsByUserBranch = new Map<string, number[]>()
+  for (const { userId, branchId, division_id } of divisionRows) {
     const key = `${userId}:${branchId}`
     if (!divisionsByUserBranch.has(key)) divisionsByUserBranch.set(key, [])
-    divisionsByUserBranch.get(key)!.push(division)
+    divisionsByUserBranch.get(key)!.push(division_id)
   }
 
   const branchesByUserCompany = new Map<string, BranchNode[]>()
@@ -154,7 +154,7 @@ export async function replaceUserAssignments(userId: number, assignments: Compan
 
       const divisionRows = assignments.flatMap((a) =>
         a.branches.flatMap((b) =>
-          b.divisions.map((division) => ({ user_id: userId, branch_id: b.branch_id, division })),
+          b.divisions.map((division_id) => ({ user_id: userId, branch_id: b.branch_id, division_id })),
         ),
       )
       if (divisionRows.length > 0) await tx.insert(userDivisions).values(divisionRows)
