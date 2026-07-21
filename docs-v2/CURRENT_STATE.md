@@ -56,6 +56,7 @@
 | B2B DC & B2C Order Ledger   | 4.1   | Done     |
 | B2B Project Milestone       | 4.2   | Low* (open decision: MVP or v2) |
 | Repeat Order & Loyalty      | 4.3   | Medium (reuse M6 chart)   |
+| Retention Cohort (Retained/Churned/New per customer+produk) | 2.x | Medium — lihat `docs-v2/task/task004.md`, prototipe query di root `raw_transactions_export.sql` |
 | Import UI                   | 5.1   | High     |
 | Users Management            | 5.2   | High     |
 | RBAC Management             | 5.3   | High     |
