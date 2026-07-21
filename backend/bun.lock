@@ -13,7 +13,7 @@
         "jsonwebtoken": "^9.0.2",
         "papaparse": "^5.4.1",
         "postgres": "^3.4.4",
-        "swagger-ui-dist": "^5.32.8",
+        "swagger-ui-dist": "^5.32.10",
         "uuid": "^14.0.1",
         "winston": "^3.13.0",
         "winston-daily-rotate-file": "^5.0.0",
@@ -462,7 +462,7 @@
 
     "supports-color": ["supports-color@7.2.0", "", { "dependencies": { "has-flag": "^4.0.0" } }, "sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw=="],
 
-    "swagger-ui-dist": ["swagger-ui-dist@5.32.8", "", { "dependencies": { "@scarf/scarf": "=1.4.0" } }, "sha512-dgMdWXIgnI4zX4OPhKEdWnlDODbgm8W3AX0Ivn/BBqcUh6xZsBxhZMnvk6DJyRz1BTrj8dPxtarmEGgkz30oyA=="],
+    "swagger-ui-dist": ["swagger-ui-dist@5.32.10", "", { "dependencies": { "@scarf/scarf": "=1.4.0" } }, "sha512-RTrAPrp/J5H/H8JvRBOpR3qCsIhntOweFwaasR0TD2Y6a/7VUYYFnjyB3MFe1niAg3VkEQGT9pVZ0r225jvJJA=="],
 
     "text-hex": ["text-hex@1.0.0", "", {}, "sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg=="],
 
@@ -506,7 +506,7 @@
 
     "xdg-portable": ["xdg-portable@7.3.0", "", { "dependencies": { "os-paths": "^4.0.1" } }, "sha512-sqMMuL1rc0FmMBOzCpd0yuy9trqF2yTTVe+E9ogwCSWQCdDEtQUwrZPT6AxqtsFGRNxycgncbP/xmOOSPw5ZUw=="],
 
-    "xlsx": ["xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz", { "bin": { "xlsx": "./bin/xlsx.njs" } }, "sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA=="],
+    "xlsx": ["xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz", { "bin": { "xlsx": "./bin/xlsx.njs" } }],
 
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 

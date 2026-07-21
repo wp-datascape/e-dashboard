@@ -23,7 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "papaparse": "^5.4.1",
     "postgres": "^3.4.4",
-    "swagger-ui-dist": "^5.32.8",
+    "swagger-ui-dist": "^5.32.10",
     "uuid": "^14.0.1",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",
