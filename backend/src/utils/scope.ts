@@ -83,7 +83,13 @@ export function buildBranchConditionRaw(
         sql`, `,
       )}))`,
   )
-  return sql.join(clauses, sql` OR `)
+  // Wrap dalam parens: hasil ini di-embed via `AND ${cond}` di WHERE clause raw SQL
+  // repository. Tanpa parens, `A OR B OR C` (>1 clause) memecah precedence AND/OR —
+  // kondisi AND sebelum/sesudahnya cuma nempel ke clause pertama/terakhir, clause
+  // tengah jadi lolos TANPA filter company/branch/date lain sama sekali (data leak,
+  // ditemukan 2026-07-23 lewat laporan user: hasil M3 beda antara superadmin vs user
+  // scoped multi-branch untuk filter yang identik).
+  return sql`(${sql.join(clauses, sql` OR `)})`
 }
 
 /**
@@ -127,5 +133,7 @@ export function buildDivisionConditionRaw(
         sql`, `,
       )}))`,
   )
-  return sql.join(clauses, sql` OR `)
+  // Wrap dalam parens — lihat penjelasan di buildBranchConditionRaw() di atas. Bug ini
+  // lebih sering kena di sini karena divisionScope map hampir selalu >1 entry (per branch).
+  return sql`(${sql.join(clauses, sql` OR `)})`
 }

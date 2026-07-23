@@ -55,15 +55,20 @@ describe('buildBranchConditionRaw', () => {
     const q = dialect.sqlToQuery(
       buildBranchConditionRaw('i.company_id', 'i.branch_id', new Map([[1, [10, 11]]])),
     )
-    expect(q.sql).toBe('(i.company_id = $1 AND i.branch_id IN ($2, $3))')
+    expect(q.sql).toBe('((i.company_id = $1 AND i.branch_id IN ($2, $3)))')
     expect(q.params).toEqual([1, 10, 11])
   })
 
-  test('multi-company beda scope — di-gabung OR, company yg tidak di-assign otomatis tersaring', () => {
+  // Regresi (2026-07-23): tanpa outer parens, `AND ${cond}` yang di-embed di WHERE
+  // clause repository raw-SQL memecah precedence AND/OR — clause OR di tengah lolos
+  // tanpa filter company/branch/date lain sama sekali (data leak antar user scoped
+  // multi-branch, ditemukan lewat laporan hasil M3 beda antara superadmin vs
+  // marketing@holding.com untuk filter yang identik).
+  test('multi-company beda scope — di-gabung OR dan DIBUNGKUS parens (precedence AND/OR di WHERE clause pemanggil)', () => {
     const q = dialect.sqlToQuery(
       buildBranchConditionRaw('i.company_id', 'i.branch_id', new Map([[1, [10, 11]], [2, [20]]])),
     )
-    expect(q.sql).toBe('(i.company_id = $1 AND i.branch_id IN ($2, $3)) OR (i.company_id = $4 AND i.branch_id IN ($5))')
+    expect(q.sql).toBe('((i.company_id = $1 AND i.branch_id IN ($2, $3)) OR (i.company_id = $4 AND i.branch_id IN ($5)))')
     expect(q.params).toEqual([1, 10, 11, 2, 20])
   })
 })
@@ -83,7 +88,7 @@ describe('buildDivisionConditionRaw', () => {
     const q = dialect.sqlToQuery(
       buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map([[10, ['distribution', 'other']]])),
     )
-    expect(q.sql).toBe("(i.branch_id = $1 AND coalesce(cd.division, 'other') IN ($2, $3))")
+    expect(q.sql).toBe("((i.branch_id = $1 AND coalesce(cd.division, 'other') IN ($2, $3)))")
     expect(q.params).toEqual([10, 'distribution', 'other'])
   })
 
