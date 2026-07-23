@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { DormantTrendRow, DormantValueRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
@@ -13,6 +13,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -37,6 +38,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
 
     -- Customer dalam scope (ada minimal 1 invoice)
@@ -136,6 +138,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -152,21 +155,36 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
-    cust_agg AS (
+    cust_last AS (
       SELECT
-        c.id                                                       AS customer_id,
+        c.id                    AS customer_id,
         c.customer_name,
         c.customer_code,
-        MAX(inv.invoice_date)                                      AS last_invoice_date,
-        COUNT(DISTINCT DATE_TRUNC('month', inv.invoice_date))      AS active_months,
-        COALESCE(SUM(inv.rev), 0)                                  AS total_rev
+        MAX(inv.invoice_date)   AS last_invoice_date
       FROM customers c
       JOIN inv ON inv.customer_id = c.id
       WHERE c.is_placeholder = false
         AND ${companyCondC}
       GROUP BY c.id, c.customer_name, c.customer_code
       HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
+    ),
+    -- avg_monthly_revenue dibatasi 12 bulan kalender terakhir SEBELUM customer dormant
+    -- (bukan total_rev all-time dibagi jumlah bulan yang ada transaksi saja) - dulu
+    -- pembeli borongan/jarang (misal cuma aktif 8 dari 13 bulan relasi) dapat rata-rata
+    -- yang melambung karena pembaginya cuma bulan yang ada transaksi, bukan window
+    -- waktu tetap. Konsisten dengan pola avgMonthlyExpr di customers.repository.ts.
+    cust_agg AS (
+      SELECT
+        cl.customer_id, cl.customer_name, cl.customer_code, cl.last_invoice_date,
+        COALESCE(SUM(inv.rev) FILTER (
+          WHERE inv.invoice_date <= cl.last_invoice_date
+            AND inv.invoice_date >= DATE_TRUNC('month', cl.last_invoice_date::date - INTERVAL '11 months')
+        ), 0) AS recent_12m_rev
+      FROM cust_last cl
+      LEFT JOIN inv ON inv.customer_id = cl.customer_id
+      GROUP BY cl.customer_id, cl.customer_name, cl.customer_code, cl.last_invoice_date
     )
     SELECT
       customer_id,
@@ -174,9 +192,9 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       customer_code,
       last_invoice_date::text,
       GREATEST(ROUND((${filterDate}::date - last_invoice_date) / 30.0)::int, 1)                  AS months_dormant,
-      ROUND(total_rev / NULLIF(active_months, 0))::bigint                                        AS avg_monthly_revenue,
+      ROUND(recent_12m_rev / 12.0)::bigint                                                        AS avg_monthly_revenue,
       ROUND(
-        total_rev / NULLIF(active_months, 0)
+        recent_12m_rev / 12.0
         * GREATEST(ROUND((${filterDate}::date - last_invoice_date) / 30.0), 1)
       )::bigint                                                                                   AS estimated_lost_value
     FROM cust_agg

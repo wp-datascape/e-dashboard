@@ -12,6 +12,7 @@ import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
 
 // helpers from CustomerMetrics — inline agar tidak perlu import cross-page
@@ -51,13 +52,14 @@ export default function DormantCustomer() {
 
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division } = scopeFilter;
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
 
   const { data, isLoading } = useDormantCustomer({
     company_id:  companyId,
     branch_id:   branchId === 'all' ? undefined : branchId,
     period_end:  periodEnd,
     division:    division || undefined,
+    exclude_intercompany: excludeIntercompany,
   });
 
   const drc = data?.dormant_rate_current;
@@ -88,7 +90,7 @@ export default function DormantCustomer() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
@@ -97,6 +99,7 @@ export default function DormantCustomer() {
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           />
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
       </Box>
 
