@@ -7,6 +7,8 @@ import {
   buildBranchConditionRaw,
   buildDivisionConditionRaw,
   buildCompanyConditionRaw,
+  buildExcludeIntercompanyCondition,
+  buildExcludeIntercompanyRaw,
 } from './scope'
 
 const dialect = new PgDialect()
@@ -133,5 +135,30 @@ describe('buildDivisionCondition (Drizzle column-based)', () => {
   test('scopeMap kosong → default deny total', () => {
     const q = toQuery(buildDivisionCondition(invoices.branch_id, channel_divisions.division, new Map()))
     expect(q?.sql).toBe('false')
+  })
+})
+
+describe('buildExcludeIntercompanyCondition (Drizzle column-based)', () => {
+  test('toggle mati (undefined/false) → bypass, return undefined (tidak nambah WHERE clause)', () => {
+    expect(buildExcludeIntercompanyCondition(channel_divisions.division, undefined)).toBeUndefined()
+    expect(buildExcludeIntercompanyCondition(channel_divisions.division, false)).toBeUndefined()
+  })
+
+  test('toggle nyala → division != intercompany, NULL tetap lolos (bukan intercompany)', () => {
+    const q = toQuery(buildExcludeIntercompanyCondition(channel_divisions.division, true))
+    expect(q?.sql).toBe('("channel_divisions"."division" is null or "channel_divisions"."division" <> $1)')
+    expect(q?.params).toEqual(['intercompany'])
+  })
+})
+
+describe('buildExcludeIntercompanyRaw', () => {
+  test('toggle mati (undefined/false) → bypass, selalu true', () => {
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', undefined)).sql).toBe('true')
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', false)).sql).toBe('true')
+  })
+
+  test('toggle nyala → division != intercompany, NULL dianggap "other" (bukan intercompany, tetap lolos)', () => {
+    const q = dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', true))
+    expect(q.sql).toBe(`coalesce(cd.division, 'other') != 'intercompany'`)
   })
 })

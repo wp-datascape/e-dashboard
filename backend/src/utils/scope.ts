@@ -9,7 +9,7 @@
  * logic/pengecualian khusus di sini (lihat task001.md §4.5, §4.6, revisi 2026-07-06).
  */
 
-import { or, and, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { or, and, eq, ne, isNull, inArray, sql, type SQL } from 'drizzle-orm'
 import type { AnyColumn } from 'drizzle-orm'
 
 /**
@@ -136,4 +136,46 @@ export function buildDivisionConditionRaw(
   // Wrap dalam parens — lihat penjelasan di buildBranchConditionRaw() di atas. Bug ini
   // lebih sering kena di sini karena divisionScope map hampir selalu >1 entry (per branch).
   return sql`(${sql.join(clauses, sql` OR `)})`
+}
+
+/**
+ * Filter REPORT (pilihan user di UI, BUKAN RBAC scope seperti fungsi-fungsi di atas) —
+ * exclude division 'intercompany' dari hasil metrik. Dipakai utk transaksi antar-company
+ * dalam 1 holding (mis. PT Mesin Kasir Online menjual ke PT Kode Niaga Tama - customer
+ * "KODE NIAGA TAMA, PT" di company 1 sendiri, channel_divisions.division = 'intercompany')
+ * yang bisa mendistorsi metrik performa eksternal kalau ikut terhitung.
+ *
+ * excludeIntercompany falsy → bypass, semua division lolos (default, tidak ada perubahan
+ * perilaku existing). true → division HARUS bukan 'intercompany' (NULL/division lain tetap
+ * lolos — mirror pola COALESCE ke 'other' di buildDivisionCondition/-Raw: NULL berarti
+ * channel_name tidak match rule apa pun, itu bukan intercompany, jadi tidak boleh ikut
+ * ke-exclude).
+ *
+ * Return SQL|undefined (bukan SQL|undefined vs selalu-SQL seperti *Raw) — dipakai lewat
+ * Drizzle `and(...)` yang otomatis skip argumen undefined, konsisten dgn buildBranchCondition/
+ * buildDivisionCondition di atas.
+ */
+export function buildExcludeIntercompanyCondition(
+  divisionCol: AnyColumn,
+  excludeIntercompany: boolean | undefined,
+): SQL | undefined {
+  if (!excludeIntercompany) return undefined
+  return or(isNull(divisionCol), ne(divisionCol, 'intercompany'))
+}
+
+/**
+ * Varian raw-SQL dari buildExcludeIntercompanyCondition() — lihat penjelasan di atas.
+ * divisionExpr HARUS string literal trusted (nama kolom/alias tetap dari kode, BUKAN
+ * dari input user), sama seperti *Raw lain di file ini.
+ *
+ * Selalu return SQL valid (`true` kalau toggle mati) supaya bisa langsung di-embed di
+ * WHERE dengan `AND (${cond})` tanpa perlu cek undefined dulu — konsisten dgn pola *Raw
+ * lain di file ini (buildBranchConditionRaw/buildDivisionConditionRaw/buildCompanyConditionRaw).
+ */
+export function buildExcludeIntercompanyRaw(
+  divisionExpr: string,
+  excludeIntercompany: boolean | undefined,
+): SQL {
+  if (!excludeIntercompany) return sql`true`
+  return sql`coalesce(${sql.raw(divisionExpr)}, 'other') != 'intercompany'`
 }

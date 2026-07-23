@@ -18,7 +18,7 @@
 import { db } from '@/config/db'
 import { sql, and, or } from 'drizzle-orm'
 import { divisionToDormantKey } from '@/features/config/threshold'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ export interface SegmentParams {
   dormantMonths: number  // dormant_threshold_months.{type} dari business_config
   division: string | null // filter laporan (business_unit param) - beda dari divisionScope (RBAC)
   branchFilter: number | null // filter laporan (branch_id param) - beda dari branchScope (RBAC)
+  excludeIntercompany?: boolean // toggle laporan - exclude division 'intercompany', lihat utils/scope.ts
   branchScope?: Map<number, number[]>   // RBAC — lihat docs-v2/task/task001.md §4
   divisionScope?: Map<number, string[]> // RBAC — lihat docs-v2/task/task001.md §4
 }
@@ -44,6 +45,7 @@ export function buildSegmentParams(
   divisionScope?: Map<number, string[]>,
   companyScopeIds?: number[],
   branchFilter?: number,
+  excludeIntercompany?: boolean,
 ): SegmentParams {
   return {
     cid: companyId === 'all' ? 0 : companyId,
@@ -53,6 +55,7 @@ export function buildSegmentParams(
     dormantMonths,
     division: division ?? null,
     branchFilter: branchFilter ?? null,
+    excludeIntercompany,
     branchScope,
     divisionScope,
   }
@@ -74,11 +77,12 @@ export interface CustomerSegmentCount {
 export async function getCustomerSegments(
   p: SegmentParams,
 ): Promise<CustomerSegmentCount> {
-  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds } = p
+  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, excludeIntercompany } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('lc.division', excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -135,6 +139,7 @@ export async function getCustomerSegments(
     LEFT JOIN latest_channel lc ON lc.customer_id = cd.customer_id
     WHERE (${division}::text IS NULL OR lc.division = ${division}::text)
       AND (${p.branchFilter}::int IS NULL OR lc.branch_id = ${p.branchFilter}::int)
+      AND ${excludeIntercompanyCond}
   `)
 
   const row = (rows as unknown[])[0] as Record<string, unknown> | undefined
@@ -236,6 +241,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   return sql`
     established_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -264,6 +270,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
         )
     )
   `
@@ -280,6 +287,7 @@ export function cteNewCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   return sql`
     new_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -298,6 +306,7 @@ export function cteNewCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
         )
         AND NOT EXISTS (
           SELECT 1 FROM invoices ix0
@@ -322,6 +331,7 @@ export function cteActiveCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   return sql`
     active_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -350,6 +360,7 @@ export function cteActiveCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
         )
     )
   `
@@ -370,6 +381,8 @@ export function cteExistingCustomers(p: SegmentParams) {
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   const companyCondIx2 = buildCompanyConditionRaw('ix2.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const excludeIntercompanyCond2 = buildExcludeIntercompanyRaw('cd2.division', p.excludeIntercompany)
   return sql`
     existing_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -398,6 +411,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
         )
         AND NOT EXISTS (
           SELECT 1 FROM invoices ix2
@@ -413,6 +427,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix2.branch_id = ${p.branchFilter}::int)
             AND ${branchCond2}
             AND ${divisionScopeCond2}
+            AND ${excludeIntercompanyCond2}
         )
     )
   `
@@ -427,6 +442,7 @@ export function cteDormantCustomers(p: SegmentParams) {
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division', p.divisionScope)
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   return sql`
     dormant_customers AS (
       SELECT c.id, c.customer_name, c.customer_code
@@ -447,6 +463,7 @@ export function cteDormantCustomers(p: SegmentParams) {
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
         )
     )
   `
