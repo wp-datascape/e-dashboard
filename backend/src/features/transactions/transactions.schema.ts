@@ -7,6 +7,11 @@ export const invoicesQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
+  // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany'. Lihat
+  // utils/scope.ts buildExcludeIntercompanyCondition/-Raw(). BUKAN z.coerce.boolean() —
+  // Boolean("false") === true di JS, jadi toggle OFF (?exclude_intercompany=false)
+  // malah ke-parse true (exclude selalu aktif). Lihat metrics.schema.ts untuk detail.
+  exclude_intercompany: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   customer_search: z.string().optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),

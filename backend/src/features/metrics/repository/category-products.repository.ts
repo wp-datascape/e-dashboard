@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export interface CategoryProductsRepoParams {
   cid: number
@@ -10,6 +10,7 @@ export interface CategoryProductsRepoParams {
   activeWindow: number
   page: number
   perPage: number
+  excludeIntercompany?: boolean
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -32,6 +33,7 @@ export async function fetchCategoryProducts(
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH items AS (
@@ -55,6 +57,7 @@ export async function fetchCategoryProducts(
         AND ii.product_category_id = ${p.categoryId}::int
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     )
     SELECT
       pr.id                                                    AS product_id,

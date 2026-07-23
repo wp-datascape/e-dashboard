@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export interface AvgCategoryRepoParams {
   cid: number          // 0 = semua company
@@ -8,6 +8,7 @@ export interface AvgCategoryRepoParams {
   periodEnd: string    // YYYY-MM-DD = akhir bulan dari period_month
   activeWindow: number // jumlah bulan window aktif (rolling)
   division?: string | null   // filter laporan (mirror business_unit di metrics lain)
+  excludeIntercompany?: boolean
   branchFilter?: number | null // filter laporan (mirror branch_id di metrics lain)
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
@@ -24,6 +25,7 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -60,6 +62,7 @@ export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<A
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
     monthly AS (
       SELECT

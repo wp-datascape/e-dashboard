@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { cteEstablishedCustomers } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RorBreakdownRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export async function fetchRorBreakdown(
   p: SegmentParams,
@@ -13,6 +13,7 @@ export async function fetchRorBreakdown(
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -32,6 +33,7 @@ export async function fetchRorBreakdown(
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
       GROUP BY i.customer_id
       HAVING COUNT(DISTINCT i.id) > 1
     ),

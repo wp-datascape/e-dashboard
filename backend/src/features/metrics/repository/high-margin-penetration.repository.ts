@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 // ─── Params ───────────────────────────────────────────────────────────────────
 
@@ -12,6 +12,7 @@ export interface HmDetailRepoParams {
   page: number
   perPage: number
   division?: string | null   // filter laporan - mirror business_unit di metrics lain
+  excludeIntercompany?: boolean
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
@@ -25,6 +26,7 @@ export interface UpsellTargetRepoParams {
   businessUnit: string | null
   page: number
   perPage: number
+  excludeIntercompany?: boolean
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
@@ -87,6 +89,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -109,6 +112,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
     hm_items AS (
       SELECT
@@ -132,6 +136,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     )
     SELECT
       pc.id                                                              AS category_id,
@@ -178,6 +183,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
@@ -210,6 +216,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
           AND  (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
           AND  ${branchCond}
           AND  ${divisionScopeCond}
+          AND  ${excludeIntercompanyCond}
         GROUP BY ii.product_category_id, c.business_unit
       ) ranked
       WHERE bu_rank <= 2
@@ -236,6 +243,7 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
       GROUP BY i.customer_id
     )
     SELECT

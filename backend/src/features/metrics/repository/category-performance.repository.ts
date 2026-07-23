@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export interface CategoryPerformanceRepoParams {
   cid: number          // 0 = semua company
@@ -14,6 +14,7 @@ export interface CategoryPerformanceRepoParams {
   page: number
   perPage: number
   division?: string | null
+  excludeIntercompany?: boolean
   branchFilter?: number | null
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
@@ -52,6 +53,7 @@ export async function fetchCategoryPerformance(
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -82,6 +84,7 @@ export async function fetchCategoryPerformance(
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
 
     -- Kategori yang aktif sebagai high-margin pada akhir periode
