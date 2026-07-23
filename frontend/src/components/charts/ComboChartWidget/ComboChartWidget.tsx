@@ -24,6 +24,10 @@ export interface ComboChartWidgetProps {
   barKey: string;
   barLabel: string;
   barColor: string;
+  // Bar kedua opsional (misal total_active vs multi_product) — sama axis (left) dengan bar utama
+  bar2Key?: string;
+  bar2Label?: string;
+  bar2Color?: string;
   lineKey: string;
   lineLabel: string;
   lineColor: string;
@@ -41,6 +45,8 @@ export interface ComboChartWidgetProps {
   concentrationKey?: string;
   concentrationThreshold?: number;
   concentrationColor?: string;
+  /** Callback saat bar diklik — menerima data point bulan tersebut (mirror onBarClick di BarChartWidget) */
+  onBarClick?: (dataPoint: Record<string, unknown>) => void;
 }
 
 export const ComboChartWidget = ({
@@ -50,6 +56,9 @@ export const ComboChartWidget = ({
   barKey,
   barLabel,
   barColor,
+  bar2Key,
+  bar2Label,
+  bar2Color,
   lineKey,
   lineLabel,
   lineColor,
@@ -64,6 +73,7 @@ export const ComboChartWidget = ({
   concentrationKey,
   concentrationThreshold = 25,
   concentrationColor,
+  onBarClick,
 }: ComboChartWidgetProps) => {
   const theme = useTheme();
   const warnColor = concentrationColor ?? theme.palette.warning.light;
@@ -83,13 +93,19 @@ export const ComboChartWidget = ({
     const mn = Math.min(...vals);
     const mx = Math.max(...vals);
     const pad = (mx - mn) * 0.1 || mx * 0.1;
-    return [Math.max(0, mn - pad), mx + pad] as const;
+    // Dibulatkan 1 desimal - domain mentah (mn - pad / mx + pad) sering kena noise
+    // floating-point JS (mis. 29.630000000000003), dan karena domain dipakai persis
+    // sebagai batas tick axis (bukan cuma auto-scale), noise itu ikut tampil sebagai
+    // label tick yang berantakan. Laporan user 2026-07-23 (screenshot tick "29.63000000").
+    const round1 = (v: number) => Math.round(v * 10) / 10;
+    return [Math.max(0, round1(mn - pad)), round1(mx + pad)] as const;
   })();
 
   const tooltipFormatter = (value: unknown, name: unknown) => {
     const v = value as number;
     const n = name as string;
     if (n === barLabel && formatBar) return [formatBar(v), n];
+    if (n === bar2Label && formatBar) return [formatBar(v), n];
     if (n === lineLabel && formatLine) return [formatLine(v), n];
     return [v.toLocaleString('id-ID'), n];
   };
@@ -153,7 +169,15 @@ export const ComboChartWidget = ({
           )}
           <Legend wrapperStyle={{ fontSize: 12 }} />
 
-          <Bar yAxisId="left" dataKey={barKey} name={barLabel} fill={barColor} radius={0}>
+          <Bar
+            yAxisId="left"
+            dataKey={barKey}
+            name={barLabel}
+            fill={barColor}
+            radius={0}
+            cursor={onBarClick ? 'pointer' : undefined}
+            onClick={onBarClick ? (data) => onBarClick(data as unknown as Record<string, unknown>) : undefined}
+          >
             {concentrationKey && (data as Record<string, number>[]).map((entry, i) => (
               <Cell
                 key={i}
@@ -177,6 +201,16 @@ export const ComboChartWidget = ({
               />
             )}
           </Bar>
+
+          {bar2Key && (
+            <Bar
+              yAxisId="left"
+              dataKey={bar2Key}
+              name={bar2Label ?? bar2Key}
+              fill={bar2Color ?? theme.palette.secondary.main}
+              radius={0}
+            />
+          )}
 
           <Line
             yAxisId="right"

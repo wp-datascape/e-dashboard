@@ -10,7 +10,20 @@ import { StatusChip } from '@/components/ui/StatusChip';
 
 export interface HeatmapRow {
   customer: string;
+  /** ID numerik customer — opsional, dipakai untuk drill-down klik sel */
+  customerId?: number;
   values: Record<string, number>;
+  /** Revenue per kolom (sama key dengan values) — opsional, dipakai untuk tooltip sel */
+  revenues?: Record<string, number>;
+  /** Total revenue customer ini across semua kolom — opsional, ditampilkan sebagai kolom tambahan */
+  totalRevenue?: number;
+}
+
+function fmtRp(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}M`;
+  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(2)}jt`;
+  if (v >= 1_000)         return `${(v / 1_000).toFixed(1)}rb`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
 }
 
 export interface HeatmapWidgetProps {
@@ -18,6 +31,8 @@ export interface HeatmapWidgetProps {
   subtitle?: string;
   xLabels: string[];
   data: HeatmapRow[];
+  /** Klik sel yang sudah ada transaksi (bought) — untuk drill-down detail produk */
+  onCellClick?: (row: HeatmapRow, label: string) => void;
 }
 
 // ─── Mobile: Per-Customer Card List ───────────────────────────────────────────
@@ -25,9 +40,11 @@ export interface HeatmapWidgetProps {
 function MobileCustomerListView({
   xLabels,
   data,
+  onCellClick,
 }: {
   xLabels: string[];
   data: HeatmapRow[];
+  onCellClick?: (row: HeatmapRow, label: string) => void;
 }) {
   const { t } = useTranslation();
 
@@ -83,17 +100,25 @@ function MobileCustomerListView({
                       key={label}
                       label={bought ? `${label} (${val}×)` : label}
                       color={bought ? 'success' : 'default'}
+                      onClick={bought && onCellClick ? () => onCellClick(row, label) : undefined}
                     />
                   );
                 })}
               </Box>
 
-              {/* Total transaksi */}
-              {totalTx > 0 && (
-                <Typography variant="caption" color="text.secondary">
-                  {t('common.heatmap.totalTransactions', { count: totalTx })}
-                </Typography>
-              )}
+              {/* Total transaksi + total revenue */}
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {totalTx > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {t('common.heatmap.totalTransactions', { count: totalTx })}
+                  </Typography>
+                )}
+                {row.totalRevenue !== undefined && (
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.main' }}>
+                    {t('common.heatmap.totalRevenue', { value: fmtRp(row.totalRevenue) })}
+                  </Typography>
+                )}
+              </Box>
             </Box>
           </Box>
         );
@@ -109,12 +134,15 @@ const ROW_LABEL_WIDTH = 160;
 function DesktopHeatmapView({
   xLabels,
   data,
+  onCellClick,
 }: {
   xLabels: string[];
   data: HeatmapRow[];
+  onCellClick?: (row: HeatmapRow, label: string) => void;
 }) {
   const { t } = useTranslation();
-  const innerMinWidth = ROW_LABEL_WIDTH + xLabels.length * COL_MIN_WIDTH;
+  const hasRevenue = data.some((r) => r.totalRevenue !== undefined);
+  const innerMinWidth = ROW_LABEL_WIDTH + (xLabels.length + (hasRevenue ? 1 : 0)) * COL_MIN_WIDTH;
 
   return (
     <Box sx={{ overflowX: 'auto' }}>
@@ -131,6 +159,16 @@ function DesktopHeatmapView({
             </Typography>
           </Box>
         ))}
+        {hasRevenue && (
+          <Box sx={{ flex: 1, textAlign: 'center', px: 0.5, minWidth: COL_MIN_WIDTH }}>
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}
+            >
+              {t('common.heatmap.colTotalRevenue')}
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       {/* Data rows */}
@@ -169,19 +207,23 @@ function DesktopHeatmapView({
           {xLabels.map((label) => {
             const val = row.values[label] ?? 0;
             const bought = val > 0;
+            const revenue = row.revenues?.[label] ?? 0;
             return (
               <Tooltip
                 key={label}
                 title={t('common.heatmap.cellTooltip', {
                   customer: row.customer,
                   label,
-                  status: bought ? t('common.heatmap.statusYes', { count: val }) : t('common.heatmap.statusNo'),
+                  status: bought
+                    ? t('common.heatmap.statusYes', { count: val, revenue: fmtRp(revenue) })
+                    : t('common.heatmap.statusNo'),
                 })}
                 arrow
                 placement="top"
               >
                 <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH }}>
                   <Box
+                    onClick={bought && onCellClick ? () => onCellClick(row, label) : undefined}
                     sx={{
                       bgcolor: bought ? 'success.main' : 'action.hover',
                       color: bought ? 'common.white' : 'text.disabled',
@@ -192,7 +234,7 @@ function DesktopHeatmapView({
                       fontSize: '0.65rem',
                       fontWeight: 700,
                       borderRadius: 0.5,
-                      cursor: 'default',
+                      cursor: bought && onCellClick ? 'pointer' : 'default',
                       transition: 'opacity 0.15s',
                       '&:hover': { opacity: 0.8 },
                     }}
@@ -203,6 +245,15 @@ function DesktopHeatmapView({
               </Tooltip>
             );
           })}
+
+          {/* Total revenue column */}
+          {hasRevenue && (
+            <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'success.main' }}>
+                {fmtRp(row.totalRevenue ?? 0)}
+              </Typography>
+            </Box>
+          )}
         </Box>
       ))}
 
@@ -226,7 +277,7 @@ function DesktopHeatmapView({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetProps) => {
+export const HeatmapWidget = ({ title, subtitle, xLabels, data, onCellClick }: HeatmapWidgetProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -249,9 +300,9 @@ export const HeatmapWidget = ({ title, subtitle, xLabels, data }: HeatmapWidgetP
 
       {/* Responsive: Mobile = per-customer card list, Desktop = full matrix */}
       {isMobile ? (
-        <MobileCustomerListView xLabels={xLabels} data={data} />
+        <MobileCustomerListView xLabels={xLabels} data={data} onCellClick={onCellClick} />
       ) : (
-        <DesktopHeatmapView xLabels={xLabels} data={data} />
+        <DesktopHeatmapView xLabels={xLabels} data={data} onCellClick={onCellClick} />
       )}
     </Card>
   );
