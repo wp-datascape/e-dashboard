@@ -69,6 +69,11 @@ Kolom wajib yang diparse (nama persis di template):
 | `Laba` | `invoice_items.total_gp` | |
 | `Nama Cabang` | `invoices.branch_name` | Opsional |
 | `Nama Tenaga Penjual` | `invoices.channel_name` (UPPER) | Lookup `channel_divisions` |
+| `ID Pelanggan Pelanggan Faktur Penjualan` | `customers.customer_code` | *(2026-07-24)* Opsional — kalau ada & terisi, jadi kode customer asli. Kalau tidak, fallback auto-generate `CUST-${invoice_number}` |
+| `Sales Order`, `Delivery Order` | — (diabaikan) | *(2026-07-24)* Dikenali tapi tidak dipakai — cuma supaya template dengan kolom ini tidak ditolak |
+
+Kolom di luar daftar wajib+opsional di atas membuat **seluruh file ditolak** ("Kolom tidak
+dikenali") — parser Excel pakai whitelist ketat, bukan skip per-kolom.
 
 Parser mendeteksi baris header secara dinamis (scan 10 baris pertama) — file boleh punya metadata/baris judul di atas header tanpa memengaruhi parsing.
 

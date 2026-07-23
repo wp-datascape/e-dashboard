@@ -58,12 +58,15 @@ Scanner memeriksa maksimal 10 baris pertama. Header row dikenali bila mengandung
 
 **Kolom opsional:**
 
-| Key internal | Label di Accurate |
-|---|---|
-| `branch_name` | `Nama Cabang` |
-| `channel_name` | `Nama Tenaga Penjual` |
+| Key internal | Label di Accurate | Keterangan |
+|---|---|---|
+| `branch_name` | `Nama Cabang` | Dipakai — diisi ke `invoices.branch_name` |
+| `channel_name` | `Nama Tenaga Penjual` | Dipakai — diisi ke `invoices.channel_name` |
+| `sales_order` | `Sales Order` | *(2026-07-24)* Dikenali tapi datanya diabaikan — cuma supaya tidak bikin template ditolak |
+| `delivery_order` | `Delivery Order` | *(2026-07-24)* Dikenali tapi datanya diabaikan — cuma supaya tidak bikin template ditolak |
+| `customer_code` | `ID Pelanggan Pelanggan Faktur Penjualan` | *(2026-07-24)* Kalau ada & terisi, dipakai sbg `customer_code` asli. Kalau kolom tidak ada di file ATAU selnya kosong di baris tertentu → fallback ke auto-generate `CUST-${invoice_number}` (perilaku lama, tetap berlaku) |
 
-**Validasi template:** Jika ada kolom yang tidak dikenali, import dibatalkan. Ini mencegah penggunaan template yang salah.
+**Validasi template:** Jika ada kolom yang **benar-benar tidak dikenali** (bukan salah satu di atas), import dibatalkan seluruhnya. Sebelum 2026-07-24, ini juga berlaku untuk kolom Sales Order/Delivery Order — kalau template export punya kolom itu (umum di beberapa varian export Accurate), import gagal total walau kolomnya tidak dipakai sama sekali. Sekarang keduanya di-whitelist sbg opsional-diabaikan.
 
 **Filter baris data (`isDataRow`):**
 

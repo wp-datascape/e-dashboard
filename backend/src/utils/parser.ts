@@ -225,8 +225,17 @@ const REQUIRED_EXCEL_HEADERS = [
 ] as const
 
 const OPTIONAL_EXCEL_HEADERS = [
-  { key: 'branch_name',  label: 'Nama Cabang' },
-  { key: 'channel_name', label: 'Nama Tenaga Penjual' },
+  { key: 'branch_name',    label: 'Nama Cabang' },
+  { key: 'channel_name',   label: 'Nama Tenaga Penjual' },
+  // Dikenali tapi diabaikan datanya — kalau tidak masuk whitelist, validateExcelHeaders()
+  // menolak SELURUH file ("Kolom tidak dikenali"), bukan cuma kolom itu. Laporan user
+  // 2026-07-24: template kadang punya kolom ini, sebelumnya bikin import gagal total.
+  { key: 'sales_order',    label: 'Sales Order' },
+  { key: 'delivery_order', label: 'Delivery Order' },
+  // ID pelanggan asli dari Accurate (kalau kolomnya ada di file) — dipakai sbg customer_code
+  // menggantikan auto-generate `CUST-${invoice_number}`. Fallback ke auto-generate tetap
+  // berlaku kalau kolom ini tidak ada di file (template lama / export tanpa kolom ini).
+  { key: 'customer_code',  label: 'ID Pelanggan Pelanggan Faktur Penjualan' },
 ] as const
 
 type ExcelColMap = Record<string, number>
@@ -403,6 +412,7 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
       const gpRaw  = str('gross_profit').replace(/,/g, '').replace(/\.$/, '')
       const branchRaw     = colMap.branch_name !== undefined ? str('branch_name') : ''
       const channelNameRaw = colMap.channel_name !== undefined ? str('channel_name') : ''
+      const customerCodeRaw = colMap.customer_code !== undefined ? str('customer_code') : ''
 
       const invoiceDate = formatDateFromExport(dateRaw)
       const revenueNum  = parseFloat(revRaw)
@@ -421,7 +431,7 @@ export async function parseExcel(buffer: Buffer): Promise<ParseResult> {
       const invoiceRow: InvoiceRow = {
         invoice_number:   invNo,
         invoice_date:     invoiceDate,
-        customer_code:    `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        customer_code:    customerCodeRaw || `CUST-${invNo.replace(/[^a-zA-Z0-9]/g, '_')}`,
         customer_name:    custName.toUpperCase().trim(),
         product_category: categoryRaw.toUpperCase().trim(),
         item_name:        itemNameRaw.toUpperCase().trim() || undefined,
