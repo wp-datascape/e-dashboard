@@ -99,7 +99,7 @@ List customer dengan filter, sort, dan paginasi.
 | `sort_dir` | `"asc"` \| `"desc"` | `"desc"` | Arah sort |
 | `page` | integer | 1 | Halaman |
 | `per_page` | integer (1–200) | 50 | Jumlah per halaman |
-| `as_of_date` | string (YYYY-MM-DD) | CURRENT_DATE | Tanggal referensi untuk kalkulasi status |
+| `as_of_date` | string (YYYY-MM-DD) | CURRENT_DATE | Tanggal referensi — membatasi status, first/last_invoice_date, DAN 4 field agregat (`total_invoices`, `lifetime_value`, `avg_monthly_revenue`, `category_count`). *(Fix 2026-07-23: sebelumnya 4 field agregat itu cuma filter `deleted_at`, sama sekali tidak dibatasi `as_of_date` — filter tahun lampau tetap menampilkan angka current. `avg_monthly_revenue` juga dibatasi ke window 12 bulan kalender sebelum `as_of_date` dibagi fixed 12, bukan lagi all-time dibagi jumlah bulan aktif — match persis dengan window trend chart 12 bulan di dialog detail.)* Customer tanpa invoice sama sekali as of tanggal ini disembunyikan dari list. |
 
 Nilai valid `business_unit`: `distribution` \| `project` \| `e_commerce` \| `intercompany` \| `freelancer` \| `support`
 
@@ -143,6 +143,11 @@ Detail lengkap satu customer — metrik agregat + trend bulanan + invoice terbar
 | Param | Tipe | Rules |
 |-------|------|-------|
 | `id` | integer | Positive integer |
+
+**Query params:**
+| Param | Tipe | Default | Keterangan |
+|-------|------|---------|------------|
+| `as_of_date` | string (YYYY-MM-DD) | CURRENT_DATE | *(Baru 2026-07-23)* Membatasi trend chart 12 bulan, daftar invoice terbaru, dan kategori — dialog detail sekarang ikut filter `as_of_date` yang sama dengan list (dulu selalu `CURRENT_DATE`, tidak sinkron dengan filter tanggal di halaman list). |
 
 **Response 200:**
 ```json

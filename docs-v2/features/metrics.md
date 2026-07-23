@@ -104,6 +104,19 @@ Response shape:
 Heatmap kolom = **item_type** (`unit` / `consumable` / `sparepart`), bukan nama kategori.
 Hal ini memberikan 3 kolom bersih yang langsung menunjukkan cross-sell per tipe produk.
 
+`CrossSellingHeatmapRow` (fix 2026-07-23): `{ customer, customer_id, values, revenues,
+total_revenue }`. Seleksi + urutan 30 customer sekarang murni **total revenue DESC**
+(dulu `type_count DESC, tx_count DESC` — customer dengan 1 transaksi di 3 kategori bisa
+ranking di atas customer dengan 13 transaksi tapi cuma 2 kategori, tidak masuk akal
+secara bisnis). `revenues` = revenue per kategori (dulu cuma transaction count di
+`values`), `total_revenue` = total semua kategori, dipakai kolom tambahan + tooltip di
+frontend. Klik sel yang sudah ada transaksi membuka dialog detail produk via
+`GET /metrics/customer-products?item_type=...` (filter `item_type` baru, selain
+`category_id` yang sudah ada sebelumnya).
+
+Chart M1 (Active vs Multi-Category vs Cross-Selling Ratio) digabung jadi 1
+`ComboChartWidget` (2 bar + 1 line), sebelumnya 2 chart terpisah berdampingan.
+
 ---
 
 ### `GET /api/v1/metrics/customer-metrics` — M3–M7
@@ -121,9 +134,15 @@ Response: `CustomerMetricsData` — lihat `metrics.types.ts`
 
 | Endpoint | Fungsi | Params tambahan |
 |---|---|---|
+| `GET /api/v1/metrics/revenue-breakdown` | M3 Avg Revenue detail per customer *(baru 2026-07-23)* | `period_end` (YYYY-MM-DD) |
 | `GET /api/v1/metrics/gp-breakdown` | M4 Gross Profit detail per customer | `month` (YYYY-MM) |
 | `GET /api/v1/metrics/hm-breakdown` | M5 High Margin detail per customer | `month` (YYYY-MM) |
 | `GET /api/v1/metrics/ror-breakdown` | M6 Repeat Order Rate detail | `month` (YYYY-MM) |
+| `GET /api/v1/metrics/expansion-breakdown` | M7 Expansion Rate detail per customer (up vs flat/down) *(baru 2026-07-23)* | `period_end` (YYYY-MM-DD) |
+
+M3 dan M7 sebelumnya tidak punya drill-down modal sama sekali (beda dengan M4/M5/M6) —
+kedua endpoint ini mengisi gap itu, mirror pola `gp-breakdown` persis. Detail formula
+di `shared/metrics_docs.md`.
 
 ---
 
@@ -153,8 +172,18 @@ Response shape:
 }
 ```
 
-**M8** = dormant_rate_current.value (% dormant bulan terakhir)
-**M9** = value_ranking → estimated_lost_value = avg_monthly_revenue × months_dormant (pakai `::bigint`)
+**M8** = dormant_rate_current.value (% dormant **bulan berjalan** — titik terakhir trend 12
+bulan, label frontend "Dormant Rate — Bulan Berjalan"/"Current Month", diperbaiki 2026-07-23
+dari label lama "Bulan Terakhir"/"Last Month" yang menyesatkan karena bukan bulan sebelumnya)
+
+**M9** = value_ranking → `estimated_lost_value = avg_monthly_revenue × months_dormant` (pakai
+`::bigint`). `avg_monthly_revenue` (fix 2026-07-23) = total revenue **12 bulan kalender
+terakhir SEBELUM customer dormant** (bukan `last_invoice_date` customer itu, bukan
+`filterDate` global) dibagi **fixed 12** — sebelumnya dibagi jumlah bulan yang benar-benar
+ada transaksi ("active_months" per customer), sehingga customer yang belanja jarang/borongan
+mendapat rata-rata yang melambung jauh dari kenyataan (`fetchDormantValueRanking`,
+`m8m10.repository.ts`).
+
 **M10** = reactivation_current.value (% reactivation bulan terakhir)
 
 Dormant threshold (dormantDays) dibaca dari `business_configs.dormant_threshold_months.*` via `resolveSegmentParams()`.

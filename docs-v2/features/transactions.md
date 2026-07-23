@@ -42,6 +42,10 @@ frontend/src/
 ├── hooks/useTransactions.ts            — useInvoices(), useInvoiceDetail()
 ├── types/transactions.ts               — InvoiceRow, InvoiceParams, InvoiceDetail, InvoiceItem
 ├── pages/Transactions/index.tsx        — DataGrid server-side pagination/sort + filter
+│                                          (Month + Active Window 1/3/6/12 → date_from/
+│                                          date_to, baru 2026-07-23; sebelumnya endpoint
+│                                          sudah support date_from/date_to tapi TIDAK ADA
+│                                          filter tanggal apa pun di UI halaman ini)
 ├── pages/Transactions/components/
 │   ├── BuChip.tsx                      — chip warna per division
 │   └── InvoiceDetailDrawer.tsx         — drawer detail + line items + badge High Margin
@@ -86,6 +90,20 @@ List invoice dengan filter, sort, dan paginasi.
 | `per_page` | integer (1–200) | 50 | Jumlah per halaman |
 
 Nilai valid `business_unit`: `distribution` \| `project` \| `e_commerce` \| `intercompany` \| `freelancer` \| `support`
+
+⚠️ **Frontend wajib reset `page` ke 1 setiap kali filter apa pun berubah** (fix bug
+2026-07-23): kalau user sudah pindah ke halaman N lalu mengganti filter (mis. Division)
+sehingga total hasil filter baru lebih sedikit dari `N × per_page`, request tetap
+mengirim `page=N` yang sudah di luar jangkauan → backend balikin `data: []` walau
+`total > 0`, tampil seolah "tidak ada data" padahal datanya ada di halaman awal.
+`pages/Transactions/index.tsx` sudah pakai `useEffect` yang reset `paginationModel.page`
+tiap salah satu filter (company/branch/division/month/window/exclude_intercompany/search)
+berubah — pola ini perlu diikuti kalau ada halaman lain dengan server-side pagination +
+filter dinamis yang belum melakukannya.
+
+Test coverage: `backend/src/features/transactions/transactions-filter.e2e.test.ts` (21
+test) — company sendiri, window periodik 1/3/6/12 bulan, company+branch, semua nilai
+division, kombinasi company+branch+division+periode sekaligus.
 
 **Response 200:**
 ```json

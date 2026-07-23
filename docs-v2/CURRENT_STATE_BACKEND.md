@@ -2,7 +2,7 @@
 
 > File ini khusus untuk tracking progress backend.
 > Update setiap akhir sesi kerja backend.
-> Last updated: 2026-07-04 (sesi 32)
+> Last updated: 2026-07-24 (sesi 40)
 >
 > **Catatan**: bagian "Setup & Infrastructure", "DB Schema", "Middleware", "Features — Not Started"
 > di bawah ini adalah skeleton perencanaan awal proyek yang SUDAH TIDAK AKURAT — item-item yang
@@ -260,6 +260,19 @@ Read-only, paginated, filter by action/date
 ---
 
 ## Catatan Sesi
+
+### 2026-07-23/24 (sesi 40 — Exclude Intercompany + Drill-Down M3/M7 + Fix Formula + RBAC Precedence)
+
+Detail lengkap FE+BE gabungan ada di `CURRENT_STATE.md` § "sesi 40". Ringkasan sisi backend:
+- `utils/scope.ts` — 2 fungsi baru `buildExcludeIntercompanyCondition`/`-Raw`, di-rollout ke hampir semua repository (dashboard, customers, transactions, metrics M1-M10). Bug `z.coerce.boolean()` (toggle OFF ke-parse `true`) diperbaiki jadi `z.enum(['true','false']).transform(...)`.
+- **Fix bug RBAC precedence** (`buildBranchConditionRaw`/`buildDivisionConditionRaw`) — OR-join clause tidak dibungkus parens sebelum di-embed via `AND` di WHERE raw-SQL, presedensi SQL bikin filter di sekitarnya cuma nempel ke clause pertama/terakhir. User scope multi-branch (role non-superadmin) melihat data ~2x lipat.
+- `customers.repository.ts` — 4 field agregat (`total_invoices`, `lifetime_value`, `avg_monthly_revenue`, `category_count`) dulu tidak dibatasi `as_of_date` sama sekali; `avg_monthly_revenue` dibatasi ulang ke window 12 bulan kalender (bukan all-time/active-months). `findCustomerDetail` terima `asOfDate` param baru.
+- `m8m10.repository.ts` (`fetchDormantValueRanking`, M9) — `avg_monthly_revenue` dibatasi 12 bulan sebelum customer dormant (bukan all-time dibagi active-months).
+- Endpoint baru: `GET /metrics/revenue-breakdown` (M3), `GET /metrics/expansion-breakdown` (M7) — mirror pola `gp-breakdown` (M4).
+- `m1.repository.ts` (`fetchCrossSellingHeatmap`, M1.1) — tambah revenue per kategori + total_revenue + customer_id; ranking 30 customer diganti dari `type_count/tx_count` jadi murni total revenue DESC.
+- `customer-products.repository.ts` — tambah filter `item_type` (selain `category_id` yang sudah ada), dipakai drill-down klik sel heatmap.
+- `transactions-filter.e2e.test.ts` (baru) — 21 test filter company/periode/branch/division/kombinasi utk `GET /invoices`.
+- 9 commit terpisah per fitur/fix (bukan 1 commit besar).
 
 ### 2026-07-04 (sesi 32 — RBAC Bug Hunt: Permission Deprecated + Scope Fix)
 

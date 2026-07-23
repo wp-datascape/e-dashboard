@@ -17,14 +17,14 @@
 | Page             | Route               | Notes                        |
 |------------------|---------------------|------------------------------|
 | Dashboard        | `/dashboard`        | 10 MetricCards + 9 charts — **real backend (sesi 26)**, agregator dari 3 service metrics existing + 1 query baru (dormant_value) |
-| Cross Selling    | `/cross-selling`    | M1 ratio + M1.1 heatmap (item_type) + M2 — **real backend, filter Entitas+Divisi+Tanggal** |
-| Customer Metrics | `/customer-metrics` | M3 Revenue, M4 Gross Profit, M5 High Margin, M6 Repeat Order, M7 Expansion — **real API from DB** |
+| Cross Selling    | `/cross-selling`    | M1 (chart gabungan bar+bar+line) + M1.1 heatmap (item_type, revenue per kategori, ranking by revenue, klik sel→drilldown produk) + M2 (klik titik→drilldown) — **real backend, filter Entitas+Divisi+Tanggal+Exclude Intercompany (sesi 40)** |
+| Customer Metrics | `/customer-metrics` | M3 Revenue, M4 Gross Profit, M5 High Margin, M6 Repeat Order, M7 Expansion — **real API from DB**, semua M3-M7 sekarang punya drill-down klik-chart (M3/M7 baru sesi 40, M4/M5/M6 sebelumnya) |
 | Classification Rules | `/settings/classification` | CRUD classification rules, backend real API |
 | Threshold Settings | `/settings/threshold` | Konfigurasi threshold metrik, backend real API |
 | App Settings | `/settings/app` | Theme + language settings |
 | Integration | `/config/integration` | Accurate integration config |
 | Features | `/config/features` | Feature flags management |
-| Dormant Customer | `/dormant-customer` | M8 M9 M10 — **real backend, threshold dinamis dari DB, filter Entitas+Divisi+Periode** |
+| Dormant Customer | `/dormant-customer` | M8 M9 M10 — **real backend, threshold dinamis dari DB, filter Entitas+Divisi+Periode+Exclude Intercompany**, M9 formula avg_monthly_revenue & label M8 diperbaiki sesi 40 |
 | Config           | `/config`           | 3 tabs: Business Rules, Integration, App Settings (theme + lang) |
 | Users            | `/users`            | List + create + edit user, mock API |
 | RBAC             | `/rbac`             | Role list, permission matrix, set permissions dialog, **57 permissions seeded** |
@@ -33,7 +33,7 @@
 | Products         | `/products`         | Category Performance Ledger — DataGrid kategori, revenue, GP, margin |
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) — **real backend `GET /metrics/avg-category` (sesi 26)**, `active_window` dari `business_configs.active_window_months` (bukan hardcode) |
-| Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail dialog (dulu drawer, dikonversi sesi 34) — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*` |
+| Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail dialog (dulu drawer, dikonversi sesi 34) — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*`, filter Month+Active Window + fix bug reset pagination (sesi 40) |
 | Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
 | High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API. Filter default "All Companies" (sesi 34), di-scope `resolveCompanyScope` — buka halaman langsung tampil data sesuai company yang jadi hak akses user |
@@ -272,6 +272,50 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-23/24 (sesi 40): Exclude Intercompany Toggle + Drill-Down M2/M3/M7 + Fix Formula Customer/Dormant + Overhaul Cross Selling + Filter Transactions
+
+**Toggle "Exclude Intercompany" (fitur baru, rollout ke hampir semua endpoint):**
+- Helper baru `buildExcludeIntercompanyCondition`/`-Raw` di `utils/scope.ts` — filter LAPORAN (bukan RBAC scope) untuk exclude transaksi antar-company dalam 1 holding (division `intercompany`) dari metrik performa eksternal. Default bypass kalau toggle off.
+- Rollout ke: semua metrics (M1–M10 + drill-down), dashboard, customers, transactions/invoices.
+- **Bug ditemukan & diperbaiki saat rollout**: `z.coerce.boolean()` bikin toggle OFF (`?exclude_intercompany=false`) ke-parse jadi `true` (`Boolean("false") === true` di JS) — exclude jadi selalu aktif walau user matikan toggle-nya. Fix: `z.enum(['true','false']).transform(v => v === 'true')` (pola yang sudah benar dipakai `high_margin_only`). Lihat `shared/api-conventions.md`.
+- Komponen reusable baru: `ExcludeIntercompanyToggle.tsx`, dipasang di 9+ halaman.
+
+**Fix bug RBAC kritis (SQL precedence) — sudah di-commit terpisah sebelum sesi ini lanjut:**
+- `buildBranchConditionRaw`/`buildDivisionConditionRaw` hasil OR-join tidak dibungkus parens sebelum di-embed via `AND ${cond}` — presedensi SQL bikin filter company/branch/tanggal di sekitarnya cuma nempel ke clause pertama/terakhir. User dengan scope multi-branch (role `admin`, bukan superadmin) melihat data ~2x lebih besar dari seharusnya. Fix: bungkus parens di kedua fungsi.
+
+**Fix bug data Customers:**
+- 4 field agregat (`total_invoices`, `lifetime_value`, `avg_monthly_revenue`, `category_count`) di `findCustomers`/`findCustomerDetail` cuma filter `deleted_at`, TIDAK dibatasi `as_of_date` sama sekali — filter tahun lampau tetap menampilkan angka current. Fix: tambah `invoice_date <= refDate` ke keempatnya + sembunyikan customer tanpa invoice as of tanggal itu.
+- `avg_monthly_revenue` dulu all-time dibagi jumlah bulan yang ada transaksi — tidak nyambung dengan grafik tren 12 bulan di dialog detail. Fix: dibatasi window 12 bulan kalender terakhir, dibagi fixed 12.
+- Dialog detail customer (`findCustomerDetail`) sekarang terima `as_of_date` — trend/invoice/kategori ikut filter yang sama dengan list (dulu selalu `CURRENT_DATE`).
+
+**Fix bug Dormant Customer (M8/M9):**
+- Label card M8 "Dormant Rate — Bulan Terakhir/Last Month" menyesatkan — nilainya diambil dari titik TERAKHIR trend 12 bulan (bulan yang dipilih di filter, BUKAN bulan sebelumnya). Diganti "Bulan Berjalan/Current Month".
+- M9 `avg_monthly_revenue` (estimasi nilai hilang) dulu = total revenue all-time dibagi jumlah bulan yang benar-benar ada transaksi — customer yang belanja jarang/borongan dapat rata-rata melambung jauh (kasus nyata: Rp 611jt/bulan). Fix: dibatasi 12 bulan kalender sebelum customer dormant, dibagi fixed 12 (turun jadi Rp 271jt/bulan utk kasus yang sama).
+
+**Drill-down M2/M3/M7 (menyusul pola M4/M5/M6 yang sudah ada):**
+- M2 (Cross Selling avg-category chart, `AreaChartWidget`): klik titik chart buka dialog detail — perlu custom `<Dot>` render (Area tidak punya `onClick` native per-titik seperti Bar).
+- M3 (Avg Revenue) & M7 (Expansion Rate): endpoint baru `GET /metrics/revenue-breakdown` & `GET /metrics/expansion-breakdown`, mirror pola `gp-breakdown`. `up_rate` hasil breakdown diverifikasi match persis dengan trend endpoint via curl.
+- Fix konsistensi angka: tooltip chart M3/M4 (`fmtRp`, 1 desimal) beda tampilan dengan dialog drill-down (`fmtRpDetail`, 2 desimal) padahal data sama persis — disamakan pakai `fmtRpDetail` di tooltip juga.
+
+**Overhaul halaman Cross Selling:**
+- M1: 2 chart terpisah (Active/Multi-Category + Cross-Selling Ratio %) digabung jadi 1 `ComboChartWidget` (`bar2Key` baru — dulu cuma support 1 bar + line).
+- Fix bug kosmetik: domain sumbu kanan chart kena floating-point noise (`29.630000000000003%` tampil mentah sbg tick axis) — dibulatkan 1 desimal.
+- M1.1 heatmap: tambah revenue per kategori + total revenue per customer (dulu cuma transaction count), klik sel buka dialog detail produk (endpoint `customer-products` + filter `item_type` baru). Ranking 30 customer diganti dari `type_count DESC, tx_count DESC` (tidak masuk akal — customer 1 transaksi di 3 kategori ranking di atas customer 13 transaksi di 2 kategori) jadi murni total revenue DESC.
+- Tabel "Detail per Customer" statis di bawah heatmap dihapus — sudah tercakup penuh di heatmap yang sekarang punya revenue+drilldown.
+
+**Transactions:**
+- Filter Month + Active Window (1/3/6/12 bulan, pola sama High Margin) ditambahkan — endpoint `GET /invoices` sudah lama support `date_from`/`date_to` tapi TIDAK ADA filter tanggal apa pun di UI sebelumnya.
+- **Fix bug pagination**: ganti filter apa pun tidak reset halaman ke 1 — kalau user sudah scroll ke halaman jauh lalu pilih filter yang mempersempit hasil, request minta halaman yang sudah di luar jangkauan → tabel tampil "No data available" walau `total > 0`. Direproduksi & diverifikasi persis via Playwright network log sebelum/sesudah fix.
+- Test baru `transactions-filter.e2e.test.ts` (21 test): company sendiri, window periodik 1/3/6/12 (`test.each`), company+branch, semua 7 division (`test.each`), kombinasi lengkap.
+
+**Filter bulan (MonthYearPicker) — komponen baru, rollout luas:**
+- Native `<input type="month">` diganti komponen custom render sendiri (`@mui/x-date-pickers`) — native picker punya masalah navigasi tahun tidak konsisten antar browser/OS (laporan user "tahun tidak bisa diganti"). Dipasang di Dashboard, Customers, Products, ProductsHighMargin (ganti dari `DatePicker` lama), ProductsTrend, Transactions.
+
+**Commit:** 9 commit terpisah per fitur/fix (bukan 1 commit besar) — lihat `git log` untuk detail per commit.
+**Belum di-deploy:** semua perubahan sesi ini masih di `main` lokal, belum di-push/PR ke production.
+
+---
 
 ### 2026-07-08 (sesi 39): Perf Chart + Fix Responsive Mobile + Theme pageTitle/pageSubtitle + 3 Palette Baru + Logo & Toggle
 

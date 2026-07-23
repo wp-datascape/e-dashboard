@@ -49,6 +49,18 @@ All `/metrics/*` endpoints accept:
 | `company_id`    | integer \| "all"| "all" = holding view     |
 | `period_month`  | string YYYY-MM  |                          |
 | `active_window` | 3 \| 6 \| 12   | Months for active window |
+| `exclude_intercompany` | `'true'` \| `'false'` (string, bukan boolean asli) | *(baru 2026-07-23)* Toggle laporan (BUKAN RBAC scope) — exclude division `intercompany` dari hasil. Tersedia di hampir semua endpoint `/metrics/*`, `/dashboard`, `/invoices`, `/customers`. Default falsy = bypass, semua division lolos. |
+
+⚠️ **Jangan pakai `z.coerce.boolean()`** untuk field boolean dari query string — `Boolean("false")` bernilai `true` di JS (string non-kosong selalu truthy), jadi toggle OFF (`?exclude_intercompany=false`) malah ke-parse jadi `true` (exclude selalu aktif). Pola yang benar (dipakai `exclude_intercompany` & `high_margin_only`):
+```ts
+z.enum(['true', 'false']).optional().transform((v) => v === 'true')
+```
+
+Helper builder ada di `utils/scope.ts`: `buildExcludeIntercompanyCondition` (Drizzle-column,
+dipakai query-builder style) dan `buildExcludeIntercompanyRaw` (raw-SQL, dipakai lewat
+`sql` template). Keduanya default bypass kalau `excludeIntercompany` falsy; kalau aktif,
+exclude baris di mana kolom division = `'intercompany'` (NULL/division lain tetap lolos —
+NULL berarti channel tidak match rule apa pun, bukan berarti intercompany).
 
 ## Metric Response Shape
 ```json

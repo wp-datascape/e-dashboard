@@ -59,6 +59,27 @@ top_rev_pct = (revenue customer X) / SUM(revenue semua existing) × 100
 - Ditampilkan di tooltip: `Top: [nama], [revenue], [%]`
 - Badge ⚠ muncul di chart jika `top_rev_pct > 25%` (konsentrasi tinggi)
 
+### Drill-Down Modal
+
+*(Ditambahkan 2026-07-23)* Klik pada batang bulan tertentu membuka modal Revenue
+Breakdown (`GET /metrics/revenue-breakdown`, mirror pola M4 gp-breakdown) yang
+menampilkan:
+
+| Kolom | Keterangan |
+|---|---|
+| Ranking | Urutan revenue terbesar ke terkecil |
+| Nama customer | Dari tabel `customers` |
+| Revenue | Revenue bulan tersebut |
+| % Total | Kontribusi revenue terhadap total revenue existing bulan itu |
+| Tier | Atas / Tengah / Bawah (berdasarkan median revenue bulan itu, pola sama dengan tier M4) |
+
+Header modal menampilkan: total revenue existing, avg revenue/customer, median threshold,
+jumlah customer transaksi.
+
+Tooltip chart dan modal drill-down memakai formatter angka yang sama persis
+(`fmtRpDetail`, 2 desimal) — sebelumnya tooltip pakai `fmtRp` (1 desimal) sehingga
+angka tampak beda (mis. "2,4M" vs "2,35M") padahal data underlying identik.
+
 ### Sumber Data
 
 | Tabel | Kolom | Keterangan |
@@ -71,6 +92,7 @@ top_rev_pct = (revenue customer X) / SUM(revenue semua existing) × 100
 - **Chart**: ComboChartWidget 12 bulan (batang = total revenue existing, garis = avg revenue)
 - **Y-axis**: format `Rp` disingkat (`jt`, `rb`)
 - **Tooltip**: avg revenue bulan itu + top contributor + badge konsentrasi
+- **Modal**: tabel drill-down per bulan (lihat Drill-Down Modal di atas)
 
 ---
 
@@ -377,6 +399,26 @@ flat_down_rate: parseFloat((100 - row.expansion_rate).toFixed(1)),
 
 `flat_down_rate` = sisa existing yang spending-nya flat/turun (termasuk yang tidak order sama sekali).
 
+### Drill-Down Modal
+
+*(Ditambahkan 2026-07-23)* Klik pada bar bulan tertentu membuka modal Expansion
+Breakdown (`GET /metrics/expansion-breakdown`, `fetchExpansionBreakdown` di
+`m3m7.repository.ts`) yang menampilkan per customer:
+
+| Kolom | Keterangan |
+|---|---|
+| Ranking | Urutan `(cur_revenue - prev_revenue)` terbesar ke terkecil |
+| Nama customer | Dari tabel `customers` |
+| Revenue Sebelumnya | `prev_revenue` (window 30 hari sebelum active window) |
+| Revenue Sekarang | `cur_revenue` (active window) |
+| % Perubahan | `NULL` kalau `prev_revenue = 0` (customer baru, tidak ada basis pembagi) |
+| Status | `up` (hijau) jika `cur_revenue > prev_revenue`, else `flat_down` |
+
+Header modal menampilkan: jumlah customer spending naik (`up_count`), total existing
+(`total_existing`), dan up rate hasil hitung ulang dari keduanya — sudah diverifikasi
+`up_count / total_existing` match persis dengan `up_rate` di trend endpoint (M7 chart)
+untuk bulan yang sama.
+
 ### Tampilan
 
 - **Chart**: BarChartWidget 100% stacked horizontal 12 bulan
@@ -384,3 +426,4 @@ flat_down_rate: parseFloat((100 - row.expansion_rate).toFixed(1)),
 - **Abu-abu** (`flat_down_rate`): % flat/turun/tidak aktif
 - **Label**: persentase langsung di dalam bar via `showLabels` + `labelFormatter`
 - **Subtitle**: "Hijau = % spending naik vs 30 hari sebelumnya · Abu-abu = % flat/turun"
+- **Modal**: tabel drill-down per bulan (lihat Drill-Down Modal di atas)
