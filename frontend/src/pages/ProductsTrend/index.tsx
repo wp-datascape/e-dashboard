@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { useProductTrend } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget'
 
 function todayMonth(): string {
@@ -23,13 +24,14 @@ export default function ProductsTrend() {
   const { t } = useTranslation()
 
   const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division } = scopeFilter
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
 
   const { data, isLoading } = useProductTrend({
     company_id: companyId,
     branch_id: branchId === 'all' ? undefined : branchId,
     division: division || undefined,
     period_month: todayMonth(),
+    exclude_intercompany: excludeIntercompany,
   })
 
   const changePct = data?.change_pct ?? null
@@ -55,8 +57,9 @@ export default function ProductsTrend() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
       </Box>
 

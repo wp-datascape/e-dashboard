@@ -18,6 +18,7 @@ interface Props {
   companyId: number | 'all'
   periodMonth: string
   activeWindow: number
+  excludeIntercompany?: boolean
   onClose: () => void
 }
 
@@ -33,6 +34,7 @@ export function UpsellCustomerDialog({
   companyId,
   periodMonth,
   activeWindow,
+  excludeIntercompany,
   onClose,
 }: Props) {
   const { t } = useTranslation()
@@ -44,6 +46,7 @@ export function UpsellCustomerDialog({
           category_id:   filterCategory?.id,
           period_month:  periodMonth,
           active_window: activeWindow,
+          exclude_intercompany: excludeIntercompany,
           per_page: 100,
         }
       : null,

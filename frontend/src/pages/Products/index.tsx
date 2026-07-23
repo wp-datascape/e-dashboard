@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { useCategoryPerformance } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { DatePicker } from '@/components/ui/DatePicker'
 import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -32,7 +33,7 @@ export default function Products() {
   const { t } = useTranslation()
 
   const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division } = scopeFilter
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
   const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
   const [activeWindow,    setActiveWindow]    = useState(6)
   const [search,          setSearch]          = useState('')
@@ -58,6 +59,7 @@ export default function Products() {
     active_window:   activeWindow,
     search:          search || undefined,
     high_margin_only: highMarginOnly || undefined,
+    exclude_intercompany: excludeIntercompany,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: (sortModel[0]?.field as CategoryPerformanceParams['sort_by']) ?? 'total_revenue',
@@ -192,6 +194,8 @@ export default function Products() {
             label={t('products.highMarginBadge')}
             sx={{ ml: 0, whiteSpace: 'nowrap' }}
           />
+
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
       </Box>
 
@@ -218,6 +222,7 @@ export default function Products() {
         companyId={companyId}
         periodMonth={periodMonth}
         activeWindow={activeWindow}
+        excludeIntercompany={excludeIntercompany}
         onClose={() => setSelectedCategory(null)}
       />
     </Box>

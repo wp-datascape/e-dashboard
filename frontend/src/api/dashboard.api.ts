@@ -7,6 +7,8 @@ export interface DashboardParams {
   company_id?: number | 'all';
   branch_id?: number;
   division?: string;
+  period_end?: string;
+  exclude_intercompany?: boolean;
 }
 
 export const dashboardApi = {

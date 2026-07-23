@@ -26,6 +26,7 @@ export interface InvoiceParams {
   company_id?: number | 'all'
   branch_id?: number
   business_unit?: string
+  exclude_intercompany?: boolean
   date_from?: string
   date_to?: string
   customer_search?: string

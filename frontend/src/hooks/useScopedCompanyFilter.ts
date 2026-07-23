@@ -23,6 +23,11 @@ export function useScopedCompanyFilter() {
   const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
   const [branchId, setBranchIdState] = useState<number | 'all'>('all');
   const [division, setDivision] = useState<NonNullable<Division> | ''>('');
+  // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil
+  // metrik. Independen dari company/branch/division di atas (tidak di-reset saat
+  // filter lain berubah) - lihat ExcludeIntercompanyToggle.tsx + utils/scope.ts
+  // buildExcludeIntercompanyCondition/-Raw (backend, dipakai saat wiring per halaman).
+  const [excludeIntercompany, setExcludeIntercompany] = useState(false);
 
   // Company berganti -> branch+division direset; branch berganti -> division
   // direset (opsi di bawahnya mungkin sudah tidak valid). Reset langsung di setter
@@ -42,8 +47,15 @@ export function useScopedCompanyFilter() {
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);
   const { data: allBranches = [] } = useBranchesByCompany(companyId === 'all' ? null : companyId);
+  // company_name cuma terisi di getScopedBranches() saat companyId==='all' (union
+  // lintas company) - itulah satu-satunya kondisi nama branch bisa ambigu/bertabrakan
+  // (mis. dua company sama-sama punya branch "Jakarta"), jadi suffix cuma muncul di
+  // situ. Company spesifik dipilih -> company_name undefined -> tidak ada suffix.
   const branchOptions = scopedBranches.restricted
-    ? scopedBranches.options.map((b) => ({ id: b.branch_id, name: b.branch_name }))
+    ? scopedBranches.options.map((b) => ({
+        id: b.branch_id,
+        name: b.company_name ? `${b.company_name} - ${b.branch_name}` : b.branch_name,
+      }))
     : allBranches.map((b) => ({ id: b.id, name: b.name }));
   // companyId==='all' tetap bisa tampilkan branch filter untuk user restricted (union branch
   // lintas company miliknya) - cuma unrestricted/superadmin yang di company='all' tidak
@@ -70,5 +82,7 @@ export function useScopedCompanyFilter() {
     setDivision,
     divisionOptions,
     showDivisionFilter,
+    excludeIntercompany,
+    setExcludeIntercompany,
   };
 }

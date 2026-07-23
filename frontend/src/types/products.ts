@@ -23,6 +23,7 @@ export interface CategoryPerformanceParams {
   active_window?: number
   search?: string
   high_margin_only?: boolean
+  exclude_intercompany?: boolean
   page?: number
   per_page?: number
   sort_by?: 'total_revenue' | 'total_gp' | 'gp_margin_percent' | 'customer_count'
@@ -46,6 +47,7 @@ export interface CategoryProductsParams {
   category_id: number
   period_month?: string
   active_window?: number
+  exclude_intercompany?: boolean
   page?: number
   per_page?: number
 }
@@ -68,6 +70,7 @@ export interface HighMarginDetailParams {
   company_id?: number | 'all'
   branch_id?: number
   division?: string
+  exclude_intercompany?: boolean
   period_month?: string
   active_window?: number
   page?: number
@@ -107,8 +110,10 @@ export interface CustomerProductsParams {
   company_id?: number | 'all'
   customer_id: number
   category_id?: number
+  item_type?: string
   period_month?: string
   active_window?: number
+  exclude_intercompany?: boolean
   page?: number
   per_page?: number
 }
@@ -119,6 +124,7 @@ export interface UpsellTargetParams {
   period_month?: string
   active_window?: number
   business_unit?: string
+  exclude_intercompany?: boolean
   page?: number
   per_page?: number
 }
@@ -144,4 +150,5 @@ export interface ProductTrendParams {
   division?: string
   period_month?: string
   active_window?: number
+  exclude_intercompany?: boolean
 }

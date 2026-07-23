@@ -28,6 +28,7 @@ interface Props {
   companyId: number | 'all'
   periodMonth: string
   activeWindow: number
+  excludeIntercompany?: boolean
   onClose: () => void
 }
 
@@ -42,6 +43,7 @@ export function CategoryProductsDialog({
   companyId,
   periodMonth,
   activeWindow,
+  excludeIntercompany,
   onClose,
 }: Props) {
   const { t } = useTranslation()
@@ -52,6 +54,7 @@ export function CategoryProductsDialog({
           category_id:  category.category_id,
           period_month: periodMonth,
           active_window: activeWindow,
+          exclude_intercompany: excludeIntercompany,
           per_page: 100,
         }
       : null,

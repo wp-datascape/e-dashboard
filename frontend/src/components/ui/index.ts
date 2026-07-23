@@ -11,6 +11,7 @@ export * from './Footer';
 export * from './Dialog';
 export * from './StatusChip';
 export * from './DatePicker';
+export * from './MonthYearPicker';
 export * from './ProgressBar';
 export * from './ActionMenu';
 export * from './ThemeToggle';

@@ -19,6 +19,8 @@ export async function handleGetDashboard(c: Context) {
     query.company_id,
     query.branch_id,
     query.division,
+    query.period_end,
+    query.exclude_intercompany,
   )
   return success(c, data)
 }

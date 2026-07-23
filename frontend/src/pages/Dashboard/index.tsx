@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
@@ -5,7 +6,10 @@ import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Card } from '@/components/ui';
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
+import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
 
 import { StatCard } from '@/components/charts/StatCard';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
@@ -65,12 +69,16 @@ export default function Dashboard() {
   const { t } = useTranslation();
 
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter } = scopeFilter;
+  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+
+  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
 
   const { data, isLoading } = useDashboard({
     company_id: companyFilter,
     branch_id: branchFilter === 'all' ? undefined : branchFilter,
     division: divisionFilter || undefined,
+    period_end: resolvePeriodEnd(periodMonth),
+    exclude_intercompany: excludeIntercompany,
   });
 
   const metrics = data?.metrics ?? [];
@@ -109,8 +117,16 @@ export default function Dashboard() {
       </Box>
 
       {/* ── Filter Bar ── */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
         <ScopeFilterFields filter={scopeFilter} />
+        <MonthYearPicker
+          size="small"
+          label={t('common.filters.month')}
+          value={periodMonth}
+          onChange={setPeriodMonth}
+          sx={{ width: { xs: '100%', sm: 160 } }}
+        />
+        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
 
       {/* ── Row 1: 10 Metric Stat Cards ── */}

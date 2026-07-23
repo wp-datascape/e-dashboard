@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '@/features/metrics/segment.helper'
 import type { MonthlyTrendPoint } from './dashboard.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan estimasi total nilai (revenue) yang berpotensi hilang dari
@@ -19,6 +19,7 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -41,6 +42,7 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
     ),
     scoped_cust AS (
       SELECT DISTINCT c.id AS cid

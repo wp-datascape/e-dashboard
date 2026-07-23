@@ -19,12 +19,16 @@ export interface ScopedOptions<T> {
 export function getScopedBranches(
   scope: MyScope,
   companyId: number | 'all',
-): ScopedOptions<{ branch_id: number; branch_name: string }> {
+): ScopedOptions<{ branch_id: number; branch_name: string; company_name?: string }> {
   if (scope.isSuperAdmin) return { restricted: false, options: [] }
 
   if (companyId === 'all') {
-    const union = new Map<number, { branch_id: number; branch_name: string }>()
-    scope.companies.forEach((c) => c.branches.forEach((b) => union.set(b.branch_id, { branch_id: b.branch_id, branch_name: b.branch_name })))
+    // Union lintas company — nama branch BISA sama antar company (mis. tiap company
+    // punya branch "Jakarta"), jadi ikutkan company_name di sini supaya caller bisa
+    // kasih suffix pembeda di dropdown. Company spesifik (branch di bawah) tidak perlu
+    // ini - dalam 1 company nama branch sudah pasti unik, tidak ambigu.
+    const union = new Map<number, { branch_id: number; branch_name: string; company_name?: string }>()
+    scope.companies.forEach((c) => c.branches.forEach((b) => union.set(b.branch_id, { branch_id: b.branch_id, branch_name: b.branch_name, company_name: c.company_name })))
     return { restricted: true, options: [...union.values()] }
   }
 

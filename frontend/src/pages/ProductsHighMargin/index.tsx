@@ -13,7 +13,8 @@ import { useTranslation } from 'react-i18next'
 import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
-import { DatePicker } from '@/components/ui/DatePicker'
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type {
   HighMarginCategoryRow,
   HighMarginDetailParams,
@@ -58,6 +59,7 @@ interface FilterState {
   division: string
   periodMonth: string
   activeWindow: number
+  excludeIntercompany: boolean
 }
 
 // ─── Tab 1: Category Penetration ─────────────────────────────────────────────
@@ -69,6 +71,7 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
     company_id:    filter.companyId,
     branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     division:      filter.division || undefined,
+    exclude_intercompany: filter.excludeIntercompany,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
     page: pagination.page + 1,
@@ -177,6 +180,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
     business_unit: filter.division || undefined,
+    exclude_intercompany: filter.excludeIntercompany,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
   }
@@ -284,6 +288,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         companyId={filter.companyId}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
+        excludeIntercompany={filter.excludeIntercompany}
         onClose={() => { setDrawerCustomer(null); setDrawerCatFilter(null) }}
       />
 
@@ -297,6 +302,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         companyId={filter.companyId}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
+        excludeIntercompany={filter.excludeIntercompany}
         onClose={() => setHmCategoryDrawer(null)}
       />
     </Box>
@@ -312,9 +318,9 @@ export default function ProductsHighMargin() {
   const [activeWindow, setActiveWindow] = useState(6)
 
   const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division } = scopeFilter
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
 
-  const filter: FilterState = { companyId, branchId, division, periodMonth, activeWindow }
+  const filter: FilterState = { companyId, branchId, division, periodMonth, activeWindow, excludeIntercompany }
 
   // Ambil seluruh kategori HM (bukan hanya 1 halaman grid) untuk hitung summary
   // per_page dibatasi maksimal 100 oleh backend (metrics.schema.ts)
@@ -322,6 +328,7 @@ export default function ProductsHighMargin() {
     company_id:    filter.companyId,
     branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     division:      filter.division || undefined,
+    exclude_intercompany: filter.excludeIntercompany,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
     page: 1,
@@ -361,10 +368,10 @@ export default function ProductsHighMargin() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
 
-          <DatePicker
-            size="small" label={t('common.filters.month')} type="month"
+          <MonthYearPicker
+            size="small" label={t('common.filters.month')}
             value={periodMonth}
-            onChange={(e) => setPeriodMonth(e.target.value)}
+            onChange={setPeriodMonth}
             sx={{ width: { xs: '100%', sm: 150 } }}
           />
 
@@ -378,6 +385,8 @@ export default function ProductsHighMargin() {
             <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
             <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
           </TextField>
+
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
       </Box>
 
