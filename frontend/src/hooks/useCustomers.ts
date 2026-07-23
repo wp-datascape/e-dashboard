@@ -11,10 +11,10 @@ export function useCustomers(params: CustomerParams) {
   });
 }
 
-export function useCustomerDetail(id: number | null) {
+export function useCustomerDetail(id: number | null, asOfDate?: string) {
   return useQuery({
-    queryKey: ['customerDetail', id],
-    queryFn: () => customersApi.getCustomerDetail(id!),
+    queryKey: ['customerDetail', id, asOfDate],
+    queryFn: () => customersApi.getCustomerDetail(id!, asOfDate),
     enabled: !!id,
   });
 }

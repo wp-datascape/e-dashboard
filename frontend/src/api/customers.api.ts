@@ -11,8 +11,10 @@ export const customersApi = {
   },
 
   // GET /customers/:id — detail satu customer
-  getCustomerDetail: async (id: number): Promise<CustomerDetail> => {
-    const response = await api.get<{ message: string; data: CustomerDetail }>(`/customers/${id}`);
+  getCustomerDetail: async (id: number, asOfDate?: string): Promise<CustomerDetail> => {
+    const response = await api.get<{ message: string; data: CustomerDetail }>(`/customers/${id}`, {
+      params: { as_of_date: asOfDate },
+    });
     return response.data.data;
   },
 };

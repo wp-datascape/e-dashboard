@@ -19,9 +19,9 @@ export async function getCustomers(
   }
 }
 
-export async function getCustomerDetail(id: number) {
+export async function getCustomerDetail(id: number, asOfDate?: string) {
   try {
-    const detail = await findCustomerDetail(id)
+    const detail = await findCustomerDetail(id, asOfDate)
     if (!detail) throw new AppError(ErrorCode.NOT_FOUND, `Customer dengan id ${id} tidak ditemukan`, 404)
     return detail
   } catch (err) {

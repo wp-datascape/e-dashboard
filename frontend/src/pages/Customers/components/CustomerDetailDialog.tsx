@@ -15,11 +15,12 @@ import { formatIDR } from '@/utils/format'
 interface Props {
   customerId: number | null
   onClose: () => void
+  asOfDate?: string
 }
 
-export function CustomerDetailDialog({ customerId, onClose }: Props) {
+export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
   const { t } = useTranslation()
-  const { data: detail, isLoading } = useCustomerDetail(customerId)
+  const { data: detail, isLoading } = useCustomerDetail(customerId, asOfDate)
 
   return (
     <Dialog

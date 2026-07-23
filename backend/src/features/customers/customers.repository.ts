@@ -1,8 +1,8 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions } from '@/db/schema'
-import { and, or, eq, inArray, isNull, isNotNull, sql, desc, asc, ilike } from 'drizzle-orm'
+import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
 import { loadThresholds, resolveDormantMonths, BU_DORMANT_KEY_MAP } from '@/features/config/threshold'
-import { buildBranchCondition, buildDivisionCondition } from '@/utils/scope'
+import { buildBranchCondition, buildDivisionCondition, buildExcludeIntercompanyCondition } from '@/utils/scope'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
 
@@ -12,7 +12,7 @@ export async function findCustomers(
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
 ) {
-  const { company_id, branch_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date } = params
+  const { company_id, branch_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date, exclude_intercompany } = params
   const offset = (page - 1) * per_page
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
 
@@ -32,28 +32,47 @@ export async function findCustomers(
     .groupBy(invoices.customer_id)
     .as('live_dates')
 
-  // Aggregate expressions
+  // Aggregate expressions — WAJIB dibatasi `invoice_date <= refDate`, konsisten dengan
+  // liveDatesSq di atas. Sebelumnya cuma filter deleted_at, jadi lifetime_value/
+  // avg_monthly_revenue/total_invoices/category_count SELALU all-time (mengabaikan
+  // as_of_date sepenuhnya) - kebuktikan dari laporan user: filter tahun 2022 (sebelum
+  // invoice tertua) tetap menampilkan angka current, walau first/last_invoice_date
+  // sudah benar null (liveDatesSq sudah difilter refDate, cuma 4 expr ini yang lupa).
   const lifetimeExpr = sql<string>`
-    COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END), 0)
+    COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)
   `
+  // Dibatasi 12 bulan kalender terakhir (sama persis dengan window monthly_revenue_trend
+  // di findCustomerDetail) — dulu all-time (dibagi jumlah bulan aktif sepanjang histori),
+  // jadi angkanya tidak nyambung sama sekali dengan grafik tren 12 bulan yang tampil di
+  // dialog detail (laporan user 2026-07-23: "grafik trennya cuma 12 bulan tapi avg
+  // dihitung dari semua invoice yang mungkin lebih dari 12 bulan, itu konyol"). Pembagi
+  // FIXED 12 (bukan COUNT bulan aktif) supaya nilainya persis rata-rata dari 12 bar
+  // grafik tren (termasuk bulan kosong = 0), bukan cuma rata-rata bulan yang ada transaksi.
   const avgMonthlyExpr = sql<string>`
     COALESCE(
-      SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END) /
-      NULLIF(COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL
-        THEN TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM') END), 0),
+      SUM(CASE WHEN ${invoices.deleted_at} IS NULL
+            AND ${invoices.invoice_date} <= ${refDate}
+            AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+          THEN ${invoices.total_revenue}::numeric END) / 12.0,
       0
     )
   `
   const invCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.id} END)
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.id} END)
   `
   const catCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoice_items.product_category_id} END)
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoice_items.product_category_id} END)
   `
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
   conditions.push(eq(customers.is_placeholder, false))
+  // Sembunyikan customer yang belum punya invoice pada/sebelum refDate — live_first
+  // NULL berarti tidak ada invoice yang lolos filter tanggal di liveDatesSq (baik karena
+  // customer belum pernah transaksi sama sekali, atau transaksi pertamanya masih SETELAH
+  // refDate). Tanpa ini, customer tsb tetap muncul dengan metrik nol/null (laporan user:
+  // filter tahun 2022 tetap menampilkan seluruh 952 customer, padahal invoice tertua 2025).
+  conditions.push(isNotNull(liveDatesSq.live_first))
   if (company_id !== 'all') conditions.push(eq(customers.company_id, company_id))
   else if (scopeIds) {
     if (scopeIds.length === 0) return { data: [], total: 0 }
@@ -104,8 +123,9 @@ export async function findCustomers(
   // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
   // branchScopeCond (enforcement akses) meski keduanya nyasar ke kolom yang sama
   const branchFilterCond = branch_id ? eq(latestSalespersonSq.branch_id, branch_id) : undefined
+  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(channel_divisions.division, exclude_intercompany)
 
-  const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond].filter(
+  const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond, excludeIntercompanyCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
   const whereWithDivision = scopeConditions.length
@@ -187,15 +207,16 @@ export async function findCustomers(
   }
 }
 
-export async function findCustomerDetail(customerId: number) {
+export async function findCustomerDetail(customerId: number, asOfDate?: string) {
   const { activeMonths, dormant } = await loadThresholds()
-  const refDate = sql`CURRENT_DATE`
+  const refDate = asOfDate ? sql`${asOfDate}::date` : sql`CURRENT_DATE`
 
-  // Ambil channel_name + company_id dari invoice terbaru → lookup division
+  // Ambil channel_name + company_id dari invoice terbaru (dibatasi refDate, konsisten
+  // dengan sisa function ini) → lookup division
   const [latestInv] = await db
     .select({ channel_name: invoices.channel_name, company_id: invoices.company_id })
     .from(invoices)
-    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
+    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate)))
     .orderBy(desc(invoices.invoice_date))
     .limit(1)
 
@@ -229,16 +250,23 @@ export async function findCustomerDetail(customerId: number) {
       first_invoice_date: liveFirstInv.mapWith(String),
       last_invoice_date: liveLastInv.mapWith(String),
       status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv),
-      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END), 0)`,
+      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)`,
+      // Dibatasi 12 bulan kalender terakhir — window PERSIS SAMA dengan monthly_revenue_trend
+      // di bawah (generate_series 12 bulan), supaya "Avg Monthly Revenue" yang tampil di
+      // dialog ini benar-benar rata-rata dari 12 bar grafik tren yang sama, bukan dari
+      // seluruh histori customer (laporan user: dulu tidak nyambung dengan grafik tren).
+      // Pembagi FIXED 12 (bukan COUNT bulan aktif) — bulan kosong (0) tetap ikut dibagi,
+      // konsisten dengan grafik yang juga menampilkan bulan kosong sebagai bar 0.
       avg_monthly_revenue: sql<string>`
         COALESCE(
-          SUM(CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoices.total_revenue}::numeric END) /
-          NULLIF(COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL
-            THEN TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM') END), 0),
+          SUM(CASE WHEN ${invoices.deleted_at} IS NULL
+                AND ${invoices.invoice_date} <= ${refDate}
+                AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+              THEN ${invoices.total_revenue}::numeric END) / 12.0,
           0
         )
       `,
-      category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL THEN ${invoice_items.product_category_id} END)`,
+      category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoice_items.product_category_id} END)`,
     })
     .from(customers)
     .leftJoin(companies, eq(customers.company_id, companies.id))
@@ -257,14 +285,14 @@ export async function findCustomerDetail(customerId: number) {
     .from(invoice_items)
     .innerJoin(invoices, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
     .innerJoin(product_categories, eq(invoice_items.product_category_id, product_categories.id))
-    .where(eq(invoices.customer_id, customerId))
+    .where(and(eq(invoices.customer_id, customerId), lte(invoices.invoice_date, refDate)))
 
   const trendRows = await db.execute<{ month: string; revenue: string; gp: string }>(sql`
     WITH months AS (
       SELECT TO_CHAR(m, 'YYYY-MM') AS month
       FROM generate_series(
-        DATE_TRUNC('month', CURRENT_DATE - INTERVAL '11 months'),
-        DATE_TRUNC('month', CURRENT_DATE),
+        DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months'),
+        DATE_TRUNC('month', ${refDate}::date),
         INTERVAL '1 month'
       ) AS m
     ),
@@ -276,7 +304,8 @@ export async function findCustomerDetail(customerId: number) {
       FROM ${invoices}
       WHERE ${invoices.customer_id} = ${customerId}
         AND ${invoices.deleted_at} IS NULL
-        AND ${invoices.invoice_date}::date >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '11 months')
+        AND ${invoices.invoice_date}::date >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+        AND ${invoices.invoice_date}::date <= ${refDate}::date
       GROUP BY 1
     )
     SELECT m.month, COALESCE(a.revenue, 0)::text AS revenue, COALESCE(a.gp, 0)::text AS gp
@@ -293,7 +322,7 @@ export async function findCustomerDetail(customerId: number) {
       total_gp: invoices.total_gp,
     })
     .from(invoices)
-    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at)))
+    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate)))
     .orderBy(desc(invoices.invoice_date))
     .limit(5)
 

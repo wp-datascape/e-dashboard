@@ -10,21 +10,25 @@ import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
 import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
 import { formatIDR } from '@/utils/format';
+import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
 
 export default function Customers() {
   const { t } = useTranslation();
 
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter } = scopeFilter;
+  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
+  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -43,12 +47,14 @@ export default function Customers() {
   // render" (dibandingkan ref filterKey sebelumnya), BUKAN useEffect terpisah, karena
   // sumber perubahannya banyak (5 filter independen dari beberapa tempat berbeda,
   // termasuk hook useScopedCompanyFilter) - tidak praktis digabung ke satu handler.
-  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}`;
+  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}|${periodMonth}|${excludeIntercompany}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   }
+
+  const asOfDate = resolvePeriodEnd(periodMonth);
 
   const queryParams = {
     company_id: companyFilter,
@@ -56,6 +62,8 @@ export default function Customers() {
     search: debouncedSearch || undefined,
     status: (statusFilter || undefined) as CustomerStatus | undefined,
     business_unit: divisionFilter || undefined,
+    as_of_date: asOfDate,
+    exclude_intercompany: excludeIntercompany,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: sortModel[0]?.field as
@@ -91,16 +99,23 @@ export default function Customers() {
       <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('customers.title')}</Typography>
       <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('customers.subtitle')}</Typography>
 
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
-        <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 240 }} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3 }}>
+        <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
-        <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ minWidth: 140 }}>
+        <MonthYearPicker
+          size="small" label={t('common.filters.month')}
+          value={periodMonth}
+          onChange={setPeriodMonth}
+          sx={{ width: { xs: '100%', sm: 150 } }}
+        />
+        <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: 140 } }}>
           <MenuItem value="">{t('common.all')}</MenuItem>
           <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
           <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
           <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
           <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
         </TextField>
+        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
 
       <ResponsiveListView
@@ -123,6 +138,7 @@ export default function Customers() {
       <CustomerDetailDialog
         customerId={selectedCustomerId}
         onClose={() => setSelectedCustomerId(null)}
+        asOfDate={asOfDate}
       />
     </Box>
   );

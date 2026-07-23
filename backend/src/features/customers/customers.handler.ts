@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery, validateParam } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { customersQuerySchema, customerIdParamSchema } from './customers.schema'
+import { customersQuerySchema, customerIdParamSchema, customerDetailQuerySchema } from './customers.schema'
 import { getCustomers, getCustomerDetail } from './customers.service'
 
 export async function handleGetCustomers(c: Context) {
@@ -21,6 +21,7 @@ export async function handleGetCustomers(c: Context) {
 
 export async function handleGetCustomerDetail(c: Context) {
   const { id } = validateParam(c, customerIdParamSchema)
-  const detail = await getCustomerDetail(id)
+  const query = validateQuery(c, customerDetailQuerySchema)
+  const detail = await getCustomerDetail(id, query.as_of_date)
   return success(c, detail)
 }

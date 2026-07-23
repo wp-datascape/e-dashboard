@@ -54,6 +54,7 @@ export interface CustomerParams {
   page?: number;
   per_page?: number;
   as_of_date?: string;
+  exclude_intercompany?: boolean;
 }
 
 // ─── Backward-compat aliases (hapus saat semua referensi sudah diupdate) ──────

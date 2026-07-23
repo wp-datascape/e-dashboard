@@ -17,10 +17,23 @@ export const customersQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD')
     .optional(),
+  // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany'. Lihat
+  // utils/scope.ts buildExcludeIntercompanyCondition/-Raw(). BUKAN z.coerce.boolean() —
+  // Boolean("false") === true di JS, jadi toggle OFF (?exclude_intercompany=false)
+  // malah ke-parse true (exclude selalu aktif). Lihat metrics.schema.ts untuk detail.
+  exclude_intercompany: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
 })
 
 export const customerIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })
 
+export const customerDetailQuerySchema = z.object({
+  as_of_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD')
+    .optional(),
+})
+
 export type CustomersQuery = z.infer<typeof customersQuerySchema>
+export type CustomerDetailQuery = z.infer<typeof customerDetailQuerySchema>
