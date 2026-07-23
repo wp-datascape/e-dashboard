@@ -2,12 +2,12 @@ import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 // active = new + active_existing = semua yang ada invoice dalam active_window (SSOT segment.helper)
 const CS_INV_CTE = (p: SegmentParams) => sql`
   inv AS (
-    SELECT DISTINCT i.id, i.customer_id
+    SELECT DISTINCT i.id, i.customer_id, i.total_revenue::numeric AS total_revenue
     FROM invoices i
     JOIN customers c ON c.id = i.customer_id
     LEFT JOIN channel_divisions cd
@@ -22,6 +22,7 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
       AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
       AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
+      AND ${buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)}
   )
 `
 
@@ -97,6 +98,7 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
         AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
+        AND ${buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)}
         AND ii.product_category_id IS NOT NULL
     ),
     monthly AS (
@@ -205,24 +207,26 @@ export async function fetchCrossSellingHeatmap(p: SegmentParams): Promise<{
       GROUP BY pc.item_type
       ORDER BY freq DESC
     ),
+    -- Seleksi + urutan 30 customer = total revenue gabungan semua kategori (unit+
+    -- sparepart+consumable), terbesar dulu. Dulu pakai type_count (jumlah kategori
+    -- berbeda) DESC lalu tx_count DESC - hasilnya customer dengan 1 transaksi di 3
+    -- kategori (total 3 tx) ranking di atas customer dengan 13 transaksi tapi cuma 2
+    -- kategori, jelas tidak masuk akal secara bisnis. Laporan user 2026-07-23.
     top_customers AS (
-      SELECT
-        inv.customer_id,
-        COUNT(DISTINCT pc.item_type) AS type_count,
-        COUNT(*)                     AS tx_count
+      SELECT inv.customer_id, SUM(inv.total_revenue) AS revenue
       FROM inv
-      JOIN invoice_items ii ON ii.invoice_id = inv.id
-      JOIN product_categories pc ON pc.id = ii.product_category_id
-      WHERE pc.item_type IS NOT NULL
       GROUP BY inv.customer_id
-      ORDER BY type_count DESC, tx_count DESC
+      ORDER BY revenue DESC
       LIMIT 30
     )
     SELECT
-      c.customer_name  AS customer,
-      pc.item_type     AS category,
-      COUNT(*)::int    AS purchase_count,
-      tc2.freq         AS cat_freq
+      tc.customer_id     AS customer_id,
+      c.customer_name    AS customer,
+      pc.item_type       AS category,
+      COUNT(*)::int      AS purchase_count,
+      SUM(ii.revenue)    AS category_revenue,
+      tc2.freq           AS cat_freq,
+      tc.revenue         AS customer_total_revenue
     FROM top_customers tc
     JOIN customers c ON c.id = tc.customer_id
     JOIN inv         ON inv.customer_id = tc.customer_id
@@ -230,22 +234,32 @@ export async function fetchCrossSellingHeatmap(p: SegmentParams): Promise<{
     JOIN product_categories pc ON pc.id = ii.product_category_id
     JOIN type_counts tc2 ON tc2.name = pc.item_type
     WHERE pc.item_type IS NOT NULL
-    GROUP BY c.customer_name, pc.item_type, tc2.freq
-    ORDER BY c.customer_name, tc2.freq DESC
+    GROUP BY tc.customer_id, c.customer_name, pc.item_type, tc2.freq, tc.revenue
+    ORDER BY tc.revenue DESC, c.customer_name, tc2.freq DESC
   `)
 
   const catFreqMap = new Map<string, number>()
   const customerMap = new Map<string, Record<string, number>>()
+  const customerRevenueMap = new Map<string, Record<string, number>>()
+  const customerTotalRevenue = new Map<string, number>()
+  const customerIdMap = new Map<string, number>()
 
   for (const r of rawRows as unknown[]) {
     const row = r as Record<string, unknown>
-    const customer = String(row.customer)
-    const category = String(row.category)
-    const count    = Number(row.purchase_count ?? 0)
-    const freq     = Number(row.cat_freq       ?? 0)
+    const customer   = String(row.customer)
+    const customerId = Number(row.customer_id)
+    const category  = String(row.category)
+    const count     = Number(row.purchase_count ?? 0)
+    const revenue   = Number(row.category_revenue ?? 0)
+    const freq      = Number(row.cat_freq ?? 0)
+    const totalRev  = Number(row.customer_total_revenue ?? 0)
     if (!catFreqMap.has(category)) catFreqMap.set(category, freq)
     if (!customerMap.has(customer)) customerMap.set(customer, {})
+    if (!customerRevenueMap.has(customer)) customerRevenueMap.set(customer, {})
     customerMap.get(customer)![category] = count
+    customerRevenueMap.get(customer)![category] = revenue
+    customerTotalRevenue.set(customer, totalRev)
+    customerIdMap.set(customer, customerId)
   }
 
   const categories = [...catFreqMap.entries()]
@@ -254,7 +268,10 @@ export async function fetchCrossSellingHeatmap(p: SegmentParams): Promise<{
 
   const heatmap: CrossSellingHeatmapRow[] = [...customerMap.entries()].map(([customer, values]) => ({
     customer,
+    customer_id: customerIdMap.get(customer) ?? 0,
     values,
+    revenues: customerRevenueMap.get(customer) ?? {},
+    total_revenue: customerTotalRevenue.get(customer) ?? 0,
   }))
 
   return { heatmap, categories }

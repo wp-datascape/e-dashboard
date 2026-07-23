@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetCategoryProducts, handleGetHmDetail, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetCategoryProducts, handleGetHmDetail, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -11,6 +11,8 @@ export const metricsRoutes = new Hono()
 // manapun di sini karena 'metrics:view' tidak pernah bisa di-assign lewat RBAC UI.
 metricsRoutes.get('/cross-selling',         requirePermission('cross.selling:view'), handleGetCrossSelling)
 metricsRoutes.get('/customer-metrics',      requirePermission('expansion:view'), handleGetCustomerMetrics)
+metricsRoutes.get('/revenue-breakdown',     requirePermission('expansion:view'), handleGetRevenueBreakdown)
+metricsRoutes.get('/expansion-breakdown',   requirePermission('expansion:view'), handleGetExpansionBreakdown)
 metricsRoutes.get('/gp-breakdown',          requirePermission('expansion:view'), handleGetGpBreakdown)
 metricsRoutes.get('/hm-breakdown',          requirePermission('expansion:view'), handleGetHmBreakdown)
 metricsRoutes.get('/ror-breakdown',         requirePermission('expansion:view'), handleGetRorBreakdown)

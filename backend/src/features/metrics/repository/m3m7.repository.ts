@@ -1,7 +1,9 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
+import { cteEstablishedCustomers } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import type { RevenueBreakdownRow, ExpansionBreakdownRow } from '../metrics.types'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export type TrendRow = {
   month: string
@@ -40,6 +42,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -74,6 +77,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${dormantMonths}::int * INTERVAL '1 month'
@@ -102,6 +106,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
         AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
                               - INTERVAL '11 months'
                               - ${activeMonths}::int * INTERVAL '1 month'
@@ -345,4 +350,206 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       top_gp_pct:             Number(row.top_gp_pct ?? 0),
     }
   })
+}
+
+// ─── M3: Revenue Breakdown per Existing Customer (drill-down klik chart) ───────
+// Mirror pola fetchGpBreakdown (m4.repository.ts) persis - cuma total_revenue,
+// bukan total_gp, sebagai basis tier/ranking.
+export async function fetchRevenueBreakdown(
+  p: SegmentParams,
+): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number }> {
+  const { cid, filterDate, activeMonths, companyScopeIds } = p
+  const establishedCTE = cteEstablishedCustomers(p)
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+
+  const rows = await db.execute(sql`
+    WITH
+    ${establishedCTE},
+    inv_active AS (
+      SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      WHERE i.deleted_at IS NULL
+        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND i.invoice_date <= ${filterDate}::date
+        AND ${companyCondI}
+        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+      GROUP BY i.customer_id
+    ),
+    existing_revenue AS (
+      SELECT ec.id, ec.customer_name, ec.customer_code, ia.revenue
+      FROM established_customers ec
+      JOIN inv_active ia ON ia.customer_id = ec.id
+    ),
+    median_threshold AS (
+      SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue), 0) AS threshold
+      FROM existing_revenue
+    ),
+    total AS (
+      SELECT
+        COALESCE(SUM(revenue), 0)                           AS total_revenue,
+        (SELECT COUNT(*) FROM established_customers)::int   AS total_existing
+      FROM existing_revenue
+    )
+    SELECT
+      ROW_NUMBER() OVER (ORDER BY er.revenue DESC)::int        AS ranking,
+      er.customer_code,
+      er.customer_name,
+      ROUND(er.revenue)::bigint                                AS revenue,
+      ROUND(er.revenue * 100.0 / NULLIF(t.total_revenue, 0), 1) AS revenue_pct,
+      CASE
+        WHEN er.revenue >  mt.threshold        THEN 'Atas'
+        WHEN er.revenue >  mt.threshold * 0.5  THEN 'Tengah'
+        ELSE                                        'Bawah'
+      END                                                       AS tier,
+      mt.threshold                                              AS median_threshold,
+      t.total_revenue,
+      t.total_existing
+    FROM existing_revenue er
+    CROSS JOIN median_threshold mt
+    CROSS JOIN total t
+    ORDER BY er.revenue DESC
+  `)
+
+  const rawRows = rows as unknown[]
+  if (rawRows.length === 0) {
+    const [totRow] = await db.execute(sql`
+      WITH ${cteEstablishedCustomers(p)}
+      SELECT COUNT(*)::int AS total_existing FROM established_customers
+    `) as unknown[]
+    const tot = totRow as Record<string, unknown>
+    return { rows: [], total_revenue: 0, median_threshold: 0, total_existing: Number(tot?.total_existing ?? 0) }
+  }
+
+  const first = rawRows[0] as Record<string, unknown>
+  return {
+    total_revenue:    Number(first.total_revenue ?? 0),
+    median_threshold: Number(first.median_threshold ?? 0),
+    total_existing:   Number(first.total_existing ?? 0),
+    rows: rawRows.map((r) => {
+      const row = r as Record<string, unknown>
+      return {
+        ranking:       Number(row.ranking),
+        customer_code: row.customer_code != null ? String(row.customer_code) : null,
+        customer_name: String(row.customer_name),
+        revenue:       Number(row.revenue ?? 0),
+        revenue_pct:   Number(row.revenue_pct ?? 0),
+        tier:          String(row.tier) as 'Atas' | 'Tengah' | 'Bawah',
+      }
+    }),
+  }
+}
+
+// ─── M7: Expansion Breakdown per Existing Customer (drill-down klik chart) ────
+// Mirror pola fetchRevenueBreakdown/fetchGpBreakdown - bedanya di sini butuh DUA window
+// (current vs previous activeMonths) buat tentuin status up/flat_down, sesuai definisi
+// expansion_rate di fetchCustomerMetricsTrend (active_inv_agg vs prev_inv_agg di atas).
+export async function fetchExpansionBreakdown(
+  p: SegmentParams,
+): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; total_existing: number }> {
+  const { cid, filterDate, activeMonths, companyScopeIds } = p
+  const establishedCTE = cteEstablishedCustomers(p)
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+
+  const rows = await db.execute(sql`
+    WITH
+    ${establishedCTE},
+    inv_current AS (
+      SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      WHERE i.deleted_at IS NULL
+        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND i.invoice_date <= ${filterDate}::date
+        AND ${companyCondI}
+        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+      GROUP BY i.customer_id
+    ),
+    inv_previous AS (
+      SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      WHERE i.deleted_at IS NULL
+        AND i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month'
+        AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${companyCondI}
+        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+      GROUP BY i.customer_id
+    ),
+    combined AS (
+      SELECT
+        ec.id, ec.customer_name, ec.customer_code,
+        COALESCE(ic.revenue, 0)  AS cur_revenue,
+        COALESCE(ip.revenue, 0)  AS prev_revenue
+      FROM established_customers ec
+      LEFT JOIN inv_current  ic ON ic.customer_id = ec.id
+      LEFT JOIN inv_previous ip ON ip.customer_id = ec.id
+    )
+    SELECT
+      ROW_NUMBER() OVER (
+        ORDER BY (cur_revenue - prev_revenue) DESC
+      )::int                                                                AS ranking,
+      customer_code,
+      customer_name,
+      ROUND(cur_revenue)::bigint                                           AS cur_revenue,
+      ROUND(prev_revenue)::bigint                                          AS prev_revenue,
+      CASE WHEN prev_revenue > 0
+        THEN ROUND((cur_revenue - prev_revenue) * 100.0 / prev_revenue, 1)
+        ELSE NULL
+      END                                                                   AS change_pct,
+      CASE WHEN cur_revenue > prev_revenue THEN 'up' ELSE 'flat_down' END   AS status,
+      COUNT(*) FILTER (WHERE cur_revenue > prev_revenue) OVER ()::int       AS up_count,
+      COUNT(*) OVER ()::int                                                 AS total_existing
+    FROM combined
+    ORDER BY (cur_revenue - prev_revenue) DESC
+  `)
+
+  const rawRows = rows as unknown[]
+  if (rawRows.length === 0) {
+    const [totRow] = await db.execute(sql`
+      WITH ${cteEstablishedCustomers(p)}
+      SELECT COUNT(*)::int AS total_existing FROM established_customers
+    `) as unknown[]
+    const tot = totRow as Record<string, unknown>
+    return { rows: [], up_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
+  }
+
+  const first = rawRows[0] as Record<string, unknown>
+  return {
+    up_count:       Number(first.up_count ?? 0),
+    total_existing: Number(first.total_existing ?? 0),
+    rows: rawRows.map((r) => {
+      const row = r as Record<string, unknown>
+      return {
+        ranking:       Number(row.ranking),
+        customer_code: row.customer_code != null ? String(row.customer_code) : null,
+        customer_name: String(row.customer_name),
+        cur_revenue:   Number(row.cur_revenue ?? 0),
+        prev_revenue:  Number(row.prev_revenue ?? 0),
+        change_pct:    row.change_pct != null ? Number(row.change_pct) : null,
+        status:        String(row.status) as 'up' | 'flat_down',
+      }
+    }),
+  }
 }

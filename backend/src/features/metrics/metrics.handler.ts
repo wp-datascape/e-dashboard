@@ -2,8 +2,8 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -33,6 +33,20 @@ export async function handleGetCustomerMetrics(c: Context) {
   const query = validateQuery(c, customerMetricsQuerySchema)
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getCustomerMetrics(query, scope)
+  return success(c, data)
+}
+
+export async function handleGetRevenueBreakdown(c: Context) {
+  const query = validateQuery(c, revenueBreakdownQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getRevenueBreakdown(query, scope)
+  return success(c, data)
+}
+
+export async function handleGetExpansionBreakdown(c: Context) {
+  const query = validateQuery(c, expansionBreakdownQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getExpansionBreakdown(query, scope)
   return success(c, data)
 }
 

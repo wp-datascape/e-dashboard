@@ -4,6 +4,18 @@ const divisionEnum = z
   .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other'])
   .optional()
 
+// Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil metrik.
+// Lihat utils/scope.ts buildExcludeIntercompanyCondition/-Raw().
+// BUKAN z.coerce.boolean() — Boolean("false") === true di JS (string non-kosong = truthy),
+// jadi toggle OFF (?exclude_intercompany=false di query string) malah ke-parse jadi true,
+// exclude selalu aktif apa pun state toggle-nya (ditemukan 2026-07-23 lewat laporan user).
+// Pola z.enum(['true','false']).transform(...) ini sudah dipakai di high_margin_only di
+// bawah — seharusnya diikuti dari awal, bukan pakai coerce.boolean().
+const excludeIntercompanyField = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true')
+
 export const crossSellingQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
@@ -12,6 +24,7 @@ export const crossSellingQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 export type CrossSellingQuery = z.infer<typeof crossSellingQuerySchema>
 
@@ -23,9 +36,36 @@ export const customerMetricsQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 
 export type CustomerMetricsQuery = z.infer<typeof customerMetricsQuerySchema>
+
+export const revenueBreakdownQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
+})
+
+export type RevenueBreakdownQuery = z.infer<typeof revenueBreakdownQuerySchema>
+
+export const expansionBreakdownQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
+})
+
+export type ExpansionBreakdownQuery = z.infer<typeof expansionBreakdownQuerySchema>
 
 export const gpBreakdownQuerySchema = z.object({
   company_id: z
@@ -35,6 +75,7 @@ export const gpBreakdownQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 
 export type GpBreakdownQuery = z.infer<typeof gpBreakdownQuerySchema>
@@ -47,6 +88,7 @@ export const hmBreakdownQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 
 export type HmBreakdownQuery = z.infer<typeof hmBreakdownQuerySchema>
@@ -59,6 +101,7 @@ export const rorBreakdownQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 
 export type RorBreakdownQuery = z.infer<typeof rorBreakdownQuerySchema>
@@ -71,6 +114,7 @@ export const dormantCustomerQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
 })
 
 export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>
@@ -87,6 +131,7 @@ export const categoryPerformanceQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   division: divisionEnum,
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -122,6 +167,7 @@ export const categoryProductsQuerySchema = z.object({
     .optional()
     .default('all'),
   category_id: z.coerce.number().int().positive(),
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -141,6 +187,7 @@ export const hmDetailQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   division: divisionEnum,
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -158,6 +205,7 @@ export const upsellTargetQuerySchema = z.object({
     .optional()
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -177,6 +225,8 @@ export const customerProductsQuerySchema = z.object({
     .default('all'),
   customer_id:  z.coerce.number().int().positive(),
   category_id:  z.coerce.number().int().positive().optional(),
+  item_type:    z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
@@ -195,6 +245,7 @@ export const avgCategoryQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   division: divisionEnum,
+  exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
     .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')

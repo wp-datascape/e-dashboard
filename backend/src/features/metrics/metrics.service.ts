@@ -1,10 +1,10 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
-import { fetchCustomerMetricsTrend, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
+import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
 
 function todayDate(): string {
   const now = new Date()
@@ -31,6 +31,7 @@ export async function resolveSegmentParams(
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, string[]>,
   branchId?: number,
+  excludeIntercompany?: boolean,
 ): Promise<SegmentParams> {
   const { activeMonths, dormant } = await loadThresholds()
   const cid = companyId === 'all' ? 0 : companyId
@@ -41,7 +42,7 @@ export async function resolveSegmentParams(
   } else {
     dormantMonths = await resolveDormantMonths(cid, dormant)
   }
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, branchId)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {
@@ -55,7 +56,7 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
     const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
     const endOfMonth = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
+    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
 
     const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams),
@@ -94,7 +95,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
   try {
     const filterDate = params.period_end ?? todayDate()
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id),
+      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
       loadThresholds(),
     ])
 
@@ -149,10 +150,45 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
   }
 }
 
+export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: MetricsScope = {}): Promise<RevenueBreakdownData> {
+  try {
+    const filterDate = params.period_end ?? todayDate()
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const result = await fetchRevenueBreakdown(segParams)
+    return {
+      period_end:       filterDate,
+      total_revenue:    result.total_revenue,
+      median_threshold: result.median_threshold,
+      total_existing:   result.total_existing,
+      rows:             result.rows,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil revenue breakdown', 500)
+  }
+}
+
+export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, scope: MetricsScope = {}): Promise<ExpansionBreakdownData> {
+  try {
+    const filterDate = params.period_end ?? todayDate()
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const result = await fetchExpansionBreakdown(segParams)
+    return {
+      period_end:     filterDate,
+      up_count:       result.up_count,
+      total_existing: result.total_existing,
+      rows:           result.rows,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil expansion breakdown', 500)
+  }
+}
+
 export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsScope = {}): Promise<GpBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
     const result = await fetchGpBreakdown(segParams)
     return {
       period_end:       filterDate,
@@ -170,7 +206,7 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
 export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsScope = {}): Promise<HmBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
     const result = await fetchHmBreakdown(segParams)
     return {
       period_end:       filterDate,
@@ -189,7 +225,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
   try {
     const filterDate = params.period_end ?? todayDate()
     const [segParams, thresholds] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id),
+      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
       loadThresholds(),
     ])
 
@@ -224,7 +260,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
 export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsScope = {}): Promise<RorBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
     const result = await fetchRorBreakdown(segParams)
     return {
       period_end:     filterDate,
@@ -256,6 +292,7 @@ export async function getCategoryPerformance(
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
       division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd,
       activeWindow:   params.active_window,
@@ -293,6 +330,7 @@ export async function getCategoryProducts(
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
       categoryId:  params.category_id,
+      excludeIntercompany: params.exclude_intercompany,
       periodEnd,
       activeWindow: params.active_window,
       page:         params.page,
@@ -325,6 +363,7 @@ export async function getHmPenetrationDetail(
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
       division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
       page: params.page, perPage: params.per_page,
@@ -356,6 +395,8 @@ export async function getCustomerProducts(
       divisionScope:   scope.divisionScope,
       customerId:  params.customer_id,
       categoryId:  params.category_id,
+      itemType:    params.item_type,
+      excludeIntercompany: params.exclude_intercompany,
       periodEnd,
       activeWindow: params.active_window,
       page:         params.page,
@@ -386,6 +427,7 @@ export async function getUpsellTargets(
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
+      excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
       businessUnit: params.business_unit || null,
@@ -421,6 +463,7 @@ export async function getAvgCategoryTrend(params: AvgCategoryQuery, scope: Metri
       branchScope:     scope.branchScope,
       divisionScope:   scope.divisionScope,
       division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd,
       activeWindow,

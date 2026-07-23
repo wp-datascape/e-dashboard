@@ -1,16 +1,18 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export interface CustomerProductsRepoParams {
   cid: number
   companyScopeIds?: number[]
   customerId: number
   categoryId?: number
+  itemType?: string
   periodEnd: string
   activeWindow: number
   page: number
   perPage: number
+  excludeIntercompany?: boolean
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
 }
@@ -34,9 +36,13 @@ export async function fetchCustomerProducts(
   const catFilter = p.categoryId
     ? sql`AND ii.product_category_id = ${p.categoryId}`
     : sql``
+  const itemTypeFilter = p.itemType
+    ? sql`AND pc.item_type = ${p.itemType}`
+    : sql``
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     SELECT
@@ -66,7 +72,9 @@ export async function fetchCustomerProducts(
       AND ii.product_category_id IS NOT NULL
       AND ${branchCond}
       AND ${divisionScopeCond}
+      AND ${excludeIntercompanyCond}
       ${catFilter}
+      ${itemTypeFilter}
     GROUP BY pr.id, pr.product_name, pc.id, pc.name
     ORDER BY total_revenue DESC NULLS LAST
     LIMIT  ${p.perPage}
