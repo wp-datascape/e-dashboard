@@ -78,11 +78,13 @@
     "productsCount": "{{bought}}/{{total}} products",
     "totalTransactions": "Total {{count}} transactions",
     "cellTooltip": "{{customer}} — {{label}}: {{status}}",
-    "statusYes": "Yes ({{count}} transactions)",
+    "statusYes": "Yes ({{count}} transactions · {{revenue}})",
     "statusNo": "No transactions",
     "legendBought": "Bought (value = transaction count)",
     "legendNotBought": "Not bought",
-    "mobileSubtitle": "Mobile view: products purchased per customer"
+    "mobileSubtitle": "Mobile view: products purchased per customer",
+    "colTotalRevenue": "Total Revenue",
+    "totalRevenue": "Total revenue: {{value}}"
   },
   "filters": {
     "entity": "Entity",
@@ -92,9 +94,11 @@
     "periodDate": "As of Date",
     "month": "Month",
     "activeWindow": "Active Window",
+    "window1Month": "1 Month",
     "window3Months": "3 Months",
     "window6Months": "6 Months",
-    "window12Months": "12 Months"
+    "window12Months": "12 Months",
+    "excludeIntercompany": "Exclude Intercompany"
   },
   "userMenu": {
     "moreCount": "+{{count}} more",

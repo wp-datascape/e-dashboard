@@ -1,32 +1,50 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices } from '@/hooks/useTransactions'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
 import { InvoiceDetailDialog } from './components/InvoiceDetailDialog'
 import { formatIDR } from '@/utils/format'
+import { currentYearMonth, resolvePeriodEnd, windowStartDate } from '@/utils/date'
 
 export default function Transactions() {
   const { t } = useTranslation()
   const [customerSearch, setCustomerSearch] = useState('')
   const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division: buFilter } = scopeFilter
+  const { companyId, branchId, division: buFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter
+  const [periodMonth, setPeriodMonth] = useState(currentYearMonth())
+  const [activeWindow, setActiveWindow] = useState(3)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
+
+  // Reset ke halaman 1 setiap kali filter berubah - tanpa ini, page index lama (misal
+  // sudah scroll ke halaman 8 di "All Divisions") tetap dipakai saat filter dipersempit
+  // (misal pilih Division tertentu), sehingga request page yang sudah di luar jangkauan
+  // data baru dan tabel tampil "No data available" walau total datanya > 0. Laporan
+  // user 2026-07-24 dengan screenshot: All Divisions tampil data, Project blank.
+  useEffect(() => {
+    setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }))
+  }, [companyId, branchId, buFilter, excludeIntercompany, customerSearch, periodMonth, activeWindow])
 
   const queryParams: InvoiceParams = {
     company_id: companyId,
     branch_id: branchId === 'all' ? undefined : branchId,
     customer_search: customerSearch || undefined,
     business_unit: buFilter || undefined,
+    exclude_intercompany: excludeIntercompany,
+    date_from: windowStartDate(periodMonth, activeWindow),
+    date_to: resolvePeriodEnd(periodMonth),
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: sortModel[0]?.field as 'invoice_date' | 'total_revenue' | 'total_gp' | undefined,
@@ -58,9 +76,30 @@ export default function Transactions() {
       <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('transactions.title')}</Typography>
       <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('transactions.subtitle')}</Typography>
 
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
-        <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ minWidth: 240 }} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3 }}>
+        <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
+
+        <MonthYearPicker
+          size="small" label={t('common.filters.month')}
+          value={periodMonth}
+          onChange={setPeriodMonth}
+          sx={{ width: { xs: '100%', sm: 150 } }}
+        />
+
+        <TextField
+          select size="small" label={t('common.filters.activeWindow')}
+          value={activeWindow}
+          onChange={(e) => setActiveWindow(Number(e.target.value))}
+          sx={{ width: { xs: '100%', sm: 130 } }}
+        >
+          <MenuItem value={1}>{t('common.filters.window1Month')}</MenuItem>
+          <MenuItem value={3}>{t('common.filters.window3Months')}</MenuItem>
+          <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
+          <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
+        </TextField>
+
+        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
 
       <ResponsiveListView

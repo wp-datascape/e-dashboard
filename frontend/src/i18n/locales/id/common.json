@@ -78,11 +78,13 @@
     "productsCount": "{{bought}}/{{total}} produk",
     "totalTransactions": "Total {{count}} transaksi",
     "cellTooltip": "{{customer}} — {{label}}: {{status}}",
-    "statusYes": "Ya ({{count}} transaksi)",
+    "statusYes": "Ya ({{count}} transaksi · {{revenue}})",
     "statusNo": "Tidak ada transaksi",
     "legendBought": "Beli (nilai = jumlah transaksi)",
     "legendNotBought": "Tidak beli",
-    "mobileSubtitle": "Tampilan mobile: produk yang dibeli per customer"
+    "mobileSubtitle": "Tampilan mobile: produk yang dibeli per customer",
+    "colTotalRevenue": "Total Revenue",
+    "totalRevenue": "Total revenue: {{value}}"
   },
   "filters": {
     "entity": "Entitas",
@@ -92,9 +94,11 @@
     "periodDate": "Per Tanggal",
     "month": "Bulan",
     "activeWindow": "Window Aktif",
+    "window1Month": "1 Bulan",
     "window3Months": "3 Bulan",
     "window6Months": "6 Bulan",
-    "window12Months": "12 Bulan"
+    "window12Months": "12 Bulan",
+    "excludeIntercompany": "Exclude Intercompany"
   },
   "userMenu": {
     "moreCount": "+{{count}} lainnya",
