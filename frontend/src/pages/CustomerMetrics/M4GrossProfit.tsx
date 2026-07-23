@@ -41,13 +41,17 @@ function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
         {d.month}
       </Typography>
       <Divider sx={{ mb: 1 }} />
+      {/* fmtRpDetail (2 desimal) — samakan presisi dengan dialog drill-down di bawah
+          (dialogGpExisting/dialogAvgGp pakai fmtRpDetail juga). Sudah diverifikasi
+          totalGp (gp_tier1+2+3 dari trend) === breakdown.total_gp identik di backend -
+          lihat catatan sama di M3Revenue.tsx M3Tooltip. */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Row label={t('customerMetrics.m4.tooltipTotalGp')} value={fmtRp(totalGp)} />
-        <Row label={t('customerMetrics.m4.tooltipAvgGp')} value={fmtRp(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
+        <Row label={t('customerMetrics.m4.tooltipTotalGp')} value={fmtRpDetail(totalGp)} />
+        <Row label={t('customerMetrics.m4.tooltipAvgGp')} value={fmtRpDetail(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
         <Divider sx={{ my: 0.75 }} />
-        <Row label={t('customerMetrics.m4.tierTop')}    value={fmtRp(d.gp_tier1)} />
-        <Row label={t('customerMetrics.m4.tierMid')}    value={fmtRp(d.gp_tier2)} />
-        <Row label={t('customerMetrics.m4.tierBottom')} value={fmtRp(d.gp_tier3)} />
+        <Row label={t('customerMetrics.m4.tierTop')}    value={fmtRpDetail(d.gp_tier1)} />
+        <Row label={t('customerMetrics.m4.tierMid')}    value={fmtRpDetail(d.gp_tier2)} />
+        <Row label={t('customerMetrics.m4.tierBottom')} value={fmtRpDetail(d.gp_tier3)} />
       </Box>
       {d.top_gp_customer_name && (
         <>
@@ -101,9 +105,10 @@ interface Props {
   companyId: number | 'all'
   branchId?: number
   division?: string
+  excludeIntercompany?: boolean
 }
 
-export function M4GrossProfit({ trend, isLoading, companyId, branchId, division }: Props) {
+export function M4GrossProfit({ trend, isLoading, companyId, branchId, division, excludeIntercompany }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
@@ -114,6 +119,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, branchId, division 
     company_id: companyId,
     branch_id: branchId,
     division,
+    exclude_intercompany: excludeIntercompany,
   });
 
   return (

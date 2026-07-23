@@ -7,12 +7,14 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Dot,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
 } from 'recharts';
+import type { DotItemDotProps } from 'recharts';
 
 export interface AreaSeries {
   key: string;
@@ -29,6 +31,8 @@ export interface AreaChartWidgetProps {
   series: AreaSeries[];
   xKey?: string;
   height?: number;
+  /** Callback saat titik data diklik — menerima data point bulan tersebut (mirror onBarClick di BarChartWidget) */
+  onAreaClick?: (dataPoint: Record<string, unknown>) => void;
 }
 
 export const AreaChartWidget = ({
@@ -40,9 +44,29 @@ export const AreaChartWidget = ({
   series,
   xKey = 'name',
   height = 220,
+  onAreaClick,
 }: AreaChartWidgetProps) => {
   const theme = useTheme();
   const isPositive = (change ?? 0) >= 0;
+
+  // Area (beda dari Bar) adalah satu shape path kontinu — onClick di <Area> sendiri
+  // cuma nembak sekali untuk seluruh area, tidak tahu titik/bulan mana yang diklik.
+  // Makanya klik-per-titik diimplementasi lewat prop `dot` (circle individual per data
+  // point, masing-masing punya onClick sendiri) - bukan lewat Area.onClick.
+  const clickableDot = onAreaClick
+    ? (props: DotItemDotProps) => (
+        <Dot
+          key={`dot-${props.index}`}
+          cx={props.cx}
+          cy={props.cy}
+          r={4}
+          fill={props.fill}
+          stroke={props.stroke}
+          style={{ cursor: 'pointer' }}
+          onClick={() => onAreaClick((props.payload as Record<string, unknown>) ?? {})}
+        />
+      )
+    : false
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
@@ -116,7 +140,7 @@ export const AreaChartWidget = ({
               stroke={s.color}
               strokeWidth={2}
               fill={`url(#area-grad-${s.key})`}
-              dot={false}
+              dot={clickableDot}
             />
           ))}
         </AreaChart>

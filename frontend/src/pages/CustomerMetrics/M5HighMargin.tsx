@@ -34,9 +34,10 @@ interface Props {
   branchId?: number
   division?: string
   periodEnd: string
+  excludeIntercompany?: boolean
 }
 
-export function M5HighMargin({ isLoading, hm, companyId, branchId, division, periodEnd }: Props) {
+export function M5HighMargin({ isLoading, hm, companyId, branchId, division, periodEnd, excludeIntercompany }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [hmDrillDate, setHmDrillDate] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
     company_id: companyId,
     branch_id: branchId,
     division,
+    exclude_intercompany: excludeIntercompany,
   });
 
   return (

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
+import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { todayIsoDate } from './helpers';
 import { M3Revenue }     from './M3Revenue';
@@ -19,13 +20,14 @@ export default function CustomerMetrics() {
   const { t } = useTranslation();
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division } = scopeFilter;
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
 
   const { data, isLoading } = useCustomerMetrics({
     company_id:  companyId,
     branch_id:   branchId === 'all' ? undefined : branchId,
     period_end:  periodEnd,
     division:    division || undefined,
+    exclude_intercompany: excludeIntercompany,
   });
 
   const trend = data?.trend ?? [];
@@ -51,7 +53,7 @@ export default function CustomerMetrics() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
@@ -60,11 +62,19 @@ export default function CustomerMetrics() {
             onChange={(e) => setPeriodEnd(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
       </Box>
 
       {/* ── M3 ── */}
-      <M3Revenue trend={trend} isLoading={isLoading} />
+      <M3Revenue
+        trend={trend}
+        isLoading={isLoading}
+        companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
+      />
 
       {/* ── M4 ── */}
       <M4GrossProfit
@@ -73,6 +83,7 @@ export default function CustomerMetrics() {
         companyId={companyId}
         branchId={branchId === 'all' ? undefined : branchId}
         division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
       />
 
       {/* ── M5 + M6 (side by side) ── */}
@@ -85,6 +96,7 @@ export default function CustomerMetrics() {
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
             periodEnd={periodEnd}
+            excludeIntercompany={excludeIntercompany}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
@@ -96,12 +108,20 @@ export default function CustomerMetrics() {
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
             periodEnd={periodEnd}
+            excludeIntercompany={excludeIntercompany}
           />
         </Grid>
       </Grid>
 
       {/* ── M7 ── */}
-      <M7Expansion trend={trend} isLoading={isLoading} />
+      <M7Expansion
+        trend={trend}
+        isLoading={isLoading}
+        companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
+      />
     </Box>
   );
 }

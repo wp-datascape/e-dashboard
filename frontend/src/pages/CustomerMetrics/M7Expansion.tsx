@@ -1,19 +1,70 @@
+import { useState } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import type { GridColDef } from '@mui/x-data-grid';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
+import { StatusChip } from '@/components/ui/StatusChip';
+import { Dialog } from '@/components/ui/Dialog';
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
+import { useExpansionBreakdown } from '@/hooks/useMetrics';
+import { fmtRpDetail, monthToEndDate } from './helpers';
 import { SectionLabel } from './HelperComponents';
+
+function statusChipColor(status: string): 'success' | 'default' {
+  return status === 'up' ? 'success' : 'default';
+}
+
+function statusLabel(status: string, t: TFunction): string {
+  return status === 'up' ? t('customerMetrics.m7.statusUp') : t('customerMetrics.m7.statusFlatDown');
+}
+
+// Kolom rank/customer/code reuse key m4.* (sudah pola yang sama dipakai M3Revenue.tsx)
+// — generik lintas M3/M4/M7, tidak perlu duplikasi key per-metrik.
+function useExpansionColumns(t: TFunction): GridColDef[] {
+  return [
+    { field: 'ranking',       headerName: t('customerMetrics.m4.colRank'),     width: 56,  sortable: false },
+    { field: 'customer_name', headerName: t('customerMetrics.m4.colCustomer'), flex: 1,   minWidth: 160 },
+    { field: 'customer_code', headerName: t('customerMetrics.m4.colCode'),     width: 110, sortable: false,
+      renderCell: (p) => p.value ?? '—' },
+    { field: 'prev_revenue', headerName: t('customerMetrics.m7.colPrevRevenue'), width: 130, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRpDetail(p.value as number) },
+    { field: 'cur_revenue', headerName: t('customerMetrics.m7.colCurRevenue'), width: 130, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRpDetail(p.value as number) },
+    { field: 'change_pct', headerName: t('customerMetrics.m7.colChangePct'), width: 100, align: 'right', headerAlign: 'right',
+      renderCell: (p) => (p.value === null ? '—' : `${p.value}%`) },
+    { field: 'status', headerName: t('customerMetrics.m7.colStatus'), width: 110, align: 'center', headerAlign: 'center', sortable: false,
+      renderCell: (p) => <StatusChip label={statusLabel(p.value as string, t)} color={statusChipColor(p.value as string)} /> },
+  ]
+}
 
 interface Props {
   trend: CustomerMetricsTrendPoint[]
   isLoading: boolean
+  companyId: number | 'all'
+  branchId?: number
+  division?: string
+  excludeIntercompany?: boolean
 }
 
-export function M7Expansion({ trend, isLoading }: Props) {
+export function M7Expansion({ trend, isLoading, companyId, branchId, division, excludeIntercompany }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const [drillDate, setDrillDate] = useState<string | null>(null);
+  const expansionColumns = useExpansionColumns(t);
+
+  const { data: breakdown, isLoading: breakdownLoading } = useExpansionBreakdown({
+    period_end: drillDate,
+    company_id: companyId,
+    branch_id: branchId,
+    division,
+    exclude_intercompany: excludeIntercompany,
+  });
 
   return (
     <>
@@ -40,8 +91,45 @@ export function M7Expansion({ trend, isLoading }: Props) {
           showLabels
           labelFormatter={(v) => `${v.toFixed(1)}%`}
           tooltipFormatter={(v, n) => [`${v.toFixed(1)}%`, n]}
+          onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
         />
       )}
+
+      {/* Expansion Breakdown Dialog */}
+      <Dialog
+        open={!!drillDate}
+        onClose={() => setDrillDate(null)}
+        maxWidth="md"
+        title={t('customerMetrics.m7.dialogTitle', { date: drillDate })}
+        showCloseButton
+        contentSx={{ p: 1 }}
+        subtitle={breakdown && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            {([
+              [t('customerMetrics.m7.dialogUpCount'),       String(breakdown.up_count)],
+              [t('customerMetrics.m7.dialogTotalExisting'), String(breakdown.total_existing)],
+              [t('customerMetrics.m7.dialogUpRate'),        `${breakdown.total_existing > 0 ? ((breakdown.up_count / breakdown.total_existing) * 100).toFixed(1) : '0.0'}%`],
+            ] as [string, string][]).map(([label, val]) => (
+              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
+                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
+      >
+        <ResponsiveListView
+          rows={(breakdown?.rows ?? []).map((r) => ({ ...r, id: r.ranking }))}
+          columns={expansionColumns}
+          loading={breakdownLoading}
+          height={420}
+          pageSize={25}
+          pageSizeOptions={[25, 50, 100]}
+          emptyMessage={t('customerMetrics.m7.emptyMessage')}
+          mobileFields={['customer_name', 'cur_revenue', 'change_pct', 'status']}
+        />
+      </Dialog>
     </>
   );
 }

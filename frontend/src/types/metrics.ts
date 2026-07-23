@@ -24,7 +24,10 @@ export interface CrossSellingDetailRow {
 
 export interface HeatmapRow {
   customer: string;
+  customer_id: number;
   values: Record<string, number>;
+  revenues: Record<string, number>;
+  total_revenue: number;
 }
 
 export interface CrossSellingData {
@@ -35,6 +38,44 @@ export interface CrossSellingData {
   detail: CrossSellingDetailRow[];
   heatmap: HeatmapRow[];
   categories: string[];
+}
+
+// ── M3 Revenue Drill-down ───────────────────────────────────────────────────────
+
+export interface RevenueBreakdownRow {
+  ranking: number;
+  customer_code: string | null;
+  customer_name: string;
+  revenue: number;
+  revenue_pct: number;
+  tier: 'Atas' | 'Tengah' | 'Bawah';
+}
+
+export interface RevenueBreakdownData {
+  period_end: string;
+  total_revenue: number;
+  median_threshold: number;
+  total_existing: number;
+  rows: RevenueBreakdownRow[];
+}
+
+// ── M7 Expansion Drill-down ───────────────────────────────────────────────────
+
+export interface ExpansionBreakdownRow {
+  ranking: number;
+  customer_code: string | null;
+  customer_name: string;
+  cur_revenue: number;
+  prev_revenue: number;
+  change_pct: number | null;
+  status: 'up' | 'flat_down';
+}
+
+export interface ExpansionBreakdownData {
+  period_end: string;
+  up_count: number;
+  total_existing: number;
+  rows: ExpansionBreakdownRow[];
 }
 
 // ── M4 GP Drill-down ─────────────────────────────────────────────────────────

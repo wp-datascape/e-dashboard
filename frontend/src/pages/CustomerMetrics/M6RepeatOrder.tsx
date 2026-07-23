@@ -48,9 +48,10 @@ interface Props {
   branchId?: number
   division?: string
   periodEnd: string
+  excludeIntercompany?: boolean
 }
 
-export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branchId, division, periodEnd }: Props) {
+export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branchId, division, periodEnd, excludeIntercompany }: Props) {
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const rorColumns = useRorColumns(t);
@@ -60,6 +61,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branc
     company_id: companyId,
     branch_id: branchId,
     division,
+    exclude_intercompany: excludeIntercompany,
   });
 
   return (
