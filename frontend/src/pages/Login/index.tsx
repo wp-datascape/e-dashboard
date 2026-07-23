@@ -62,10 +62,11 @@ export default function Login() {
     });
   };
 
+  const year = new Date().getFullYear();
+
   return (
     <Box
       sx={{
-        flex: 1,
         minHeight: '100vh',
         width: '100%',
         display: 'flex',
@@ -82,8 +83,8 @@ export default function Login() {
           p: { xs: 3, sm: 4 },
         }}
       >
-        {/* Brand Logo */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+        {/* Brand Logo — vertikal: logo di atas, nama app di bawah, rata tengah */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, mb: 3 }}>
           {/* AppLogo murni outline putih (tanpa fill) - transparan, hilang total kalau
               langsung ditaruh di atas card putih (Login pakai background.paper, putih
               di light mode). Beda dari AppBar yang backgroundnya selalu gelap/berwarna
@@ -94,20 +95,21 @@ export default function Login() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 34,
-              height: 34,
+              width: 48,
+              height: 48,
               borderRadius: '50%',
               bgcolor: '#0a0a0f',
             }}
           >
-            <AppLogo sx={{ fontSize: 22 }} />
+            <AppLogo sx={{ fontSize: 30 }} />
           </Box>
           <Typography
             variant="body1"
             sx={{
               color: 'primary.main',
               fontWeight: 700,
-              fontSize: '1rem',
+              fontSize: '1.1rem',
+              textAlign: 'center',
             }}
           >
             {t('common.appName')}
@@ -244,6 +246,14 @@ export default function Login() {
             {t('auth.loginButton')}
           </Button>
         </Box>
+
+        {/* Copyright — di dalam card, bawah tombol Sign In (bukan footer halaman) */}
+        <Typography
+          variant="caption"
+          sx={{ display: 'block', color: 'text.disabled', textAlign: 'center', mt: 3 }}
+        >
+          {t('common.copyright', { year })}
+        </Typography>
       </Card>
 
       {/* Error Alert Dialog */}

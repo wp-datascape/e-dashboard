@@ -57,7 +57,7 @@
   "branch": "Branch",
   "ok": "OK",
   "titleWithItemCount": "{{title}} — {{count}} items",
-  "copyright": "© {{year}} Executive Dashboard. All rights reserved.",
+  "copyright": "Developed by IT Department © {{year}} Executive Dashboard. All rights reserved.",
   "appVersion": "v1.0.0",
   "toggleSidebar": "Toggle sidebar",
   "progressTotal": "{{count}} total",
