@@ -40,5 +40,8 @@
     "drizzle-kit": "0.31.10",
     "javascript-obfuscator": "^5.4.3",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.8"
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -33,9 +33,14 @@ export default function Transactions() {
   // (misal pilih Division tertentu), sehingga request page yang sudah di luar jangkauan
   // data baru dan tabel tampil "No data available" walau total datanya > 0. Laporan
   // user 2026-07-24 dengan screenshot: All Divisions tampil data, Project blank.
-  useEffect(() => {
+  // Di-adjust langsung saat render (pola resmi React utk "adjust state when props
+  // change"), bukan useEffect — 1 key gabungan dibanding banyak prev-state terpisah.
+  const filterKey = JSON.stringify([companyId, branchId, buFilter, excludeIntercompany, customerSearch, periodMonth, activeWindow])
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
     setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }))
-  }, [companyId, branchId, buFilter, excludeIntercompany, customerSearch, periodMonth, activeWindow])
+  }
 
   const queryParams: InvoiceParams = {
     company_id: companyId,
