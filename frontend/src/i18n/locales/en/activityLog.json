@@ -1,0 +1,26 @@
+{
+  "title": "Activity Log",
+  "description": "History of pages and requests accessed by users",
+  "user": "User",
+  "method": "Method",
+  "module": "Module",
+  "path": "Path",
+  "statusCode": "Status",
+  "durationMs": "Duration",
+  "timestamp": "Timestamp",
+  "table": "Activity History",
+  "filterMethod": "Filter by Method",
+  "allMethods": "All Methods",
+  "filterDateFrom": "From Date",
+  "filterDateTo": "To Date",
+  "dialog": {
+    "title": "Activity Log Detail",
+    "user": "User",
+    "module": "Module",
+    "statusCode": "Status",
+    "durationMs": "Duration",
+    "ip": "IP Address",
+    "requestId": "Request ID",
+    "userAgent": "User Agent"
+  }
+}

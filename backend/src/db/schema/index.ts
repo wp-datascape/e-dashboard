@@ -6,7 +6,8 @@
  *
  * Organisasi file per domain (2026-07-06, sebelumnya 1 file per tabel):
  * - schema-auth.ts        — users, roles, permissions, role_permissions,
- *                           user_roles, user_companies, audit_logs
+ *                           user_roles, user_companies, audit_logs,
+ *                           activity_logs, login_logs
  * - schema-company.ts     — companies, company_branches, business_configs,
  *                           accurate_credentials, user_branches, user_divisions
  * - schema-product.ts     — product_categories, products, high_margin_products,

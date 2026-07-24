@@ -4,6 +4,7 @@ import { comparePassword } from '@/utils/hash'
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt'
 import { generateCsrfToken } from '@/utils/csrf'
 import { sendTelegramAlert } from '@/utils/telegram'
+import { logLoginEvent } from '@/utils/loginLog'
 import {
   findActiveUserByEmail,
   findActiveUserById,
@@ -33,11 +34,16 @@ function formatLockRemaining(lockedUntil: Date): string {
   return minutes <= 1 ? '1 menit' : `${minutes} menit`
 }
 
-export async function loginService(dto: LoginDto, ipAddress?: string) {
+export async function loginService(dto: LoginDto, ipAddress?: string, userAgent?: string) {
   const user = await findActiveUserByEmail(dto.email)
 
   // Gunakan pesan error generik untuk mencegah user enumeration
-  if (!user || !user.is_active) {
+  if (!user) {
+    await logLoginEvent({ userId: null, email: dto.email, event: 'login_failed', reason: 'invalid_credentials', ipAddress, userAgent })
+    throw new AppError(ErrorCode.UNAUTHORIZED, 'Email atau password salah', 401)
+  }
+  if (!user.is_active) {
+    await logLoginEvent({ userId: user.id, email: dto.email, event: 'login_failed', reason: 'account_inactive', ipAddress, userAgent })
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Email atau password salah', 401)
   }
 
@@ -45,6 +51,7 @@ export async function loginService(dto: LoginDto, ipAddress?: string) {
   // di masa depan berarti masih terkunci; kalau sudah lewat, biarkan lanjut normal
   // (bukan auto-reset di sini — reset beneran terjadi saat login sukses berikutnya).
   if (user.locked_until && user.locked_until.getTime() > Date.now()) {
+    await logLoginEvent({ userId: user.id, email: dto.email, event: 'login_failed', reason: 'account_locked', ipAddress, userAgent })
     throw new AppError(
       ErrorCode.ACCOUNT_LOCKED,
       `Akun terkunci karena terlalu banyak percobaan gagal. Coba lagi dalam ${formatLockRemaining(user.locked_until)}, atau hubungi admin.`,
@@ -61,12 +68,14 @@ export async function loginService(dto: LoginDto, ipAddress?: string) {
       void sendTelegramAlert(
         `*Akun terkunci*\nEmail: \`${user.email}\`\nSetelah ${env.ACCOUNT_LOCKOUT_THRESHOLD}x percobaan login gagal berturut-turut.\nIP: \`${ipAddress ?? 'unknown'}\`\nDurasi lock: ${env.ACCOUNT_LOCKOUT_DURATION_MINUTES} menit.`,
       )
+      await logLoginEvent({ userId: user.id, email: dto.email, event: 'account_locked', reason: 'too_many_attempts', ipAddress, userAgent })
       throw new AppError(
         ErrorCode.ACCOUNT_LOCKED,
         `Akun terkunci karena ${env.ACCOUNT_LOCKOUT_THRESHOLD}x percobaan gagal berturut-turut. Coba lagi dalam ${env.ACCOUNT_LOCKOUT_DURATION_MINUTES} menit, atau hubungi admin.`,
         403,
       )
     }
+    await logLoginEvent({ userId: user.id, email: dto.email, event: 'login_failed', reason: 'invalid_credentials', ipAddress, userAgent })
     throw new AppError(ErrorCode.UNAUTHORIZED, 'Email atau password salah', 401)
   }
 
@@ -77,6 +86,7 @@ export async function loginService(dto: LoginDto, ipAddress?: string) {
   ])
 
   await Promise.all([updateLastLogin(user.id), resetLoginAttempts(user.id)])
+  await logLoginEvent({ userId: user.id, email: user.email, event: 'login_success', ipAddress, userAgent })
 
   const isSuperAdmin = primaryRole === 'superadmin'
 
@@ -103,6 +113,10 @@ export async function loginService(dto: LoginDto, ipAddress?: string) {
     },
     permissions: permissionNames,
   }
+}
+
+export async function logoutService(userId: number, ipAddress?: string, userAgent?: string) {
+  await logLoginEvent({ userId, event: 'logout', ipAddress, userAgent })
 }
 
 export async function refreshService(refreshToken: string) {

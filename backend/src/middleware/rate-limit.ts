@@ -11,6 +11,7 @@
  */
 
 import type { Context, Next } from 'hono'
+import type { Server } from 'bun'
 import { AppError, ErrorCode } from '@/errors'
 
 interface RateLimitOptions {
@@ -33,12 +34,21 @@ setInterval(() => {
 }, 60_000).unref()  // .unref() agar tidak mencegah proses exit
 
 export function getIp(c: Context): string {
-  return (
+  const fromHeader =
     c.req.header('cf-connecting-ip') ??
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ??
-    c.req.header('x-real-ip') ??
-    'unknown'
-  )
+    c.req.header('x-real-ip')
+  if (fromHeader) return fromHeader
+
+  // Fallback ke koneksi socket langsung — penting untuk dev lokal (tanpa reverse
+  // proxy di depan, jadi header di atas semua tidak ada). Bun.serve({ fetch: app.fetch })
+  // meneruskan instance Server sebagai argumen ke-2 ke fetch, yang oleh Hono
+  // diekspos sebagai c.env — bukan header, jadi hasilnya socket asli, tidak bisa
+  // dipalsukan client. Di production (Railway dkk, ada reverse proxy), baris ini
+  // praktis tidak pernah kepakai karena x-forwarded-for di atas sudah match duluan.
+  const server = c.env as Server<unknown> | undefined
+  const socketIp = server?.requestIP?.(c.req.raw)?.address
+  return socketIp ?? 'unknown'
 }
 
 /**

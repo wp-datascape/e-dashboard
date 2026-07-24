@@ -1,0 +1,26 @@
+{
+  "title": "Activity Log",
+  "description": "Riwayat halaman dan request yang diakses pengguna",
+  "user": "Pengguna",
+  "method": "Method",
+  "module": "Modul",
+  "path": "Path",
+  "statusCode": "Status",
+  "durationMs": "Durasi",
+  "timestamp": "Waktu",
+  "table": "Riwayat Aktivitas",
+  "filterMethod": "Filter berdasarkan Method",
+  "allMethods": "Semua Method",
+  "filterDateFrom": "Dari Tanggal",
+  "filterDateTo": "Sampai Tanggal",
+  "dialog": {
+    "title": "Detail Activity Log",
+    "user": "Pengguna",
+    "module": "Modul",
+    "statusCode": "Status",
+    "durationMs": "Durasi",
+    "ip": "IP Address",
+    "requestId": "Request ID",
+    "userAgent": "User Agent"
+  }
+}

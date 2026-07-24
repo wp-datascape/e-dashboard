@@ -23,6 +23,7 @@ import { requestLogger } from '@/middleware/requestLogger'
 import { securityHeadersMiddleware, corsMiddleware } from '@/middleware/security'
 import { authMiddleware } from '@/middleware/auth'
 import { networkThrottleMiddleware } from '@/middleware/network-throttle'
+import { activityLogMiddleware } from '@/middleware/activityLog'
 import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
 import { dashboardRoutes } from '@/features/dashboard/dashboard.route'
@@ -38,6 +39,8 @@ import { productsRoutes } from '@/features/products/products.route'
 import { transactionsRoutes } from '@/features/transactions/transactions.route'
 import { configRoutes } from '@/features/config/config.route'
 import { auditRoutes } from '@/features/audit/audit.route'
+import { activityLogRoutes } from '@/features/activity-log/activity-log.route'
+import { loginLogRoutes } from '@/features/login-log/login-log.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
 import { docsRoutes } from '@/features/docs/docs.route'
@@ -80,6 +83,10 @@ export function createRouter(app: HonoType): void {
   // AB Testing — simulasi network 3G/4G GLOBAL (lihat middleware/network-throttle.ts).
   // Sengaja di sini (bukan Layer 1), supaya /health & /auth/* tidak ikut ter-delay.
   protectedApi.use('*', networkThrottleMiddleware)
+  // Activity log otomatis — mencatat SEMUA request terautentikasi (Level 2).
+  // Ditaruh setelah authMiddleware (butuh c.var.user) dan sebelum route feature
+  // di-mount, supaya membungkus request/response cycle penuh.
+  protectedApi.use('*', activityLogMiddleware)
 
   protectedApi.route('/users', usersRoutes)
   protectedApi.route('/page-settings', pageRoutes)
@@ -88,6 +95,8 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/permissions', permissionsRoutes)
   protectedApi.route('/config', configRoutes)
   protectedApi.route('/audit-logs', auditRoutes)
+  protectedApi.route('/activity-logs', activityLogRoutes)
+  protectedApi.route('/login-logs', loginLogRoutes)
   protectedApi.route('/customers', customersRoutes)
   protectedApi.route('/products', productsRoutes)
   protectedApi.route('/import', importRoutes)
