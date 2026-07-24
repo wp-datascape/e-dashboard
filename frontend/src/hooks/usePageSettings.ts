@@ -11,6 +11,14 @@ export function usePageSettings() {
     queryFn: () => pageApi.getPageSettings(),
     select: (response) => response.data,
     enabled: !!token,
+    // retry: false (override default retry 2x di queryClient.ts) — query ini
+    // nge-gate SELURUH routing app (App.tsx render Routes dari sini), bukan cuma
+    // 1 widget. Default retry 2x + axios timeout 40 detik/percobaan bisa bikin
+    // ConnectionError baru muncul ~2 menit kalau server genuinely down/offline
+    // (laporan user 2026-07-24: "loading tidak berhenti"). Gagal sekali langsung
+    // tampilkan ConnectionError + tombol Retry manual, lebih responsif drpd nunggu
+    // auto-retry 2x lagi utk query yang blocking seperti ini.
+    retry: false,
   });
 }
 

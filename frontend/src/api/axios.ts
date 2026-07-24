@@ -29,6 +29,15 @@ export const getCsrfToken = (): string | null => csrfToken ?? readCsrfFromCookie
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1',
   withCredentials: true, // Wajib agar HttpOnly Cookie dikirim otomatis oleh browser
+  // Client harus punya batas sabar sendiri, bukan cuma bergantung ke idleTimeout
+  // server (Bun.serve, backend/src/index.ts, 255 detik). Tanpa ini, mode "Offline"
+  // di AB Testing (middleware/network-throttle.ts) bikin request nunggu sampai
+  // ~4 menit per percobaan sebelum akhirnya gagal - kelihatan "tidak pernah timeout"
+  // dari sisi user (laporan 2026-07-24). 40 detik = sedikit di atas
+  // MAX_THROTTLE_DELAY_MS (30 detik) di AB Testing, jadi delay 3G/4G maksimum yang
+  // masih valid tetap sukses, tapi Offline mode/server benar-benar mati tetap gagal
+  // dalam waktu wajar per percobaan (bukan berbelas-belas menit).
+  timeout: 40_000,
 });
 
 /**
