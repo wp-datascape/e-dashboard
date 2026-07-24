@@ -1,8 +1,10 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { isChunkLoadError, CHUNK_RELOAD_FLAG } from './chunkLoadError'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
+import CircularProgress from '@mui/material/CircularProgress'
 
 import { styled } from '@mui/material/styles'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
@@ -91,6 +93,15 @@ export class ErrorBoundary extends Component<Props, State> {
     // Log ke console — selalu, karena error boundary penting untuk debug
     // (di production, idealnya dikirim ke Sentry/monitoring tool)
     console.error('[ErrorBoundary]', error, info)
+
+    // Chunk JS lazy-load gagal (biasanya setelah deploy baru — lihat
+    // utils/chunkLoadError.ts) → satu-satunya perbaikan yang benar adalah reload,
+    // user tidak perlu diminta klik manual. Guard sessionStorage cegah infinite
+    // loop kalau reload TERNYATA masih gagal (server down beneran, bukan stale cache).
+    if (isChunkLoadError(error) && !sessionStorage.getItem(CHUNK_RELOAD_FLAG)) {
+      sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1')
+      window.location.reload()
+    }
   }
 
   private handleReload = () => {
@@ -111,6 +122,17 @@ export class ErrorBoundary extends Component<Props, State> {
     const { children, fallback, showDetail } = this.props
 
     if (!hasError) return children
+
+    // Chunk error yang belum pernah dicoba reload — componentDidCatch akan reload
+    // sesaat lagi (lihat di atas), tampilkan loading ringan alih-alih error card
+    // penuh supaya tidak ada kedipan tombol yang langsung hilang.
+    if (error && isChunkLoadError(error) && !sessionStorage.getItem(CHUNK_RELOAD_FLAG)) {
+      return (
+        <Wrapper>
+          <CircularProgress size={32} />
+        </Wrapper>
+      )
+    }
 
     // Gunakan custom fallback jika ada
     if (fallback) return fallback

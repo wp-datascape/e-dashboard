@@ -21,6 +21,7 @@ import { ThemeProvider } from './theme/ThemeContext'
 
 // Error Boundary
 import { ErrorBoundary } from './utils/errorBoundary'
+import { CHUNK_RELOAD_FLAG } from './utils/chunkLoadError'
 
 // App
 import App from './App'
@@ -69,6 +70,12 @@ createRoot(rootEl).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// Boot sukses tanpa chunk error — bersihkan guard reload (lihat errorBoundary.tsx).
+// Delay 3 detik (bukan langsung) supaya kalau reload otomatis TERNYATA masih kena
+// chunk error lagi (server down beneran, bukan cuma stale cache lama), guard-nya
+// masih ada saat ErrorBoundary catch — cegah infinite reload loop.
+setTimeout(() => sessionStorage.removeItem(CHUNK_RELOAD_FLAG), 3000)
 }).catch((err: unknown) => {
   // Fail-safe jika proses load dinamis msw gagal di browser
   console.error('Gagal melakukan bootstrap aplikasi:', err);
