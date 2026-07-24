@@ -181,3 +181,53 @@ export const auditLogs = pgTable('audit_logs', {
 
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+
+// ─── activity_logs ─────────────────────────────────────────────────────────────
+
+/**
+ * Level 1+2 dari kebutuhan "activity tracking": page-view (frontend kirim event
+ * eksplisit tiap route berubah, method='PAGE_VIEW') + request API generik
+ * (di-log otomatis oleh activityLogMiddleware). Immutable, sama seperti audit_logs.
+ * Tidak ada company_id — request generik tidak reliable dipetakan ke 1 company
+ * tanpa parsing per-route; scoping viewer non-superadmin dilakukan via JOIN
+ * user_companies di repository, bukan kolom langsung.
+ */
+export const activityLogs = pgTable('activity_logs', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  method: varchar('method', { length: 10 }).notNull(),
+  path: varchar('path', { length: 500 }).notNull(),
+  module: varchar('module', { length: 100 }),
+  status_code: integer('status_code'),
+  duration_ms: integer('duration_ms'),
+  ip_address: varchar('ip_address', { length: 45 }),
+  user_agent: varchar('user_agent', { length: 500 }),
+  request_id: varchar('request_id', { length: 100 }),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type ActivityLog = typeof activityLogs.$inferSelect
+export type NewActivityLog = typeof activityLogs.$inferInsert
+
+// ─── login_logs ─────────────────────────────────────────────────────────────────
+
+/**
+ * Riwayat kejadian autentikasi — login sukses/gagal, logout, ganti password,
+ * ganti role, lockout. Beda dari audit_logs karena bukan mutasi entity biasa
+ * (tidak selalu ada user_id valid, mis. percobaan login dengan email yang tidak
+ * terdaftar — email tetap disimpan untuk investigasi). Immutable.
+ */
+export const loginLogs = pgTable('login_logs', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  email: varchar('email', { length: 255 }),
+  // login_success | login_failed | logout | password_changed | role_changed | account_locked
+  event: varchar('event', { length: 30 }).notNull(),
+  reason: varchar('reason', { length: 255 }),
+  ip_address: varchar('ip_address', { length: 45 }),
+  user_agent: varchar('user_agent', { length: 500 }),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type LoginLog = typeof loginLogs.$inferSelect
+export type NewLoginLog = typeof loginLogs.$inferInsert

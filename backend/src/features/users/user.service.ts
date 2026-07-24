@@ -5,6 +5,7 @@ import { isDuplicateError } from '@/utils/response'
 import { hashPassword } from '@/utils/hash'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
+import { logLoginEvent } from '@/utils/loginLog'
 import { sendTelegramAlert } from '@/utils/telegram'
 import type { Context } from 'hono'
 import type { PaginationQuery } from '@/utils/validator'
@@ -158,6 +159,32 @@ export async function updateUserService(id: number, dto: UpdateUserDto, ctx: Con
       ...(passwordReset ? { passwordReset: true } : {}),
     },
   })
+
+  // Login log — password_changed/role_changed dicatat terpisah dari audit_logs
+  // karena ini riwayat keamanan akun, bukan diff data biasa (lihat login-log feature).
+  const actorIp = ctx.var.ipAddress ?? null
+  const actorUserAgent = ctx.req.header('user-agent') ?? null
+  if (passwordReset) {
+    await logLoginEvent({
+      userId: id,
+      email: after?.email ?? before.email,
+      event: 'password_changed',
+      reason: 'admin_reset',
+      ipAddress: actorIp,
+      userAgent: actorUserAgent,
+    })
+  }
+  if (role_ids !== undefined) {
+    const roleNamesAfter = (after?.roles as Array<{ name: string }> | undefined)?.map((r) => r.name).join(', ') ?? null
+    await logLoginEvent({
+      userId: id,
+      email: after?.email ?? before.email,
+      event: 'role_changed',
+      reason: roleNamesAfter,
+      ipAddress: actorIp,
+      userAgent: actorUserAgent,
+    })
+  }
 
   // Task002 Task E — privilege escalation: role berwenang tinggi BARU didapat (belum
   // punya sebelumnya) - bukan cuma "masih punya", supaya tidak spam tiap update lain

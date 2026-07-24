@@ -16,6 +16,8 @@ import {
   RBAC,
   Config,
   AuditLog,
+  ActivityLog,
+  LoginLog,
   Companies,
   HighMarginSettings,
   DivisionsSettings,
@@ -71,8 +73,10 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'users':                { path: '/users',                  element: withLayout(<Users />),                 protected: true, permissionKey: 'access.user:view' },
   'rbac':                 { path: '/rbac',                   element: withLayout(<RBAC />),                  protected: true, permissionKey: 'access.role:view' },
   'ab-testing':           { path: '/ab-testing',              element: withLayout(<AbTesting />),             protected: true, permissionKey: 'access.ab_testing:view' },
-  // ── Administration — Audit Log ────────────────────────────────────────────
+  // ── Administration — Log ──────────────────────────────────────────────────
   'audit-log':            { path: '/audit-log',              element: withLayout(<AuditLog />),              protected: true, permissionKey: 'audit.log:view' },
+  'activity-log':         { path: '/activity-log',            element: withLayout(<ActivityLog />),           protected: true, permissionKey: 'activity.log:view' },
+  'login-log':            { path: '/login-log',               element: withLayout(<LoginLog />),              protected: true, permissionKey: 'login.log:view' },
   // ── Legacy (backward compat — tidak di menu) ─────────────────────────────
   'config':               { path: '/config',                 element: withLayout(<Config />),                protected: true },
 }

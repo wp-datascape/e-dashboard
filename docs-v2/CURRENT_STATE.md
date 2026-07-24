@@ -6,8 +6,8 @@
 | Layer    | Status | Notes                          |
 |----------|--------|--------------------------------|
 | Frontend | ~99%   | Button-level CRUD guards (useCan hook) di semua halaman. Filter bar (entitas+divisi+periode) di semua halaman metrics. Sidebar collapsed submenu flyout fix (sesi 26). Fix logout tidak invalidasi sesi server (sesi 29). PWA installable (service worker + icon, sesi 31), fix status bar iOS + tabel tablet (sesi 33). Semua dialog konsisten pakai komponen `Dialog` bersama — 6 raw MUI Dialog + 4 drawer detail dimigrasikan (sesi 34). Error API di-i18n via kode (`getApiErrorMessage`), 9 i18n key hilang ditambahkan, audit log action i18n dibangun ulang (13→28 action), fix bug logout redirect 404 (sesi 36). **Logo/favicon/PWA icon baru (four-leaf clover), fix bug scope-leak dropdown Company/Branch/Division (`companyId==='all'` — komponen baru `ScopeFilterFields` dipasang di 9 halaman), fix icon date/month picker invisible di light mode (7 halaman → komponen `DatePicker`), preferensi user (theme/palette/bahasa) tersimpan ke akun + avatar menu pengganti tombol Logout, AppBar ikut palette (sesi 38, Task003)**. **Fix responsive mobile (`ScopeFilterFields` full-width, `Box`+`gap` bukan `Stack`+`spacing`, word-break `ResponsiveListView`), variant Typography baru `pageTitle`/`pageSubtitle` ikut palette (22 halaman + Dialog), 3 palette baru Purple/Rose/Indigo (total 6), logo jadi outline putih transparan, fix `ThemeToggle` beda tampilan mobile-desktop (`flexShrink:0`), stagger debounce chart (sesi 39)**. |
-| Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). **Isolasi data superadmin — List User & Audit Log disembunyikan total dari viewer non-superadmin (sesi 37)**. **Fix query dashboard timeout `company_id=all` (index invoices + `statement_timeout`), fix unique constraint dedup invoice yang tidak pernah ke-generate, `branch_division_enforcement_enabled` default diubah jadi `true`, endpoint self-service baru `PATCH /auth/me/preferences` (sesi 38, Task003)**. |
-| Database | ~80%   | 21 tabel aktif + 88 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). **`users` tambah kolom `preferences` (JSONB) + 2 index baru di `invoices` (`customer_id`/`company_id` + `invoice_date`) (sesi 38, migration 0006-0008 — baru jalan lokal, BELUM di production, lihat `docs-v2/task/task003.md` §5)**. |
+| Backend  | ~98%   | Auth selesai. requirePermission di semua route. M1–M2, M8–M10, Product Trend (avg-category), Transactions, Dashboard live (real backend). API Docs (Swagger UI) 83 operasi/63 path (sesi 29). Users bulk import + reset password (sesi 30). Backend di-Dockerize + obfuscate untuk deploy Railway (sesi 31). **Fix bug RBAC: `metrics.route.ts` pakai permission deprecated (semua role non-superadmin selalu 403), `GET /companies` & High Margin List kini pakai `resolveCompanyScope` (sesi 32/34)**. Seed baseline permission otomatis utk role `admin`/`user` (sesi 32). **Isolasi data superadmin — List User & Audit Log disembunyikan total dari viewer non-superadmin (sesi 37)**. **Fix query dashboard timeout `company_id=all` (index invoices + `statement_timeout`), fix unique constraint dedup invoice yang tidak pernah ke-generate, `branch_division_enforcement_enabled` default diubah jadi `true`, endpoint self-service baru `PATCH /auth/me/preferences` (sesi 38, Task003)**. **Activity Log (auto-log semua request API + page-view eksplisit) & Login Log (login/logout/lockout/ganti password/ganti role) — fitur baru lengkap 4-layer + fix bug lama `ip_address` selalu null di `audit_logs` (sesi 41, task005)**. |
+| Database | ~80%   | 23 tabel aktif + 96 permissions (kategori `Order` di-rename `Transaction`, permission key `order:*` → `transaction:*`). `business_configs` tambah 3 key baru (dormant alert + reactivation target). **`users` tambah kolom `preferences` (JSONB) + 2 index baru di `invoices` (`customer_id`/`company_id` + `invoice_date`) (sesi 38, migration 0006-0008 — baru jalan lokal, BELUM di production, lihat `docs-v2/task/task003.md` §5)**. **2 tabel baru `activity_logs`+`login_logs` (migration 0009, sesi 41, task005) — baru jalan lokal, BELUM di production.** |
 | Docs     | ✅ ~100%   | metrics.md, transactions.md, dashboard.md, permissions.md, ui-patterns.md, deployment.md, users.md — lihat riwayat sesi untuk detail per-file. Diaudit & disinkronkan menyeluruh sesi 35 (2026-07-04). |
 | i18n     | ✅ 100%   | **Zero hardcode** — seluruh `pages/**`+`components/**` full i18n (react-i18next), 841/841 key parity EN/ID (sesi 27). |
 
@@ -34,7 +34,9 @@
 | High Margin      | `/products/high-margin` | 2 tabs: Category Penetration + Upsell Targets, mock API |
 | Product Trend    | `/products/trend`   | M2 AreaChartWidget + KPI cards (current/prev avg + % change) — **real backend `GET /metrics/avg-category` (sesi 26)**, `active_window` dari `business_configs.active_window_months` (bukan hardcode) |
 | Transactions (dulu "Order Ledger") | `/transactions` | DataGrid invoice + BU filter + detail dialog (dulu drawer, dikonversi sesi 34) — **real backend `GET /invoices` (sesi 26)**, menu & permission `order:*` di-rename `transaction:*`, filter Month+Active Window + fix bug reset pagination (sesi 40) |
-| Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, mock API |
+| Audit Log        | `/audit-log`        | DataGrid audit trail + filter action/date, custom mobile card, **real backend** — sekarang submenu di bawah menu "Log" (sesi 41) |
+| Activity Log     | `/activity-log`     | **Baru (sesi 41)** — DataGrid request API + page-view, filter method/date, dialog detail, real backend |
+| Login Log        | `/login-log`        | **Baru (sesi 41)** — DataGrid riwayat login/logout/lockout/ganti password/role, filter event/date, real backend |
 | Companies        | `/companies`        | DataGrid + CRUD + branch management, mock API |
 | High Margin Settings | `/settings/high-margin` | CRUD mapping produk/kategori per periode, combobox searchable, backend real API. Filter default "All Companies" (sesi 34), di-scope `resolveCompanyScope` — buka halaman langsung tampil data sesuai company yang jadi hak akses user |
 | Channel Divisions    | `/settings/divisions`   | CRUD mapping channel_name → division, filter + search, backend real API |
@@ -96,6 +98,8 @@
 | Settings High Margin | ✅ 100% | CRUD + active_only filter fix |
 | Config (business_configs) | ✅ 100% | GET + PUT, dipakai customers status logic |
 | Audit Log        | ✅ 100% | Read-only, paginated |
+| Activity Log     | ✅ 100% | **Baru (sesi 41)** — read-only + endpoint page-view, auto-log via middleware |
+| Login Log        | ✅ 100% | **Baru (sesi 41)** — read-only, insert cuma via hook internal (auth/user service) |
 | Users            | ✅ 100% | CRUD + password hash |
 | RBAC             | ✅ 100% | Roles + permissions |
 | Companies        | ✅ 100% | CRUD + branches |
@@ -272,6 +276,27 @@ Refactor `CS_INV_CTE` menggunakan `cteActiveCustomers` dari `segment.helper.ts` 
 | AuditLog         | Group 5.5                 | Build UI        |
 
 ## Catatan Sesi Terakhir
+
+### 2026-07-25 (sesi 41): Activity Log & Login Log (task005) + Fix Bug `ip_address` Selalu Null
+
+**Fitur baru — Activity Log & Login Log (`docs-v2/task/task005.md`):**
+- 2 tabel baru: `activity_logs` (Level 1 page-view eksplisit dari frontend tiap route berubah + Level 2 auto-log semua request API via `activityLogMiddleware`) dan `login_logs` (login sukses/gagal, logout, lockout, ganti password, ganti role — dipanggil dari `auth.service.ts`/`user.service.ts`, bukan endpoint tulis publik).
+- Backend lengkap 4-layer untuk keduanya (`features/activity-log/`, `features/login-log/`), permission baru `activity.log:*`/`login.log:*` (konvensi dot sama seperti `audit.log:*`).
+- Frontend: halaman `ActivityLog`/`LoginLog` baru (mirror `AuditLog`), hook `usePageViewTracking` dipasang di `DashboardLayout`.
+- Sidebar direstrukturisasi: item "Audit Log" yang dulu berdiri sendiri sekarang submenu di bawah menu induk baru **"Log"**, bersama Activity Log dan Login Log.
+- Scoping data non-superadmin pakai `user_id IN (SELECT user_id FROM user_companies WHERE company_id IN scopeIds)` — kedua tabel baru sengaja TIDAK punya kolom `company_id` (request API generik tidak reliable dipetakan ke 1 company tanpa parsing per-route).
+- MSW mock sengaja di-skip untuk kedua fitur — ikut pola project yang sudah disable mock untuk fitur ber-backend asli.
+
+**Bug fix — `ip_address` selalu `null` di `audit_logs` (ditemukan user, sudah lama ada sebelum task005):**
+1. `ctx.var.ipAddress` dibaca `utils/audit.ts` tapi tidak pernah di-`set` middleware manapun → fixed di `middleware/requestId.ts` (`c.set('ipAddress', getIp(c))`, dijalankan paling awal).
+2. Setelah fix #1, IP masih tampil `"unknown"` di dev lokal — `getIp()` (`middleware/rate-limit.ts`) cuma baca header proxy (`x-forwarded-for` dkk), yang memang tidak ada tanpa reverse proxy di depan. Fixed: fallback ke `Bun.serve()`'s `server.requestIP(request)` (baca socket asli, bukan header) — Bun meneruskan instance `Server` sebagai argumen ke-2 `fetch`, yang di Hono diekspos lewat `c.env`. Diverifikasi: login test sekarang menghasilkan `ip_address: "::ffff:127.0.0.1"` (bukan `null`/`"unknown"`) di dev lokal; di production (di belakang reverse proxy Railway) header proxy akan match duluan seperti biasa.
+3. `middleware/requestLogger.ts` dirapikan supaya reuse `getIp()` yang sama (sebelumnya punya logic IP terpisah yang tidak split header `x-forwarded-for` multi-proxy).
+
+**Verifikasi:** `tsc --noEmit` bersih (backend+frontend), 75 test backend pass, ESLint bersih, `vite build` production sukses, smoke test end-to-end langsung ke DB lokal (login gagal/berhasil, page-view, request API) — semua tercatat benar dengan IP terisi.
+
+**Commit:** 1 commit di branch `feature/activity-login-log`, sudah di-push ke origin.
+
+---
 
 ### 2026-07-23/24 (sesi 40): Exclude Intercompany Toggle + Drill-Down M2/M3/M7 + Fix Formula Customer/Dormant + Overhaul Cross Selling + Filter Transactions
 

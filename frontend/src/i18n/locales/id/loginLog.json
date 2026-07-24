@@ -1,0 +1,37 @@
+{
+  "title": "Login Log",
+  "description": "Riwayat login, logout, dan perubahan keamanan akun",
+  "user": "Pengguna",
+  "email": "Email",
+  "event": "Kejadian",
+  "reason": "Alasan",
+  "ipAddress": "IP Address",
+  "timestamp": "Waktu",
+  "table": "Riwayat Login",
+  "filterEvent": "Filter berdasarkan Kejadian",
+  "allEvents": "Semua Kejadian",
+  "filterDateFrom": "Dari Tanggal",
+  "filterDateTo": "Sampai Tanggal",
+  "events": {
+    "login_success": "Login Berhasil",
+    "login_failed": "Login Gagal",
+    "logout": "Logout",
+    "password_changed": "Ganti Password",
+    "role_changed": "Ganti Role",
+    "account_locked": "Akun Terkunci"
+  },
+  "reasons": {
+    "invalid_credentials": "Email/password salah",
+    "account_inactive": "Akun tidak aktif",
+    "account_locked": "Akun terkunci",
+    "too_many_attempts": "Terlalu banyak percobaan gagal",
+    "admin_reset": "Direset oleh admin"
+  },
+  "dialog": {
+    "title": "Detail Login Log",
+    "user": "Pengguna",
+    "reason": "Alasan",
+    "ip": "IP Address",
+    "userAgent": "User Agent"
+  }
+}

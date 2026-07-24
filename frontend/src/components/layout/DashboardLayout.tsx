@@ -7,12 +7,15 @@ import { useTheme } from '@mui/material/styles';
 import { DashboardAppBar } from '@/components/ui/AppBar';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Footer } from '@/components/ui/Footer';
+import { usePageViewTracking } from '@/hooks/usePageViewTracking';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+  usePageViewTracking();
+
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);

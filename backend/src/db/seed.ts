@@ -182,6 +182,14 @@ const defaultPermissions = [
   { name: 'audit.log:menu',   description: 'Menu Audit Log',   category: 'Audit Log' },
   { name: 'audit.log:view',   description: 'View Audit Log',   category: 'Audit Log' },
   { name: 'audit.log:export', description: 'Export Audit Log', category: 'Audit Log' },
+
+  // ── Activity Log ───────────────────────────────────────────────────────
+  { name: 'activity.log:menu', description: 'Menu Activity Log', category: 'Activity Log' },
+  { name: 'activity.log:view', description: 'View Activity Log', category: 'Activity Log' },
+
+  // ── Login Log ──────────────────────────────────────────────────────────
+  { name: 'login.log:menu', description: 'Menu Login Log', category: 'Login Log' },
+  { name: 'login.log:view', description: 'View Login Log', category: 'Login Log' },
 ]
 
 // Baseline permission untuk role 'admin' — akses penuh (menu+view+create+update+
@@ -211,6 +219,8 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'audit.log:menu', 'audit.log:view',
+  'activity.log:menu', 'activity.log:view',
+  'login.log:menu', 'login.log:view',
 ]
 
 // Baseline permission untuk role 'user' — view + export saja di menu bisnis inti,
@@ -268,6 +278,8 @@ const defaultPageSettings = [
   { page_key: 'rbac', ready: true },
   { page_key: 'ab-testing', ready: true },
   { page_key: 'audit-log', ready: true },
+  { page_key: 'activity-log', ready: true },
+  { page_key: 'login-log', ready: true },
   { page_key: 'companies', ready: true },
   { page_key: 'settings-divisions', ready: true },
   { page_key: 'settings-high-margin', ready: true },

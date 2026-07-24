@@ -25,6 +25,8 @@ import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
+import WebIcon from '@mui/icons-material/Web';
+import LoginIcon from '@mui/icons-material/Login';
 
 export interface NavItem {
   key: string;
@@ -250,12 +252,34 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
 
-  // Audit Log — standalone
+  // Log — collapsible (Audit Log, Activity Log, Login Log)
   {
-    key: 'audit-log',
+    key: 'log',
     path: '/audit-log',
-    labelKey: 'nav.auditLog',
+    labelKey: 'nav.log',
     icon: <HistoryIcon fontSize="small" />,
-    permissionKey: 'audit.log:menu',
+    children: [
+      {
+        key: 'log-audit',
+        path: '/audit-log',
+        labelKey: 'nav.auditLog',
+        icon: <HistoryIcon fontSize="small" />,
+        permissionKey: 'audit.log:menu',
+      },
+      {
+        key: 'log-activity',
+        path: '/activity-log',
+        labelKey: 'nav.activityLog',
+        icon: <WebIcon fontSize="small" />,
+        permissionKey: 'activity.log:menu',
+      },
+      {
+        key: 'log-login',
+        path: '/login-log',
+        labelKey: 'nav.loginLog',
+        icon: <LoginIcon fontSize="small" />,
+        permissionKey: 'login.log:menu',
+      },
+    ],
   },
 ];

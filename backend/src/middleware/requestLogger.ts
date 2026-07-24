@@ -16,22 +16,17 @@
 
 import type { Context, Next } from 'hono'
 import { logHttpRequest, logHttpResponse } from '@/utils/logger'
+import { getIp } from '@/middleware/rate-limit'
 
 export async function requestLogger(c: Context, next: Next): Promise<void> {
   const method = c.req.method
   const url = new URL(c.req.url)
   const path = url.pathname + url.search
 
-  // IP detection: proxy headers → remote address
-  const ip =
-    c.req.header('x-forwarded-for') ??
-    c.req.header('x-real-ip') ??
-    c.req.header('cf-connecting-ip') ??
-    c.req.header('true-client-ip') ??
-    (c.env as Record<string, unknown>)?.remoteAddress?.['address' as keyof unknown] ??
-    // @ts-expect-error — Bun's raw request has socket.remoteAddress
-    c.req.raw?.socket?.remoteAddress ??
-    '127.0.0.1'
+  // IP detection: sama seperti yang dipakai audit/activity/login log (getIp()),
+  // supaya cuma ada 1 sumber kebenaran — sebelumnya di sini punya logic sendiri
+  // yang tidak split header x-forwarded-for multi-proxy ("client, proxy1, proxy2").
+  const ip = c.var.ipAddress ?? getIp(c)
 
   // Request ID: ambil dari c.var yang diset oleh requestIdMiddleware
   const requestId: string =

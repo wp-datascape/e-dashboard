@@ -91,7 +91,15 @@ jobs:
         run: bun run lint
 
       - name: Dependency audit
-        run: bun audit --audit-level=high
+        # GHSA-qwww-vcr4-c8h2 (react-router "RSC Mode CSRF Bypass") di-ignore sengaja:
+        # cuma affects RSC/framework mode + server actions, yang TIDAK dipakai app ini
+        # (murni SPA client-side via BrowserRouter biasa). Fix resmi butuh react-router
+        # core v8, tapi react-router-dom (package yang project ini pakai) pin exact ke
+        # versi 7.x core-nya sendiri dan belum rilis dukungan v8 — override paksa ke v8
+        # sudah dicoba & terbukti berisiko (react-router-dom belum publish versi yang
+        # kompatibel dengan core v8). Hapus --ignore ini begitu react-router-dom rilis
+        # versi yang mendukung core v8.
+        run: bun audit --audit-level=high --ignore=GHSA-qwww-vcr4-c8h2
 
       - name: Build (sudah termasuk typecheck)
         run: bun run build

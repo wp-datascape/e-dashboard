@@ -1,0 +1,37 @@
+{
+  "title": "Login Log",
+  "description": "History of logins, logouts, and account security changes",
+  "user": "User",
+  "email": "Email",
+  "event": "Event",
+  "reason": "Reason",
+  "ipAddress": "IP Address",
+  "timestamp": "Timestamp",
+  "table": "Login History",
+  "filterEvent": "Filter by Event",
+  "allEvents": "All Events",
+  "filterDateFrom": "From Date",
+  "filterDateTo": "To Date",
+  "events": {
+    "login_success": "Login Success",
+    "login_failed": "Login Failed",
+    "logout": "Logout",
+    "password_changed": "Password Changed",
+    "role_changed": "Role Changed",
+    "account_locked": "Account Locked"
+  },
+  "reasons": {
+    "invalid_credentials": "Invalid email/password",
+    "account_inactive": "Account inactive",
+    "account_locked": "Account locked",
+    "too_many_attempts": "Too many failed attempts",
+    "admin_reset": "Reset by admin"
+  },
+  "dialog": {
+    "title": "Login Log Detail",
+    "user": "User",
+    "reason": "Reason",
+    "ip": "IP Address",
+    "userAgent": "User Agent"
+  }
+}

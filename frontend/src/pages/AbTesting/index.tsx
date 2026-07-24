@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
@@ -36,13 +36,15 @@ function DelayEditor({
 }) {
   const { t } = useTranslation();
   const [value, setValue] = useState(String(savedValue));
-  const { mutate: updateDelay, isPending } = useUpdateNetworkThrottleDelay();
-
-  // Sinkron ulang kalau nilai tersimpan berubah dari luar (mis. tab lain / refetch)
-  // dan user belum lagi mengetik sesuatu yang beda dari nilai tersimpan sebelumnya.
-  useEffect(() => {
+  // Sinkron ulang kalau nilai tersimpan berubah dari luar (mis. tab lain / refetch) —
+  // di-adjust langsung saat render (pola resmi React utk "adjust state when a prop
+  // changes"), bukan lewat useEffect, supaya tidak ada render tambahan/cascading.
+  const [prevSavedValue, setPrevSavedValue] = useState(savedValue);
+  if (savedValue !== prevSavedValue) {
+    setPrevSavedValue(savedValue);
     setValue(String(savedValue));
-  }, [savedValue]);
+  }
+  const { mutate: updateDelay, isPending } = useUpdateNetworkThrottleDelay();
 
   const numValue = Number(value);
   const isDirty = value !== '' && numValue !== savedValue;

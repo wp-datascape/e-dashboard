@@ -47,6 +47,8 @@ Status   : Frontend ~99% | Backend ~98% | live di production (Railway backend + 
 | Transactions (Order Ledger) | `features/transactions.md`             |
 | Formula detail M3–M5      | `shared/metrics_docs.md`               |
 | Audit Log                  | `features/audit.md`                    |
+| Activity Log                | `features/activity-log.md`             |
+| Login Log                   | `features/login-log.md`                |
 | Accurate Integration       | `features/accurate.md`                 |
 | Deployment (Render/Vercel) | `shared/deployment.md`                 |
 | CI/CD (GitHub Actions, dependency audit) | `shared/ci-cd.md`         |

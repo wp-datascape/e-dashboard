@@ -5,7 +5,7 @@ import { validateBody } from '@/utils/validator'
 import { env } from '@/config/env'
 import { AppError, ErrorCode } from '@/errors'
 import { loginSchema, updatePreferencesSchema } from './auth.schema'
-import { loginService, refreshService, getMeService, updateMyPreferencesService } from './auth.service'
+import { loginService, logoutService, refreshService, getMeService, updateMyPreferencesService } from './auth.service'
 import { getIp } from '@/middleware/rate-limit'
 
 const SECURE = env.NODE_ENV === 'production'
@@ -34,7 +34,7 @@ const CSRF_COOKIE_OPTS = {
 
 export async function handleLogin(c: Context) {
   const body = await validateBody(c, loginSchema)
-  const result = await loginService(body, getIp(c))
+  const result = await loginService(body, getIp(c), c.req.header('user-agent'))
 
   setCookie(c, 'access_token', result.accessToken, { ...HTTPONLY_OPTS, maxAge: 60 * 15 })
   setCookie(c, 'refresh_token', result.refreshToken, { ...HTTPONLY_OPTS, maxAge: 60 * 60 * 24 * 7 })
@@ -67,6 +67,8 @@ export async function handleRefresh(c: Context) {
 }
 
 export async function handleLogout(c: Context) {
+  await logoutService(c.var.user.userId, getIp(c), c.req.header('user-agent'))
+
   deleteCookie(c, 'access_token', { path: '/' })
   deleteCookie(c, 'refresh_token', { path: '/' })
   deleteCookie(c, 'csrf_token', { path: '/' })
