@@ -30,6 +30,7 @@
     "company.delete": "Hapus Perusahaan",
     "config.create": "Buat Konfigurasi",
     "config.update": "Update Konfigurasi",
+    "ab_testing.network_throttle.update": "Update Mode Network Throttle",
     "high_margin.create": "Buat High Margin Mapping",
     "high_margin.update": "Update High Margin Mapping",
     "high_margin.delete": "Hapus High Margin Mapping",

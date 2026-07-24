@@ -30,6 +30,7 @@
     "company.delete": "Delete Company",
     "config.create": "Create Config",
     "config.update": "Update Config",
+    "ab_testing.network_throttle.update": "Update Network Throttle Mode",
     "high_margin.create": "Create High Margin Mapping",
     "high_margin.update": "Update High Margin Mapping",
     "high_margin.delete": "Delete High Margin Mapping",

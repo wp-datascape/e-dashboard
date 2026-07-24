@@ -38,6 +38,7 @@ const PAGE_LABEL_KEYS: Record<string, string> = {
   'config-features': 'nav.configFeatures',
   users: 'nav.users',
   rbac: 'nav.rbac',
+  'ab-testing': 'nav.abTesting',
   'audit-log': 'nav.auditLog',
 }
 
@@ -62,6 +63,7 @@ const GROUP_KEY_MAP: Record<string, string> = {
   'config-features': 'nav.groups.config',
   users: 'nav.groups.config',
   rbac: 'nav.groups.config',
+  'ab-testing': 'nav.groups.config',
   'audit-log': 'nav.groups.admin',
 }
 
@@ -102,6 +104,7 @@ const ITEM_ORDER: Record<string, number> = {
   'config-features': 3,
   users: 4,
   rbac: 5,
+  'ab-testing': 6,
   // Admin
   'audit-log': 0,
 }

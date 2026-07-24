@@ -12,6 +12,7 @@
   "import": "Impor",
   "users": "Pengguna",
   "rbac": "Role",
+  "abTesting": "AB Testing",
   "config": "Konfigurasi",
   "accessControl": "Kontrol Akses",
   "auditLog": "Audit Log",

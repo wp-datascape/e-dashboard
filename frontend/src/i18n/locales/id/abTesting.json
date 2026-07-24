@@ -1,0 +1,13 @@
+{
+  "subtitle": "Simulasi kondisi network lambat untuk testing — seperti mode network throttling di browser DevTools",
+  "globalWarning": "Perhatian: toggle ini GLOBAL — mempengaruhi SEMUA user yang sedang mengakses aplikasi saat ini (kecuali superadmin, termasuk Anda, yang dikecualikan otomatis). Jangan lupa kembalikan ke \"Normal\" setelah selesai testing.",
+  "currentMode": "Mode aktif saat ini",
+  "modeOff": "Normal",
+  "modeOffDesc": "Tanpa simulasi — kecepatan network apa adanya",
+  "mode4g": "4G",
+  "mode3g": "3G",
+  "modeOffline": "Offline",
+  "modeOfflineDesc": "Request menggantung tanpa respon (~4 menit sebelum server memutus otomatis) — simulasi koneksi benar-benar terputus, bukan sekadar lambat",
+  "saveDelay": "Simpan besaran delay",
+  "readOnlyNote": "Anda tidak punya izin untuk mengubah mode ini — hubungi superadmin."
+}

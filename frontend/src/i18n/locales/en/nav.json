@@ -12,6 +12,7 @@
   "import": "Import",
   "users": "Users",
   "rbac": "Roles",
+  "abTesting": "AB Testing",
   "config": "Configuration",
   "accessControl": "Access Control",
   "auditLog": "Audit Log",

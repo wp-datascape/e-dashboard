@@ -24,6 +24,7 @@ import {
   AppSettings,
   IntegrationPage,
   FeaturesPage,
+  AbTesting,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -69,6 +70,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Administration — Access Control ──────────────────────────────────────
   'users':                { path: '/users',                  element: withLayout(<Users />),                 protected: true, permissionKey: 'access.user:view' },
   'rbac':                 { path: '/rbac',                   element: withLayout(<RBAC />),                  protected: true, permissionKey: 'access.role:view' },
+  'ab-testing':           { path: '/ab-testing',              element: withLayout(<AbTesting />),             protected: true, permissionKey: 'access.ab_testing:view' },
   // ── Administration — Audit Log ────────────────────────────────────────────
   'audit-log':            { path: '/audit-log',              element: withLayout(<AuditLog />),              protected: true, permissionKey: 'audit.log:view' },
   // ── Legacy (backward compat — tidak di menu) ─────────────────────────────

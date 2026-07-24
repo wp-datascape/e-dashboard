@@ -22,6 +22,7 @@ import { requestIdMiddleware } from '@/middleware/requestId'
 import { requestLogger } from '@/middleware/requestLogger'
 import { securityHeadersMiddleware, corsMiddleware } from '@/middleware/security'
 import { authMiddleware } from '@/middleware/auth'
+import { networkThrottleMiddleware } from '@/middleware/network-throttle'
 import { authRoutes } from '@/features/auth/auth.route'
 import { metricsRoutes } from '@/features/metrics/metrics.route'
 import { dashboardRoutes } from '@/features/dashboard/dashboard.route'
@@ -40,6 +41,7 @@ import { auditRoutes } from '@/features/audit/audit.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
 import { docsRoutes } from '@/features/docs/docs.route'
+import { abTestingRoutes } from '@/features/ab-testing/ab-testing.route'
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
 
@@ -75,6 +77,9 @@ export function createRouter(app: HonoType): void {
   // authMiddleware: verify JWT cookie + CSRF token (untuk mutasi) + load permissions
   const protectedApi = new Hono()
   protectedApi.use('*', authMiddleware())
+  // AB Testing — simulasi network 3G/4G GLOBAL (lihat middleware/network-throttle.ts).
+  // Sengaja di sini (bukan Layer 1), supaya /health & /auth/* tidak ikut ter-delay.
+  protectedApi.use('*', networkThrottleMiddleware)
 
   protectedApi.route('/users', usersRoutes)
   protectedApi.route('/page-settings', pageRoutes)
@@ -92,6 +97,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)
+  protectedApi.route('/ab-testing', abTestingRoutes)
   // Docs sengaja DI DALAM protectedApi — wajib login utk buka Swagger UI.
   // Non-aktif di production by default.
   if (env.NODE_ENV !== 'production') {

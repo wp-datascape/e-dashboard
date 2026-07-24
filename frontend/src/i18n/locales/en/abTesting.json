@@ -1,0 +1,13 @@
+{
+  "subtitle": "Simulate slow network conditions for testing — like the network throttling mode in browser DevTools",
+  "globalWarning": "Warning: this toggle is GLOBAL — it affects ALL users currently accessing the application (except superadmins, including you, who are automatically excluded). Remember to switch back to \"Normal\" after you're done testing.",
+  "currentMode": "Current active mode",
+  "modeOff": "Normal",
+  "modeOffDesc": "No simulation — actual network speed",
+  "mode4g": "4G",
+  "mode3g": "3G",
+  "modeOffline": "Offline",
+  "modeOfflineDesc": "Requests hang with no response (~4 min before the server auto-disconnects) — simulates a truly unreachable server, not just a slow one",
+  "saveDelay": "Save delay amount",
+  "readOnlyNote": "You don't have permission to change this mode — contact a superadmin."
+}

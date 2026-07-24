@@ -24,6 +24,7 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 
 export interface NavItem {
   key: string;
@@ -238,6 +239,13 @@ export const NAV_ITEMS: NavItem[] = [
         labelKey: 'nav.rbac',
         icon: <SecurityIcon fontSize="small" />,
         permissionKey: 'access.role:menu',
+      },
+      {
+        key: 'access-ab-testing',
+        path: '/ab-testing',
+        labelKey: 'nav.abTesting',
+        icon: <NetworkCheckIcon fontSize="small" />,
+        permissionKey: 'access.ab_testing:menu',
       },
     ],
   },

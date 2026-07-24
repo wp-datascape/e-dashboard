@@ -170,6 +170,13 @@ const defaultPermissions = [
   { name: 'access.permission:create', description: 'Create Permission', category: 'Permissions' },
   { name: 'access.permission:update', description: 'Update Permission', category: 'Permissions' },
   { name: 'access.permission:delete', description: 'Delete Permission', category: 'Permissions' },
+  // AB Testing — toggle simulasi network 3G/4G GLOBAL (semua user), sengaja
+  // TIDAK dimasukkan ke ADMIN_PERMISSION_NAMES/USER_PERMISSION_NAMES (superadmin-only
+  // by default), sama seperti Configuration (Classification/Import/Integration/Features)
+  // — mempengaruhi pengalaman SEMUA user yang sedang login, bukan cuma diri sendiri.
+  { name: 'access.ab_testing:menu',   description: 'Menu AB Testing',            category: 'AB Testing' },
+  { name: 'access.ab_testing:view',   description: 'View AB Testing Setting',    category: 'AB Testing' },
+  { name: 'access.ab_testing:update', description: 'Update AB Testing Setting',  category: 'AB Testing' },
 
   // ── Audit Log ──────────────────────────────────────────────────────────
   { name: 'audit.log:menu',   description: 'Menu Audit Log',   category: 'Audit Log' },
@@ -240,6 +247,9 @@ const defaultBusinessConfigs = [
   { key: 'reactivation_target_high_pct', value: '20', description: 'Target ideal M10 Customer Reactivation Rate (%) — batas atas zona hijau' },
   { key: 'branch_division_enforcement_enabled', value: 'true', description: 'Isolasi akses Branch/Division — "true" berarti user non-superadmin dibatasi ke branch/division yang di-assign, "false" cuma company scope yang berlaku' },
   { key: 'accurate_sync_enabled', value: 'false', description: 'Tombol "Sync Now" (sinkronisasi otomatis faktur dari Accurate Online) di halaman Import — nonaktif secara default, nyalakan hanya setelah integrasi sinkronisasi selesai dikonfigurasi' },
+  { key: 'network_throttle_mode', value: 'off', description: 'Simulasi kondisi network (off/3g/4g/offline) utk testing - GLOBAL, mempengaruhi SEMUA user yang sedang akses aplikasi, bukan cuma browser admin sendiri. Menu: Access Control > AB Testing.' },
+  { key: 'network_throttle_delay_3g_ms', value: '1500', description: 'Besaran delay (ms) untuk mode 3G di AB Testing - bisa diubah dari halaman Access Control > AB Testing' },
+  { key: 'network_throttle_delay_4g_ms', value: '300', description: 'Besaran delay (ms) untuk mode 4G di AB Testing - bisa diubah dari halaman Access Control > AB Testing' },
 ]
 
 const defaultPageSettings = [
@@ -256,6 +266,7 @@ const defaultPageSettings = [
   { page_key: 'import', ready: true },
   { page_key: 'users', ready: true },
   { page_key: 'rbac', ready: true },
+  { page_key: 'ab-testing', ready: true },
   { page_key: 'audit-log', ready: true },
   { page_key: 'companies', ready: true },
   { page_key: 'settings-divisions', ready: true },

@@ -30,3 +30,4 @@ export const ThresholdSettings = lazy(() => import('../pages/Settings/Threshold/
 export const AppSettings = lazy(() => import('../pages/Settings/AppSettings/index'))
 export const IntegrationPage = lazy(() => import('../pages/Config/Integration/index'))
 export const FeaturesPage = lazy(() => import('../pages/Config/Features/index'))
+export const AbTesting = lazy(() => import('../pages/AbTesting/index'))
