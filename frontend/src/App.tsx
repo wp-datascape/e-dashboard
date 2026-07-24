@@ -21,6 +21,10 @@ import { useTranslation } from 'react-i18next'
 import { routeRegistry } from './route/routeConstants'
 import { Login, NotFound, Forbidden, UnderMaintenance } from './route/routes'
 import { DashboardLayout } from './components/layout/DashboardLayout'
+// Import statis (BUKAN lazy) — sengaja: fallback ini menangani kegagalan koneksi,
+// kalau di-lazy-load lewat chunk terpisah, chunk-nya sendiri bisa gagal diambil pas
+// network memang lagi bermasalah (persis skenario yang mau ditangani komponen ini).
+import ConnectionError from './pages/ConnectionError/index'
 
 // ─── Loading Fallback Component ──────────────────────────────────────────────
 function PageLoader() {
@@ -40,7 +44,7 @@ function PageLoader() {
 
 // ─── Core Router Orchestrator ────────────────────────────────────────────────
 function AppRouter() {
-  const { data: pageSettings, isLoading } = usePageSettings()
+  const { data: pageSettings, isLoading, isError: isPageSettingsError, refetch: refetchPageSettings } = usePageSettings()
   const { token, syncUser, isAuthenticated } = useAuth()
   const { applyRemotePreferences } = useThemeMode()
   const { i18n } = useTranslation()
@@ -78,6 +82,18 @@ function AppRouter() {
 
   if (isLoading || (!!token && (isMeLoading || !synced))) {
     return <PageLoader />
+  }
+
+  // Query page-settings GAGAL (network error/timeout, mis. saat AB Testing network
+  // throttle aktif atau server sungguhan tidak bisa dihubungi) — BEDAKAN dari 404:
+  // tanpa cabang ini, pageSettings tetap `undefined` sehingga TIDAK ADA route dinamis
+  // ter-registrasi sama sekali, path apa pun (termasuk yang user PUNYA akses-nya)
+  // jatuh ke catch-all "*" dan salah tampil sebagai 404 "halaman tidak ada" — padahal
+  // URL-nya valid, kita cuma gagal connect utk cek page-nya. Kasus "user memang tidak
+  // punya izin" TETAP ditangani terpisah oleh ProtectedRoute (redirect ke /403) begitu
+  // pageSettings berhasil dimuat - tidak disentuh cabang ini.
+  if (isPageSettingsError && !!token) {
+    return <ConnectionError onRetry={() => refetchPageSettings()} />
   }
 
   return (
@@ -136,7 +152,11 @@ function AppRouter() {
             sempat lewat ProtectedRoute (yang harusnya redirect ke /login). Cek
             isAuthenticated dulu di sini supaya user belum login selalu diarahkan ke
             /login, bukan disodori 404 palsu. NotFound asli cuma untuk user yang SUDAH
-            login tapi path-nya memang tidak pernah ada. */}
+            login tapi path-nya memang tidak pernah ada — kasus pageSettings GAGAL
+            fetch (network error/timeout) sudah ditangani terpisah di atas (cabang
+            isPageSettingsError -> ConnectionError), jadi begitu render sampai sini
+            pageSettings dijamin sudah berhasil dimuat (dari cache lama atau fetch
+            baru), path yang tidak match memang benar-benar tidak terdaftar. */}
         <Route
           path="*"
           element={isAuthenticated ? <NotFound /> : <Navigate to="/login" replace />}

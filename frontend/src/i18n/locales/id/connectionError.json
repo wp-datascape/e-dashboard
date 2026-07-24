@@ -1,0 +1,6 @@
+{
+  "title": "Tidak dapat terhubung ke server",
+  "subtitle": "Koneksi ke server gagal atau timeout — bukan berarti halaman ini tidak ada, coba periksa jaringan Anda lalu coba lagi.",
+  "retry": "Coba Lagi",
+  "retrying": "Menghubungkan..."
+}

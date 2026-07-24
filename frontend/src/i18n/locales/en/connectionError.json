@@ -1,0 +1,6 @@
+{
+  "title": "Unable to connect to the server",
+  "subtitle": "The connection to the server failed or timed out — this doesn't mean the page doesn't exist. Check your network and try again.",
+  "retry": "Retry",
+  "retrying": "Connecting..."
+}
