@@ -1,5 +1,6 @@
 import { db } from '@/config/db'
 import { loginLogs } from '@/db/schema'
+import { logger } from '@/utils/logger'
 
 export interface LoginLogOptions {
   userId: number | null
@@ -30,6 +31,6 @@ export async function logLoginEvent(opts: LoginLogOptions) {
   try {
     await db.insert(loginLogs).values(values)
   } catch (err) {
-    console.error('[login-log] Failed to write login log:', err)
+    logger.error('[login-log] Failed to write login log', { error: err instanceof Error ? err.message : err })
   }
 }
