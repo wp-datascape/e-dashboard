@@ -18,6 +18,8 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
+import { useThemeMode } from '@/theme/theme.context';
+import { PALETTES, type PaletteKey } from '@/theme/palettes';
 import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
 import { SectionLabel, Row } from './HelperComponents';
 
@@ -84,6 +86,42 @@ function tierChipColor(tier: string): 'primary' | 'info' | 'default' {
   return 'default';
 }
 
+// Template warna 3 garis M3 — DIBEDAKAN PER PALETTE (bukan 1 warna universal untuk semua),
+// supaya tiap palette selalu dapat kombinasi paling kontras terhadap warna bar-nya sendiri
+// (bar = primary.main, ikut 6 palette aktif: blue/green/yellow/purple/rose/indigo).
+//
+// Default line1/line2 = warning/success (dipakai chart lain juga, semantik tetap sama di
+// semua palette) - TAPI diganti kalau hue-nya ketabrak sama bar palette itu:
+// - yellow: bar (~32°) = SAMA PERSIS dengan warning (~32°) → line1 diganti biru (blue accent).
+//           line3 JUGA diganti ungu (bukan magenta) — magenta (~310°) secara hue jauh dari
+//           amber (82°) tapi dua-duanya warna "hangat", kontras PERSEPSI-nya lemah di layar
+//           (dilaporkan user, screenshot). Ungu (dingin, ~272°) jauh lebih menonjol di atas
+//           background oranye/amber.
+// - green:  bar (~142°) cuma beda ~18° dari success (~160°) → line2 diganti info (cyan, ~192°)
+// - purple: bar (~272°) beda 112° dari success — aman, tapi magenta line3 (lihat bawah)
+//           cuma beda ~38° dari purple → line3 diganti info (cyan) utk purple
+// - rose:   bar (~347°) terlalu dekat warning (45°) DAN magenta (37°) → line1/line3 diganti
+//           success+info (garis 1&2) dan purple accent (garis 3), semua >75° dari bar
+//
+// line3 (baru, HM%) defaultnya magenta/orchid (~310° — titik tengah gap terbesar antar
+// bar purple 272° & rose 347°, dua bar yang paling berdekatan satu sama lain) — KECUALI
+// utk palette hangat (yellow) yang butuh warna dingin spesifik biar kontras persepsinya kuat.
+function buildLineTemplates(warning: string, success: string, info: string, mode: 'light' | 'dark') {
+  const magenta = mode === 'dark' ? 'hsl(310, 80%, 63%)' : 'hsl(310, 75%, 45%)';
+  const blueAccent = PALETTES.blue.primary[mode];
+  const purpleAccent = PALETTES.purple.primary[mode];
+
+  const templates: Record<PaletteKey, { line1: string; line2: string; line3: string }> = {
+    blue:   { line1: warning,    line2: success, line3: magenta },
+    indigo: { line1: warning,    line2: success, line3: magenta },
+    green:  { line1: warning,    line2: info,    line3: magenta },
+    yellow: { line1: blueAccent, line2: success, line3: purpleAccent },
+    purple: { line1: warning,    line2: success, line3: info },
+    rose:   { line1: success,    line2: info,    line3: purpleAccent },
+  };
+  return templates;
+}
+
 function tierLabel(tier: string, t: TFunction): string {
   if (tier === 'Atas')   return t('customerMetrics.m4.tierTop');
   if (tier === 'Tengah') return t('customerMetrics.m4.tierMid');
@@ -117,9 +155,18 @@ interface Props {
 
 export function M3Revenue({ trend, isLoading, companyId, branchId, division, excludeIntercompany }: Props) {
   const theme = useTheme();
+  const { palette: paletteKey, isDark } = useThemeMode();
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const revenueColumns = useRevenueColumns(t);
+
+  const lineTemplates = buildLineTemplates(
+    theme.palette.warning.main,
+    theme.palette.success.main,
+    theme.palette.info.main,
+    isDark ? 'dark' : 'light',
+  );
+  const lineTemplate = lineTemplates[paletteKey];
 
   const { data: breakdown, isLoading: breakdownLoading } = useRevenueBreakdown({
     period_end: drillDate,
@@ -128,6 +175,13 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
     division,
     exclude_intercompany: excludeIntercompany,
   });
+
+  // hm_pct dihitung di frontend (bukan dari API) - sama seperti avg_revenue dialog yang
+  // juga dihitung inline dari total_revenue/total_existing, konsisten dgn pola existing.
+  const trendWithHmPct = trend.map((d) => ({
+    ...d,
+    hm_pct: d.total_revenue_existing > 0 ? (d.hm_revenue / d.total_revenue_existing) * 100 : 0,
+  }));
 
   return (
     <Box>
@@ -151,16 +205,20 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
         <ComboChartWidget
           title={t('customerMetrics.m3.chartTitle')}
           subtitle={t('customerMetrics.m3.chartSubtitle')}
-          data={trend}
+          data={trendWithHmPct}
           barKey="total_revenue_existing"
           barLabel={t('customerMetrics.m3.barLabel')}
           barColor={theme.palette.primary.main}
           lineKey="avg_revenue"
           lineLabel={t('customerMetrics.m3.lineLabelAvg')}
-          lineColor={theme.palette.warning.main}
+          lineColor={lineTemplate.line1}
           line2Key="median_revenue"
           line2Label={t('customerMetrics.m3.lineLabelMedian')}
-          line2Color={theme.palette.success.main}
+          line2Color={lineTemplate.line2}
+          line3Key="hm_pct"
+          line3Label={t('customerMetrics.m3.lineLabelHm')}
+          line3Color={lineTemplate.line3}
+          formatLine3={(v) => `${v.toFixed(1)}%`}
           concentrationKey="top_customer_pct"
           concentrationThreshold={25}
           xKey="month"

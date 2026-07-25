@@ -18,6 +18,7 @@
     "emptyMessage": "No revenue data for this month",
     "lineLabelAvg": "Avg Revenue / Customer",
     "lineLabelMedian": "Median Revenue / Customer",
+    "lineLabelHm": "High Margin Contribution (%)",
     "rowTotalRevenue": "Total Revenue",
     "rowTotalExisting": "Total Existing Customer",
     "rowAvgRevenue": "Avg Revenue/Customer",

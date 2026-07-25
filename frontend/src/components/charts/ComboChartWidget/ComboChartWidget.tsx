@@ -39,6 +39,13 @@ export interface ComboChartWidgetProps {
   line2Key?: string;
   line2Label?: string;
   line2Color?: string;
+  // Garis ketiga — SKALA BEDA dari line/line2 (persentase 0-100, bukan Rupiah), makanya
+  // pakai axis tersendiri (yAxisId="pct", domain tetap [0,100], disembunyikan biar chart
+  // tidak makin padat — nilai presisi tetap kebaca lewat tooltip).
+  line3Key?: string;
+  line3Label?: string;
+  line3Color?: string;
+  formatLine3?: (v: number) => string;
   // Custom tooltip — menggantikan tooltip default
   renderTooltip?: (props: TooltipContentProps<number, string>) => React.ReactElement | null;
   // Highlight bar saat nilai field tertentu melebihi threshold
@@ -69,6 +76,10 @@ export const ComboChartWidget = ({
   line2Key,
   line2Label,
   line2Color,
+  line3Key,
+  line3Label,
+  line3Color,
+  formatLine3,
   renderTooltip,
   concentrationKey,
   concentrationThreshold = 25,
@@ -107,6 +118,7 @@ export const ComboChartWidget = ({
     if (n === barLabel && formatBar) return [formatBar(v), n];
     if (n === bar2Label && formatBar) return [formatBar(v), n];
     if (n === lineLabel && formatLine) return [formatLine(v), n];
+    if (n === line3Label && formatLine3) return [formatLine3(v), n];
     return [v.toLocaleString('id-ID'), n];
   };
 
@@ -154,6 +166,9 @@ export const ComboChartWidget = ({
             tickLine={false}
             tickFormatter={(v) => (formatLine ? formatLine(v) : v)}
           />
+          {line3Key && (
+            <YAxis yAxisId="pct" domain={[0, 100]} hide />
+          )}
           {renderTooltip ? (
             <Tooltip content={(props) => renderTooltip(props as TooltipContentProps<number, string>)} />
           ) : (
@@ -231,6 +246,19 @@ export const ComboChartWidget = ({
               strokeWidth={1.5}
               strokeDasharray="5 5"
               dot={false}
+              type="monotone"
+            />
+          )}
+
+          {line3Key && (
+            <Line
+              yAxisId="pct"
+              dataKey={line3Key}
+              name={line3Label ?? line3Key}
+              stroke={line3Color}
+              strokeWidth={2}
+              strokeDasharray="2 3"
+              dot={{ r: 2.5, fill: line3Color }}
               type="monotone"
             />
           )}

@@ -18,6 +18,7 @@
     "emptyMessage": "Tidak ada data revenue bulan ini",
     "lineLabelAvg": "Avg Revenue / Customer",
     "lineLabelMedian": "Median Revenue / Customer",
+    "lineLabelHm": "Kontribusi High Margin (%)",
     "rowTotalRevenue": "Total Revenue",
     "rowTotalExisting": "Total Existing Customer",
     "rowAvgRevenue": "Avg Revenue/Customer",
