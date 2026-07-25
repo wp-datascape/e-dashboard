@@ -14,7 +14,7 @@ import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, monthToEndDate } from './helpers';
+import { fmtRpDetail, monthToEndDate } from './helpers';
 import { SectionLabel } from './HelperComponents';
 
 function useHmColumns(t: TFunction): GridColDef[] {
@@ -24,7 +24,7 @@ function useHmColumns(t: TFunction): GridColDef[] {
     { field: 'customer_code', headerName: t('customerMetrics.m5.colCode'),     width: 110, sortable: false,
       renderCell: (p) => p.value ?? '—' },
     { field: 'hm_revenue', headerName: t('customerMetrics.m5.colRevenueHm'), width: 140, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRp(p.value as number) },
+      renderCell: (p) => fmtRpDetail(p.value as number) },
     { field: 'hm_pct', headerName: t('customerMetrics.m5.colPctHm'), width: 110, align: 'right', headerAlign: 'right',
       renderCell: (p) => `${p.value}%` },
   ]
@@ -102,7 +102,7 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
               [t('customerMetrics.m5.dialogTotalExisting'),    String(hmBreakdown.total_existing)],
               [t('customerMetrics.m5.dialogBought'), String(hmBreakdown.hm_buyer_count)],
               [t('customerMetrics.m5.dialogPenetration'),                  `${hm?.bought_pct ?? 0}%`],
-              [t('customerMetrics.m5.dialogRevenue'),    fmtRp(hmBreakdown.total_hm_revenue)],
+              [t('customerMetrics.m5.dialogRevenue'),    fmtRpDetail(hmBreakdown.total_hm_revenue)],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
