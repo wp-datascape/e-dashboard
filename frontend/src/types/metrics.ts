@@ -163,6 +163,7 @@ export interface CustomerMetricsTrendPoint {
   top_customer_revenue: number;
   top_customer_pct: number;
   is_concentrated: boolean;
+  hm_revenue: number;
 }
 
 export interface HighMarginCurrent {

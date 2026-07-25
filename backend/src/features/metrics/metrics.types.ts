@@ -26,6 +26,8 @@ export interface CustomerMetricsTrendPoint {
   top_customer_revenue: number
   top_customer_pct: number
   is_concentrated: boolean
+  // Task006 — kontribusi revenue High Margin bulan itu (tooltip hover M3)
+  hm_revenue: number
 }
 
 // ── M3 Revenue Drill-down ───────────────────────────────────────────────────────

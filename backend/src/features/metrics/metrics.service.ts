@@ -128,6 +128,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       top_customer_revenue:    row.top_customer_revenue,
       top_customer_pct:        row.top_customer_pct,
       is_concentrated:         row.top_customer_pct > 25,
+      hm_revenue:              row.hm_revenue,
     }))
 
     const last = trendPoints.at(-1)

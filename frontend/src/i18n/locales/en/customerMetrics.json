@@ -22,6 +22,7 @@
     "rowTotalExisting": "Total Existing Customer",
     "rowAvgRevenue": "Avg Revenue/Customer",
     "rowMedianRevenue": "Median Revenue",
+    "rowHmContribution": "High Margin Contribution",
     "topLabel": "Top: {{name}}",
     "topValue": "{{pct}}% of total",
     "legendNormal": "Normal distribution",

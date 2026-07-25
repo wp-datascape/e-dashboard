@@ -28,6 +28,7 @@ export type TrendRow = {
   top_customer_name: string | null
   top_customer_revenue: number
   top_customer_pct: number
+  hm_revenue: number
 }
 
 /**
@@ -86,9 +87,12 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
                               - INTERVAL '1 day')
     ),
 
-    -- Invoice HM relevan: dari 11 bulan lalu - activeMonths, sampai akhir bulan filter
+    -- Invoice HM relevan: dari 11 bulan lalu - activeMonths, sampai akhir bulan filter.
+    -- Tidak DISTINCT (beda dari sebelumnya) - butuh revenue per invoice_item utk SUM
+    -- di hm_inv_agg (tooltip hover M3); CTE hm di bawah tetap aman karena cuma project
+    -- ms+customer_id dengan DISTINCT-nya sendiri, tidak peduli row hm_raw dobel.
     hm_raw AS (
-      SELECT DISTINCT i.customer_id, i.invoice_date
+      SELECT i.customer_id, i.invoice_date, ii.revenue::numeric AS revenue
       FROM invoices i
       JOIN invoice_items ii ON ii.invoice_id = i.id
       JOIN high_margin_products hmp ON (
@@ -182,6 +186,20 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
                            - ${activeMonths}::int * INTERVAL '1 month'
         AND hr.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
       JOIN existing e ON e.id = hr.customer_id AND e.ms = m.ms
+    ),
+
+    -- Kontribusi revenue High Margin per existing customer per bulan (tooltip hover M3,
+    -- task006) - populasi & window sama dengan active_inv_agg supaya konsisten dgn
+    -- total_revenue_existing.
+    hm_inv_agg AS (
+      SELECT e.ms, hr.customer_id, SUM(hr.revenue) AS hm_revenue
+      FROM hm_raw hr
+      JOIN months m ON
+        hr.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+                           - ${activeMonths}::int * INTERVAL '1 month'
+        AND hr.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+      JOIN existing e ON e.id = hr.customer_id AND e.ms = m.ms
+      GROUP BY e.ms, hr.customer_id
     ),
 
     -- New customers per bulan: first invoice dalam active window
@@ -304,7 +322,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       MAX(tcg.customer_id)                           AS top_gp_customer_id,
       MAX(cust_top_gp.customer_name)                 AS top_gp_customer_name,
       COALESCE(MAX(ROUND(tcg.top_gp)), 0)            AS top_gp_revenue,
-      COALESCE(MAX(tcg.top_gp_pct), 0)              AS top_gp_pct
+      COALESCE(MAX(tcg.top_gp_pct), 0)              AS top_gp_pct,
+      COALESCE(SUM(hia.hm_revenue), 0)               AS hm_revenue
 
     FROM months m
     LEFT JOIN existing e          ON e.ms = m.ms
@@ -312,6 +331,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
     LEFT JOIN prev_inv_agg   prv  ON prv.ms = m.ms AND prv.customer_id = e.id
     LEFT JOIN repeat_orders  ro   ON ro.ms  = m.ms AND ro.customer_id  = e.id
     LEFT JOIN hm hmr              ON hmr.ms = m.ms AND hmr.customer_id = e.id
+    LEFT JOIN hm_inv_agg hia      ON hia.ms = m.ms AND hia.customer_id = e.id
     LEFT JOIN monthly_extras me   ON me.ms = m.ms
     LEFT JOIN new_cust_cnt ncc    ON ncc.ms = m.ms
     LEFT JOIN top_contrib tc      ON tc.ms = m.ms
@@ -348,6 +368,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       top_gp_customer_name:   row.top_gp_customer_name != null ? String(row.top_gp_customer_name) : null,
       top_gp_revenue:         Number(row.top_gp_revenue ?? 0),
       top_gp_pct:             Number(row.top_gp_pct ?? 0),
+      hm_revenue:             Number(row.hm_revenue ?? 0),
     }
   })
 }

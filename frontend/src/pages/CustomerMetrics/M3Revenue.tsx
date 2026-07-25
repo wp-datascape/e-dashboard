@@ -55,6 +55,10 @@ function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
           value={fmtRpDetail(d.median_revenue)}
           highlight={d.median_revenue < d.avg_revenue * 0.7}
         />
+        <Row
+          label={t('customerMetrics.m3.rowHmContribution')}
+          value={`${fmtRpDetail(d.hm_revenue)} (${d.total_revenue_existing > 0 ? ((d.hm_revenue / d.total_revenue_existing) * 100).toFixed(1) : '0'}%)`}
+        />
       </Box>
       {d.top_customer_name && (
         <>
