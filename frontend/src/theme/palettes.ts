@@ -27,41 +27,45 @@ export const DEFAULT_PALETTE: PaletteKey = 'blue'
 // users.preferences.color_palette) TETAP VALID tanpa perlu migration/backfill. Validasi
 // backend (auth.schema.ts COLOR_PALETTES) juga tidak perlu diubah karena union key-nya sama.
 // Label tampilan di Settings (config.appSettings.paletteXxx) diupdate terpisah ke nama baru.
+// secondary dipakai juga sebagai warna "Bar 2" di chart 2-bar (mis. ComboChartWidget
+// bar2Color fallback) - nilai dari matrix warna terbaru user, sengaja SAMA utk light &
+// dark mode karena warnanya sudah pastel/terang jadi kontras baik di kedua mode tanpa
+// perlu lighten lagi (di-lighten lagi malah nyaris putih, jadi tidak terlihat).
 export const PALETTES: Record<PaletteKey, PaletteColors> = {
   // "Enterprise Blue"
   blue: {
     primary:   { light: '#2563EB', dark: '#5284EF' },
-    secondary: { light: '#7C3AED', dark: '#8B5CF6' },
+    secondary: { light: '#93C5FD', dark: '#93C5FD' },
     appBar:    { light: '#2563EB', dark: '#0B111E' },
   },
   // "Executive Green"
   green: {
     primary:   { light: '#059669', dark: '#06C689' },
-    secondary: { light: '#0891B2', dark: '#06B6D4' },
+    secondary: { light: '#6EE7B7', dark: '#6EE7B7' },
     appBar:    { light: '#059669', dark: '#0B1E18' },
   },
   // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
   yellow: {
     primary:   { light: '#0F766E', dark: '#15A297' },
-    secondary: { light: '#0284C7', dark: '#0EA5E9' },
+    secondary: { light: '#99F6E4', dark: '#99F6E4' },
     appBar:    { light: '#0F766E', dark: '#0B1E1C' },
   },
   // "Premium Purple"
   purple: {
     primary:   { light: '#7C3AED', dark: '#9B6AF1' },
-    secondary: { light: '#C026D3', dark: '#D946EF' },
+    secondary: { light: '#C4B5FD', dark: '#C4B5FD' },
     appBar:    { light: '#7C3AED', dark: '#120B1E' },
   },
   // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas)
   rose: {
     primary:   { light: '#DC2626', dark: '#E35454' },
-    secondary: { light: '#DB2777', dark: '#EC4899' },
+    secondary: { light: '#FCA5A5', dark: '#FCA5A5' },
     appBar:    { light: '#DC2626', dark: '#1E0B0B' },
   },
   // "Enterprise Slate" (key internal tetap 'indigo' - lihat catatan di atas)
   indigo: {
     primary:   { light: '#475569', dark: '#5D6F89' },
-    secondary: { light: '#64748B', dark: '#94A3B8' },
+    secondary: { light: '#CBD5E1', dark: '#CBD5E1' },
     appBar:    { light: '#475569', dark: '#0B131E' },
   },
 }

@@ -17,6 +17,40 @@ import {
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 
+// Marker shape per line (spec: Line1=circle, Line2=square, Line3=diamond) — Recharts
+// bawaan cuma bisa gambar circle lewat prop `dot` object, jadi shape lain (square/
+// diamond) harus custom render function yang return elemen SVG sendiri.
+interface DotRenderProps {
+  cx?: number;
+  cy?: number;
+}
+
+const renderCircleDot = (color: string, size: number) => (props: DotRenderProps) => {
+  const { cx, cy } = props;
+  if (cx == null || cy == null) return <></>;
+  return <circle cx={cx} cy={cy} r={size / 2} fill={color} stroke="#fff" strokeWidth={2} />;
+};
+
+const renderSquareDot = (color: string, size: number) => (props: DotRenderProps) => {
+  const { cx, cy } = props;
+  if (cx == null || cy == null) return <></>;
+  return <rect x={cx - size / 2} y={cy - size / 2} width={size} height={size} fill={color} stroke="#fff" strokeWidth={2} />;
+};
+
+const renderDiamondDot = (color: string, size: number) => (props: DotRenderProps) => {
+  const { cx, cy } = props;
+  if (cx == null || cy == null) return <></>;
+  const half = size / 2;
+  return (
+    <polygon
+      points={`${cx},${cy - half} ${cx + half},${cy} ${cx},${cy + half} ${cx - half},${cy}`}
+      fill={color}
+      stroke="#fff"
+      strokeWidth={2}
+    />
+  );
+};
+
 export interface ComboChartWidgetProps {
   title: string;
   subtitle?: string;
@@ -232,8 +266,12 @@ export const ComboChartWidget = ({
             dataKey={lineKey}
             name={lineLabel}
             stroke={lineColor}
-            strokeWidth={2}
-            dot={{ r: 3, fill: lineColor }}
+            strokeWidth={3}
+            strokeOpacity={1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            dot={renderCircleDot(lineColor, 6)}
+            activeDot={renderCircleDot(lineColor, 8)}
             type="monotone"
           />
 
@@ -243,9 +281,13 @@ export const ComboChartWidget = ({
               dataKey={line2Key}
               name={line2Label ?? line2Key}
               stroke={line2Color ?? theme.palette.success.main}
-              strokeWidth={1.5}
-              strokeDasharray="5 5"
-              dot={false}
+              strokeWidth={3}
+              strokeOpacity={1}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="8 5"
+              dot={renderSquareDot(line2Color ?? theme.palette.success.main, 6)}
+              activeDot={renderSquareDot(line2Color ?? theme.palette.success.main, 8)}
               type="monotone"
             />
           )}
@@ -256,9 +298,13 @@ export const ComboChartWidget = ({
               dataKey={line3Key}
               name={line3Label ?? line3Key}
               stroke={line3Color}
-              strokeWidth={2}
-              strokeDasharray="2 3"
-              dot={{ r: 2.5, fill: line3Color }}
+              strokeWidth={3}
+              strokeOpacity={1}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="1 4"
+              dot={renderDiamondDot(line3Color ?? theme.palette.info.main, 6)}
+              activeDot={renderDiamondDot(line3Color ?? theme.palette.info.main, 8)}
               type="monotone"
             />
           )}
