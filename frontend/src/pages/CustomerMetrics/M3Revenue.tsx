@@ -245,6 +245,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           formatLine3={(v) => `${v.toFixed(1)}%`}
           concentrationKey="top_customer_pct"
           concentrationThreshold={25}
+          concentrationColor={theme.palette.secondary.main}
           xKey="month"
           height={260}
           formatBar={(v) => fmtRp(v)}
@@ -260,7 +261,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           <Typography variant="caption" color="text.secondary">{t('customerMetrics.m3.legendNormal')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Box sx={{ width: 12, height: 12, bgcolor: 'warning.light', flexShrink: 0 }} />
+          <Box sx={{ width: 12, height: 12, bgcolor: 'secondary.main', flexShrink: 0 }} />
           <Typography variant="caption" color="text.secondary">
             {t('customerMetrics.m3.legendConcentrated')}
           </Typography>
