@@ -19,6 +19,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
+import { PALETTES } from '@/theme/palettes';
 import type { PaletteKey } from '@/theme/palettes';
 import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
 import { SectionLabel, Row } from './HelperComponents';
@@ -191,6 +192,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
 
   const lineTemplates = buildLineTemplates(isDark ? 'dark' : 'light');
   const lineTemplate = lineTemplates[paletteKey];
+  const concentrationColor = PALETTES[paletteKey].warningComplement[isDark ? 'dark' : 'light'];
 
   const { data: breakdown, isLoading: breakdownLoading } = useRevenueBreakdown({
     period_end: drillDate,
@@ -245,7 +247,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           formatLine3={(v) => `${v.toFixed(1)}%`}
           concentrationKey="top_customer_pct"
           concentrationThreshold={25}
-          concentrationColor={theme.palette.warning.main}
+          concentrationColor={concentrationColor}
           xKey="month"
           height={260}
           formatBar={(v) => fmtRp(v)}
@@ -261,7 +263,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           <Typography variant="caption" color="text.secondary">{t('customerMetrics.m3.legendNormal')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Box sx={{ width: 12, height: 12, bgcolor: 'warning.main', flexShrink: 0 }} />
+          <Box sx={{ width: 12, height: 12, bgcolor: concentrationColor, flexShrink: 0 }} />
           <Typography variant="caption" color="text.secondary">
             {t('customerMetrics.m3.legendConcentrated')}
           </Typography>
