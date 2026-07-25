@@ -22,6 +22,11 @@ export interface PaletteColors {
   // di semua palette (primary yang low-saturation seperti slate kalau di-komplemen
   // apa adanya jadi coklat pudar, kurang terasa "warning").
   warningComplement: { light: string; dark: string }
+  // Warna 3 line di chart M3 (Actual/Avg, Median, Kontribusi High Margin) - tiap
+  // line dipilih kontras terhadap warna bar (primary) & terhadap satu sama lain.
+  line1: { light: string; dark: string }
+  line2: { light: string; dark: string }
+  line3: { light: string; dark: string }
 }
 
 export const DEFAULT_PALETTE: PaletteKey = 'blue'
@@ -42,42 +47,60 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     primary:   { light: '#2563EB', dark: '#5284EF' },
     secondary: { light: '#93C5FD', dark: '#93C5FD' },
     appBar:    { light: '#2563EB', dark: '#0B111E' },
-    warningComplement: { light: '#E0A015', dark: '#EEB844' },
+    warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
+   line1: { light: '#4F7ED9', dark: '#6DA2F8' },
+  line2: { light: '#5FAE7B', dark: '#75C996' },
+  line3: { light: '#C98A2C', dark: '#D9A94A' },
   },
   // "Executive Green"
   green: {
     primary:   { light: '#059669', dark: '#06C689' },
     secondary: { light: '#6EE7B7', dark: '#6EE7B7' },
     appBar:    { light: '#059669', dark: '#0B1E18' },
-    warningComplement: { light: '#ED084F', dark: '#F93976' },
+    warningComplement: { light: '#FBBF24', dark: '#FBBF24' },
+    line1: { light: '#2563EB', dark: '#5284EF' },
+    line2: { light: '#F97316', dark: '#FA9247' },
+    line3: { light: '#A855F7', dark: '#C185F9' },
   },
   // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
   yellow: {
     primary:   { light: '#0F766E', dark: '#15A297' },
     secondary: { light: '#99F6E4', dark: '#99F6E4' },
     appBar:    { light: '#0F766E', dark: '#0B1E1C' },
-    warningComplement: { light: '#D91C2A', dark: '#E84A57' },
+    warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
+    line1: { light: '#6366F1', dark: '#9395F6' },
+    line2: { light: '#F97316', dark: '#FA9247' },
+    line3: { light: '#E11D48', dark: '#E84A6C' },
   },
   // "Premium Purple"
   purple: {
     primary:   { light: '#7C3AED', dark: '#9B6AF1' },
     secondary: { light: '#C4B5FD', dark: '#C4B5FD' },
     appBar:    { light: '#7C3AED', dark: '#120B1E' },
-    warningComplement: { light: '#95E014', dark: '#B0ED45' },
+    warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
+    line1: { light: '#14B8A6', dark: '#19E6CE' },
+    line2: { light: '#F59E0B', dark: '#F7B23B' },
+    line3: { light: '#EF4444', dark: '#F37272' },
   },
   // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas)
   rose: {
     primary:   { light: '#DC2626', dark: '#E35454' },
     secondary: { light: '#FCA5A5', dark: '#FCA5A5' },
     appBar:    { light: '#DC2626', dark: '#1E0B0B' },
-    warningComplement: { light: '#22D3D3', dark: '#50E2E2' },
+    warningComplement: { light: '#0EA5E9', dark: '#0EA5E9' },
+    line1: { light: '#2563EB', dark: '#5284EF' },
+    line2: { light: '#10B981', dark: '#14E6A0' },
+    line3: { light: '#FBBF24', dark: '#FCCC55' },
   },
   // "Enterprise Slate" (key internal tetap 'indigo' - lihat catatan di atas)
   indigo: {
     primary:   { light: '#475569', dark: '#5D6F89' },
     secondary: { light: '#CBD5E1', dark: '#CBD5E1' },
     appBar:    { light: '#475569', dark: '#0B131E' },
-    warningComplement: { light: '#BE8637', dark: '#D1A361' },
+    warningComplement: { light: '#0EA5E9', dark: '#0EA5E9' },
+    line1: { light: '#3B82F6', dark: '#6DA2F8' },
+    line2: { light: '#22C55E', dark: '#3BDE77' },
+    line3: { light: '#F59E0B', dark: '#F7B23B' },
   },
 }
 
