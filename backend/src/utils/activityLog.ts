@@ -1,5 +1,6 @@
 import { db } from '@/config/db'
 import { activityLogs } from '@/db/schema'
+import { logger } from '@/utils/logger'
 import type { Context } from 'hono'
 
 export interface ActivityLogOptions {
@@ -37,6 +38,6 @@ export async function logActivity(ctx: Context, opts: ActivityLogOptions) {
   try {
     await db.insert(activityLogs).values(values)
   } catch (err) {
-    console.error('[activity-log] Failed to write activity log:', err)
+    logger.error('[activity-log] Failed to write activity log', { error: err instanceof Error ? err.message : err })
   }
 }
