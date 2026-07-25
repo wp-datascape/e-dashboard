@@ -2,6 +2,9 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import MuiTooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
@@ -54,7 +57,19 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
   return (
     <>
       <Box>
-        <SectionLabel label={t('customerMetrics.m5.sectionLabel')} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+          <SectionLabel label={t('customerMetrics.m5.sectionLabel')} />
+          <MuiTooltip
+            title={t('customerMetrics.m5.tooltipInfo')}
+            placement="top"
+            arrow
+            slotProps={{ tooltip: { sx: { maxWidth: 300, fontSize: 12, lineHeight: 1.5 } } }}
+          >
+            <IconButton size="small" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+              <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </MuiTooltip>
+        </Box>
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (

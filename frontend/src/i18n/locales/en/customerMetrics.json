@@ -3,7 +3,7 @@
   "pageSubtitle": "Metrics 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion",
   "m3": {
     "sectionLabel": "M3 · Average Revenue per Existing Customer",
-    "tooltipInfo": "If the Avg line is far above Median, a few large customers are pushing the average up — not even growth. The orange bar + ⚠ marks a month where 1 customer contributed > 25% of total revenue.",
+    "tooltipInfo": "If the Avg line is far above Median, a few large customers are pushing the average up — not even growth. The orange bar + ⚠ marks a month where 1 customer contributed > 25% of total revenue. \"High Margin Contribution\" in the month detail measures the REVENUE share from High Margin products — different from M5, which measures the CUSTOMER share who bought them.",
     "chartTitle": "Total Revenue Existing vs Avg & Median Revenue per Customer (12 Months)",
     "chartSubtitle": "Bar = Total Revenue · Solid line = Avg · Dashed line = Median · ⚠ = top customer > 25% · Click a bar for per-customer detail",
     "barLabel": "Total Revenue Existing",
@@ -29,6 +29,7 @@
   },
   "m4": {
     "sectionLabel": "M4 · Average Gross Profit per Existing Customer",
+    "tooltipInfo": "Same as M3, but based on Gross Profit (absolute margin), not Revenue. Tiers are recalculated each month from the median individual GP — the customer mix per tier can differ from M3 even if the chart shape looks similar.",
     "chartTitle": "Total GP Existing Customer — Contribution per Tier (12 Months)",
     "chartSubtitle": "Tier determined each month: Top = GP > median · Mid = 50%–100% median · Bottom = < 50% median · ⚠ = top GP customer > 25%",
     "tierTop": "Top (GP > median)",
@@ -55,6 +56,7 @@
   },
   "m5": {
     "sectionLabel": "M5 · High Margin Product Penetration — Current Month",
+    "tooltipInfo": "Measures the CUSTOMER share (not revenue) who bought at least 1 product tagged High Margin by an admin (Settings → High Margin). Different from M3's \"High Margin Contribution\", which measures the REVENUE share — many customers buying (M5 high) doesn't mean the value is large (M3 can still be low), or vice versa.",
     "chartTitle": "High Margin Product Penetration",
     "chartSubtitle": "Click chart to view customer list — current month snapshot",
     "boughtLabel": "Bought High Margin",
@@ -74,6 +76,7 @@
   },
   "m6": {
     "sectionLabel": "M6 · Repeat Order Rate — Current Month",
+    "tooltipInfo": "\"Repeat order\" here means MORE THAN 1 transaction within the current month — not just having bought before. The green target line is configured in Settings → Threshold, not always 100%.",
     "chartTitle": "Repeat Order Rate",
     "chartSubtitle": "Green ≥ {{thresholdPct}}% (on target) · Click to view customer list",
     "dialogTitle": "Repeat Order Buyers — {{date}}",
@@ -89,6 +92,7 @@
   },
   "m7": {
     "sectionLabel": "M7 · Customer Expansion Rate — Spending Up vs Flat/Down",
+    "tooltipInfo": "Compared against the 30 days BEFORE the active period (not the same month last year). A customer who didn't order at all before but orders now still counts as \"spending up\".",
     "chartTitle": "Customer Expansion Rate — 100% Stacked Horizontal (12 Months)",
     "chartSubtitle": "Each row = 1 month · Green = % spending up vs prior 30 days · Grey = % flat/down · Click a bar for per-customer detail",
     "seriesUp": "Spending Up (%)",
