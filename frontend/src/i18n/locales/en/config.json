@@ -63,12 +63,12 @@
     "darkModeDesc": "Dark theme — reduces eye strain in low-light environments",
     "lightModeDesc": "Light theme — better visibility in bright environments",
     "paletteHelper": "Choose an accent color for buttons and highlights. Saved to your account and applied wherever you log in.",
-    "paletteBlue": "Blue",
-    "paletteGreen": "Green",
-    "paletteYellow": "Yellow",
-    "palettePurple": "Purple",
-    "paletteRose": "Rose",
-    "paletteIndigo": "Indigo"
+    "paletteBlue": "Enterprise Blue",
+    "paletteGreen": "Executive Green",
+    "paletteYellow": "Modern Teal",
+    "palettePurple": "Premium Purple",
+    "paletteRose": "Executive Red",
+    "paletteIndigo": "Enterprise Slate"
   },
   "pageSettings": {
     "title": "Page Visibility",

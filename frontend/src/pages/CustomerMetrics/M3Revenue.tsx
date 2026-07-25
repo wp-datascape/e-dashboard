@@ -19,7 +19,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
-import { PALETTES, type PaletteKey } from '@/theme/palettes';
+import type { PaletteKey } from '@/theme/palettes';
 import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
 import { SectionLabel, Row } from './HelperComponents';
 
@@ -86,40 +86,61 @@ function tierChipColor(tier: string): 'primary' | 'info' | 'default' {
   return 'default';
 }
 
-// Template warna 3 garis M3 — DIBEDAKAN PER PALETTE (bukan 1 warna universal untuk semua),
-// supaya tiap palette selalu dapat kombinasi paling kontras terhadap warna bar-nya sendiri
-// (bar = primary.main, ikut 6 palette aktif: blue/green/yellow/purple/rose/indigo).
+// Template warna 3 garis M3 — matriks eksak dari user (2026-07-25), 1 kombinasi khusus
+// per palette (key internal blue/green/yellow/purple/rose/indigo memetakan ke label baru
+// "Enterprise Blue/Executive Green/Modern Teal/Premium Purple/Executive Red/Enterprise
+// Slate" — lihat catatan di theme/palettes.ts). Nilai dark mode diturunkan dari hex light
+// yang dikasih user via HSL lightness bump (+10, formula sama dipakai utk primary/secondary
+// palette lain di file ini), bukan quesswork manual.
 //
-// Default line1/line2 = warning/success (dipakai chart lain juga, semantik tetap sama di
-// semua palette) - TAPI diganti kalau hue-nya ketabrak sama bar palette itu:
-// - yellow: bar (~32°) = SAMA PERSIS dengan warning (~32°) → line1 diganti biru (blue accent).
-//           line3 JUGA diganti ungu (bukan magenta) — magenta (~310°) secara hue jauh dari
-//           amber (82°) tapi dua-duanya warna "hangat", kontras PERSEPSI-nya lemah di layar
-//           (dilaporkan user, screenshot). Ungu (dingin, ~272°) jauh lebih menonjol di atas
-//           background oranye/amber.
-// - green:  bar (~142°) cuma beda ~18° dari success (~160°) → line2 diganti info (cyan, ~192°)
-// - purple: bar (~272°) beda 112° dari success — aman, tapi magenta line3 (lihat bawah)
-//           cuma beda ~38° dari purple → line3 diganti info (cyan) utk purple
-// - rose:   bar (~347°) terlalu dekat warning (45°) DAN magenta (37°) → line1/line3 diganti
-//           success+info (garis 1&2) dan purple accent (garis 3), semua >75° dari bar
-//
-// line3 (baru, HM%) defaultnya magenta/orchid (~310° — titik tengah gap terbesar antar
-// bar purple 272° & rose 347°, dua bar yang paling berdekatan satu sama lain) — KECUALI
-// utk palette hangat (yellow) yang butuh warna dingin spesifik biar kontras persepsinya kuat.
-function buildLineTemplates(warning: string, success: string, info: string, mode: 'light' | 'dark') {
-  const magenta = mode === 'dark' ? 'hsl(310, 80%, 63%)' : 'hsl(310, 75%, 45%)';
-  const blueAccent = PALETTES.blue.primary[mode];
-  const purpleAccent = PALETTES.purple.primary[mode];
-
-  const templates: Record<PaletteKey, { line1: string; line2: string; line3: string }> = {
-    blue:   { line1: warning,    line2: success, line3: magenta },
-    indigo: { line1: warning,    line2: success, line3: magenta },
-    green:  { line1: warning,    line2: info,    line3: magenta },
-    yellow: { line1: blueAccent, line2: success, line3: purpleAccent },
-    purple: { line1: warning,    line2: success, line3: info },
-    rose:   { line1: success,    line2: info,    line3: purpleAccent },
+// | Palette          | Bar (light) | Line 1 (light) | Line 2 (light) | Line 3 (light) |
+// |------------------|-------------|-----------------|-----------------|-----------------|
+// | Enterprise Blue  | #2563EB     | #F59E0B amber   | #10B981 emerald | #EF4444 red     |
+// | Executive Green  | #059669     | #2563EB blue    | #F97316 orange  | #A855F7 purple  |
+// | Modern Teal      | #0F766E     | #6366F1 indigo  | #F97316 orange  | #E11D48 rose    |
+// | Premium Purple   | #7C3AED     | #14B8A6 teal    | #F59E0B amber   | #EF4444 red     |
+// | Executive Red    | #DC2626     | #2563EB blue    | #10B981 green   | #FBBF24 yellow  |
+// | Enterprise Slate | #475569     | #3B82F6 blue    | #22C55E green   | #F59E0B amber   |
+function buildLineTemplates(mode: 'light' | 'dark') {
+  const templates: Record<PaletteKey, { line1: { light: string; dark: string }; line2: { light: string; dark: string }; line3: { light: string; dark: string } }> = {
+    blue: { // Enterprise Blue
+      line1: { light: '#F59E0B', dark: '#F7B23B' },
+      line2: { light: '#10B981', dark: '#14E6A0' },
+      line3: { light: '#EF4444', dark: '#F37272' },
+    },
+    green: { // Executive Green
+      line1: { light: '#2563EB', dark: '#5284EF' },
+      line2: { light: '#F97316', dark: '#FA9247' },
+      line3: { light: '#A855F7', dark: '#C185F9' },
+    },
+    yellow: { // Modern Teal (key internal tetap 'yellow')
+      line1: { light: '#6366F1', dark: '#9395F6' },
+      line2: { light: '#F97316', dark: '#FA9247' },
+      line3: { light: '#E11D48', dark: '#E84A6C' },
+    },
+    purple: { // Premium Purple
+      line1: { light: '#14B8A6', dark: '#19E6CE' },
+      line2: { light: '#F59E0B', dark: '#F7B23B' },
+      line3: { light: '#EF4444', dark: '#F37272' },
+    },
+    rose: { // Executive Red (key internal tetap 'rose')
+      line1: { light: '#2563EB', dark: '#5284EF' },
+      line2: { light: '#10B981', dark: '#14E6A0' },
+      line3: { light: '#FBBF24', dark: '#FCCC55' },
+    },
+    indigo: { // Enterprise Slate (key internal tetap 'indigo')
+      line1: { light: '#3B82F6', dark: '#6DA2F8' },
+      line2: { light: '#22C55E', dark: '#3BDE77' },
+      line3: { light: '#F59E0B', dark: '#F7B23B' },
+    },
   };
-  return templates;
+
+  return Object.fromEntries(
+    Object.entries(templates).map(([key, t]) => [
+      key,
+      { line1: t.line1[mode], line2: t.line2[mode], line3: t.line3[mode] },
+    ]),
+  ) as Record<PaletteKey, { line1: string; line2: string; line3: string }>;
 }
 
 function tierLabel(tier: string, t: TFunction): string {
@@ -160,12 +181,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const revenueColumns = useRevenueColumns(t);
 
-  const lineTemplates = buildLineTemplates(
-    theme.palette.warning.main,
-    theme.palette.success.main,
-    theme.palette.info.main,
-    isDark ? 'dark' : 'light',
-  );
+  const lineTemplates = buildLineTemplates(isDark ? 'dark' : 'light');
   const lineTemplate = lineTemplates[paletteKey];
 
   const { data: breakdown, isLoading: breakdownLoading } = useRevenueBreakdown({

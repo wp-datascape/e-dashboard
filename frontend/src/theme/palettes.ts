@@ -21,38 +21,48 @@ export interface PaletteColors {
 
 export const DEFAULT_PALETTE: PaletteKey = 'blue'
 
+// Set warna baru (2026-07-25) — key internal (blue/green/yellow/purple/rose/indigo)
+// SENGAJA TIDAK diganti nama/value-nya meski label tampilan & warnanya sudah beda total
+// dari sebelumnya, supaya preferensi user yang sudah tersimpan di akun (kolom
+// users.preferences.color_palette) TETAP VALID tanpa perlu migration/backfill. Validasi
+// backend (auth.schema.ts COLOR_PALETTES) juga tidak perlu diubah karena union key-nya sama.
+// Label tampilan di Settings (config.appSettings.paletteXxx) diupdate terpisah ke nama baru.
 export const PALETTES: Record<PaletteKey, PaletteColors> = {
-  // Default - nilai sama persis dengan BRAND lama di index.ts, supaya user existing
-  // (belum pernah pilih palette) tampilannya tidak berubah sama sekali.
+  // "Enterprise Blue"
   blue: {
-    primary:   { light: '#2563EB', dark: '#3B82F6' }, // blue-600 / blue-500
-    secondary: { light: '#7C3AED', dark: '#8B5CF6' }, // violet-600 / violet-500
-    appBar:    { light: '#2563EB', dark: '#0B1220' }, // blue-600 / nyaris hitam ber-tint biru
+    primary:   { light: '#2563EB', dark: '#5284EF' },
+    secondary: { light: '#7C3AED', dark: '#8B5CF6' },
+    appBar:    { light: '#2563EB', dark: '#0B111E' },
   },
+  // "Executive Green"
   green: {
-    primary:   { light: '#16A34A', dark: '#22C55E' }, // green-600 / green-500
-    secondary: { light: '#0D9488', dark: '#14B8A6' }, // teal-600 / teal-500
-    appBar:    { light: '#16A34A', dark: '#0B1710' }, // green-600 / nyaris hitam ber-tint hijau
+    primary:   { light: '#059669', dark: '#06C689' },
+    secondary: { light: '#0891B2', dark: '#06B6D4' },
+    appBar:    { light: '#059669', dark: '#0B1E18' },
   },
+  // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
   yellow: {
-    primary:   { light: '#D97706', dark: '#F59E0B' }, // amber-600 / amber-500
-    secondary: { light: '#EA580C', dark: '#FB923C' }, // orange-600 / orange-400
-    appBar:    { light: '#D97706', dark: '#1A1207' }, // amber-600 / nyaris hitam ber-tint amber
+    primary:   { light: '#0F766E', dark: '#15A297' },
+    secondary: { light: '#0284C7', dark: '#0EA5E9' },
+    appBar:    { light: '#0F766E', dark: '#0B1E1C' },
   },
+  // "Premium Purple"
   purple: {
-    primary:   { light: '#9333EA', dark: '#A855F7' }, // purple-600 / purple-500
-    secondary: { light: '#C026D3', dark: '#D946EF' }, // fuchsia-600 / fuchsia-500
-    appBar:    { light: '#9333EA', dark: '#170B1F' }, // purple-600 / nyaris hitam ber-tint ungu
+    primary:   { light: '#7C3AED', dark: '#9B6AF1' },
+    secondary: { light: '#C026D3', dark: '#D946EF' },
+    appBar:    { light: '#7C3AED', dark: '#120B1E' },
   },
+  // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas)
   rose: {
-    primary:   { light: '#E11D48', dark: '#F43F5E' }, // rose-600 / rose-500
-    secondary: { light: '#DB2777', dark: '#EC4899' }, // pink-600 / pink-500
-    appBar:    { light: '#E11D48', dark: '#1F0A0E' }, // rose-600 / nyaris hitam ber-tint merah muda
+    primary:   { light: '#DC2626', dark: '#E35454' },
+    secondary: { light: '#DB2777', dark: '#EC4899' },
+    appBar:    { light: '#DC2626', dark: '#1E0B0B' },
   },
+  // "Enterprise Slate" (key internal tetap 'indigo' - lihat catatan di atas)
   indigo: {
-    primary:   { light: '#4F46E5', dark: '#6366F1' }, // indigo-600 / indigo-500
-    secondary: { light: '#0284C7', dark: '#0EA5E9' }, // sky-600 / sky-500
-    appBar:    { light: '#4F46E5', dark: '#0B0F1F' }, // indigo-600 / nyaris hitam ber-tint indigo
+    primary:   { light: '#475569', dark: '#5D6F89' },
+    secondary: { light: '#64748B', dark: '#94A3B8' },
+    appBar:    { light: '#475569', dark: '#0B131E' },
   },
 }
 
