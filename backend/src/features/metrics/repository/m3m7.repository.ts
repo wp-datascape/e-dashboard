@@ -464,11 +464,17 @@ export async function fetchRevenueBreakdown(
         WHEN er.revenue >  mt.threshold * 0.5  THEN 'Tengah'
         ELSE                                        'Bawah'
       END                                                       AS tier,
+      -- Revenue High Margin per customer + persentase relatif ke total_revenue KESELURUHAN
+      -- (sama denominator dgn revenue_pct di atas & "Persentase Kontribusi" ringkasan
+      -- header dialog) - konsisten, supaya kalau dijumlah semua baris = angka header.
+      ROUND(COALESCE(ehr.hm_revenue, 0))::bigint                       AS customer_hm_revenue,
+      ROUND(COALESCE(ehr.hm_revenue, 0) * 100.0 / NULLIF(t.total_revenue, 0), 1) AS customer_hm_pct,
       mt.threshold                                              AS median_threshold,
       t.total_revenue,
       t.total_existing,
       t.hm_revenue
     FROM existing_revenue er
+    LEFT JOIN existing_hm_revenue ehr ON ehr.id = er.id
     CROSS JOIN median_threshold mt
     CROSS JOIN total t
     ORDER BY er.revenue DESC
@@ -499,6 +505,8 @@ export async function fetchRevenueBreakdown(
         revenue:       Number(row.revenue ?? 0),
         revenue_pct:   Number(row.revenue_pct ?? 0),
         tier:          String(row.tier) as 'Atas' | 'Tengah' | 'Bawah',
+        hm_revenue:    Number(row.customer_hm_revenue ?? 0),
+        hm_pct:        Number(row.customer_hm_pct ?? 0),
       }
     }),
   }

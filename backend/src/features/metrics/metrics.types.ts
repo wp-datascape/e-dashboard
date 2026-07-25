@@ -39,6 +39,10 @@ export interface RevenueBreakdownRow {
   revenue: number
   revenue_pct: number
   tier: 'Atas' | 'Tengah' | 'Bawah'
+  // Task006 follow-up — revenue High Margin milik customer ini + persentase relatif
+  // ke total_revenue keseluruhan (denominator sama dengan revenue_pct di atas)
+  hm_revenue: number
+  hm_pct: number
 }
 
 export interface RevenueBreakdownData {

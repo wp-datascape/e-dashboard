@@ -9,6 +9,8 @@
     "barLabel": "Total Revenue Existing",
     "colRevenue": "Revenue",
     "colRevenuePct": "% Total",
+    "colHmRevenue": "Revenue HM",
+    "colHmPct": "% HM",
     "dialogTitle": "Revenue Breakdown — {{date}}",
     "dialogRevenueExisting": "Revenue Existing Customer",
     "dialogTotalExisting": "Total Established (Active+Existing)",

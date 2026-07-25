@@ -164,6 +164,10 @@ function useRevenueColumns(t: TFunction): GridColDef[] {
       renderCell: (p) => fmtRpDetail(p.value as number) },
     { field: 'revenue_pct', headerName: t('customerMetrics.m3.colRevenuePct'), width: 90,  align: 'right', headerAlign: 'right',
       renderCell: (p) => `${p.value}%` },
+    { field: 'hm_revenue', headerName: t('customerMetrics.m3.colHmRevenue'), width: 130, align: 'right', headerAlign: 'right',
+      renderCell: (p) => fmtRpDetail(p.value as number) },
+    { field: 'hm_pct', headerName: t('customerMetrics.m3.colHmPct'), width: 90, align: 'right', headerAlign: 'right',
+      renderCell: (p) => `${p.value}%` },
     { field: 'tier', headerName: t('customerMetrics.m4.colTier'), width: 100, align: 'center', headerAlign: 'center', sortable: false,
       renderCell: (p) => <StatusChip label={tierLabel(p.value as string, t)} color={tierChipColor(p.value as string)} /> },
   ]
@@ -298,7 +302,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           pageSize={25}
           pageSizeOptions={[25, 50, 100]}
           emptyMessage={t('customerMetrics.m3.emptyMessage')}
-          mobileFields={['customer_name', 'revenue', 'revenue_pct', 'tier']}
+          mobileFields={['customer_name', 'revenue', 'revenue_pct', 'hm_revenue', 'hm_pct', 'tier']}
         />
       </Dialog>
     </Box>

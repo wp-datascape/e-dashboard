@@ -49,6 +49,8 @@ export interface RevenueBreakdownRow {
   revenue: number;
   revenue_pct: number;
   tier: 'Atas' | 'Tengah' | 'Bawah';
+  hm_revenue: number;
+  hm_pct: number;
 }
 
 export interface RevenueBreakdownData {
