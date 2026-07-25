@@ -56,6 +56,7 @@ export interface RevenueBreakdownData {
   total_revenue: number;
   median_threshold: number;
   total_existing: number;
+  hm_revenue: number;
   rows: RevenueBreakdownRow[];
 }
 

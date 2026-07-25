@@ -160,6 +160,7 @@ export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: 
       total_revenue:    result.total_revenue,
       median_threshold: result.median_threshold,
       total_existing:   result.total_existing,
+      hm_revenue:       result.hm_revenue,
       rows:             result.rows,
     }
   } catch (err) {

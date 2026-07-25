@@ -44,6 +44,9 @@ export interface RevenueBreakdownData {
   total_revenue: number
   median_threshold: number
   total_existing: number
+  // Task006 — total revenue produk yang terdaftar di high_margin_products,
+  // dalam populasi & window yang sama dengan total_revenue di atas.
+  hm_revenue: number
   rows: RevenueBreakdownRow[]
 }
 

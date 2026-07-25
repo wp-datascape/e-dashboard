@@ -14,6 +14,7 @@
     "dialogTotalExisting": "Total Established (Active+Existing)",
     "dialogAvgRevenue": "Avg Revenue/Customer",
     "dialogMedianThreshold": "Median threshold",
+    "dialogHmContribution": "Kontribusi High Margin",
     "emptyMessage": "Tidak ada data revenue bulan ini",
     "lineLabelAvg": "Avg Revenue / Customer",
     "lineLabelMedian": "Median Revenue / Customer",

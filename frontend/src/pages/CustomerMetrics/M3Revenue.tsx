@@ -196,6 +196,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
               [t('customerMetrics.m3.dialogTotalExisting'),    String(breakdown.total_existing)],
               [t('customerMetrics.m3.dialogAvgRevenue'),       fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_revenue / breakdown.total_existing : 0)],
               [t('customerMetrics.m3.dialogMedianThreshold'),  fmtRpDetail(breakdown.median_threshold)],
+              [t('customerMetrics.m3.dialogHmContribution'),   `${fmtRpDetail(breakdown.hm_revenue)} (${breakdown.total_revenue > 0 ? ((breakdown.hm_revenue / breakdown.total_revenue) * 100).toFixed(1) : '0'}%)`],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

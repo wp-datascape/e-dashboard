@@ -357,7 +357,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
 // bukan total_gp, sebagai basis tier/ranking.
 export async function fetchRevenueBreakdown(
   p: SegmentParams,
-): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number }> {
+): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number; hm_revenue: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
@@ -389,6 +389,38 @@ export async function fetchRevenueBreakdown(
       FROM established_customers ec
       JOIN inv_active ia ON ia.customer_id = ec.id
     ),
+    -- Task006 — kontribusi produk High Margin (tabel high_margin_products, mapping
+    -- manual admin) terhadap total_revenue M3 di atas. Mirror pola JOIN high_margin_products
+    -- di fetchHmBreakdown (m5.repository.ts), termasuk syarat effective_from/effective_until.
+    -- Di-scope ke established_customers yang SAMA dengan existing_revenue supaya apple-to-apple.
+    hm_inv_active AS (
+      SELECT i.customer_id, SUM(ii.revenue::numeric) AS hm_revenue
+      FROM invoices i
+      JOIN invoice_items ii ON ii.invoice_id = i.id
+      JOIN high_margin_products hmp ON (
+        hmp.company_id = i.company_id
+        AND (hmp.product_id = ii.product_id OR hmp.product_category_id = ii.product_category_id)
+      )
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      WHERE i.deleted_at IS NULL
+        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND i.invoice_date <= ${filterDate}::date
+        AND ${companyCondI}
+        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+        AND hmp.effective_from <= i.invoice_date
+        AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
+      GROUP BY i.customer_id
+    ),
+    existing_hm_revenue AS (
+      SELECT ec.id, hia.hm_revenue
+      FROM established_customers ec
+      JOIN hm_inv_active hia ON hia.customer_id = ec.id
+    ),
     median_threshold AS (
       SELECT COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue), 0) AS threshold
       FROM existing_revenue
@@ -396,7 +428,8 @@ export async function fetchRevenueBreakdown(
     total AS (
       SELECT
         COALESCE(SUM(revenue), 0)                           AS total_revenue,
-        (SELECT COUNT(*) FROM established_customers)::int   AS total_existing
+        (SELECT COUNT(*) FROM established_customers)::int   AS total_existing,
+        (SELECT COALESCE(SUM(hm_revenue), 0) FROM existing_hm_revenue) AS hm_revenue
       FROM existing_revenue
     )
     SELECT
@@ -412,7 +445,8 @@ export async function fetchRevenueBreakdown(
       END                                                       AS tier,
       mt.threshold                                              AS median_threshold,
       t.total_revenue,
-      t.total_existing
+      t.total_existing,
+      t.hm_revenue
     FROM existing_revenue er
     CROSS JOIN median_threshold mt
     CROSS JOIN total t
@@ -426,7 +460,7 @@ export async function fetchRevenueBreakdown(
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>
-    return { rows: [], total_revenue: 0, median_threshold: 0, total_existing: Number(tot?.total_existing ?? 0) }
+    return { rows: [], total_revenue: 0, median_threshold: 0, total_existing: Number(tot?.total_existing ?? 0), hm_revenue: 0 }
   }
 
   const first = rawRows[0] as Record<string, unknown>
@@ -434,6 +468,7 @@ export async function fetchRevenueBreakdown(
     total_revenue:    Number(first.total_revenue ?? 0),
     median_threshold: Number(first.median_threshold ?? 0),
     total_existing:   Number(first.total_existing ?? 0),
+    hm_revenue:       Number(first.hm_revenue ?? 0),
     rows: rawRows.map((r) => {
       const row = r as Record<string, unknown>
       return {
