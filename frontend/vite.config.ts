@@ -97,6 +97,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // usePolling: inotify-based watch (default) kadang gagal detect save dari editor
+    // yang nulis pakai atomic write/rename (ganti inode, bukan in-place write) - efeknya
+    // module graph Vite stale sampai ada file LAIN di dependency chain yang ke-save,
+    // baru ke-refresh bareng. Polling lebih berat CPU tapi selalu detect perubahan
+    // apapun cara editornya nyimpen. Dev-only, tidak pengaruh ke build production.
+    watch: { usePolling: true, interval: 300 },
   },
   build: {
     target: 'es2020',
