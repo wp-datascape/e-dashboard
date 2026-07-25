@@ -121,7 +121,7 @@ export const ComboChartWidget = ({
   onBarClick,
 }: ComboChartWidgetProps) => {
   const theme = useTheme();
-  const warnColor = concentrationColor ?? theme.palette.warning.light;
+  const warnColor = concentrationColor ?? theme.palette.warning.main;
 
   // Hitung domain right axis dari field yang benar-benar di-plot (bukan semua field data)
   const rightDomain = (() => {
