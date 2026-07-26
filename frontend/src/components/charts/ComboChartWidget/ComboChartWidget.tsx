@@ -222,12 +222,7 @@ export const ComboChartWidget = ({
               formatter={tooltipFormatter}
             />
           )}
-          {/* verticalAlign="top" - legend bawaan Recharts sengaja di ATAS, BUKAN default
-              di bawah plot area. Posisi bawah taruh legend cuma ~14px di bawah tooltip
-              custom (M3Tooltip dkk bisa 250px+ tinggi kalau row-nya banyak), jadi legend
-              gampang ketimpa/keliatan "transparan" pas tooltip nutupin sebagian tulisannya
-              (laporan user 2026-07-26). Di atas plot area selalu aman dari tooltip manapun. */}
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
 
           <Bar
             yAxisId="left"
