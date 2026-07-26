@@ -48,19 +48,19 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     secondary: { light: '#93C5FD', dark: '#93C5FD' },
     appBar:    { light: '#2563EB', dark: '#0B111E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-   line1: { light: '#4F7ED9', dark: '#6DA2F8' },
-  line2: { light: '#5FAE7B', dark: '#75C996' },
-  line3: { light: '#C98A2C', dark: '#D9A94A' },
+   line1: { light: '#06B6D4', dark: '#22D3EE' },
+  line2: { light: '#EC4899', dark: '#F472B6' },
+  line3: { light: '#8B5CF6', dark: '#A78BFA' },
   },
   // "Executive Green"
   green: {
     primary:   { light: '#059669', dark: '#06C689' },
     secondary: { light: '#6EE7B7', dark: '#6EE7B7' },
     appBar:    { light: '#059669', dark: '#0B1E18' },
-    warningComplement: { light: '#FBBF24', dark: '#FBBF24' },
-    line1: { light: '#25eb3c', dark: '#5284EF' },
-    line2: { light: '#F97316', dark: '#FA9247' },
-    line3: { light: '#A855F7', dark: '#C185F9' },
+    warningComplement: { light: '#FBBF24 ', dark: '#FBBF24 ' },
+    line1: { light: '#3B82F6', dark: '#60A5FA  ' },
+    line2: { light: '#EC4899', dark: '#F472B6 ' },
+    line3: { light: '#8B5CF6', dark: '#A78BFA  ' },
   },
   // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
   yellow: {
@@ -69,7 +69,7 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     appBar:    { light: '#0F766E', dark: '#0B1E1C' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
     line1: { light: '#6366F1', dark: '#9395F6' },
-    line2: { light: '#F97316', dark: '#FA9247' },
+    line2: { light: '#06B6D4', dark: '#22D3EE' },
     line3: { light: '#E11D48', dark: '#E84A6C' },
   },
   // "Premium Purple"
@@ -79,7 +79,7 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     appBar:    { light: '#7C3AED', dark: '#120B1E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
     line1: { light: '#14B8A6', dark: '#19E6CE' },
-    line2: { light: '#F59E0B', dark: '#F7B23B' },
+    line2: { light: '#3B82F6', dark: '#60A5FA' },
     line3: { light: '#EF4444', dark: '#F37272' },
   },
   // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas)
@@ -87,20 +87,20 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     primary:   { light: '#DC2626', dark: '#E35454' },
     secondary: { light: '#FCA5A5', dark: '#FCA5A5' },
     appBar:    { light: '#DC2626', dark: '#1E0B0B' },
-    warningComplement: { light: '#0EA5E9', dark: '#0EA5E9' },
+    warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
     line1: { light: '#2563EB', dark: '#5284EF' },
     line2: { light: '#10B981', dark: '#14E6A0' },
-    line3: { light: '#FBBF24', dark: '#FCCC55' },
+    line3: { light: '#8B5CF6', dark: '#A78BFA' },
   },
   // "Enterprise Slate" (key internal tetap 'indigo' - lihat catatan di atas)
   indigo: {
     primary:   { light: '#475569', dark: '#5D6F89' },
     secondary: { light: '#CBD5E1', dark: '#CBD5E1' },
     appBar:    { light: '#475569', dark: '#0B131E' },
-    warningComplement: { light: '#0EA5E9', dark: '#0EA5E9' },
+    warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
     line1: { light: '#2563EB', dark: '#6DA2F8' },
-    line2: { light: '#16A34A', dark: '#3BDE77' },
-    line3: { light: '#F59E0B', dark: '#F7B23B' },
+    line2: { light: '#14B8A6', dark: '#19E6CE' },
+    line3: { light: '#E11D48', dark: '#F472B6' },
   },
 }
 

@@ -173,7 +173,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
       </Box>
 
       {isLoading ? (
-        <Skeleton variant="rectangular" height={280} />
+        <Skeleton variant="rectangular" height={320} />
       ) : (
         <ComboChartWidget
           title={t('customerMetrics.m3.chartTitle')}
@@ -196,7 +196,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           concentrationThreshold={25}
           concentrationColor={concentrationColor}
           xKey="month"
-          height={260}
+          height={300}
           formatBar={(v) => fmtRp(v)}
           formatLine={(v) => fmtRp(v)}
           renderTooltip={(props) => <M3Tooltip {...props} />}
@@ -204,7 +204,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
         />
       )}
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2.5 }, mt: 1, px: 0.5 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2.5 }, mt: 2.5, px: 0.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box sx={{ width: 12, height: 12, bgcolor: 'primary.main', flexShrink: 0 }} />
           <Typography variant="caption" color="text.secondary">{t('customerMetrics.m3.legendNormal')}</Typography>

@@ -204,9 +204,15 @@ export const ComboChartWidget = ({
             <YAxis yAxisId="pct" domain={[0, 100]} hide />
           )}
           {renderTooltip ? (
-            <Tooltip content={(props) => renderTooltip(props as TooltipContentProps<number, string>)} />
+            <Tooltip
+              content={(props) => renderTooltip(props as TooltipContentProps<number, string>)}
+              isAnimationActive={false}
+              wrapperStyle={{ backgroundColor: theme.palette.background.paper, zIndex: 10 }}
+            />
           ) : (
             <Tooltip
+              isAnimationActive={false}
+              wrapperStyle={{ zIndex: 10 }}
               contentStyle={{
                 backgroundColor: theme.palette.background.paper,
                 border: `1px solid ${theme.palette.divider}`,
@@ -216,7 +222,12 @@ export const ComboChartWidget = ({
               formatter={tooltipFormatter}
             />
           )}
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          {/* verticalAlign="top" - legend bawaan Recharts sengaja di ATAS, BUKAN default
+              di bawah plot area. Posisi bawah taruh legend cuma ~14px di bawah tooltip
+              custom (M3Tooltip dkk bisa 250px+ tinggi kalau row-nya banyak), jadi legend
+              gampang ketimpa/keliatan "transparan" pas tooltip nutupin sebagian tulisannya
+              (laporan user 2026-07-26). Di atas plot area selalu aman dari tooltip manapun. */}
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: 12 }} />
 
           <Bar
             yAxisId="left"
