@@ -185,6 +185,10 @@ Mapping `company_id → branch_id` tersimpan di tabel `companies` atau `app_conf
 
 Field `is_high_margin` boolean di `product_categories` adalah desain lama (statis). Gunakan tabel `high_margin_products` untuk manajemen high margin produk secara dinamis dengan time-range. Lihat `features/high-margin-products.md`.
 
+### Drill-down Produk per Kategori (dialog `CategoryProductsDialog`)
+
+Halaman `/products` (dan tab "Penetrasi Kategori" + "Target Upsell" di `/products/high-margin`) share 1 dialog drill-down yang sama (`frontend/src/pages/Products/components/CategoryProductsDialog.tsx`), didukung endpoint `GET /metrics/category-products` (bukan endpoint di file ini — lihat `features/metrics.md`). Endpoint ini punya param opsional `only_high_margin` + field `is_high_margin` per produk, dipakai KHUSUS di tab "Penetrasi Kategori" supaya drill-down cuma tampilkan produk yang benar-benar ditandai high margin. Detail lengkap: `features/high-margin-products.md` §9.
+
 ### `avg_margin_percent`
 
 Dihitung dari rata-rata `(total_gp / total_revenue)` per kategori saat ada invoice baru diimport. Berguna untuk tampilan analytics kategori produk.
@@ -201,5 +205,5 @@ Dihitung dari rata-rata `(total_gp / total_revenue)` per kategori saat ada invoi
 
 ---
 
-**Last Updated**: 2026-06-27
+**Last Updated**: 2026-07-26 (tambah §Drill-down Produk per Kategori, task008)
 **Status**: ✅ Production Ready

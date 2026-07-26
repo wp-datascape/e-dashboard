@@ -1,7 +1,7 @@
 # high-margin-products.md — Fitur Product High Margin (Dynamic)
 
-> Status: **DONE** — Implementasi selesai 2026-06-26. Filter default "All Companies" + company scoping ditambah sesi 34.
-> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-07-04 (sesi 34)
+> Status: **DONE** — Implementasi selesai 2026-06-26. Filter default "All Companies" + company scoping ditambah sesi 34. Drill-down produk (klik baris kategori tab Penetrasi) + fix resolusi level-kategori vs level-produk ditambah 2026-07-26 (task007/task008, lihat §9).
+> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-07-26 (task008)
 
 ---
 
@@ -270,3 +270,45 @@ Sama seperti tab Penetrasi Kategori, langkah pertama tetap resolusi `hm_cats` (l
 | **`gp_margin_percent`** yang tampil di tabel/dialog (mis. chip warna di `UpsellCustomerDialog.tsx`) | Dihitung real-time dari data invoice (`total_gp / total_revenue`) | Cuma informasi tampilan, **tidak mempengaruhi** apakah kategori dianggap "High Margin" |
 
 Produk dengan margin aktual tinggi sekalipun **tidak akan** muncul sebagai target upsell kalau tidak pernah didaftarkan admin di Settings → High Margin. Sebaliknya, produk yang sudah didaftarkan tetap dianggap "High Margin" walau margin aktualnya sedang turun — sampai admin men-deactivate mapping-nya.
+
+---
+
+## 9. Drill-down Produk di Tab "Penetrasi Kategori" + Fix Resolusi Level Kategori vs Level Produk (task007/task008, 2026-07-26)
+
+> Baca juga: `docs-v2/task/task007.md`, `docs-v2/task/task008.md`
+
+### 9.1 Dua Level Penandaan HM — Kenapa Penting
+
+`high_margin_products` (§2.2) bisa ditandai di **dua level berbeda**, dibedakan dari kolom mana yang diisi:
+
+| Level | Kolom diisi | Efek |
+|---|---|---|
+| **Kategori** | `product_category_id` | **SEMUA** produk di kategori itu otomatis dianggap High Margin |
+| **Produk** | `product_id` | **HANYA** produk spesifik itu — produk sibling lain di kategori yang sama **TIDAK** ikut, meski kategorinya sendiri tetap muncul di laporan penetrasi (karena laporan grouping by kategori, cukup 1 produk ditandai supaya kategori itu "punya" penetrasi HM) |
+
+Sebelum diperbaiki, beberapa query (baris kategori di tabel utama tab Penetrasi, drill-down klik kategori) menyamakan **"kategori punya ≥1 produk yang ditandai HM"** dengan **"anggap semua produk kategori itu HM"** — benar untuk kasus penandaan level-kategori, tapi salah untuk kasus level-produk (ikut menjumlah transaksi produk sibling yang sama sekali tidak ditandai).
+
+### 9.2 Fix — Resolusi Mirror di Dua Tempat
+
+**`backend/src/features/metrics/repository/high-margin-penetration.repository.ts`** (`fetchHmDetail`, angka baris kategori di tabel utama tab Penetrasi):
+- `hmCatsCte` dipecah jadi 3 CTE: `hm_cats` (union semua, tetap dipakai `fetchUpsellTargets` — grouping per kategori, tidak kena bug ini), `hm_cat_level` (kategori ditandai langsung), `hm_product_level` (produk spesifik ditandai).
+- Filter transaksi (`hm_items`) jadi `ii.product_category_id IN (hm_cat_level) OR ii.product_id IN (hm_product_level)` — bukan lagi `product_category_id IN (hm_cats)` tunggal.
+
+**`backend/src/features/metrics/repository/category-products.repository.ts`** (`fetchCategoryProducts`, drill-down daftar produk saat klik baris kategori):
+- CTE `hm_products` resolve ke `product_id` (bukan `product_category_id` seperti CTE di atas) — union dari: produk ditandai langsung, ATAU kategorinya sendiri ditandai (semua produk ikut).
+- Param baru `onlyHighMargin` (service/handler: `only_high_margin`, query opsional boolean) — kalau `true`, filter `ii.product_id IN (SELECT product_id FROM hm_products)`. Default `false`/tidak dikirim → perilaku lama (semua produk kategori), supaya 2 pemakai lain dialog **tidak berubah**:
+
+| Pemakai `CategoryProductsDialog` | `onlyHighMargin`? |
+|---|---|
+| Tab "Penetrasi Kategori" (klik baris kategori) | **`true`** — cuma tampilkan produk yang benar-benar ditandai HM |
+| Tab "Target Upsell", chip "Belum Beli High Margin" | `false` (tidak diubah, di luar scope) |
+| Halaman `/products` — drill-down kategori umum | `false` (tidak terkait high margin) |
+
+- Kolom `is_high_margin` (boolean) ditambah ke tiap baris hasil query (pakai CTE `hm_products` yang sama, terlepas dari `onlyHighMargin` aktif atau tidak) — badge "High Margin" muncul per produk di tabel drill-down, berguna khususnya di mode `onlyHighMargin=false` yang menampilkan produk campuran (HM & bukan).
+- Response `fetchCategoryProducts` sekarang `{ rows, summary }` — `summary` dihitung query **terpisah** (CTE sama, tanpa `GROUP BY` per produk) supaya tetap balikin 0 (bukan hilang/undefined) kalau hasil per-produk kosong. Diteruskan sampai ke frontend lewat `PaginationMeta.summary` (generik, opsional — `backend/src/utils/response.ts`, `frontend/src/types/api.ts`).
+
+**Frontend (`CategoryProductsDialog.tsx`)** — kalau `highMarginOnly` prop aktif, kartu summary (Total Revenue/GP/Margin/dst di atas tabel drill-down) pakai `meta.summary` (agregat produk yang sudah difilter), **bukan** `category.total_revenue` dkk yang dikirim caller (itu angka kategori UTUH, semua produk — beda dari daftar produk terfilter di bawahnya, sebelumnya kartu & tabel kelihatan tidak sinkron).
+
+### 9.3 Verifikasi
+
+Cross-check manual lewat query SQL langsung ke DB: kategori "RECEIPT PRINTER THERMAL KASSEN" (10 produk, cuma 1 — `KASSEN BTP 3050 UE` — ditandai HM di level produk). Angka versi lama (semua 10 produk) vs versi fix (cuma 1 produk) beda signifikan (mis. revenue Rp1.8M → Rp115.6jt), mengonfirmasi bug & fix-nya. `bunx tsc --noEmit` backend+frontend bersih, `bun test` backend 73 pass/0 fail.

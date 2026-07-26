@@ -53,8 +53,13 @@ backend/src/features/metrics/
     m4.repository.ts, m5.repository.ts, m6.repository.ts ← fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown
     m8m10.repository.ts                 ← fetchDormantTrend, fetchDormantValueRanking
     category-performance.repository.ts  ← fetchCategoryPerformance (3.1)
-    category-products.repository.ts     ← fetchCategoryProducts (drill-down 3.1)
-    high-margin-penetration.repository.ts ← fetchHmDetail, fetchUpsellTargets (3.2)
+    category-products.repository.ts     ← fetchCategoryProducts (drill-down 3.1). Param
+                                           onlyHighMargin + kolom is_high_margin per baris +
+                                           summary agregat terfilter — detail lengkap di
+                                           features/high-margin-products.md §9 (task008)
+    high-margin-penetration.repository.ts ← fetchHmDetail, fetchUpsellTargets (3.2). Resolusi
+                                           HM level-kategori vs level-produk — lihat
+                                           features/high-margin-products.md §9 (task008)
     customer-products.repository.ts     ← fetchCustomerProducts (drill-down customer)
     avg-category.repository.ts          ← fetchAvgCategoryTrend (3.3 Product Trend)
 
