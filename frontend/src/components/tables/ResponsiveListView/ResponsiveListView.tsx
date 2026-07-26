@@ -42,6 +42,10 @@ export interface ResponsiveListViewProps {
   pageSize?: number;
   /** DataGrid container height (default 400). Pass '100%' untuk fill flex parent. */
   height?: number | string;
+  /** Baris auto-tinggi menyesuaikan konten (mis. kolom berisi banyak chip yang
+   * wrap 2+ baris) - tanpa ini baris fixed 52px, konten yang overflow disembunyikan
+   * (bukan cuma numpuk ke baris tetangga). Default: fixed (tidak di-set). */
+  getRowHeight?: 'auto';
   /** Fields to show in auto-generated mobile card. Defaults to all columns that have a headerName. */
   mobileFields?: string[];
   // ─── Server-side pagination & sorting props ──────────────────────────────
@@ -172,6 +176,7 @@ export function ResponsiveListView({
   title,
   pageSize = 10,
   height = 400,
+  getRowHeight,
   mobileFields,
   rowCount,
   paginationMode,
@@ -268,6 +273,7 @@ export function ResponsiveListView({
           rows={rows}
           columns={columns}
           loading={loading}
+          getRowHeight={getRowHeight === 'auto' ? () => 'auto' as const : undefined}
           onRowClick={onRowClick ? ({ row }) => onRowClick(row as Record<string, unknown>) : undefined}
           initialState={
             paginationModel ? undefined : {
@@ -306,6 +312,22 @@ export function ResponsiveListView({
               fontSize: '0.8125rem',
               borderBottom: '1px solid',
               borderColor: 'divider',
+              // Cell default MUI DataGrid = display:block - teks polos numpang
+              // baseline garis teks, tapi elemen inline-flex (Chip/badge dari
+              // renderCell custom) tidak ikut center otomatis, jadi posisinya
+              // beda dgn sel teks di baris yang sama (baris kelihatan "naik
+              // turun" tiap kali ada Chip). Paksa flex+center di level cell.
+              display: 'flex',
+              alignItems: 'center',
+            },
+            // Kolom yang isinya LIST beberapa chip (bisa wrap 2+ baris, mis.
+            // "categories_bought"/"missing_high_margin_categories" di tab Target
+            // Upsell) HARUS tetap rata atas, bukan center - kalau di-center,
+            // konten yang lebih tinggi dari row (52px) meluber ke ATAS *dan*
+            // BAWAH sekaligus, numpuk ke baris tetangga di kedua arah. Ditandai
+            // via cellClassName: 'wrap-chips-cell' di GridColDef masing-masing.
+            '& .MuiDataGrid-cell.wrap-chips-cell': {
+              alignItems: 'flex-start',
             },
             '& .MuiDataGrid-footerContainer': {
               borderTop: '1px solid',

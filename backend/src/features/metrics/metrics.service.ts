@@ -319,14 +319,14 @@ export async function getCategoryPerformance(
 export async function getCategoryProducts(
   params: CategoryProductsQuery,
   scope: MetricsScope = {},
-): Promise<{ data: object[]; total: number }> {
+): Promise<{ data: object[]; total: number; summary: Record<string, unknown> }> {
   try {
     const cid = params.company_id === 'all' ? 0 : params.company_id
     const [py, pm] = params.period_month.split('-').map(Number)
     const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
     const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const rows = await fetchCategoryProducts({
+    const { rows, summary } = await fetchCategoryProducts({
       cid,
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
@@ -343,7 +343,7 @@ export async function getCategoryProducts(
     const total = rows[0]?.total_count ?? 0
     const data  = rows.map(({ total_count, ...row }) => ({ id: row.product_id, ...row }))
 
-    return { data, total }
+    return { data, total, summary: { ...summary } }
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil produk dalam kategori', 500)

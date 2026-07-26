@@ -69,8 +69,9 @@ export interface UpsellTargetDbRow {
 function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | undefined) {
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', cid, companyScopeIds)
   return sql`
-    hm_cats AS (
-      SELECT DISTINCT
+    hm_flags AS (
+      SELECT
+        hmp.product_id,
         COALESCE(hmp.product_category_id, p.product_category_id) AS product_category_id
       FROM high_margin_products hmp
       LEFT JOIN products p ON p.id = hmp.product_id
@@ -78,6 +79,22 @@ function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | u
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${periodEnd}::date)
         AND ${companyCondHmp}
         AND COALESCE(hmp.product_category_id, p.product_category_id) IS NOT NULL
+    ),
+    hm_cats AS (
+      SELECT DISTINCT product_category_id FROM hm_flags
+    ),
+    -- kategori yang ditandai LANGSUNG di level kategori (hmp.product_category_id
+    -- terisi) - semua produk di kategori ini dihitung HM.
+    hm_cat_level AS (
+      SELECT DISTINCT product_category_id FROM hm_flags WHERE product_id IS NULL
+    ),
+    -- kategori yang ditandai per-produk (hmp.product_id terisi) - HANYA produk itu
+    -- yang dihitung HM, bukan seluruh kategori. Mirror resolusi hm_products di
+    -- category-products.repository.ts supaya angka baris kategori (penetrasi) dan
+    -- angka drill-down produknya konsisten (sebelumnya baris kategori ikut menjumlah
+    -- transaksi produk sibling yang tidak ditandai HM - laporan user 2026-07-26).
+    hm_product_level AS (
+      SELECT DISTINCT product_id, product_category_id FROM hm_flags WHERE product_id IS NOT NULL
     )
   `
 }
@@ -131,7 +148,10 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
-        AND ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
+        AND (
+          ii.product_category_id IN (SELECT product_category_id FROM hm_cat_level)
+          OR ii.product_id       IN (SELECT product_id FROM hm_product_level)
+        )
         AND (${division}::text IS NULL OR cd.division = ${division}::text)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}

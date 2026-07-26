@@ -67,6 +67,23 @@ export function CategoryProductsDialog({
       : null,
   )
 
+  // Task008 — kalau highMarginOnly, kartu summary HARUS pakai agregat produk
+  // yang sudah difilter (dari backend, meta.summary) - BUKAN category.total_revenue
+  // dkk yang dikirim caller, karena itu angka KATEGORI utuh (semua produk),
+  // beda dari daftar produk yang sudah difilter di bawahnya (laporan user
+  // 2026-07-26: kartu summary & tabel produk kelihatan tidak sinkron).
+  const summary = data?.meta.summary as Partial<{
+    total_revenue: number
+    total_gp: number
+    gp_margin_percent: number
+    invoice_count: number
+    customer_count: number
+  }> | undefined
+
+  const stats = highMarginOnly && summary
+    ? { ...category, ...summary }
+    : category
+
   const columns: GridColDef<CategoryProductRow>[] = [
     {
       field: 'product_name',
@@ -74,6 +91,14 @@ export function CategoryProductsDialog({
       flex: 1,
       minWidth: 200,
       sortable: false,
+      renderCell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2">{row.product_name}</Typography>
+          {row.is_high_margin && (
+            <StatusChip label={t('products.highMarginBadge')} color="info" />
+          )}
+        </Box>
+      ),
     },
     {
       field: 'total_revenue',
@@ -138,7 +163,7 @@ export function CategoryProductsDialog({
       showCloseButton
     >
       {/* Summary stats */}
-      {category && (category.total_revenue !== undefined) && (
+      {stats && (stats.total_revenue !== undefined) && (
         <Box
           sx={{
             display: 'grid',
@@ -148,12 +173,12 @@ export function CategoryProductsDialog({
           }}
         >
           {[
-            { label: t('products.drawer.statTotalRevenue'), value: formatIDR(category.total_revenue ?? 0) },
-            { label: t('products.drawer.statTotalGp'),      value: formatIDR(category.total_gp ?? 0) },
-            { label: t('products.drawer.statMargin'),        value: `${(category.gp_margin_percent ?? 0).toFixed(1)}%` },
-            { label: t('products.drawer.statInvoice'),        value: String(category.invoice_count ?? '—') },
-            { label: t('products.drawer.statCustomer'),      value: String(category.customer_count ?? '—') },
-            { label: t('products.drawer.statLastSold'), value: category.last_sold_month ?? '—' },
+            { label: t('products.drawer.statTotalRevenue'), value: formatIDR(stats.total_revenue ?? 0) },
+            { label: t('products.drawer.statTotalGp'),      value: formatIDR(stats.total_gp ?? 0) },
+            { label: t('products.drawer.statMargin'),        value: `${(stats.gp_margin_percent ?? 0).toFixed(1)}%` },
+            { label: t('products.drawer.statInvoice'),        value: String(stats.invoice_count ?? '—') },
+            { label: t('products.drawer.statCustomer'),      value: String(stats.customer_count ?? '—') },
+            { label: t('products.drawer.statLastSold'), value: stats.last_sold_month ?? '—' },
           ].map(({ label, value }) => (
             <Box key={label} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

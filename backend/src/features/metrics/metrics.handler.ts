@@ -88,8 +88,8 @@ export async function handleGetCategoryPerformance(c: Context) {
 export async function handleGetCategoryProducts(c: Context) {
   const query = validateQuery(c, categoryProductsQuerySchema)
   const scope = resolveScope(c, query.company_id)
-  const { data, total } = await getCategoryProducts(query, scope)
-  return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+  const { data, total, summary } = await getCategoryProducts(query, scope)
+  return paginated(c, data, { page: query.page, per_page: query.per_page, total, summary })
 }
 
 export async function handleGetHmDetail(c: Context) {
