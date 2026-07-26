@@ -28,6 +28,7 @@ import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { formatIDR } from '@/utils/format'
 import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
+import type { CategoryDrawerInfo } from '@/pages/Products/components/CategoryProductsDialog'
 
 function todayMonth(): string {
   const now = new Date()
@@ -66,6 +67,7 @@ interface FilterState {
 function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
+  const [selectedCategory, setSelectedCategory] = useState<CategoryDrawerInfo | null>(null)
 
   const params: HighMarginDetailParams = {
     company_id:    filter.companyId,
@@ -136,18 +138,41 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
   ]
 
   return (
-    <ResponsiveListView
-      rows={data?.data ?? []}
-      columns={columns}
-      rowCount={data?.meta.total ?? 0}
-      loading={isLoading}
-      error={error as Error | null}
-      paginationMode="server"
-      paginationModel={pagination}
-      onPaginationModelChange={setPagination}
-      pageSizeOptions={[25, 50, 100]}
-      height={500}
-    />
+    <>
+      <ResponsiveListView
+        rows={data?.data ?? []}
+        columns={columns}
+        rowCount={data?.meta.total ?? 0}
+        loading={isLoading}
+        error={error as Error | null}
+        paginationMode="server"
+        paginationModel={pagination}
+        onPaginationModelChange={setPagination}
+        pageSizeOptions={[25, 50, 100]}
+        height={500}
+        onRowClick={(row) => {
+          const r = row as unknown as HighMarginCategoryRow
+          setSelectedCategory({
+            category_id: r.category_id,
+            category_name: r.category_name,
+            is_high_margin: true,
+            total_revenue: r.total_revenue,
+            total_gp: r.total_gp,
+            gp_margin_percent: r.gp_margin_percent,
+            customer_count: r.customer_count,
+          })
+        }}
+      />
+
+      <CategoryProductsDialog
+        category={selectedCategory}
+        companyId={filter.companyId}
+        periodMonth={filter.periodMonth}
+        activeWindow={filter.activeWindow}
+        excludeIntercompany={filter.excludeIntercompany}
+        onClose={() => setSelectedCategory(null)}
+      />
+    </>
   )
 }
 
