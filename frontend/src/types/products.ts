@@ -48,6 +48,9 @@ export interface CategoryProductsParams {
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean
+  // Task008 — batasi ke produk yang benar-benar ditandai high margin (bukan
+  // semua produk kategori). Dipakai tab "Penetrasi Kategori" saja.
+  high_margin_only?: boolean
   page?: number
   per_page?: number
 }

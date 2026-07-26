@@ -13,6 +13,11 @@ export interface CategoryProductsRepoParams {
   excludeIntercompany?: boolean
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
+  // Task008 — filter ke produk yang BENAR-BENAR ditandai high margin di tabel
+  // high_margin_products (bukan cuma "pernah terjual di kategori ini"). Opsional
+  // (default false) karena query yang sama dipakai juga di tab Target Upsell &
+  // halaman Products biasa, yang sengaja tetap tampilkan semua produk kategori.
+  onlyHighMargin?: boolean
 }
 
 export interface CategoryProductDbRow {
@@ -34,9 +39,40 @@ export async function fetchCategoryProducts(
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
+
+  // Task008 — kalau onlyHighMargin, batasi ke produk yang EFEKTIF high margin di
+  // kategori ini pada periodEnd: ditandai langsung per-produk (hmp.product_id),
+  // ATAU seluruh kategori ditandai (hmp.product_category_id) - mirror resolusi
+  // yang sama dipakai hmCatsCte di high-margin-penetration.repository.ts, tapi
+  // di sini resolve ke product_id karena butuh daftar produk, bukan kategori.
+  const onlyHmCond = p.onlyHighMargin
+    ? sql`ii.product_id IN (SELECT product_id FROM hm_products)`
+    : sql`TRUE`
 
   const rows = await db.execute(sql`
-    WITH items AS (
+    WITH hm_products AS (
+      SELECT pr.id AS product_id
+      FROM products pr
+      WHERE pr.product_category_id = ${p.categoryId}::int
+        AND (
+          EXISTS (
+            SELECT 1 FROM high_margin_products hmp
+            WHERE hmp.product_id = pr.id
+              AND ${companyCondHmp}
+              AND hmp.effective_from <= ${p.periodEnd}::date
+              AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
+          )
+          OR EXISTS (
+            SELECT 1 FROM high_margin_products hmp
+            WHERE hmp.product_category_id = ${p.categoryId}::int
+              AND ${companyCondHmp}
+              AND hmp.effective_from <= ${p.periodEnd}::date
+              AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
+          )
+        )
+    ),
+    items AS (
       SELECT
         ii.product_id,
         i.id          AS invoice_id,
@@ -55,6 +91,7 @@ export async function fetchCategoryProducts(
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id = ${p.categoryId}::int
+        AND ${onlyHmCond}
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}

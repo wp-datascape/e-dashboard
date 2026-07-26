@@ -333,6 +333,7 @@ export async function getCategoryProducts(
       divisionScope:   scope.divisionScope,
       categoryId:  params.category_id,
       excludeIntercompany: params.exclude_intercompany,
+      onlyHighMargin: params.high_margin_only,
       periodEnd,
       activeWindow: params.active_window,
       page:         params.page,

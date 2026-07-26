@@ -170,6 +170,7 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
         excludeIntercompany={filter.excludeIntercompany}
+        highMarginOnly
         onClose={() => setSelectedCategory(null)}
       />
     </>

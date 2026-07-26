@@ -29,6 +29,11 @@ interface Props {
   periodMonth: string
   activeWindow: number
   excludeIntercompany?: boolean
+  // Task008 — batasi daftar ke produk yang benar-benar ditandai high margin
+  // (bukan semua produk kategori). Dipakai tab "Penetrasi Kategori" saja -
+  // pemakai lain (tab Target Upsell, halaman Products) sengaja tidak pasang
+  // prop ini supaya perilaku existingnya (semua produk kategori) tidak berubah.
+  highMarginOnly?: boolean
   onClose: () => void
 }
 
@@ -44,6 +49,7 @@ export function CategoryProductsDialog({
   periodMonth,
   activeWindow,
   excludeIntercompany,
+  highMarginOnly,
   onClose,
 }: Props) {
   const { t } = useTranslation()
@@ -55,6 +61,7 @@ export function CategoryProductsDialog({
           period_month: periodMonth,
           active_window: activeWindow,
           exclude_intercompany: excludeIntercompany,
+          high_margin_only: highMarginOnly,
           per_page: 100,
         }
       : null,

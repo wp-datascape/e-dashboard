@@ -174,6 +174,15 @@ export const categoryProductsQuerySchema = z.object({
     .optional()
     .default(currentMonth),
   active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  // Task008 — batasi ke produk yang benar-benar ditandai high margin (bukan
+  // semua produk kategori). Dipakai tab "Penetrasi Kategori"; pemakai lain
+  // (tab Target Upsell, halaman Products) sengaja tidak kirim param ini.
+  // enum(['true','false']) BUKAN z.coerce.boolean() - lihat catatan di atas.
+  high_margin_only: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
   page:     z.coerce.number().int().positive().optional().default(1),
   per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
 })
