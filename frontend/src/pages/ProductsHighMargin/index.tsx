@@ -152,14 +152,15 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
         height={500}
         onRowClick={(row) => {
           const r = row as unknown as HighMarginCategoryRow
+          // Task008 — SENGAJA tidak kirim total_revenue/total_gp/gp_margin_percent/
+          // customer_count dari row ini (itu angka KATEGORI utuh, semua produk).
+          // Kartu summary di dialog nunggu agregat produk yang sudah difilter
+          // (meta.summary dari backend, lihat highMarginOnly di CategoryProductsDialog)
+          // supaya tidak sempat nampilin angka yang salah sebelum data asli kepilih.
           setSelectedCategory({
             category_id: r.category_id,
             category_name: r.category_name,
             is_high_margin: true,
-            total_revenue: r.total_revenue,
-            total_gp: r.total_gp,
-            gp_margin_percent: r.gp_margin_percent,
-            customer_count: r.customer_count,
           })
         }}
       />
@@ -252,6 +253,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
       flex: 1,
       minWidth: 200,
       sortable: false,
+      cellClassName: 'wrap-chips-cell',
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.categories_bought.map((cat) => (
@@ -270,6 +272,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
       flex: 1,
       minWidth: 200,
       sortable: false,
+      cellClassName: 'wrap-chips-cell',
       renderCell: ({ row }) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
           {row.missing_high_margin_categories.map((cat) => (
@@ -304,6 +307,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         onPaginationModelChange={setPagination}
         pageSizeOptions={[25, 50, 100]}
         height={500}
+        getRowHeight="auto"
         onRowClick={(row) => openHistory(row as unknown as UpsellTargetRow, null)}
       />
 

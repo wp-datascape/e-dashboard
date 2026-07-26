@@ -23,6 +23,7 @@ export interface CategoryProductsRepoParams {
 export interface CategoryProductDbRow {
   product_id: number
   product_name: string
+  is_high_margin: boolean
   total_revenue: number
   total_gp: number
   gp_margin_percent: number
@@ -31,10 +32,26 @@ export interface CategoryProductDbRow {
   total_count: number
 }
 
-export async function fetchCategoryProducts(
-  p: CategoryProductsRepoParams,
-): Promise<CategoryProductDbRow[]> {
-  const offset = (p.page - 1) * p.perPage
+export interface CategoryProductsSummary {
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+  invoice_count: number
+  customer_count: number
+}
+
+export interface CategoryProductsResult {
+  rows: CategoryProductDbRow[]
+  summary: CategoryProductsSummary
+}
+
+// CTE bersama (hm_products + items) dipakai 2 query terpisah di bawah - daftar
+// produk per-halaman DAN summary keseluruhan (Task008). Summary WAJIB query
+// terpisah (bukan cuma scalar subquery nempel di baris per-produk) karena kalau
+// hasil per-produk kosong (0 baris, mis. kategori tanpa produk HM efektif di
+// periode ini), scalar subquery yang nempel di baris tidak akan pernah jalan -
+// summary tetap harus balikin 0, bukan hilang/undefined.
+function categoryProductsCte(p: CategoryProductsRepoParams) {
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
@@ -50,7 +67,7 @@ export async function fetchCategoryProducts(
     ? sql`ii.product_id IN (SELECT product_id FROM hm_products)`
     : sql`TRUE`
 
-  const rows = await db.execute(sql`
+  return sql`
     WITH hm_products AS (
       SELECT pr.id AS product_id
       FROM products pr
@@ -96,28 +113,53 @@ export async function fetchCategoryProducts(
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
     )
-    SELECT
-      pr.id                                                    AS product_id,
-      pr.product_name,
-      SUM(items.revenue)::bigint                               AS total_revenue,
-      SUM(items.gp)::bigint                                    AS total_gp,
-      ROUND(SUM(items.gp) / NULLIF(SUM(items.revenue), 0) * 100, 1) AS gp_margin_percent,
-      COUNT(DISTINCT items.invoice_id)::int                    AS invoice_count,
-      COUNT(DISTINCT items.customer_id)::int                   AS customer_count,
-      COUNT(*) OVER ()::int                                    AS total_count
-    FROM items
-    JOIN products pr ON pr.id = items.product_id
-    GROUP BY pr.id, pr.product_name
-    ORDER BY total_revenue DESC
-    LIMIT  ${p.perPage}
-    OFFSET ${offset}
-  `)
+  `
+}
 
-  return (rows as unknown[]).map((r) => {
+export async function fetchCategoryProducts(
+  p: CategoryProductsRepoParams,
+): Promise<CategoryProductsResult> {
+  const offset = (p.page - 1) * p.perPage
+  const cte = categoryProductsCte(p)
+
+  const [rows, summaryRows] = await Promise.all([
+    db.execute(sql`
+      ${cte}
+      SELECT
+        pr.id                                                    AS product_id,
+        pr.product_name,
+        pr.id IN (SELECT product_id FROM hm_products)            AS is_high_margin,
+        SUM(items.revenue)::bigint                               AS total_revenue,
+        SUM(items.gp)::bigint                                    AS total_gp,
+        ROUND(SUM(items.gp) / NULLIF(SUM(items.revenue), 0) * 100, 1) AS gp_margin_percent,
+        COUNT(DISTINCT items.invoice_id)::int                    AS invoice_count,
+        COUNT(DISTINCT items.customer_id)::int                   AS customer_count,
+        COUNT(*) OVER ()::int                                    AS total_count
+      FROM items
+      JOIN products pr ON pr.id = items.product_id
+      GROUP BY pr.id, pr.product_name
+      ORDER BY total_revenue DESC
+      LIMIT  ${p.perPage}
+      OFFSET ${offset}
+    `),
+    db.execute(sql`
+      ${cte}
+      SELECT
+        COALESCE(SUM(revenue), 0)::bigint                        AS total_revenue,
+        COALESCE(SUM(gp), 0)::bigint                              AS total_gp,
+        ROUND(SUM(gp) / NULLIF(SUM(revenue), 0) * 100, 1)        AS gp_margin_percent,
+        COUNT(DISTINCT invoice_id)::int                          AS invoice_count,
+        COUNT(DISTINCT customer_id)::int                         AS customer_count
+      FROM items
+    `),
+  ])
+
+  const productRows = (rows as unknown[]).map((r) => {
     const row = r as Record<string, unknown>
     return {
       product_id:        Number(row.product_id),
       product_name:      String(row.product_name),
+      is_high_margin:    Boolean(row.is_high_margin),
       total_revenue:     Number(row.total_revenue    ?? 0),
       total_gp:          Number(row.total_gp         ?? 0),
       gp_margin_percent: Number(row.gp_margin_percent ?? 0),
@@ -126,4 +168,15 @@ export async function fetchCategoryProducts(
       total_count:       Number(row.total_count      ?? 0),
     }
   })
+
+  const s = (summaryRows as unknown[])[0] as Record<string, unknown> | undefined
+  const summary: CategoryProductsSummary = {
+    total_revenue:     Number(s?.total_revenue     ?? 0),
+    total_gp:          Number(s?.total_gp          ?? 0),
+    gp_margin_percent: Number(s?.gp_margin_percent ?? 0),
+    invoice_count:     Number(s?.invoice_count     ?? 0),
+    customer_count:    Number(s?.customer_count    ?? 0),
+  }
+
+  return { rows: productRows, summary }
 }

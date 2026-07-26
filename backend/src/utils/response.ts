@@ -25,6 +25,11 @@ export interface PaginationMeta {
   per_page: number
   total: number
   total_pages?: number
+  // Agregat opsional di luar data per-baris (mis. total keseluruhan produk yang
+  // difilter, dihitung terpisah dari pagination) - dipakai kalau endpoint perlu
+  // kirim ringkasan yang beda dari sekadar SUM per-halaman. Opsional & generic
+  // supaya utility ini tidak terikat ke satu domain tertentu.
+  summary?: Record<string, unknown>
 }
 
 export interface SuccessResponse<T> {

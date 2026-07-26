@@ -27,6 +27,9 @@ export interface PaginationMeta {
   page: number;
   per_page: number;
   total: number;
+  // Agregat opsional di luar data per-baris (mis. total keseluruhan produk yang
+  // difilter) - lihat backend/src/utils/response.ts PaginationMeta.summary.
+  summary?: Record<string, unknown>;
 }
 
 export interface PaginatedResponse<T> {

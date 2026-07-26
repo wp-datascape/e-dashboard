@@ -35,6 +35,7 @@ export interface CategoryProductRow {
   id: number
   product_id: number
   product_name: string
+  is_high_margin: boolean
   total_revenue: number
   total_gp: number
   gp_margin_percent: number
