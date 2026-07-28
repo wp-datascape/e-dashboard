@@ -19,6 +19,7 @@
     "CONFLICT": "Data ini sudah ada.",
     "DUPLICATE_IMPORT": "File ini sudah pernah diimpor sebelumnya.",
     "DUPLICATE_ENTRY": "Data ini sudah ada.",
+    "RESOURCE_IN_USE": "Data ini masih dipakai di tempat lain, tidak bisa dihapus — nonaktifkan saja.",
     "FILE_TOO_LARGE": "Ukuran file melebihi batas maksimum.",
     "IMPORT_PROCESSING_ERROR": "Terjadi kesalahan saat memproses import.",
     "RATE_LIMITED": "Terlalu banyak permintaan. Silakan coba lagi nanti.",

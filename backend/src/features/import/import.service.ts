@@ -165,10 +165,19 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
       }
 
       // ── Classify product ───────────────────────────────────────────────
+      // unitPrice WAJIB row.unit_price (harga per unit, kolom "@Harga"), BUKAN
+      // row.revenue (Total Harga = harga × kuantitas) - rule price_range di
+      // Classification Rules dimaksudkan mengecek harga SATUAN. Pakai revenue
+      // salah kaprah: barang murah yang dijual banyak (qty besar) bisa ke-total
+      // tinggi dan salah kena rule "harga tinggi" walau per-unit-nya murah
+      // (root cause laporan user 2026-07-29: kategori consumable murah salah
+      // ke-klasifikasi 'sparepart'/'unit'). Fallback ke revenue kalau unit_price
+      // tidak ada di file (kolom opsional) - sama seperti fallback yang sudah
+      // dipakai buat invoice_items.unit_price di bawah.
       const classification = await classifyItemType({
         itemName: row.product_category,
         categoryName: row.product_category,
-        unitPrice: row.revenue,
+        unitPrice: row.unit_price ?? row.revenue,
         companyId,
       })
 

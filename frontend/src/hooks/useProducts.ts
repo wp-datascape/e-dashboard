@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productsApi } from '@/api/products.api'
 import type {
   CategoryPerformanceParams,
+  ProductPerformanceParams,
   CategoryProductsParams,
   HighMarginDetailParams,
   UpsellTargetParams,
@@ -15,6 +16,8 @@ export const PRODUCTS_KEYS = {
     ['products', 'customer-products', params] as const,
   categoryPerformance: (params: CategoryPerformanceParams) =>
     ['products', 'category-performance', params] as const,
+  productPerformance: (params: ProductPerformanceParams) =>
+    ['products', 'product-performance', params] as const,
   categoryProducts: (params: CategoryProductsParams) =>
     ['products', 'category-products', params] as const,
   highMarginDetail: (params: HighMarginDetailParams) =>
@@ -29,6 +32,20 @@ export function useCategoryPerformance(params: CategoryPerformanceParams) {
   return useQuery({
     queryKey: PRODUCTS_KEYS.categoryPerformance(params),
     queryFn: () => productsApi.getCategoryPerformance(params),
+  })
+}
+
+export function useProductPerformance(params: ProductPerformanceParams) {
+  return useQuery({
+    queryKey: PRODUCTS_KEYS.productPerformance(params),
+    queryFn: () => productsApi.getProductPerformance(params),
+  })
+}
+
+export function useProductCategoryOptions(companyId: number | 'all', itemType?: string) {
+  return useQuery({
+    queryKey: ['products', 'product-category-options', companyId, itemType],
+    queryFn: () => productsApi.getProductCategoryOptions({ company_id: companyId, item_type: itemType }),
   })
 }
 

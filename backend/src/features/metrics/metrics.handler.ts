@@ -2,8 +2,8 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -83,6 +83,20 @@ export async function handleGetCategoryPerformance(c: Context) {
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getCategoryPerformance(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+export async function handleGetProductPerformance(c: Context) {
+  const query = validateQuery(c, productPerformanceQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const { data, total } = await getProductPerformance(query, scope)
+  return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+export async function handleGetProductCategoryOptions(c: Context) {
+  const query = validateQuery(c, productCategoryOptionsQuerySchema)
+  const scope = resolveScope(c, query.company_id)
+  const data = await getProductCategoryOptions(query, scope)
+  return success(c, data)
 }
 
 export async function handleGetCategoryProducts(c: Context) {

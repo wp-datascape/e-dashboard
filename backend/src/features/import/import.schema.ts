@@ -23,7 +23,7 @@ export const importLogQuerySchema = z.object({
 })
 
 export const unclassifiedItemSchema = z.object({
-  item_type: z.enum(['unit', 'consumable', 'sparepart', 'service']),
+  item_type: z.string().min(1),
 })
 
 /**
@@ -42,7 +42,10 @@ export const classificationRuleSchema = z.object({
   company_id: z.coerce.number().nullable().optional(),
   match_type: z.enum(['keyword_item_name', 'keyword_category', 'price_range', 'exact_item_name', 'exact_category']),
   match_pattern: z.string().min(1).max(255),
-  item_type: z.enum(['unit', 'consumable', 'sparepart', 'service']),
+  // key dinamis per company (task011), bukan 4 nilai tetap - divalidasi terhadap
+  // tabel item_types di classification.service.ts (isValidItemType), bukan di
+  // sini (query/schema layer tidak tau company mana yang relevan sebelum parse).
+  item_type: z.string().min(1).max(30),
   priority: z.coerce.number().int().min(0).max(1000).optional(),
   is_active: z.boolean().default(true),
 })
@@ -51,6 +54,6 @@ export const classificationRuleUpdateSchema = z.object({
   company_id: z.coerce.number().nullable().optional(),
   match_type: z.enum(['keyword_item_name', 'keyword_category', 'price_range', 'exact_item_name', 'exact_category']).optional(),
   match_pattern: z.string().min(1).max(255).optional(),
-  item_type: z.enum(['unit', 'consumable', 'sparepart', 'service']).optional(),
+  item_type: z.string().min(1).max(30).optional(),
   is_active: z.boolean().optional(),
 })

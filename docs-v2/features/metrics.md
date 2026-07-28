@@ -1,7 +1,7 @@
 # Feature: Metrics (KPI 1–10)
 
 > Status: 🟢 Semua endpoint live (real DB). Permission per endpoint diperbaiki sesi 32 (lihat §Permission).
-> Last updated: 2026-07-04 (sesi 32)
+> Last updated: 2026-07-29 (task010 — tambah `/product-performance` + `/product-categories`, halaman Products jadi flat list produk gantikan grid kategori)
 > Baca juga: `executive-dashboard/metrics.md` (definisi bisnis), `shared/backend.md`, `features/high-margin-products.md`, `features/permissions.md`, `product-workbench/api.md`
 
 ---
@@ -18,7 +18,8 @@ Fix: permission tiap endpoint disamakan dengan `permissionKey` halaman frontend 
 | `GET /customer-metrics` | `expansion:view` | CustomerMetrics |
 | `GET /gp-breakdown`, `/hm-breakdown`, `/ror-breakdown` | `expansion:view` | CustomerMetrics (drill-down M4/M5/M6 — halaman yang sama) |
 | `GET /dormant-customer` | `churn.risk:view` | DormantCustomer |
-| `GET /category-performance`, `/category-products` | `product:view` | Products |
+| `GET /category-performance`, `/category-products` | `product:view` | (tidak dipakai halaman manapun lagi sejak task010 — `/category-performance` cuma masih di-exercise `scope-isolation.e2e.test.ts`, jangan dihapus) |
+| `GET /product-performance`, `/product-categories` | `product:view` | Products (task010 — flat list produk, gantikan grid kategori) |
 | `GET /high-margin-penetration/detail`, `/high-margin-penetration/customers`, `/customer-products` | `high.margin:view` | ProductsHighMargin |
 | `GET /avg-category` | `product.trend:view` | ProductsTrend |
 
@@ -52,10 +53,26 @@ backend/src/features/metrics/
     m3m7.repository.ts                  ← fetchCustomerMetricsTrend (M3–M7)
     m4.repository.ts, m5.repository.ts, m6.repository.ts ← fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown
     m8m10.repository.ts                 ← fetchDormantTrend, fetchDormantValueRanking
-    category-performance.repository.ts  ← fetchCategoryPerformance (3.1)
-    category-products.repository.ts     ← fetchCategoryProducts (drill-down 3.1). Param
-                                           onlyHighMargin + kolom is_high_margin per baris +
-                                           summary agregat terfilter — detail lengkap di
+    category-performance.repository.ts  ← fetchCategoryPerformance (3.1, legacy — tidak
+                                           dipakai halaman manapun lagi sejak task010,
+                                           dipertahankan karena masih di-exercise
+                                           scope-isolation.e2e.test.ts)
+    product-performance.repository.ts   ← fetchProductPerformance (3.1c, task010) — flat
+                                           list produk gantikan grid kategori di halaman
+                                           Products. Resolusi is_high_margin per produk
+                                           mirror hmCatsCte() di high-margin-penetration
+                                           (ditandai langsung ATAU seluruh kategori ditandai)
+    product-categories.repository.ts    ← fetchProductCategoryOptions (task010) — opsi
+                                           dropdown filter Kategori di halaman Products.
+                                           SENGAJA endpoint terpisah dari GET /products/categories
+                                           (beda permission — settings.product:view, bukan
+                                           product:view — supaya role tanpa akses Settings
+                                           tetap bisa pakai filter kategori di Product Workbench)
+    category-products.repository.ts     ← fetchCategoryProducts (drill-down 3.1, dipakai
+                                           CategoryProductsDialog — masih aktif di halaman
+                                           ProductsHighMargin). Param onlyHighMargin + kolom
+                                           is_high_margin per baris + summary agregat
+                                           terfilter — detail lengkap di
                                            features/high-margin-products.md §9 (task008)
     high-margin-penetration.repository.ts ← fetchHmDetail, fetchUpsellTargets (3.2). Resolusi
                                            HM level-kategori vs level-produk — lihat

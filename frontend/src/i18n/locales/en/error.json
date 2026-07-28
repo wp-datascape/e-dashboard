@@ -19,6 +19,7 @@
     "CONFLICT": "This entry already exists.",
     "DUPLICATE_IMPORT": "This file has already been imported.",
     "DUPLICATE_ENTRY": "This entry already exists.",
+    "RESOURCE_IN_USE": "This is still in use elsewhere and can't be deleted — deactivate it instead.",
     "FILE_TOO_LARGE": "The file exceeds the maximum allowed size.",
     "IMPORT_PROCESSING_ERROR": "An error occurred while processing the import.",
     "RATE_LIMITED": "Too many requests. Please try again later.",

@@ -5,19 +5,33 @@ import { AppError, ErrorCode } from '@/utils/error'
 import { logAudit } from '@/utils/audit'
 import {
   findClassificationRules,
+  findClassificationRuleById,
   createClassificationRule,
   updateClassificationRule,
   deleteClassificationRule,
 } from './import.repository'
+import { findActiveItemTypes } from '@/features/settings/item-types.repository'
 import { MATCH_TYPE_PRIORITY } from './import.schema'
 import type { z } from 'zod'
 import type { classificationRuleSchema, classificationRuleUpdateSchema } from './import.schema'
 
 const VALID_MATCH_TYPES = ['keyword_item_name', 'keyword_category', 'price_range', 'exact_item_name', 'exact_category'] as const
-const VALID_ITEM_TYPES = ['unit', 'consumable', 'sparepart', 'service'] as const
 
 type CreateRuleDto = z.infer<typeof classificationRuleSchema>
 type UpdateRuleDto = z.infer<typeof classificationRuleUpdateSchema>
+
+/**
+ * item_type sekarang per-company (task011), tidak ada lagi 4 nilai tetap.
+ * Rule GLOBAL (companyId null) SENGAJA tidak divalidasi ketat terhadap DB -
+ * item_types tidak punya konsep "global", jadi tidak ada satu daftar tunggal
+ * buat dicocokkan (tiap company bisa beda daftarnya). Rule per-company baru
+ * divalidasi terhadap item_types aktif company itu.
+ */
+async function isValidItemType(companyId: number | null, key: string): Promise<boolean> {
+  if (companyId === null) return key.length > 0
+  const activeTypes = await findActiveItemTypes(companyId)
+  return activeTypes.some((t) => t.key === key)
+}
 
 export async function listClassificationRules(companyId?: number) {
   try {
@@ -30,6 +44,11 @@ export async function listClassificationRules(companyId?: number) {
 
 export async function createClassificationRuleService(data: CreateRuleDto, ctx: Context) {
   try {
+    const companyId = data.company_id ?? null
+    if (!(await isValidItemType(companyId, data.item_type))) {
+      throw new AppError(ErrorCode.VALIDATION_ERROR, `Item type "${data.item_type}" tidak terdaftar untuk company ini`, 400)
+    }
+
     const priority = MATCH_TYPE_PRIORITY[data.match_type] ?? 50
     const rule = await createClassificationRule({ ...data, priority })
 
@@ -50,6 +69,15 @@ export async function createClassificationRuleService(data: CreateRuleDto, ctx: 
 
 export async function updateClassificationRuleService(id: number, data: UpdateRuleDto, ctx: Context) {
   try {
+    if (data.item_type) {
+      const existing = await findClassificationRuleById(id)
+      if (!existing) throw new AppError(ErrorCode.NOT_FOUND, 'Rule tidak ditemukan', 404)
+      const companyId = data.company_id !== undefined ? data.company_id : existing.company_id
+      if (!(await isValidItemType(companyId, data.item_type))) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, `Item type "${data.item_type}" tidak terdaftar untuk company ini`, 400)
+      }
+    }
+
     const rule = await updateClassificationRule(id, data)
     if (!rule) throw new AppError(ErrorCode.NOT_FOUND, 'Rule tidak ditemukan', 404)
 
@@ -124,6 +152,9 @@ export async function importClassificationRulesService(
 
   // Fetch existing rules for this company (plus global) for dedup check
   const existingRules = await findClassificationRules(companyId)
+  // Item type valid company ini - dicek sekali di luar loop (bukan per baris),
+  // key dinamis per company (task011), bukan 4 nilai tetap lagi
+  const validItemTypeKeys = new Set((await findActiveItemTypes(companyId)).map((t) => t.key))
 
   for (let i = 0; i < parsed.length; i++) {
     const row = parsed[i]
@@ -141,8 +172,8 @@ export async function importClassificationRulesService(
       errors.push({ row: rowNum, message: 'match_pattern wajib diisi' })
       continue
     }
-    if (!itemType || !(VALID_ITEM_TYPES as readonly string[]).includes(itemType)) {
-      errors.push({ row: rowNum, message: `item_type "${itemType ?? ''}" tidak valid. Pilihan: ${VALID_ITEM_TYPES.join(', ')}` })
+    if (!itemType || !validItemTypeKeys.has(itemType)) {
+      errors.push({ row: rowNum, message: `item_type "${itemType ?? ''}" tidak valid. Pilihan: ${[...validItemTypeKeys].join(', ')}` })
       continue
     }
 
@@ -161,7 +192,7 @@ export async function importClassificationRulesService(
       company_id: companyId,
       match_type: matchType as typeof VALID_MATCH_TYPES[number],
       match_pattern: upperPattern,
-      item_type: itemType as typeof VALID_ITEM_TYPES[number],
+      item_type: itemType,
       priority,
       is_active: true,
     })
@@ -186,7 +217,7 @@ export function getClassificationRulesTemplate(): ArrayBuffer {
   const descriptions = [
     'Tipe pencocokan\nPilihan:\n· keyword_item_name — cari kata di nama barang\n· keyword_category — cari kata di kategori\n· exact_item_name — nama barang persis sama\n· exact_category — kategori persis sama\n· price_range — rentang harga',
     'Pola yang dicocokkan\n· Untuk keyword/exact: tulis kata kunci (UPPERCASE)\n· Untuk price_range: JSON {"min":500000} atau {"max":50000} atau {"min":100000,"max":500000}',
-    'Tipe item hasil klasifikasi\nPilihan: unit | consumable | sparepart | service',
+    'Tipe item hasil klasifikasi\nHarus salah satu key Item Type yang sudah terdaftar untuk company ini (kelola di bagian atas halaman Classification Rules) - contoh umum: unit | consumable | sparepart | service',
   ]
   const headers  = ['match_type', 'match_pattern', 'item_type']
   const examples = [

@@ -102,7 +102,7 @@ List produk dari local DB, opsional filter per kategori.
 
 ### `GET /products/categories`
 
-List kategori produk dari local DB.
+List kategori produk dari local DB. Permission `settings.product:view` (Administration/Product Settings) — **BUKAN** dipakai untuk filter kategori di halaman Products Workbench (lihat `GET /metrics/product-categories` di `features/metrics.md`, permission `product:view`, tujuannya persis supaya role tanpa akses Settings tetap bisa filter kategori di halaman bisnis inti).
 
 **Query params:**
 | Param | Tipe | Required |
@@ -185,9 +185,15 @@ Mapping `company_id → branch_id` tersimpan di tabel `companies` atau `app_conf
 
 Field `is_high_margin` boolean di `product_categories` adalah desain lama (statis). Gunakan tabel `high_margin_products` untuk manajemen high margin produk secara dinamis dengan time-range. Lihat `features/high-margin-products.md`.
 
-### Drill-down Produk per Kategori (dialog `CategoryProductsDialog`)
+### Halaman `/products` — Flat List Produk (task010, 2026-07-29)
 
-Halaman `/products` (dan tab "Penetrasi Kategori" + "Target Upsell" di `/products/high-margin`) share 1 dialog drill-down yang sama (`frontend/src/pages/Products/components/CategoryProductsDialog.tsx`), didukung endpoint `GET /metrics/category-products` (bukan endpoint di file ini — lihat `features/metrics.md`). Endpoint ini punya param opsional `only_high_margin` + field `is_high_margin` per produk, dipakai KHUSUS di tab "Penetrasi Kategori" supaya drill-down cuma tampilkan produk yang benar-benar ditandai high margin. Detail lengkap: `features/high-margin-products.md` §9.
+Sebelumnya halaman `/products` menampilkan grid **kategori** (`GET /metrics/category-performance`) — klik baris buka popup daftar produk. Sekarang (task010) diganti **flat list produk langsung** (`GET /metrics/product-performance` — lihat `features/metrics.md`) — tiap baris = 1 produk, kolom Kategori cuma teks biasa. Filter urutannya: **Item Type dulu, baru Kategori di bawahnya** (kategori cascading — opsinya cuma nampilin kategori yang `item_type`-nya cocok sama Item Type yang dipilih, reset tiap ganti Item Type). Popup drill-down (`CategoryProductsDialog`) **dihapus dari halaman ini** (baris sudah level produk, tidak perlu drill lagi).
+
+Dropdown filter Kategori sumbernya `GET /metrics/product-categories` (SENGAJA endpoint terpisah dari `/products/categories` di bawah karena beda permission — lihat catatan di §API Endpoints). Dropdown filter **Item Type** sumbernya `GET /settings/item-types/values` (task011 — dinamis per company, lihat `features/classification.md` §Item Type Dinamis; BUKAN 4 nilai hardcoded lagi).
+
+### Drill-down Produk per Kategori (dialog `CategoryProductsDialog`) — masih dipakai di ProductsHighMargin
+
+Tab "Penetrasi Kategori" + "Target Upsell" di `/products/high-margin` masih pakai dialog drill-down yang sama (`frontend/src/pages/Products/components/CategoryProductsDialog.tsx`), didukung endpoint `GET /metrics/category-products` (bukan endpoint di file ini — lihat `features/metrics.md`). Endpoint ini punya param opsional `only_high_margin` + field `is_high_margin` per produk, dipakai KHUSUS di tab "Penetrasi Kategori" supaya drill-down cuma tampilkan produk yang benar-benar ditandai high margin. Detail lengkap: `features/high-margin-products.md` §9.
 
 ### `avg_margin_percent`
 
@@ -205,5 +211,5 @@ Dihitung dari rata-rata `(total_gp / total_revenue)` per kategori saat ada invoi
 
 ---
 
-**Last Updated**: 2026-07-26 (tambah §Drill-down Produk per Kategori, task008)
+**Last Updated**: 2026-07-29 (task011 — filter Item Type di halaman /products jadi dinamis per company, urutan filter Item Type sebelum Kategori)
 **Status**: ✅ Production Ready

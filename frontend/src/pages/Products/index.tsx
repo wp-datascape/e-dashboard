@@ -1,5 +1,5 @@
 // frontend/src/pages/Products/index.tsx
-import { useState, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -9,15 +9,15 @@ import Switch from '@mui/material/Switch'
 import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
-import { useCategoryPerformance } from '@/hooks/useProducts'
+import { useProductPerformance, useProductCategoryOptions } from '@/hooks/useProducts'
+import { useItemTypeValues } from '@/hooks/useItemTypes'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { DatePicker } from '@/components/ui/DatePicker'
-import type { CategoryPerformanceRow, CategoryPerformanceParams } from '@/types/products'
+import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
-import { CategoryProductsDialog } from './components/CategoryProductsDialog'
 
 function todayMonth(): string {
   const now = new Date()
@@ -37,8 +37,9 @@ export default function Products() {
   const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
   const [activeWindow,    setActiveWindow]    = useState(6)
   const [search,          setSearch]          = useState('')
+  const [itemType,        setItemType]        = useState<string>('all')
+  const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
   const [highMarginOnly,  setHighMarginOnly]  = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<CategoryPerformanceRow | null>(null)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 50,
@@ -47,14 +48,27 @@ export default function Products() {
     { field: 'total_revenue', sort: 'desc' },
   ])
 
-  const handleRowClick = useCallback((row: CategoryPerformanceRow) => {
-    setSelectedCategory(row)
-  }, [])
+  const itemTypeFilter = itemType === 'all' ? undefined : itemType
+  const { data: categoryOptions = [] } = useProductCategoryOptions(companyId, itemTypeFilter)
 
-  const queryParams: CategoryPerformanceParams = {
+  const { data: itemTypeOptionsRaw = [] } = useItemTypeValues(companyId)
+  // companyId==='all' balikin union lintas company - dedupe by key (mirror fix
+  // yang sama di Config/Classification/index.tsx, kasus yang sama persis).
+  const itemTypeOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return itemTypeOptionsRaw.filter((opt) => {
+      if (seen.has(opt.key)) return false
+      seen.add(opt.key)
+      return true
+    })
+  }, [itemTypeOptionsRaw])
+
+  const queryParams: ProductPerformanceParams = {
     company_id:      companyId,
     branch_id:       branchId === 'all' ? undefined : branchId,
     division:        division || undefined,
+    item_type:       itemTypeFilter,
+    category_id:     categoryId === 'all' ? undefined : categoryId,
     period_month:    periodMonth,
     active_window:   activeWindow,
     search:          search || undefined,
@@ -62,31 +76,34 @@ export default function Products() {
     exclude_intercompany: excludeIntercompany,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
-    sort_by: (sortModel[0]?.field as CategoryPerformanceParams['sort_by']) ?? 'total_revenue',
+    sort_by: (sortModel[0]?.field as ProductPerformanceParams['sort_by']) ?? 'total_revenue',
     sort_dir: (sortModel[0]?.sort as 'asc' | 'desc') ?? 'desc',
   }
 
-  const { data, isLoading, error } = useCategoryPerformance(queryParams)
+  const { data, isLoading, error } = useProductPerformance(queryParams)
 
-  const columns: GridColDef<CategoryPerformanceRow>[] = [
+  const columns: GridColDef<ProductPerformanceRow>[] = [
     {
-      field: 'category_name',
-      headerName: t('products.categoryName'),
+      field: 'product_name',
+      headerName: t('products.productName'),
       flex: 1,
-      minWidth: 180,
+      minWidth: 200,
       sortable: false,
       renderCell: ({ row }) => (
-        <Typography variant="body2">{row.category_name}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2">{row.product_name}</Typography>
+          {row.is_high_margin && (
+            <StatusChip label={t('products.highMarginBadge')} color="info" />
+          )}
+        </Box>
       ),
     },
     {
-      field: 'is_high_margin',
-      headerName: t('common.status'),
-      width: 120,
+      field: 'category_name',
+      headerName: t('products.categoryName'),
+      width: 200,
       sortable: false,
-      renderCell: ({ row }) => row.is_high_margin
-        ? <StatusChip label={t('products.highMarginBadge')} color="info" />
-        : null,
+      valueFormatter: (value) => (value as string) ?? '—',
     },
     {
       field: 'total_revenue',
@@ -156,11 +173,44 @@ export default function Products() {
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, alignItems: 'center' }}>
           <TextField
-            size="small" label={t('products.searchCategoryLabel')}
+            size="small" label={t('products.searchProductLabel')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPaginationModel((p) => ({ ...p, page: 0 })) }}
             sx={{ minWidth: { xs: '100%', sm: 180 } }}
           />
+
+          <TextField
+            select size="small" label={t('products.filterItemTypeLabel')}
+            value={itemType}
+            onChange={(e) => {
+              // Kategori tergantung Item Type (cascading) - reset supaya tidak nyangkut
+              // kategori dari item type sebelumnya yang mungkin sudah tidak relevan.
+              setItemType(e.target.value as typeof itemType)
+              setCategoryId('all')
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+          >
+            <MenuItem value="all">{t('products.allItemTypes')}</MenuItem>
+            {itemTypeOptions.map((opt) => (
+              <MenuItem key={opt.key} value={opt.key}>{opt.label}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select size="small" label={t('products.filterCategoryLabel')}
+            value={categoryId}
+            onChange={(e) => {
+              setCategoryId(e.target.value === 'all' ? 'all' : Number(e.target.value))
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 180 } }}
+          >
+            <MenuItem value="all">{t('products.allCategories')}</MenuItem>
+            {categoryOptions.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
 
           <ScopeFilterFields filter={scopeFilter} />
 
@@ -214,18 +264,6 @@ export default function Products() {
         onSortModelChange={setSortModel}
         pageSizeOptions={[25, 50, 100]}
         height={600}
-        onRowClick={(row) => handleRowClick(row as unknown as CategoryPerformanceRow)}
-      />
-
-      <CategoryProductsDialog
-        category={selectedCategory}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        periodMonth={periodMonth}
-        activeWindow={activeWindow}
-        excludeIntercompany={excludeIntercompany}
-        onClose={() => setSelectedCategory(null)}
       />
     </Box>
   )

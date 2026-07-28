@@ -1,7 +1,7 @@
 # Feature: Import
 
 > Status: ✅ Complete — File upload (CSV/Excel), SSE streaming progress, import logs, template download, import terpusat (faktur + divisi + klasifikasi)
-> Last updated: 2026-06-30
+> Last updated: 2026-07-29 (fix `product_categories.item_type` tidak pernah ke-sync ke klasifikasi terbaru — lihat §Implementation Notes)
 > Baca juga: `features/classification.md`, `features/channel-divisions.md`, `features/accurate.md`, `shared/data-model.md`
 
 ---
@@ -41,7 +41,8 @@ DEDUP + UPSERT per invoice_number + company_id:
     ↓
 Upsert master data:
   - customers (dedup: UPPER(name) + company_id)
-  - product_categories (dedup: UPPER(name) + company_id)
+  - product_categories (dedup: UPPER(name) + company_id) — item_type DI-SYNC ke
+    klasifikasi terbaru tiap import (fixed 2026-07-29, lihat catatan di bawah)
   - products (dedup: UPPER(name) + company_id)
     ↓
 Tulis import_log + import_errors (untuk baris gagal)
@@ -302,6 +303,16 @@ Jika invoice_number + company_id sudah ada:
 ```
 
 Tidak ada duplikat — reimport file yang sama aman, tidak akan membuat duplikasi data.
+
+### `product_categories.item_type` Sync (fixed 2026-07-29)
+
+`upsertProductCategory()` (`import.repository.ts`) sebelumnya cuma nulis `item_type` sekali — kalau kategori itu SUDAH pernah ada di DB, `item_type` hasil klasifikasi terbaru (`classifyItemType()`, dievaluasi ulang tiap baris di-import) **dibuang begitu saja**, kategori tetap kepegang klasifikasi dari saat pertama kali dia dibuat. Efeknya: kategori yang salah klasifikasi di import pertama (sebelum Classification Rules-nya diperbaiki) nyangkut salah **selamanya**, walau aturan klasifikasinya sudah benar sekarang — laporan user 2026-07-29: kategori consumable seperti "V. LABEL SEMICOAT" masih tercatat `item_type='sparepart'` padahal Classification Rules aktifnya sudah benar.
+
+Fix: kalau kategori sudah ada DAN `item_type` hasil klasifikasi baru beda dari yang tersimpan, `UPDATE` (bukan diam-diam skip). Jadi item_type kategori otomatis makin akurat seiring waktu — setiap kali ada invoice baru masuk untuk kategori itu, klasifikasinya di-refresh ke aturan yang aktif saat itu.
+
+**Catatan**: fix ini cuma berlaku FORWARD (kategori yang item_type-nya masih salah SEKARANG tidak otomatis kekoreksi — baru kekoreksi kalau ada invoice baru untuk kategori itu di-import lagi). Tidak ada backfill/reklasifikasi retroaktif untuk data yang sudah ada — kalau dibutuhkan, itu task terpisah (jalankan `classifyItemType()` ulang untuk semua kategori existing lalu `UPDATE` massal).
+
+Field ini dipakai `product_categories.item_type` di beberapa tempat lain juga (bukan cuma halaman Products) — `m1.repository.ts` (Cross Selling M1, breakdown per item type) juga baca kolom yang sama, jadi fix ini otomatis ikut memperbaiki akurasi di sana juga.
 
 ### onProgress Callback
 

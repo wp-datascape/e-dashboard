@@ -1,9 +1,9 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
-import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
 import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
 
 function todayDate(): string {
@@ -313,6 +313,61 @@ export async function getCategoryPerformance(
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil performa kategori produk', 500)
+  }
+}
+
+export async function getProductPerformance(
+  params: ProductPerformanceQuery,
+  scope: MetricsScope = {},
+): Promise<{ data: object[]; total: number }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+
+    // Normalisasi period_month ke akhir bulan (sama dengan pola cross-selling)
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const rows = await fetchProductPerformance({
+      cid,
+      companyScopeIds: scope.companyScopeIds,
+      branchScope:     scope.branchScope,
+      divisionScope:   scope.divisionScope,
+      division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
+      branchFilter:    params.branch_id,
+      categoryId:      params.category_id,
+      itemType:        params.item_type,
+      periodEnd,
+      activeWindow:   params.active_window,
+      search:         params.search,
+      highMarginOnly: params.high_margin_only,
+      sortBy:         params.sort_by,
+      sortDir:        params.sort_dir,
+      page:           params.page,
+      perPage:        params.per_page,
+    })
+
+    const total = rows[0]?.total_count ?? 0
+    const data  = rows.map(({ total_count, ...row }) => ({ id: row.product_id, ...row }))
+
+    return { data, total }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil performa produk', 500)
+  }
+}
+
+export async function getProductCategoryOptions(
+  params: ProductCategoryOptionsQuery,
+  scope: MetricsScope = {},
+): Promise<{ id: number; name: string }[]> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+    return await fetchProductCategoryOptions({ cid, companyScopeIds: scope.companyScopeIds, itemType: params.item_type })
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar kategori', 500)
   }
 }
 

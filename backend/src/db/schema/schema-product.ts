@@ -110,6 +110,36 @@ export const item_classification_rules = pgTable('item_classification_rules', {
 export type ItemClassificationRule = typeof item_classification_rules.$inferSelect
 export type NewItemClassificationRule = typeof item_classification_rules.$inferInsert
 
+// ─── item_types ───────────────────────────────────────────────────────────────
+
+/**
+ * Daftar Item Type per company (task011) — DINAMIS, beda dari
+ * item_classification_rules/channel_divisions yang company_id-nya nullable=global.
+ * item_types SENGAJA company_id NOT NULL (bukan nullable) - tiap company kelola
+ * daftar Item Type sendiri-sendiri, tidak ada opsi "global" (keputusan eksplisit
+ * user, bukan mirror pola company_id nullable yang dipakai tabel lain di file ini).
+ *
+ * `key` dipakai di query/filter (product_categories.item_type,
+ * item_classification_rules.item_type - keduanya varchar biasa, referensi lewat
+ * KONVENSI bukan FK formal, sama seperti channel_divisions.division ke
+ * divisionEnum). `label` teks tampilan, sumber kebenaran TUNGGAL buat UI (bukan
+ * campur sama i18n).
+ */
+export const item_types = pgTable('item_types', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  key: varchar('key', { length: 30 }).notNull(),
+  label: varchar('label', { length: 50 }).notNull(),
+  is_active: boolean('is_active').notNull().default(true),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('item_types_company_key_idx').on(table.company_id, table.key),
+])
+
+export type ItemTypeRow = typeof item_types.$inferSelect
+export type NewItemType = typeof item_types.$inferInsert
+
 // ─── channel_divisions ────────────────────────────────────────────────────────
 
 /**

@@ -15,7 +15,9 @@ import { logger } from '@/utils/logger'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type ItemType = 'unit' | 'consumable' | 'sparepart' | 'service'
+// string, bukan union literal - item_type dinamis per company (task011), tidak
+// lagi 4 nilai tetap. Fallback masih 'unit' (lihat classifyItemType di bawah).
+export type ItemType = string
 
 export interface ClassificationResult {
   itemType: ItemType

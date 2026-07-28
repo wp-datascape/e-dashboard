@@ -43,6 +43,7 @@ import { activityLogRoutes } from '@/features/activity-log/activity-log.route'
 import { loginLogRoutes } from '@/features/login-log/login-log.route'
 import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
+import { itemTypesRoutes } from '@/features/settings/item-types.route'
 import { docsRoutes } from '@/features/docs/docs.route'
 import { abTestingRoutes } from '@/features/ab-testing/ab-testing.route'
 
@@ -103,6 +104,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/classification-rules', classificationRoutes)
   protectedApi.route('/settings/high-margin', highMarginRoutes)
   protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
+  protectedApi.route('/settings/item-types', itemTypesRoutes)
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)

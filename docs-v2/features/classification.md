@@ -1,16 +1,16 @@
 # Feature: Item Classification Rules
 
-> Status: ✅ Complete — Full CRUD, priority auto-assign, company-scoped import via XLSX template
-> Last updated: 2026-06-30
+> Status: ✅ Complete — Full CRUD, priority auto-assign, company-scoped import via XLSX template, Item Type dinamis per company (task011)
+> Last updated: 2026-07-29 (task011 — Item Type dinamis, lihat §Item Type Dinamis)
 > Baca juga: `features/import.md`, `shared/data-model.md`
 
 ---
 
 ## Overview
 
-`item_classification_rules` adalah tabel aturan untuk mengklasifikasi setiap baris item faktur (dari Accurate atau file CSV) ke dalam 4 tipe produk: `unit` | `consumable` | `sparepart` | `service`.
+`item_classification_rules` adalah tabel aturan untuk mengklasifikasi kategori produk (bukan per-baris invoice_items — `invoice_items` TIDAK punya kolom `item_type` sama sekali) ke dalam tipe produk. Klasifikasi ini mengisi kolom `product_categories.item_type` saat proses import (`upsertProductCategory`, `import.repository.ts` — di-sync ulang ke klasifikasi terbaru tiap ada invoice baru untuk kategori itu, lihat `features/import.md` §Implementation Notes).
 
-Klasifikasi digunakan saat proses import untuk mengisi kolom `item_type` di `invoice_items`.
+**Task011 (2026-07-29) — Item Type sekarang DINAMIS per company**, bukan 4 nilai tetap (`unit`/`consumable`/`sparepart`/`service`) lagi. Nilai-nilai itu sekarang cuma DEFAULT SEED — user bisa tambah/nonaktifkan Item Type sendiri lewat widget di halaman ini (lihat §Item Type Dinamis di bawah). `item_type` di tabel ini tetap `varchar` biasa (bukan FK formal ke `item_types.key` — soft reference lewat konvensi, sama seperti `channel_divisions.division`).
 
 ---
 
@@ -50,6 +50,30 @@ Priority bisa di-override manual (0–1000) saat create.
 
 ---
 
+## Item Type Dinamis (task011, 2026-07-29)
+
+Beda dari `company_id` rule di atas (nullable = global), tabel baru `item_types` **SENGAJA `company_id` NOT NULL** — setiap company kelola daftar Item Type sendiri-sendiri, tidak ada konsep "global Item Type". Dikelola lewat widget di bagian atas halaman Classification Rules (`frontend/src/pages/Config/Classification/index.tsx`) — bukan halaman terpisah.
+
+**Tabel `item_types`:**
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `id` | serial PK | |
+| `company_id` | integer NOT NULL → companies | WAJIB, tidak nullable |
+| `key` | varchar(30) NOT NULL | Machine value, di-derive otomatis dari `label` (slugify) — dipakai di `product_categories.item_type` & `item_classification_rules.item_type` |
+| `label` | varchar(50) NOT NULL | Teks tampilan, sumber kebenaran TUNGGAL untuk UI (bukan campur i18n) |
+| `is_active` | boolean default true | |
+
+Unique constraint `(company_id, key)`.
+
+- **Seed default**: 4 Item Type (`unit`/`consumable`/`sparepart`/`service`) di-seed otomatis untuk company baru (hook di `companies.service.ts` `createCompanyService`) dan company existing (`backend/scripts/seed-item-types-existing-companies.ts`, idempotent, one-time backfill).
+- **Endpoint**: `GET/POST/PATCH/DELETE /settings/item-types` (permission **reuse** `config.classification:*` — hidup di halaman yang sama). `GET /settings/item-types/values` khusus TANPA `requirePermission` (mirror pola `channel-divisions/values`) — dipakai dropdown filter Item Type di halaman Products (task010) yang cuma butuh `product:view`, bukan `config.classification:view`.
+- **Proteksi delete**: Item Type yang masih dipakai `product_categories.item_type` ATAU `item_classification_rules.item_type` (termasuk rule global) tidak bisa dihapus — error `RESOURCE_IN_USE` (409), harus nonaktifkan (`is_active=false`) saja.
+- **Validasi saat create/update classification rule**: `item_type` rule di-cek terhadap `item_types` aktif company itu (`classification.service.ts` `isValidItemType()`) — KECUALI rule GLOBAL (`company_id` NULL), yang tidak divalidasi ketat karena Item Type tidak punya konsep global untuk dicocokkan.
+- **File**: `backend/src/features/settings/item-types.{schema,repository,service,handler,route}.ts`, `frontend/src/{types,api,hooks}/itemTypes*`.
+
+---
+
 ## File Structure
 
 ```
@@ -69,7 +93,7 @@ src/features/import/
 | `company_id` | integer NULL → companies | null = global |
 | `match_type` | varchar(50) NOT NULL | Enum lihat bawah |
 | `match_pattern` | varchar(255) NOT NULL | Keyword (UPPERCASE) atau JSON range |
-| `item_type` | varchar(20) NOT NULL | unit \| consumable \| sparepart \| service |
+| `item_type` | varchar(20) NOT NULL | Key dinamis per company (task011) — lihat §Item Type Dinamis di atas |
 | `priority` | integer NOT NULL default 50 | Lebih tinggi = lebih diprioritaskan |
 | `is_active` | boolean NOT NULL default true | Rule diaktifkan/nonaktifkan |
 | `created_at` | timestamptz | |
