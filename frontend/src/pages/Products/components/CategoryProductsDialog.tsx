@@ -26,6 +26,8 @@ export interface CategoryDrawerInfo {
 interface Props {
   category: CategoryDrawerInfo | null
   companyId: number | 'all'
+  branchId?: number
+  division?: string
   periodMonth: string
   activeWindow: number
   excludeIntercompany?: boolean
@@ -46,6 +48,8 @@ function MarginChip({ pct }: { pct: number }) {
 export function CategoryProductsDialog({
   category,
   companyId,
+  branchId,
+  division,
   periodMonth,
   activeWindow,
   excludeIntercompany,
@@ -58,6 +62,8 @@ export function CategoryProductsDialog({
       ? {
           company_id:   companyId,
           category_id:  category.category_id,
+          branch_id:    branchId,
+          division,
           period_month: periodMonth,
           active_window: activeWindow,
           exclude_intercompany: excludeIntercompany,

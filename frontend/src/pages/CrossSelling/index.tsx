@@ -129,6 +129,8 @@ export default function CrossSelling() {
           company_id:    companyId,
           customer_id:   productDrill.customerId,
           item_type:     productDrill.itemType,
+          branch_id:     branchId === 'all' ? undefined : branchId,
+          division:      division || undefined,
           period_month:  periodMonth,
           active_window: activeWindow,
           exclude_intercompany: excludeIntercompany,

@@ -168,6 +168,8 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
       <CategoryProductsDialog
         category={selectedCategory}
         companyId={filter.companyId}
+        branchId={filter.branchId === 'all' ? undefined : filter.branchId}
+        division={filter.division || undefined}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
         excludeIntercompany={filter.excludeIntercompany}
@@ -316,6 +318,8 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         customer={drawerCustomer}
         filterCategory={drawerCatFilter}
         companyId={filter.companyId}
+        branchId={filter.branchId === 'all' ? undefined : filter.branchId}
+        division={filter.division || undefined}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
         excludeIntercompany={filter.excludeIntercompany}
@@ -330,6 +334,8 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
           is_high_margin: true,
         } : null}
         companyId={filter.companyId}
+        branchId={filter.branchId === 'all' ? undefined : filter.branchId}
+        division={filter.division || undefined}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
         excludeIntercompany={filter.excludeIntercompany}

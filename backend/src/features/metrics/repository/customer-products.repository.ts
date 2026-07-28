@@ -15,6 +15,8 @@ export interface CustomerProductsRepoParams {
   excludeIntercompany?: boolean
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, string[]>
+  division?: string | null   // filter laporan - mirror division di high-margin-penetration.repository.ts
+  branchFilter?: number | null // filter laporan - mirror branch_id di high-margin-penetration.repository.ts
 }
 
 export interface CustomerProductDbRow {
@@ -43,6 +45,8 @@ export async function fetchCustomerProducts(
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`
     SELECT
@@ -70,6 +74,8 @@ export async function fetchCustomerProducts(
       AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.periodEnd}::date
       AND ii.product_category_id IS NOT NULL
+      AND (${division}::text IS NULL OR cd.division = ${division}::text)
+      AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
       AND ${branchCond}
       AND ${divisionScopeCond}
       AND ${excludeIntercompanyCond}
