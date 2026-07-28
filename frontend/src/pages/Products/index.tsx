@@ -220,6 +220,8 @@ export default function Products() {
       <CategoryProductsDialog
         category={selectedCategory}
         companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
         periodMonth={periodMonth}
         activeWindow={activeWindow}
         excludeIntercompany={excludeIntercompany}

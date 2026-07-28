@@ -46,6 +46,8 @@ export interface CategoryProductRow {
 export interface CategoryProductsParams {
   company_id?: number | 'all'
   category_id: number
+  branch_id?: number
+  division?: string
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean
@@ -115,6 +117,8 @@ export interface CustomerProductsParams {
   customer_id: number
   category_id?: number
   item_type?: string
+  branch_id?: number
+  division?: string
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean

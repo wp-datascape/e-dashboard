@@ -16,6 +16,8 @@ interface Props {
   customer: UpsellTargetRow | null
   filterCategory: CategoryRef | null
   companyId: number | 'all'
+  branchId?: number
+  division?: string
   periodMonth: string
   activeWindow: number
   excludeIntercompany?: boolean
@@ -32,6 +34,8 @@ export function UpsellCustomerDialog({
   customer,
   filterCategory,
   companyId,
+  branchId,
+  division,
   periodMonth,
   activeWindow,
   excludeIntercompany,
@@ -44,6 +48,8 @@ export function UpsellCustomerDialog({
           company_id:    companyId,
           customer_id:   customer.id,
           category_id:   filterCategory?.id,
+          branch_id:     branchId,
+          division,
           period_month:  periodMonth,
           active_window: activeWindow,
           exclude_intercompany: excludeIntercompany,

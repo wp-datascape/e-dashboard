@@ -18,6 +18,8 @@ export interface CategoryProductsRepoParams {
   // (default false) karena query yang sama dipakai juga di tab Target Upsell &
   // halaman Products biasa, yang sengaja tetap tampilkan semua produk kategori.
   onlyHighMargin?: boolean
+  division?: string | null   // filter laporan - mirror division di high-margin-penetration.repository.ts
+  branchFilter?: number | null // filter laporan - mirror branch_id di high-margin-penetration.repository.ts
 }
 
 export interface CategoryProductDbRow {
@@ -57,6 +59,8 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
+  const division = p.division ?? null
+  const branchFilter = p.branchFilter ?? null
 
   // Task008 — kalau onlyHighMargin, batasi ke produk yang EFEKTIF high margin di
   // kategori ini pada periodEnd: ditandai langsung per-produk (hmp.product_id),
@@ -109,6 +113,8 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id = ${p.categoryId}::int
         AND ${onlyHmCond}
+        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}

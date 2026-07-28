@@ -167,6 +167,12 @@ export const categoryProductsQuerySchema = z.object({
     .optional()
     .default('all'),
   category_id: z.coerce.number().int().positive(),
+  // Filter laporan (bukan RBAC scope) — mirror division/branch_id di hmDetailQuerySchema,
+  // supaya drill-down produk konsisten dengan filter yang aktif di grid pemanggil
+  // (laporan user: filter divisi di grid sudah benar, tapi popup detail produk
+  // balik nampilin semua divisi).
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
@@ -235,6 +241,11 @@ export const customerProductsQuerySchema = z.object({
   customer_id:  z.coerce.number().int().positive(),
   category_id:  z.coerce.number().int().positive().optional(),
   item_type:    z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
+  // Filter laporan (bukan RBAC scope) — mirror division/branch_id di hmDetailQuerySchema,
+  // supaya riwayat pembelian customer di dialog drill-down konsisten dengan filter
+  // yang aktif di grid pemanggil.
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
   exclude_intercompany: excludeIntercompanyField,
   period_month: z
     .string()
