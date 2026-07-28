@@ -9,6 +9,7 @@ export interface ProductPerformanceRepoParams {
   activeWindow: number
   search: string       // '' = tanpa filter, cari nama produk
   categoryId?: number | null
+  itemType?: string | null
   highMarginOnly: boolean
   sortBy: 'total_revenue' | 'total_gp' | 'gp_margin_percent' | 'customer_count'
   sortDir: 'asc' | 'desc'
@@ -58,6 +59,7 @@ export async function fetchProductPerformance(
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
   const categoryId = p.categoryId ?? null
+  const itemType = p.itemType ?? null
 
   const rows = await db.execute(sql`
     WITH
@@ -145,6 +147,7 @@ export async function fetchProductPerformance(
     LEFT JOIN product_categories pc   ON pc.id = pr.product_category_id
     WHERE (${p.search} = '' OR pr.product_name ILIKE '%' || ${p.search} || '%')
       AND (${categoryId}::int IS NULL OR pr.product_category_id = ${categoryId}::int)
+      AND (${itemType}::text IS NULL OR pc.item_type = ${itemType}::text)
       AND (
         ${p.highMarginOnly}::boolean = false
         OR pr.id IN (SELECT product_id FROM hm_product_level)

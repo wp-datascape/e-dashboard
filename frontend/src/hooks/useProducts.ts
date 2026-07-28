@@ -42,10 +42,10 @@ export function useProductPerformance(params: ProductPerformanceParams) {
   })
 }
 
-export function useProductCategoryOptions(companyId: number | 'all') {
+export function useProductCategoryOptions(companyId: number | 'all', itemType?: 'unit' | 'sparepart' | 'consumable' | 'service') {
   return useQuery({
-    queryKey: ['products', 'product-category-options', companyId],
-    queryFn: () => productsApi.getProductCategoryOptions({ company_id: companyId }),
+    queryKey: ['products', 'product-category-options', companyId, itemType],
+    queryFn: () => productsApi.getProductCategoryOptions({ company_id: companyId, item_type: itemType }),
   })
 }
 

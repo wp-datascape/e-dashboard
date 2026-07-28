@@ -14,6 +14,12 @@
   "searchProductLabel": "Search Product",
   "filterCategoryLabel": "Category",
   "allCategories": "All Categories",
+  "filterItemTypeLabel": "Item Type",
+  "allItemTypes": "All Item Types",
+  "itemTypeUnit": "Unit",
+  "itemTypeSparepart": "Sparepart",
+  "itemTypeConsumable": "Consumable",
+  "itemTypeService": "Service",
   "drawer": {
     "serviceBadge": "Service",
     "subtitle": "Products in this category • {{window}} month window",

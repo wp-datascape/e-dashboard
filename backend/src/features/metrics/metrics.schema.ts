@@ -168,6 +168,7 @@ export const productPerformanceQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   division: divisionEnum,
+  item_type: z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
   category_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
   period_month: z
@@ -204,6 +205,7 @@ export const productCategoryOptionsQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
+  item_type: z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
 })
 export type ProductCategoryOptionsQuery = z.infer<typeof productCategoryOptionsQuerySchema>
 

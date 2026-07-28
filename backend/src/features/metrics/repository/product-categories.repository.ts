@@ -5,6 +5,7 @@ import { buildCompanyConditionRaw } from '@/utils/scope'
 export interface ProductCategoryOptionsRepoParams {
   cid: number
   companyScopeIds?: number[]
+  itemType?: string | null
 }
 
 export interface ProductCategoryOptionDbRow {
@@ -21,11 +22,13 @@ export async function fetchProductCategoryOptions(
   p: ProductCategoryOptionsRepoParams,
 ): Promise<ProductCategoryOptionDbRow[]> {
   const companyCond = buildCompanyConditionRaw('pc.company_id', p.cid, p.companyScopeIds)
+  const itemType = p.itemType ?? null
 
   const rows = await db.execute(sql`
     SELECT DISTINCT pc.id, pc.name
     FROM product_categories pc
     WHERE ${companyCond}
+      AND (${itemType}::text IS NULL OR pc.item_type = ${itemType}::text)
     ORDER BY pc.name
   `)
 

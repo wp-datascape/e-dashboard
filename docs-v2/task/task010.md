@@ -76,3 +76,19 @@ Tetap `total_revenue | total_gp | gp_margin_percent | customer_count` (whitelist
 4. [x] Manual via browser (Playwright, login admin@mail.com): halaman `/products` tampil flat list produk, filter Kategori dropdown berfungsi (contoh: pilih "ACCESS DOOR KASSEN" → semua baris kategori itu), search "KASSEN MT" → 6 baris cocok dengan hasil query langsung di atas
 5. [x] Halaman `ProductsHighMargin` (pemakai `CategoryProductsDialog` lain) tidak regresi — klik baris kategori masih buka popup drill-down dengan benar
 6. RBAC scope company/branch/division — belum ditest manual dengan user non-superadmin (mirror pattern `category-performance` yang sudah teruji, risiko rendah, tapi belum diverifikasi langsung)
+
+---
+
+## 5. Revisi (2026-07-29, sesudah task awal selesai) — Filter Item Type + Kategori cascading
+
+User minta filter dropdown Kategori diubah urutannya: **Item Type dulu, baru Kategori di bawahnya** — dan Kategori jadi **cascading** (opsinya cuma nampilin kategori yang `item_type`-nya cocok sama Item Type yang lagi dipilih; reset ke "Semua Kategori" tiap kali Item Type diganti).
+
+- [x] `productPerformanceQuerySchema` + `productCategoryOptionsQuerySchema` — tambah `item_type` (enum `unit|sparepart|consumable|service`, sama seperti yang dipakai `customerProductsQuerySchema`)
+- [x] `product-performance.repository.ts` — filter `pc.item_type` di WHERE
+- [x] `product-categories.repository.ts` — filter `pc.item_type` juga (ini yang bikin cascading-nya jalan)
+- [x] `metrics.service.ts` — teruskan `item_type` di `getProductPerformance()` & `getProductCategoryOptions()`
+- [x] Frontend: dropdown "Item Type" baru, ditaruh SEBELUM dropdown "Kategori"; ganti Item Type → `categoryId` di-reset ke `'all'` otomatis; `useProductCategoryOptions()` sekarang terima param `itemType`
+- [x] i18n `id`/`en` — `filterItemTypeLabel`, `allItemTypes`, `itemTypeUnit/Sparepart/Consumable/Service`
+- [x] `tsc -b` bersih FE+BE
+- [x] Verifikasi query langsung: `item_type=unit` → 105 produk; kategori utk `item_type=unit` → 51 opsi; `item_type=service` → 0 kategori (memang belum ada kategori jasa di data ini, bukan bug)
+- [x] Verifikasi manual browser: pilih Item Type "Sparepart" → dropdown Kategori otomatis cuma nampilin kategori sparepart (mis. "Z. SPARE PART ..."), grid ikut kefilter (14 baris, semua kategori sparepart)

@@ -36,6 +36,7 @@ export default function Products() {
   const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
   const [activeWindow,    setActiveWindow]    = useState(6)
   const [search,          setSearch]          = useState('')
+  const [itemType,        setItemType]        = useState<'all' | 'unit' | 'sparepart' | 'consumable' | 'service'>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
   const [highMarginOnly,  setHighMarginOnly]  = useState(false)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -46,12 +47,14 @@ export default function Products() {
     { field: 'total_revenue', sort: 'desc' },
   ])
 
-  const { data: categoryOptions = [] } = useProductCategoryOptions(companyId)
+  const itemTypeFilter = itemType === 'all' ? undefined : itemType
+  const { data: categoryOptions = [] } = useProductCategoryOptions(companyId, itemTypeFilter)
 
   const queryParams: ProductPerformanceParams = {
     company_id:      companyId,
     branch_id:       branchId === 'all' ? undefined : branchId,
     division:        division || undefined,
+    item_type:       itemTypeFilter,
     category_id:     categoryId === 'all' ? undefined : categoryId,
     period_month:    periodMonth,
     active_window:   activeWindow,
@@ -162,6 +165,25 @@ export default function Products() {
             onChange={(e) => { setSearch(e.target.value); setPaginationModel((p) => ({ ...p, page: 0 })) }}
             sx={{ minWidth: { xs: '100%', sm: 180 } }}
           />
+
+          <TextField
+            select size="small" label={t('products.filterItemTypeLabel')}
+            value={itemType}
+            onChange={(e) => {
+              // Kategori tergantung Item Type (cascading) - reset supaya tidak nyangkut
+              // kategori dari item type sebelumnya yang mungkin sudah tidak relevan.
+              setItemType(e.target.value as typeof itemType)
+              setCategoryId('all')
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+          >
+            <MenuItem value="all">{t('products.allItemTypes')}</MenuItem>
+            <MenuItem value="unit">{t('products.itemTypeUnit')}</MenuItem>
+            <MenuItem value="sparepart">{t('products.itemTypeSparepart')}</MenuItem>
+            <MenuItem value="consumable">{t('products.itemTypeConsumable')}</MenuItem>
+            <MenuItem value="service">{t('products.itemTypeService')}</MenuItem>
+          </TextField>
 
           <TextField
             select size="small" label={t('products.filterCategoryLabel')}

@@ -337,6 +337,7 @@ export async function getProductPerformance(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       categoryId:      params.category_id,
+      itemType:        params.item_type,
       periodEnd,
       activeWindow:   params.active_window,
       search:         params.search,
@@ -363,7 +364,7 @@ export async function getProductCategoryOptions(
 ): Promise<{ id: number; name: string }[]> {
   try {
     const cid = params.company_id === 'all' ? 0 : params.company_id
-    return await fetchProductCategoryOptions({ cid, companyScopeIds: scope.companyScopeIds })
+    return await fetchProductCategoryOptions({ cid, companyScopeIds: scope.companyScopeIds, itemType: params.item_type })
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar kategori', 500)
