@@ -18,6 +18,7 @@
     "statMargin": "Margin",
     "statInvoice": "Invoices",
     "statCustomer": "Customers",
+    "statUniqueTooltip": "Counted as unique per category — a customer/invoice that bought more than one product here is still counted once, so this can be lower than manually adding up the rows below.",
     "statLastSold": "Last Sold",
     "listTitle": "Product List ({{count}})",
     "colProductName": "Product Name",
