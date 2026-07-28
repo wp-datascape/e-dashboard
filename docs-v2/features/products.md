@@ -187,7 +187,9 @@ Field `is_high_margin` boolean di `product_categories` adalah desain lama (stati
 
 ### Halaman `/products` — Flat List Produk (task010, 2026-07-29)
 
-Sebelumnya halaman `/products` menampilkan grid **kategori** (`GET /metrics/category-performance`) — klik baris buka popup daftar produk. Sekarang (task010) diganti **flat list produk langsung** (`GET /metrics/product-performance` — lihat `features/metrics.md`) — tiap baris = 1 produk, kolom Kategori cuma teks biasa, ditambah dropdown filter Kategori opsional (`GET /metrics/product-categories`, SENGAJA endpoint terpisah dari `/products/categories` di bawah karena beda permission — lihat catatan di §API Endpoints). Popup drill-down (`CategoryProductsDialog`) **dihapus dari halaman ini** (baris sudah level produk, tidak perlu drill lagi).
+Sebelumnya halaman `/products` menampilkan grid **kategori** (`GET /metrics/category-performance`) — klik baris buka popup daftar produk. Sekarang (task010) diganti **flat list produk langsung** (`GET /metrics/product-performance` — lihat `features/metrics.md`) — tiap baris = 1 produk, kolom Kategori cuma teks biasa. Filter urutannya: **Item Type dulu, baru Kategori di bawahnya** (kategori cascading — opsinya cuma nampilin kategori yang `item_type`-nya cocok sama Item Type yang dipilih, reset tiap ganti Item Type). Popup drill-down (`CategoryProductsDialog`) **dihapus dari halaman ini** (baris sudah level produk, tidak perlu drill lagi).
+
+Dropdown filter Kategori sumbernya `GET /metrics/product-categories` (SENGAJA endpoint terpisah dari `/products/categories` di bawah karena beda permission — lihat catatan di §API Endpoints). Dropdown filter **Item Type** sumbernya `GET /settings/item-types/values` (task011 — dinamis per company, lihat `features/classification.md` §Item Type Dinamis; BUKAN 4 nilai hardcoded lagi).
 
 ### Drill-down Produk per Kategori (dialog `CategoryProductsDialog`) — masih dipakai di ProductsHighMargin
 
@@ -209,5 +211,5 @@ Dihitung dari rata-rata `(total_gp / total_revenue)` per kategori saat ada invoi
 
 ---
 
-**Last Updated**: 2026-07-29 (task010 — halaman `/products` jadi flat list produk, tambah §Halaman /products — Flat List Produk)
+**Last Updated**: 2026-07-29 (task011 — filter Item Type di halaman /products jadi dinamis per company, urutan filter Item Type sebelum Kategori)
 **Status**: ✅ Production Ready

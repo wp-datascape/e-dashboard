@@ -1,5 +1,5 @@
 // frontend/src/pages/Products/index.tsx
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
@@ -10,6 +10,7 @@ import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useProductPerformance, useProductCategoryOptions } from '@/hooks/useProducts'
+import { useItemTypeValues } from '@/hooks/useItemTypes'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
@@ -36,7 +37,7 @@ export default function Products() {
   const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
   const [activeWindow,    setActiveWindow]    = useState(6)
   const [search,          setSearch]          = useState('')
-  const [itemType,        setItemType]        = useState<'all' | 'unit' | 'sparepart' | 'consumable' | 'service'>('all')
+  const [itemType,        setItemType]        = useState<string>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
   const [highMarginOnly,  setHighMarginOnly]  = useState(false)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -49,6 +50,18 @@ export default function Products() {
 
   const itemTypeFilter = itemType === 'all' ? undefined : itemType
   const { data: categoryOptions = [] } = useProductCategoryOptions(companyId, itemTypeFilter)
+
+  const { data: itemTypeOptionsRaw = [] } = useItemTypeValues(companyId)
+  // companyId==='all' balikin union lintas company - dedupe by key (mirror fix
+  // yang sama di Config/Classification/index.tsx, kasus yang sama persis).
+  const itemTypeOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return itemTypeOptionsRaw.filter((opt) => {
+      if (seen.has(opt.key)) return false
+      seen.add(opt.key)
+      return true
+    })
+  }, [itemTypeOptionsRaw])
 
   const queryParams: ProductPerformanceParams = {
     company_id:      companyId,
@@ -179,10 +192,9 @@ export default function Products() {
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           >
             <MenuItem value="all">{t('products.allItemTypes')}</MenuItem>
-            <MenuItem value="unit">{t('products.itemTypeUnit')}</MenuItem>
-            <MenuItem value="sparepart">{t('products.itemTypeSparepart')}</MenuItem>
-            <MenuItem value="consumable">{t('products.itemTypeConsumable')}</MenuItem>
-            <MenuItem value="service">{t('products.itemTypeService')}</MenuItem>
+            {itemTypeOptions.map((opt) => (
+              <MenuItem key={opt.key} value={opt.key}>{opt.label}</MenuItem>
+            ))}
           </TextField>
 
           <TextField

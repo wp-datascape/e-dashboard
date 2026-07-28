@@ -55,7 +55,7 @@ export interface ProductPerformanceParams {
   company_id?: number | 'all'
   branch_id?: number
   division?: string
-  item_type?: 'unit' | 'sparepart' | 'consumable' | 'service'
+  item_type?: string // key dinamis per company (task011)
   category_id?: number
   period_month?: string
   active_window?: number

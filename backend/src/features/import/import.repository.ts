@@ -400,6 +400,11 @@ export async function findClassificationRules(companyId?: number) {
     .orderBy(desc(item_classification_rules.priority))
 }
 
+export async function findClassificationRuleById(id: number) {
+  const [row] = await db.select().from(item_classification_rules).where(eq(item_classification_rules.id, id))
+  return row ?? null
+}
+
 export async function createClassificationRule(data: NewItemClassificationRule) {
   const [result] = await db.insert(item_classification_rules).values(data).returning()
   return result

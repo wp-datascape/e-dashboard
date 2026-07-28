@@ -44,7 +44,7 @@ export const productsApi = {
 
   // 3.1c — Opsi dropdown filter kategori di halaman flat list produk
   getProductCategoryOptions: async (
-    params: { company_id: number | 'all'; item_type?: 'unit' | 'sparepart' | 'consumable' | 'service' }
+    params: { company_id: number | 'all'; item_type?: string }
   ): Promise<ProductCategoryOption[]> => {
     const res = await api.get<ApiResponse<ProductCategoryOption[]>>(
       '/metrics/product-categories',

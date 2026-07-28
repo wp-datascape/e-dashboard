@@ -168,7 +168,7 @@ export const productPerformanceQuerySchema = z.object({
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   division: divisionEnum,
-  item_type: z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
+  item_type: z.string().optional(), // key dinamis per company (task011)
   category_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
   period_month: z
@@ -205,7 +205,7 @@ export const productCategoryOptionsQuerySchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
-  item_type: z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
+  item_type: z.string().optional(), // key dinamis per company (task011)
 })
 export type ProductCategoryOptionsQuery = z.infer<typeof productCategoryOptionsQuerySchema>
 
@@ -288,7 +288,7 @@ export const customerProductsQuerySchema = z.object({
     .default('all'),
   customer_id:  z.coerce.number().int().positive(),
   category_id:  z.coerce.number().int().positive().optional(),
-  item_type:    z.enum(['unit', 'sparepart', 'consumable', 'service']).optional(),
+  item_type:    z.string().optional(), // key dinamis per company (task011)
   // Filter laporan (bukan RBAC scope) — mirror division/branch_id di hmDetailQuerySchema,
   // supaya riwayat pembelian customer di dialog drill-down konsisten dengan filter
   // yang aktif di grid pemanggil.
