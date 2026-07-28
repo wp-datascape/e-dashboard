@@ -241,6 +241,20 @@ export async function upsertProductCategory(data: {
     .limit(1)
 
   if (existing.length > 0) {
+    // item_type di-sync ke klasifikasi terbaru tiap import — sebelumnya kategori yang
+    // sudah ada TIDAK PERNAH di-update item_type-nya sama sekali (insert-once), jadi
+    // kategori yang salah klasifikasi di import pertama kali (sebelum aturan Classification
+    // Rules diperbaiki) nyangkut salah selamanya, walau aturan klasifikasinya sudah benar
+    // sekarang (laporan user 2026-07-29: kategori consumable seperti "V. LABEL SEMICOAT"
+    // masih tercatat 'sparepart' padahal harusnya 'consumable').
+    if (existing[0].item_type !== data.item_type) {
+      const [updated] = await db
+        .update(product_categories)
+        .set({ item_type: data.item_type, updated_at: new Date() })
+        .where(eq(product_categories.id, existing[0].id))
+        .returning()
+      return updated
+    }
     return existing[0]
   }
 
