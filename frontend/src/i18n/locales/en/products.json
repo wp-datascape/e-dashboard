@@ -1,7 +1,8 @@
 {
-  "title": "Category Performance Ledger",
-  "subtitle": "Revenue, GP, and margin by product category",
+  "title": "Product Performance Ledger",
+  "subtitle": "Revenue, GP, and margin by product",
   "categoryName": "Category",
+  "productName": "Product Name",
   "totalRevenue": "Revenue",
   "totalGP": "Gross Profit",
   "gpMargin": "GP Margin",
@@ -10,6 +11,9 @@
   "lastSoldMonth": "Last Sold",
   "highMarginBadge": "High Margin",
   "searchCategoryLabel": "Search Category",
+  "searchProductLabel": "Search Product",
+  "filterCategoryLabel": "Category",
+  "allCategories": "All Categories",
   "drawer": {
     "serviceBadge": "Service",
     "subtitle": "Products in this category • {{window}} month window",

@@ -30,6 +30,43 @@ export interface CategoryPerformanceParams {
   sort_dir?: 'asc' | 'desc'
 }
 
+// ─── 3.1c Product Performance (flat list produk, halaman /products) ──────────
+export interface ProductPerformanceRow {
+  id: number
+  product_id: number
+  product_name: string
+  category_id: number | null
+  category_name: string | null
+  is_high_margin: boolean
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+  invoice_count: number
+  customer_count: number
+  last_sold_month: string | null
+}
+
+export interface ProductCategoryOption {
+  id: number
+  name: string
+}
+
+export interface ProductPerformanceParams {
+  company_id?: number | 'all'
+  branch_id?: number
+  division?: string
+  category_id?: number
+  period_month?: string
+  active_window?: number
+  search?: string
+  high_margin_only?: boolean
+  exclude_intercompany?: boolean
+  page?: number
+  per_page?: number
+  sort_by?: 'total_revenue' | 'total_gp' | 'gp_margin_percent' | 'customer_count'
+  sort_dir?: 'asc' | 'desc'
+}
+
 // ─── 3.1b Category Products (drawer detail) ──────────────────────────────────
 export interface CategoryProductRow {
   id: number

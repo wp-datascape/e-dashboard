@@ -161,6 +161,52 @@ export const categoryPerformanceQuerySchema = z.object({
 
 export type CategoryPerformanceQuery = z.infer<typeof categoryPerformanceQuerySchema>
 
+export const productPerformanceQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
+  category_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(24)
+    .optional()
+    .default(6),
+  page:     z.coerce.number().int().positive().optional().default(1),
+  per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
+  search: z.string().optional().default(''),
+  high_margin_only: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
+  sort_by: z
+    .enum(['total_revenue', 'total_gp', 'gp_margin_percent', 'customer_count'])
+    .optional()
+    .default('total_revenue'),
+  sort_dir: z.enum(['asc', 'desc']).optional().default('desc'),
+})
+
+export type ProductPerformanceQuery = z.infer<typeof productPerformanceQuerySchema>
+
+export const productCategoryOptionsQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+})
+export type ProductCategoryOptionsQuery = z.infer<typeof productCategoryOptionsQuerySchema>
+
 export const categoryProductsQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])

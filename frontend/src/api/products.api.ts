@@ -4,6 +4,9 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type {
   CategoryPerformanceRow,
   CategoryPerformanceParams,
+  ProductPerformanceRow,
+  ProductPerformanceParams,
+  ProductCategoryOption,
   CategoryProductRow,
   CategoryProductsParams,
   HighMarginCategoryRow,
@@ -26,6 +29,28 @@ export const productsApi = {
       { params }
     )
     return res.data
+  },
+
+  // 3.1c — Product Performance (flat list produk)
+  getProductPerformance: async (
+    params: ProductPerformanceParams
+  ): Promise<PaginatedResponse<ProductPerformanceRow>> => {
+    const res = await api.get<PaginatedResponse<ProductPerformanceRow>>(
+      '/metrics/product-performance',
+      { params }
+    )
+    return res.data
+  },
+
+  // 3.1c — Opsi dropdown filter kategori di halaman flat list produk
+  getProductCategoryOptions: async (
+    params: { company_id: number | 'all' }
+  ): Promise<ProductCategoryOption[]> => {
+    const res = await api.get<ApiResponse<ProductCategoryOption[]>>(
+      '/metrics/product-categories',
+      { params }
+    )
+    return res.data.data
   },
 
   // 3.1b — Products in a category (drawer)

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetCategoryProducts, handleGetHmDetail, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -18,6 +18,8 @@ metricsRoutes.get('/hm-breakdown',          requirePermission('expansion:view'),
 metricsRoutes.get('/ror-breakdown',         requirePermission('expansion:view'), handleGetRorBreakdown)
 metricsRoutes.get('/dormant-customer',      requirePermission('churn.risk:view'), handleGetDormantMetrics)
 metricsRoutes.get('/category-performance',  requirePermission('product:view'), handleGetCategoryPerformance)
+metricsRoutes.get('/product-performance',   requirePermission('product:view'), handleGetProductPerformance)
+metricsRoutes.get('/product-categories',    requirePermission('product:view'), handleGetProductCategoryOptions)
 metricsRoutes.get('/category-products',                 requirePermission('product:view'), handleGetCategoryProducts)
 metricsRoutes.get('/high-margin-penetration/detail',    requirePermission('high.margin:view'), handleGetHmDetail)
 metricsRoutes.get('/high-margin-penetration/customers', requirePermission('high.margin:view'), handleGetUpsellTargets)
