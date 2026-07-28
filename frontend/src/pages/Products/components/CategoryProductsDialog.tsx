@@ -2,6 +2,9 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
+import MuiTooltip from '@mui/material/Tooltip'
+import IconButton from '@mui/material/IconButton'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { Dialog, StatusChip } from '@/components/ui'
 import { useTranslation } from 'react-i18next'
 import { useCategoryProducts } from '@/hooks/useProducts'
@@ -182,14 +185,28 @@ export function CategoryProductsDialog({
             { label: t('products.drawer.statTotalRevenue'), value: formatIDR(stats.total_revenue ?? 0) },
             { label: t('products.drawer.statTotalGp'),      value: formatIDR(stats.total_gp ?? 0) },
             { label: t('products.drawer.statMargin'),        value: `${(stats.gp_margin_percent ?? 0).toFixed(1)}%` },
-            { label: t('products.drawer.statInvoice'),        value: String(stats.invoice_count ?? '—') },
-            { label: t('products.drawer.statCustomer'),      value: String(stats.customer_count ?? '—') },
+            { label: t('products.drawer.statInvoice'),        value: String(stats.invoice_count ?? '—'), unique: true },
+            { label: t('products.drawer.statCustomer'),      value: String(stats.customer_count ?? '—'), unique: true },
             { label: t('products.drawer.statLastSold'), value: stats.last_sold_month ?? '—' },
-          ].map(({ label, value }) => (
+          ].map(({ label, value, unique }) => (
             <Box key={label} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {label}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  {label}
+                </Typography>
+                {unique && (
+                  <MuiTooltip
+                    title={t('products.drawer.statUniqueTooltip')}
+                    placement="top"
+                    arrow
+                    slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.5 } } }}
+                  >
+                    <IconButton size="small" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                      <InfoOutlinedIcon sx={{ fontSize: 13 }} />
+                    </IconButton>
+                  </MuiTooltip>
+                )}
+              </Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                 {value}
               </Typography>
