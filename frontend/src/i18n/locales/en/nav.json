@@ -42,6 +42,7 @@
     "administration": "Administration",
     "settings": "Settings",
     "config": "Config",
+    "accessControl": "Access Control",
     "admin": "Admin"
   }
 }

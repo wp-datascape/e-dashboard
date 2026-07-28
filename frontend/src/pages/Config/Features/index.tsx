@@ -61,9 +61,12 @@ const GROUP_KEY_MAP: Record<string, string> = {
   import: 'nav.groups.config',
   'config-integration': 'nav.groups.config',
   'config-features': 'nav.groups.config',
-  users: 'nav.groups.config',
-  rbac: 'nav.groups.config',
-  'ab-testing': 'nav.groups.config',
+  // Users/Role/AB Testing di sidebar sungguhan (menu.tsx) cuma ada di grup Access
+  // Control - sebelumnya di sini malah masuk grup Konfigurasi, jadi kelihatan
+  // kayak ada di 2 menu berbeda (laporan user 2026-07-29).
+  users: 'nav.groups.accessControl',
+  rbac: 'nav.groups.accessControl',
+  'ab-testing': 'nav.groups.accessControl',
   'audit-log': 'nav.groups.admin',
 }
 
@@ -74,6 +77,7 @@ const GROUP_KEY_ORDER = [
   'nav.groups.transactionRevenue',
   'nav.groups.settings',
   'nav.groups.config',
+  'nav.groups.accessControl',
   'nav.groups.admin',
 ]
 
@@ -102,9 +106,10 @@ const ITEM_ORDER: Record<string, number> = {
   import: 1,
   'config-integration': 2,
   'config-features': 3,
-  users: 4,
-  rbac: 5,
-  'ab-testing': 6,
+  // Access Control
+  users: 0,
+  rbac: 1,
+  'ab-testing': 2,
   // Admin
   'audit-log': 0,
 }

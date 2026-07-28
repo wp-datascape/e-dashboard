@@ -66,6 +66,13 @@ const KPI_TARGET_KEYS = [
   'reactivation_target_low_pct',
   'reactivation_target_high_pct',
 ]
+// network_throttle_* (business_configs) punya halaman sendiri yang benar
+// (Access Control > AB Testing, lihat pages/AbTesting/index.tsx) — dikeluarkan
+// dari "General Settings" di sini supaya tidak nyasar tampil dobel di halaman
+// Threshold dengan label satuan yang salah (halaman ini nge-generic-kan semua
+// config non-dormant/non-KPI sebagai "bulan", padahal network_throttle_*
+// satuannya ms, laporan user 2026-07-29).
+const EXCLUDED_PREFIXES = ['network_throttle_']
 function getKpiTargetLabels(t: TFunction): Record<string, string> {
   return {
     repeat_order_target_pct:      t('config.kpiTarget.repeatOrderLabel'),
@@ -210,7 +217,11 @@ export default function ThresholdSettings() {
   const allItems: ConfigItem[] = configs ?? []
   const buDormantItems = allItems.filter((c) => c.key.startsWith(DORMANT_PREFIX))
   const kpiTargetItems = allItems.filter((c) => KPI_TARGET_KEYS.includes(c.key))
-  const otherItems = allItems.filter((c) => !c.key.startsWith(DORMANT_PREFIX) && !KPI_TARGET_KEYS.includes(c.key))
+  const otherItems = allItems.filter((c) =>
+    !c.key.startsWith(DORMANT_PREFIX) &&
+    !KPI_TARGET_KEYS.includes(c.key) &&
+    !EXCLUDED_PREFIXES.some((prefix) => c.key.startsWith(prefix)),
+  )
   const handleSave = (key: string, value: string) => mutate({ key, value })
 
   return (
