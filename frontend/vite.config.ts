@@ -38,11 +38,35 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Precache cuma static build assets. Sengaja TIDAK ada runtimeCaching
-        // untuk /api/* — data KPI/dashboard sensitif & harus selalu network-fresh,
-        // jangan pernah nyangkut di Cache Storage (lihat fix logout: queryClient.clear()).
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Precache JS/CSS/gambar - aman cache-first karena semua sudah content-hashed
+        // (tiap build dapat URL baru, versi lama otomatis tidak pernah diminta lagi).
+        // html SENGAJA dikeluarkan dari precache - kalau ikut di-precache, dia dilayani
+        // cache-first oleh SW dan baru ke-update di background pas ada deploy baru,
+        // jadi siapa pun yang sudah pernah buka app ini bisa nyangkut lihat versi lama
+        // (index.html nentuin bundle JS/CSS mana yang dipakai) berhari-hari sampai ada
+        // trigger update - kejadian nyata: footer & halaman login yang sudah dideploy
+        // baru masih tampil versi lama di browser orang lain. Ganti pakai runtimeCaching
+        // NetworkFirst di bawah - setiap navigasi coba jaringan dulu (selalu versi
+        // terbaru selama online), baru fallback ke cache kalau offline/network timeout.
+        globPatterns: ['**/*.{js,css,svg,png,woff2}'],
+        // vite-plugin-pwa default-nya diam-diam set navigateFallback: 'index.html'
+        // kalau tidak di-override (lihat defaultWorkbox di node_modules/vite-plugin-pwa) -
+        // itu registrasi NavigationRoute cache-first TERPISAH yang otomatis nempel duluan
+        // di depan runtimeCaching di bawah (Workbox match berdasar urutan registrasi,
+        // yang pertama cocok menang), jadi kalau dibiarkan, NetworkFirst di bawah tidak
+        // akan pernah kepanggil buat request navigasi. Wajib di-null-kan eksplisit di sini.
+        navigateFallback: undefined,
         navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-shell',
+              networkTimeoutSeconds: 3,
+            },
+          },
+        ],
         // Default limit Workbox 2 MiB — chunk CustomerMetrics (recharts+html2canvas+jspdf) ~2.6MB
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
