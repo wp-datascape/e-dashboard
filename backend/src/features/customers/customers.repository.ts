@@ -26,43 +26,38 @@ export async function findCustomers(
   const cid = company_id === 'all' ? 0 : company_id
   const dormantMonths = await resolveDormantMonths(cid, dormant)
 
-  // Subquery: live first/last invoice date per customer (dari tabel invoices langsung)
-  // Alias berbeda dari customers.first/last_invoice_date agar tidak ambigu di GROUP BY
+  // Subquery: live first/last invoice date + revenue aggregates per customer, semua
+  // dari tabel invoices LANGSUNG (tanpa join invoice_items). Revenue HARUS dihitung di
+  // sini, bukan inline di query utama — query utama join ke invoice_items (buat
+  // category_count), dan invoice dengan >1 item jadi >1 baris di situ, jadi SUM
+  // total_revenue inline kena duplikasi (laporan user: dialog detail customer tampil
+  // 352jt padahal revenue asli cuma 259jt, root cause sama persis di list ini).
+  // Alias beda dari customers.first/last_invoice_date agar tidak ambigu di GROUP BY.
   const liveDatesSq = db
     .select({
       customer_id: invoices.customer_id,
       live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_last'),
       live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_first'),
+      // WAJIB dibatasi invoice_date <= refDate — sebelumnya cuma filter deleted_at,
+      // jadi lifetime_value/avg_monthly_revenue SELALU all-time (mengabaikan as_of_date).
+      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)`.as('lifetime_value'),
+      // Dibatasi 12 bulan kalender terakhir (sama persis window monthly_revenue_trend
+      // di findCustomerDetail) — pembagi FIXED 12 (bukan COUNT bulan aktif) supaya
+      // nilainya persis rata-rata dari 12 bar grafik tren, termasuk bulan kosong = 0.
+      avg_monthly_revenue: sql<string>`
+        COALESCE(
+          SUM(CASE WHEN ${invoices.deleted_at} IS NULL
+                AND ${invoices.invoice_date} <= ${refDate}
+                AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+              THEN ${invoices.total_revenue}::numeric END) / 12.0,
+          0
+        )
+      `.as('avg_monthly_revenue'),
     })
     .from(invoices)
     .groupBy(invoices.customer_id)
     .as('live_dates')
 
-  // Aggregate expressions — WAJIB dibatasi `invoice_date <= refDate`, konsisten dengan
-  // liveDatesSq di atas. Sebelumnya cuma filter deleted_at, jadi lifetime_value/
-  // avg_monthly_revenue/total_invoices/category_count SELALU all-time (mengabaikan
-  // as_of_date sepenuhnya) - kebuktikan dari laporan user: filter tahun 2022 (sebelum
-  // invoice tertua) tetap menampilkan angka current, walau first/last_invoice_date
-  // sudah benar null (liveDatesSq sudah difilter refDate, cuma 4 expr ini yang lupa).
-  const lifetimeExpr = sql<string>`
-    COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)
-  `
-  // Dibatasi 12 bulan kalender terakhir (sama persis dengan window monthly_revenue_trend
-  // di findCustomerDetail) — dulu all-time (dibagi jumlah bulan aktif sepanjang histori),
-  // jadi angkanya tidak nyambung sama sekali dengan grafik tren 12 bulan yang tampil di
-  // dialog detail (laporan user 2026-07-23: "grafik trennya cuma 12 bulan tapi avg
-  // dihitung dari semua invoice yang mungkin lebih dari 12 bulan, itu konyol"). Pembagi
-  // FIXED 12 (bukan COUNT bulan aktif) supaya nilainya persis rata-rata dari 12 bar
-  // grafik tren (termasuk bulan kosong = 0), bukan cuma rata-rata bulan yang ada transaksi.
-  const avgMonthlyExpr = sql<string>`
-    COALESCE(
-      SUM(CASE WHEN ${invoices.deleted_at} IS NULL
-            AND ${invoices.invoice_date} <= ${refDate}
-            AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
-          THEN ${invoices.total_revenue}::numeric END) / 12.0,
-      0
-    )
-  `
   const invCountExpr = sql<number>`
     COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.id} END)
   `
@@ -100,8 +95,8 @@ export async function findCustomers(
   const isAsc = sort_dir === 'asc'
   const orderByExpr = (() => {
     switch (sort_by) {
-      case 'lifetime_value':      return isAsc ? asc(lifetimeExpr) : desc(lifetimeExpr)
-      case 'avg_monthly_revenue': return isAsc ? asc(avgMonthlyExpr) : desc(avgMonthlyExpr)
+      case 'lifetime_value':      return isAsc ? asc(liveDatesSq.lifetime_value) : desc(liveDatesSq.lifetime_value)
+      case 'avg_monthly_revenue': return isAsc ? asc(liveDatesSq.avg_monthly_revenue) : desc(liveDatesSq.avg_monthly_revenue)
       case 'category_count':      return isAsc ? asc(catCountExpr) : desc(catCountExpr)
       default:                    return isAsc ? asc(liveDatesSq.live_last) : desc(liveDatesSq.live_last)
     }
@@ -174,8 +169,8 @@ export async function findCustomers(
         first_invoice_date: liveDatesSq.live_first,
         last_invoice_date: liveDatesSq.live_last,
         total_invoices: invCountExpr,
-        lifetime_value: lifetimeExpr,
-        avg_monthly_revenue: avgMonthlyExpr,
+        lifetime_value: liveDatesSq.lifetime_value,
+        avg_monthly_revenue: liveDatesSq.avg_monthly_revenue,
         category_count: catCountExpr,
         status: statusExpr,
       })
@@ -197,7 +192,7 @@ export async function findCustomers(
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -265,22 +260,6 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
       first_invoice_date: liveFirstInv.mapWith(String),
       last_invoice_date: liveLastInv.mapWith(String),
       status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv),
-      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)`,
-      // Dibatasi 12 bulan kalender terakhir — window PERSIS SAMA dengan monthly_revenue_trend
-      // di bawah (generate_series 12 bulan), supaya "Avg Monthly Revenue" yang tampil di
-      // dialog ini benar-benar rata-rata dari 12 bar grafik tren yang sama, bukan dari
-      // seluruh histori customer (laporan user: dulu tidak nyambung dengan grafik tren).
-      // Pembagi FIXED 12 (bukan COUNT bulan aktif) — bulan kosong (0) tetap ikut dibagi,
-      // konsisten dengan grafik yang juga menampilkan bulan kosong sebagai bar 0.
-      avg_monthly_revenue: sql<string>`
-        COALESCE(
-          SUM(CASE WHEN ${invoices.deleted_at} IS NULL
-                AND ${invoices.invoice_date} <= ${refDate}
-                AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
-              THEN ${invoices.total_revenue}::numeric END) / 12.0,
-          0
-        )
-      `,
       category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoice_items.product_category_id} END)`,
     })
     .from(customers)
@@ -341,6 +320,16 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
     .orderBy(desc(invoices.invoice_date))
     .limit(5)
 
+  // lifetime_value & avg_monthly_revenue SENGAJA diambil dari SUM trendRows (12 bulan
+  // sama persis dengan grafik tren), BUKAN dihitung terpisah di query utama di atas.
+  // Dulu ada expr SUM sendiri di query utama, tapi query itu JOIN ke invoice_items
+  // (untuk category_count) — invoice dengan >1 item ke-duplikasi jadi >1 baris, SUM
+  // total_revenue pun ikut kegandaan (laporan user: dialog tampilkan 352jt padahal
+  // revenue asli cuma 259jt). trendRows agregat langsung dari invoices tanpa join
+  // invoice_items jadi aman dari duplikasi, dan sekalian bikin angka total di kartu
+  // metrik selalu sinkron dengan apa yang digambar di grafik tren.
+  const revenue12mo = trendRows.reduce((sum, t) => sum + Number(t.revenue), 0)
+
   return {
     id: row.id,
     customer_code: row.customer_code,
@@ -352,8 +341,8 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
     status: row.status as 'new' | 'active' | 'dormant' | 'existing',
     first_invoice_date: row.first_invoice_date,
     last_invoice_date: row.last_invoice_date,
-    lifetime_value: Number(row.lifetime_value),
-    avg_monthly_revenue: Number(row.avg_monthly_revenue),
+    lifetime_value: revenue12mo,
+    avg_monthly_revenue: revenue12mo / 12,
     category_count: Number(row.category_count),
     categories_bought: catRows.map((c) => c.name).filter(Boolean) as string[],
     monthly_revenue_trend: trendRows.map((t) => ({

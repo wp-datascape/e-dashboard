@@ -22,7 +22,7 @@
     "businessUnit": "Business Unit",
     "division": "Division",
     "channel": "Channel",
-    "lifetimeValue": "Lifetime Value",
+    "lifetimeValue": "Revenue (Last 12 Months)",
     "avgMonthly": "Avg Monthly Revenue",
     "categoriesBought": "Categories Bought",
     "revenueTrend": "Revenue & GP Trend (12 Months)",
