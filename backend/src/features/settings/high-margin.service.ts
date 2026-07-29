@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/utils/error'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   createHighMargin,
   findHighMarginById,
@@ -50,6 +51,7 @@ export async function addHighMargin(dto: CreateHighMarginDto, userId: number, ct
 export async function editHighMargin(id: number, dto: UpdateHighMarginDto, ctx: Context) {
   const existing = await findHighMarginById(id)
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `High margin mapping #${id} tidak ditemukan`, 404)
+  resolveCompanyScope(ctx, existing.company_id) // task015 §2c — throw 403 kalau mapping ini di luar akses company user
 
   const updated = await updateHighMargin(id, {
     effective_until: dto.effective_until ?? undefined,
@@ -71,6 +73,7 @@ export async function editHighMargin(id: number, dto: UpdateHighMarginDto, ctx: 
 export async function deactivateHighMargin(id: number, ctx: Context) {
   const existing = await findHighMarginById(id)
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `High margin mapping #${id} tidak ditemukan`, 404)
+  resolveCompanyScope(ctx, existing.company_id) // task015 §2c — throw 403 kalau mapping ini di luar akses company user
 
   const today = new Date().toISOString().split('T')[0]
   const result = await closeHighMargin(id, today)
@@ -90,6 +93,7 @@ export async function deactivateHighMargin(id: number, ctx: Context) {
 export async function removeHighMargin(id: number, ctx: Context) {
   const existing = await findHighMarginById(id)
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `High margin mapping #${id} tidak ditemukan`, 404)
+  resolveCompanyScope(ctx, existing.company_id) // task015 §2d — defense-in-depth (settings.product:delete saat ini superadmin-only)
 
   await deleteHighMargin(id)
 

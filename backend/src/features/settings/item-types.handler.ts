@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { success } from '@/utils/response'
 import { validateBody, validateQuery, validateParam } from '@/utils/validator'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   createItemTypeSchema,
   updateItemTypeSchema,
@@ -17,7 +18,8 @@ import {
 
 export async function handleListItemTypes(c: Context) {
   const query = validateQuery(c, listItemTypesQuerySchema)
-  const result = await listItemTypesService(query.company_id)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listItemTypesService(scopeIds)
   return success(c, result)
 }
 
@@ -29,6 +31,7 @@ export async function handleListItemTypeValues(c: Context) {
 
 export async function handleCreateItemType(c: Context) {
   const body = await validateBody(c, createItemTypeSchema)
+  resolveCompanyScope(c, body.company_id) // task015 §2d — defense-in-depth (config.classification:* saat ini superadmin-only)
   const result = await createItemTypeService(body, c)
   return success(c, result, 'Created', 201)
 }

@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/utils/error'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   findItemTypes,
   findActiveItemTypes,
@@ -19,9 +20,9 @@ function slugify(label: string): string {
   return slug || 'item'
 }
 
-export async function listItemTypesService(companyId: number | 'all') {
+export async function listItemTypesService(scopeIds?: number[]) {
   try {
-    return await findItemTypes(companyId)
+    return await findItemTypes(scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar item type', 500)
@@ -66,6 +67,7 @@ export async function updateItemTypeService(id: number, body: UpdateItemTypeDto,
   try {
     const existing = await findItemTypeById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Item type dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // task015 §2d — defense-in-depth (config.classification:* saat ini superadmin-only)
 
     const result = await updateItemType(id, body)
 
@@ -89,6 +91,7 @@ export async function deleteItemTypeService(id: number, ctx: Context) {
   try {
     const existing = await findItemTypeById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Item type dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // task015 §2d — defense-in-depth (config.classification:* saat ini superadmin-only)
 
     const inUse = await isItemTypeInUse(existing.company_id, existing.key)
     if (inUse) {

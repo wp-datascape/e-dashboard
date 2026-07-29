@@ -1,5 +1,7 @@
+import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/utils/error'
 import { isNotFoundError } from '@/utils/response'
+import { resolveCompanyScope } from '@/middleware/auth'
 import { findCustomers, findCustomerDetail } from './customers.repository'
 import type { CustomersQuery } from './customers.schema'
 
@@ -19,10 +21,20 @@ export async function getCustomers(
   }
 }
 
-export async function getCustomerDetail(id: number, asOfDate?: string) {
+// task015 §2a — sebelum fix ini, endpoint detail customer TIDAK ADA validasi
+// company_id sama sekali (celah RBAC, siapa pun yang login bisa lihat detail
+// customer company mana pun). scopeIds diminta dengan requested='all' supaya
+// TIDAK PERNAH throw 403 di sini (403 akan bocorin "row ini ada tapi bukan
+// milikmu") — kalau di luar scope, dikembalikan NOT_FOUND, konsisten dengan pola
+// findInvoiceDetail (row di luar scope = seolah tidak ada).
+export async function getCustomerDetail(id: number, asOfDate: string | undefined, ctx: Context) {
   try {
     const detail = await findCustomerDetail(id, asOfDate)
     if (!detail) throw new AppError(ErrorCode.NOT_FOUND, `Customer dengan id ${id} tidak ditemukan`, 404)
+    const scopeIds = resolveCompanyScope(ctx, 'all')
+    if (scopeIds && !scopeIds.includes(detail.company.id)) {
+      throw new AppError(ErrorCode.NOT_FOUND, `Customer dengan id ${id} tidak ditemukan`, 404)
+    }
     return detail
   } catch (err) {
     if (err instanceof AppError) throw err

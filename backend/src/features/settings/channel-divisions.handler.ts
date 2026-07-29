@@ -23,7 +23,8 @@ import {
 
 export async function handleListChannelDivisions(c: Context) {
   const query = validateQuery(c, listChannelDivisionsQuerySchema)
-  const result = await listChannelDivisionsService(query)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listChannelDivisionsService({ division: query.division, scopeIds, search: query.search })
   return success(c, result)
 }
 

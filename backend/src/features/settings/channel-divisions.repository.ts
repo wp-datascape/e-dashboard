@@ -1,19 +1,28 @@
 import { db } from '@/config/db'
 import { channel_divisions, companies, divisions } from '@/db/schema'
-import { and, eq, ilike, sql } from 'drizzle-orm'
-import type { CreateChannelDivisionDto, UpdateChannelDivisionDto, ListChannelDivisionsQuery } from './channel-divisions.schema'
+import { and, eq, ilike, inArray, sql } from 'drizzle-orm'
+import type { CreateChannelDivisionDto, UpdateChannelDivisionDto } from './channel-divisions.schema'
 
-export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
-  const { division, company_id, search } = params
+export interface FindChannelDivisionsParams {
+  division?: number
+  scopeIds?: number[]
+  search?: string
+}
+
+// task015 §2b — company_id dulu diterima mentah dari query (filter cuma jalan
+// kalau BUKAN 'all'), TIDAK PERNAH di-scope ke akses company user — admin non-
+// superadmin selalu lihat mapping SEMUA company. Sekarang scopeIds (hasil
+// resolveCompanyScope di handler) jadi SATU-SATUNYA filter company.
+export async function findChannelDivisions(params: FindChannelDivisionsParams) {
+  const { division, scopeIds, search } = params
+  if (scopeIds && scopeIds.length === 0) return []
 
   const conditions = []
 
   if (division) conditions.push(eq(channel_divisions.division_id, division))
 
-  // company_id sekarang WAJIB di channel_divisions (task012 v2 — tidak ada rule
-  // global lagi, division company-scoped)
-  if (company_id !== 'all') {
-    conditions.push(eq(channel_divisions.company_id, company_id))
+  if (scopeIds) {
+    conditions.push(inArray(channel_divisions.company_id, scopeIds))
   }
 
   if (search) {
