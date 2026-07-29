@@ -7,7 +7,7 @@ export async function getCustomers(
   params: CustomersQuery,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   try {
     const result = await findCustomers(params, scopeIds, branchScope, divisionScope)

@@ -16,10 +16,10 @@ import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditi
 export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyTrendPoint[]> {
   const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -35,10 +35,10 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
-        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND cd.company_id = i.company_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

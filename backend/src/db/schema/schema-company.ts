@@ -17,8 +17,10 @@ import {
   boolean,
   timestamp,
   unique,
+  uniqueIndex,
   primaryKey,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { users } from './schema-auth'
 
 // ─── companies ────────────────────────────────────────────────────────────────
@@ -65,6 +67,48 @@ export const company_branches = pgTable(
 
 export type CompanyBranch = typeof company_branches.$inferSelect
 export type NewCompanyBranch = typeof company_branches.$inferInsert
+
+// ─── divisions ────────────────────────────────────────────────────────────────
+
+/**
+ * Katalog Division per company (task012 v2, FK-based — lihat docs-v2/task/task012.md).
+ * Ditaruh di file ini (bukan schema-product.ts tempat channel_divisions berada) supaya
+ * tidak circular import — channel_divisions butuh referensi ke sini, dan file ini sudah
+ * jadi tempat company_branches (dipakai kolom branch_id di bawah).
+ *
+ * `branch_id` NULLABLE — NULL = berlaku company-wide (semua branch), diisi = spesifik
+ * 1 branch (mis. "Sales Counter" beda per cabang). Referensi FK eksplisit dari tabel lain
+ * (channel_divisions.division_id, user_divisions.division_id) — BUKAN soft-reference kayak
+ * item_types (task011), karena division menyentuh RBAC scope-check (utils/scope.ts).
+ */
+export const divisions = pgTable(
+  'divisions',
+  {
+    id: serial('id').primaryKey(),
+    company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+    branch_id: integer('branch_id').references(() => company_branches.id, { onDelete: 'cascade' }),
+    key: varchar('key', { length: 30 }).notNull(),
+    label: varchar('label', { length: 50 }).notNull(),
+    // b2b_dc | b2b_project | b2c | manufacturing
+    dormant_category: varchar('dormant_category', { length: 20 }).notNull(),
+    is_protected: boolean('is_protected').notNull().default(false),
+    is_active: boolean('is_active').notNull().default(true),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Duplikat per (company, branch spesifik, key) — NULL branch_id TIDAK ke-cover
+    // index biasa ini (Postgres: NULL tidak collide sesama NULL), makanya butuh
+    // partial index terpisah di bawah utk kasus company-wide.
+    uniqueIndex('divisions_company_branch_key_idx').on(table.company_id, table.branch_id, table.key),
+    uniqueIndex('divisions_company_key_global_idx')
+      .on(table.company_id, table.key)
+      .where(sql`${table.branch_id} IS NULL`),
+  ],
+)
+
+export type DivisionRow = typeof divisions.$inferSelect
+export type NewDivision = typeof divisions.$inferInsert
 
 // ─── business_configs ─────────────────────────────────────────────────────────
 
@@ -140,18 +184,21 @@ export type NewUserBranch = typeof userBranches.$inferInsert
  * Company (Company -> Branch -> Division). company_id tidak diulang di sini
  * karena sudah pasti didapat lewat company_branches.company_id (branch cuma
  * dimiliki 1 company). Lihat docs-v2/task/task001.md §3.2.
+ *
+ * `division_id` FK eksplisit ke divisions.id (task012 v2, dulunya varchar `division`
+ * soft-reference) — validasi service layer: division yang di-assign HARUS
+ * divisions.branch_id IS NULL (company-wide) ATAU divisions.branch_id = branch_id ini.
  */
 export const userDivisions = pgTable(
   'user_divisions',
   {
     user_id: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     branch_id: integer('branch_id').notNull().references(() => company_branches.id, { onDelete: 'cascade' }),
-    // distribution | project | e_commerce | intercompany | freelancer | support | other
-    division: varchar('division', { length: 50 }).notNull(),
+    division_id: integer('division_id').notNull().references(() => divisions.id, { onDelete: 'cascade' }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.user_id, table.branch_id, table.division] }),
+    pk: primaryKey({ columns: [table.user_id, table.branch_id, table.division_id] }),
   }),
 )
 

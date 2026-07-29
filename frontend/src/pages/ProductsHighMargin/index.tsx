@@ -57,7 +57,9 @@ function PenetrationBar({ value }: { value: number }) {
 interface FilterState {
   companyId: number | 'all'
   branchId: number | 'all'
-  division: string
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  division: number | ''
   periodMonth: string
   activeWindow: number
   excludeIntercompany: boolean

@@ -18,7 +18,7 @@ export interface CategoryPerformanceRow {
 export interface CategoryPerformanceParams {
   company_id?: number | 'all'
   branch_id?: number
-  division?: string
+  division?: number
   period_month?: string
   active_window?: number
   search?: string
@@ -54,7 +54,7 @@ export interface ProductCategoryOption {
 export interface ProductPerformanceParams {
   company_id?: number | 'all'
   branch_id?: number
-  division?: string
+  division?: number
   item_type?: string // key dinamis per company (task011)
   category_id?: number
   period_month?: string
@@ -85,7 +85,7 @@ export interface CategoryProductsParams {
   company_id?: number | 'all'
   category_id: number
   branch_id?: number
-  division?: string
+  division?: number
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean
@@ -113,7 +113,7 @@ export interface HighMarginCategoryRow {
 export interface HighMarginDetailParams {
   company_id?: number | 'all'
   branch_id?: number
-  division?: string
+  division?: number
   exclude_intercompany?: boolean
   period_month?: string
   active_window?: number
@@ -156,7 +156,7 @@ export interface CustomerProductsParams {
   category_id?: number
   item_type?: string
   branch_id?: number
-  division?: string
+  division?: number
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean
@@ -169,7 +169,7 @@ export interface UpsellTargetParams {
   branch_id?: number
   period_month?: string
   active_window?: number
-  business_unit?: string
+  business_unit?: number
   exclude_intercompany?: boolean
   page?: number
   per_page?: number
@@ -193,7 +193,7 @@ export interface ProductTrendData {
 export interface ProductTrendParams {
   company_id?: number | 'all'
   branch_id?: number
-  division?: string
+  division?: number
   period_month?: string
   active_window?: number
   exclude_intercompany?: boolean

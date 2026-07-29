@@ -1,10 +1,8 @@
 import { db } from '@/config/db'
-import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs } from '@/db/schema'
+import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs, divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { eq, and, inArray } from 'drizzle-orm'
-
-// Division: 6 value bisnis existing + 'other' ("Lainnya") — lihat docs-v2/task/task001.md §4.5
-const ALL_DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
+import { seedDefaultDivisions } from '@/features/settings/divisions.repository'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -120,6 +118,15 @@ const defaultPermissions = [
   { name: 'settings.channel.division:create', description: 'Create Channel Division', category: 'Channel Division' },
   { name: 'settings.channel.division:update', description: 'Update Channel Division', category: 'Channel Division' },
   { name: 'settings.channel.division:delete', description: 'Delete Channel Division', category: 'Channel Division' },
+  // Division CRUD (task012 v2) — permission TERPISAH dari settings.channel.division:*
+  // (yang cuma mapping channel->division) karena division menyentuh RBAC/scope akses
+  // user lain, sengaja dipisah biar lebih ketat. Sub-widget di halaman yang sama
+  // (Settings/Divisions), TIDAK punya :menu sendiri (mirror settings.branch:*/
+  // access.permission:* — sub-fitur dalam halaman yang sudah ada :menu-nya).
+  { name: 'settings.division:view',   description: 'View Division',   category: 'Division' },
+  { name: 'settings.division:create', description: 'Create Division', category: 'Division' },
+  { name: 'settings.division:update', description: 'Update Division', category: 'Division' },
+  { name: 'settings.division:delete', description: 'Delete Division', category: 'Division' },
   // Product Settings (High Margin mapping)
   { name: 'settings.product:menu',   description: 'Menu Product Settings', category: 'Product Settings' },
   { name: 'settings.product:view',   description: 'View Product Settings', category: 'Product Settings' },
@@ -216,6 +223,7 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.company:menu', 'settings.company:view', 'settings.company:update',
   'settings.branch:view', 'settings.branch:update',
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
+  'settings.division:view', 'settings.division:update',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'audit.log:menu', 'audit.log:view',
@@ -298,6 +306,21 @@ async function seedCompanies() {
     await db.insert(companies).values({ code: c.code, name: c.name })
     console.log(`  ok    ${c.code}`)
   }
+}
+
+/**
+ * Seed 7 division default (task012 v2) untuk tiap company — dipanggil di sini
+ * (bukan cuma lewat hook createCompany) karena seedCompanies() di atas insert
+ * company langsung ke DB (bypass companies.service.ts), dan seedUserAssignments()
+ * di bawah BUTUH divisions sudah terisi utk assign superadmin/admin full access.
+ */
+async function seedDivisionsDefault() {
+  console.log('Seeding divisions...')
+  const allCompanies = await db.select({ id: companies.id, code: companies.code }).from(companies)
+  for (const c of allCompanies) {
+    await seedDefaultDivisions(c.id)
+  }
+  console.log(`  ok    default divisions -> ${allCompanies.length} companies`)
 }
 
 async function seedBranches() {
@@ -422,6 +445,21 @@ async function seedUserAssignments() {
     const roleMap = Object.fromEntries(allRoles.map((r) => [r.name, r.id]))
     const cs = await db.select({ id: companies.id }).from(companies)
     const allBranches = await db.select({ id: company_branches.id, company_id: company_branches.company_id }).from(company_branches)
+    // Division sekarang FK per company + opsional per branch (task012 v2) — assign
+    // superadmin/admin ke division MILIK company itu (company-wide, branch_id NULL)
+    // + division spesifik branch itu sendiri kalau ada, bukan 7 value tetap lagi.
+    const allDivisions = await db.select({ id: divisions.id, company_id: divisions.company_id, branch_id: divisions.branch_id }).from(divisions).where(eq(divisions.is_active, true))
+    const companyWideDivisionIdsByCompany = new Map<number, number[]>()
+    const branchSpecificDivisionIdsByBranch = new Map<number, number[]>()
+    for (const d of allDivisions) {
+      if (d.branch_id == null) {
+        if (!companyWideDivisionIdsByCompany.has(d.company_id)) companyWideDivisionIdsByCompany.set(d.company_id, [])
+        companyWideDivisionIdsByCompany.get(d.company_id)!.push(d.id)
+      } else {
+        if (!branchSpecificDivisionIdsByBranch.has(d.branch_id)) branchSpecificDivisionIdsByBranch.set(d.branch_id, [])
+        branchSpecificDivisionIdsByBranch.get(d.branch_id)!.push(d.id)
+      }
+    }
 
     // superadmin & admin test users: auto-assign semua company + semua branch + semua division
     // (admin TIDAK bypass kode — lihat docs-v2/task/task001.md §2 — jadi tetap butuh row
@@ -460,14 +498,20 @@ async function seedUserAssignments() {
         }
         console.log(`  ok    ${branchesInScope.length} branches -> ${email}`)
 
+        let divisionAssignCount = 0
         for (const b of branchesInScope) {
-          for (const division of ALL_DIVISION_VALUES) {
+          const divisionIds = [
+            ...(companyWideDivisionIdsByCompany.get(b.company_id) ?? []),
+            ...(branchSpecificDivisionIdsByBranch.get(b.id) ?? []),
+          ]
+          for (const divisionId of divisionIds) {
             const [ex] = await db.select({ userId: userDivisions.user_id }).from(userDivisions)
-              .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division, division))).limit(1)
-            if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division })
+              .where(and(eq(userDivisions.user_id, u.id), eq(userDivisions.branch_id, b.id), eq(userDivisions.division_id, divisionId))).limit(1)
+            if (!ex) await db.insert(userDivisions).values({ user_id: u.id, branch_id: b.id, division_id: divisionId })
+            divisionAssignCount++
           }
         }
-        console.log(`  ok    ${branchesInScope.length * ALL_DIVISION_VALUES.length} branch-divisions -> ${email}`)
+        console.log(`  ok    ${divisionAssignCount} branch-divisions -> ${email}`)
       } else {
         console.log(`  skip  companies/branches/divisions -> ${email} (assign manual via UI)`)
       }
@@ -498,6 +542,7 @@ async function seedPageSettings() {
 async function seed() {
   try {
     await seedCompanies()
+    await seedDivisionsDefault()
     await seedBranches()
     await seedRoles()
     await seedUsers()

@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { loadThresholds, BU_DORMANT_KEY_MAP, resolveDormantMonths } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantCategory, resolveDormantMonths } from '@/features/config/threshold'
+import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
 import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -20,16 +21,16 @@ function todayDate(): string {
 export interface MetricsScope {
   companyScopeIds?: number[]
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
 }
 
 export async function resolveSegmentParams(
   companyId: number | 'all',
   filterDate: string,
-  division?: string,
+  division?: number,
   companyScopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
   branchId?: number,
   excludeIntercompany?: boolean,
 ): Promise<SegmentParams> {
@@ -37,12 +38,19 @@ export async function resolveSegmentParams(
   const cid = companyId === 'all' ? 0 : companyId
   let dormantMonths: number
   if (division) {
-    const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
+    const dormantKey = await resolveDormantCategory(division)
     dormantMonths = dormant[dormantKey]
   } else {
     dormantMonths = await resolveDormantMonths(cid, dormant)
   }
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
+  // Fallback division_id 'other'/'intercompany' per company (task012 v2) — resolusi
+  // sekali per request, lihat utils/scope.ts
+  const [otherIdByCompany, intercompanyIdByCompany] = await Promise.all([
+    loadDivisionFallbackIds('other'),
+    loadDivisionFallbackIds('intercompany'),
+  ])
+  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {

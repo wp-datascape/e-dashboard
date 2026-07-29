@@ -13,8 +13,8 @@ import Alert from '@mui/material/Alert';
 import { useTranslation } from 'react-i18next';
 
 import { useBranchesByCompany } from '@/hooks/useCompanies';
+import { useActiveDivisions } from '@/hooks/useDivisions';
 import type { Company, CompanyBranch } from '@/types/companies';
-import { DIVISION_VALUES } from '@/types/users';
 import type { CompanyAssignment, BranchAssignment, DivisionValue } from '@/types/users';
 
 interface AssignmentTreePickerProps {
@@ -91,6 +91,10 @@ function CompanyBranchSection({
 }) {
   const { t } = useTranslation();
   const { data: branches = [] } = useBranchesByCompany(assignment.company_id);
+  // Division dinamis per company (task012 v2) — cascading ke company yang lagi
+  // dipilih di section ini, bukan 7 value tetap sama untuk semua company lagi.
+  // branch_id NULL = company-wide (berlaku semua branch), diisi = spesifik branch itu.
+  const { data: companyDivisions = [] } = useActiveDivisions(assignment.company_id);
   const selectedBranchIds = assignment.branches.map((b) => b.branch_id);
 
   const handleBranchChange = (branchIds: number[]) => {
@@ -139,6 +143,7 @@ function CompanyBranchSection({
 
       {assignment.branches.map((b) => {
         const branch = branches.find((br: CompanyBranch) => br.id === b.branch_id);
+        const divisionOptions = companyDivisions.filter((d) => d.branch_id == null || d.branch_id === b.branch_id);
         return (
           <Box key={b.branch_id} sx={{ pl: 2, mb: 1.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -160,13 +165,15 @@ function CompanyBranchSection({
                 onChange={(e) => updateBranchDivisions(b.branch_id, e.target.value as DivisionValue[])}
                 input={<OutlinedInput label={t('users.selectDivisions')} />}
                 renderValue={(selected) =>
-                  (selected as DivisionValue[]).map((d) => t(`users.divisions.${d}`)).join(', ')
+                  (selected as DivisionValue[])
+                    .map((id) => divisionOptions.find((d) => d.id === id)?.label ?? id)
+                    .join(', ')
                 }
               >
-                {DIVISION_VALUES.map((d) => (
-                  <MenuItem key={d} value={d}>
-                    <Checkbox size="small" checked={b.divisions.includes(d)} />
-                    <ListItemText primary={t(`users.divisions.${d}`)} />
+                {divisionOptions.map((d) => (
+                  <MenuItem key={d.id} value={d.id}>
+                    <Checkbox size="small" checked={b.divisions.includes(d.id)} />
+                    <ListItemText primary={d.label} />
                   </MenuItem>
                 ))}
               </Select>

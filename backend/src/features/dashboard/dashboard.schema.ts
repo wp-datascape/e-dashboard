@@ -3,9 +3,8 @@ import { z } from 'zod'
 export const dashboardQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
-  division: z
-    .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other'])
-    .optional(),
+  // Division sekarang FK integer per company (task012 v2) — filter pakai division_id.
+  division: z.coerce.number().int().positive().optional(),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany'. Lihat
   // utils/scope.ts buildExcludeIntercompanyCondition/-Raw(). BUKAN z.coerce.boolean() —

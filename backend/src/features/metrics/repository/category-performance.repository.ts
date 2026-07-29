@@ -13,11 +13,13 @@ export interface CategoryPerformanceRepoParams {
   sortDir: 'asc' | 'desc'
   page: number
   perPage: number
-  division?: string | null
+  division?: number | null
   excludeIntercompany?: boolean
   branchFilter?: number | null
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
+  otherIdByBranch?: Map<number, number>
+  intercompanyIdByCompany?: Map<number, number>
 }
 
 export interface CategoryPerformanceDbRow {
@@ -50,10 +52,10 @@ export async function fetchCategoryPerformance(
   const sortDir = p.sortDir === 'asc' ? 'ASC' : 'DESC'
   const offset  = (p.page - 1) * p.perPage
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -73,14 +75,14 @@ export async function fetchCategoryPerformance(
       JOIN customers c ON c.id = i.customer_id
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
-        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND cd.company_id = i.company_id
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id IS NOT NULL
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

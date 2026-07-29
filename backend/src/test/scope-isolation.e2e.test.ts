@@ -14,7 +14,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { Hono } from 'hono'
 import { eq, ne } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs } from '@/db/schema'
+import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs, divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
 
@@ -27,7 +27,11 @@ const USER_ROLE_ID = 3
 // isolasi scope berlaku ke SEMUA role non-superadmin, bukan cuma 'user'.
 const ADMIN_ROLE_ID = 2
 const TEST_PASSWORD = 'password123'
-const ALL_DIVISIONS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
+// Division sekarang FK integer per company (task012 v2) — id dinamis, di-resolve
+// di beforeAll() lewat divisionIdByKey/divisionLabelById (bukan literal string lagi).
+let divisionIdByKey: Map<string, number>
+let divisionLabelById: Map<number, string>
+let ALL_DIVISION_IDS: number[]
 
 const app = new Hono()
 createRouter(app)
@@ -48,7 +52,7 @@ async function loginAndGetCookie(email: string, password: string = TEST_PASSWORD
 
 async function createTestUser(
   emailPrefix: string,
-  assignment: { companyId: number; branchIds: number[]; divisionsByBranch: Record<number, string[]> },
+  assignment: { companyId: number; branchIds: number[]; divisionsByBranch: Record<number, number[]> },
   roleId: number = USER_ROLE_ID,
 ): Promise<{ id: number; email: string }> {
   return createTestUserMultiCompany(emailPrefix, [assignment], roleId)
@@ -61,7 +65,7 @@ async function createTestUser(
  */
 async function createTestUserMultiCompany(
   emailPrefix: string,
-  assignments: { companyId: number; branchIds: number[]; divisionsByBranch: Record<number, string[]> }[],
+  assignments: { companyId: number; branchIds: number[]; divisionsByBranch: Record<number, number[]> }[],
   roleId: number = USER_ROLE_ID,
 ): Promise<{ id: number; email: string }> {
   const email = `${emailPrefix}.${Date.now()}.${Math.random().toString(36).slice(2)}@test.local`
@@ -77,10 +81,10 @@ async function createTestUserMultiCompany(
         assignment.branchIds.map((branchId) => ({ user_id: user!.id, company_id: assignment.companyId, branch_id: branchId })),
       )
     }
-    for (const [branchId, divisions] of Object.entries(assignment.divisionsByBranch)) {
-      if (divisions.length === 0) continue
+    for (const [branchId, divisionIds] of Object.entries(assignment.divisionsByBranch)) {
+      if (divisionIds.length === 0) continue
       await db.insert(userDivisions).values(
-        divisions.map((division) => ({ user_id: user!.id, branch_id: Number(branchId), division })),
+        divisionIds.map((divisionId) => ({ user_id: user!.id, branch_id: Number(branchId), division_id: divisionId })),
       )
     }
   }
@@ -147,11 +151,26 @@ beforeAll(async () => {
     throw new Error(`Company ${COMPANY_ID} butuh minimal 2 branch untuk test G5 (multi-branch OR-precedence) — cuma ada ${allBranchIds.length}`)
   }
 
+  // Division sekarang FK integer per company (task012 v2) — resolve id dinamis dari
+  // tabel divisions (company-wide, branch_id NULL), bukan literal string tetap lagi.
+  const companyDivisions = await db
+    .select({ id: divisions.id, key: divisions.key, label: divisions.label })
+    .from(divisions)
+    .where(eq(divisions.company_id, COMPANY_ID))
+  divisionIdByKey = new Map(companyDivisions.map((d) => [d.key, d.id]))
+  divisionLabelById = new Map(companyDivisions.map((d) => [d.id, d.label]))
+  ALL_DIVISION_IDS = companyDivisions.map((d) => d.id)
+  const distributionId = divisionIdByKey.get('distribution')
+  const eCommerceId = divisionIdByKey.get('e_commerce')
+  if (!distributionId || !eCommerceId) {
+    throw new Error(`Company ${COMPANY_ID} butuh division 'distribution' dan 'e_commerce' untuk test ini`)
+  }
+
   // G4: full-coverage user - semua branch + semua division (mirror seeder Task F1)
   fullAccessUser = await createTestUser('e2e-full', {
     companyId: COMPANY_ID,
     branchIds: allBranchIds,
-    divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISIONS])),
+    divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISION_IDS])),
   })
 
   // G2: cuma branch pertama, cuma division 'distribution' (dulu hardcode branch_id=6,
@@ -160,7 +179,7 @@ beforeAll(async () => {
   distributionOnlyUser = await createTestUser('e2e-dist', {
     companyId: COMPANY_ID,
     branchIds: [allBranchIds[0]!],
-    divisionsByBranch: { [allBranchIds[0]!]: ['distribution'] },
+    divisionsByBranch: { [allBranchIds[0]!]: [distributionId] },
   })
 
   // G3: company di-assign tapi ZERO branch — default deny total
@@ -194,22 +213,28 @@ beforeAll(async () => {
     {
       companyId: COMPANY_ID,
       branchIds: allBranchIds,
-      divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISIONS])),
+      divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISION_IDS])),
     },
     ADMIN_ROLE_ID,
   )
 
-  // G5.4: scope lintas 2 company sekaligus
+  // G5.4: scope lintas 2 company sekaligus — division company kedua di-resolve terpisah
+  // (id-nya beda dari company 1, meski key-nya mungkin sama)
+  const secondCompanyDivisions = await db
+    .select({ id: divisions.id })
+    .from(divisions)
+    .where(eq(divisions.company_id, secondCompanyId))
+  const secondCompanyDivisionIds = secondCompanyDivisions.map((d) => d.id)
   crossCompanyUser = await createTestUserMultiCompany('e2e-g5-cross', [
     {
       companyId: COMPANY_ID,
       branchIds: allBranchIds,
-      divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISIONS])),
+      divisionsByBranch: Object.fromEntries(allBranchIds.map((id) => [id, ALL_DIVISION_IDS])),
     },
     {
       companyId: secondCompanyId,
       branchIds: [secondCompanyBranchId],
-      divisionsByBranch: { [secondCompanyBranchId]: ALL_DIVISIONS },
+      divisionsByBranch: { [secondCompanyBranchId]: secondCompanyDivisionIds },
     },
   ])
 
@@ -221,8 +246,8 @@ beforeAll(async () => {
     companyId: COMPANY_ID,
     branchIds: [allBranchIds[0]!, allBranchIds[1]!],
     divisionsByBranch: {
-      [allBranchIds[0]!]: ['distribution'],
-      [allBranchIds[1]!]: ['e_commerce'],
+      [allBranchIds[0]!]: [distributionId],
+      [allBranchIds[1]!]: [eCommerceId],
     },
   })
 
@@ -265,9 +290,10 @@ describe('Task G2 — isolasi division', () => {
     })
     expect(res.status).toBe(200)
     const body = await res.json() as { data: { division: string | null }[] }
-    const divisions = new Set(body.data.map((c) => c.division).filter(Boolean))
-    for (const d of divisions) {
-      expect(d).toBe('distribution')
+    const divisionLabels = new Set(body.data.map((c) => c.division).filter(Boolean))
+    const expectedLabel = divisionLabelById.get(divisionIdByKey.get('distribution')!) ?? null
+    for (const d of divisionLabels) {
+      expect(d).toBe(expectedLabel)
     }
   })
 })
@@ -372,7 +398,7 @@ describe('Task G5 — regresi precedence AND/OR pada scope condition (multi-bran
 
   test('[branch] branch_id + division dipilih bersamaan → identik superadmin', async () => {
     const targetBranch = allBranchIds[0]!
-    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=distribution&period_end=2026-06-30`
+    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=${divisionIdByKey.get('distribution')}&period_end=2026-06-30`
     const [scopedRes, superRes] = await Promise.all([
       app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.fullAccess } }),
       app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
@@ -399,7 +425,7 @@ describe('Task G5 — regresi precedence AND/OR pada scope condition (multi-bran
 
   test('[division in-scope] branch dengan >1 division-scope entries, filter division yang di-assign → identik superadmin', async () => {
     const targetBranch = allBranchIds[0]! // narrowDivisionUser: division 'distribution' di branch ini
-    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=distribution&period_end=2026-06-30`
+    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=${divisionIdByKey.get('distribution')}&period_end=2026-06-30`
     const [scopedRes, superRes] = await Promise.all([
       app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.narrowDivision } }),
       app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
@@ -413,7 +439,7 @@ describe('Task G5 — regresi precedence AND/OR pada scope condition (multi-bran
 
   test('[division out-of-scope] branch dengan >1 division-scope entries, filter division yang TIDAK di-assign → data kosong (bukan bocor)', async () => {
     const targetBranch = allBranchIds[0]! // narrowDivisionUser cuma punya 'distribution' di branch ini, bukan 'e_commerce'
-    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=e_commerce&period_end=2026-06-30`
+    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=${divisionIdByKey.get('e_commerce')}&period_end=2026-06-30`
     const res = await app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.narrowDivision } })
     expect(res.status).toBe(200)
     const body = await res.json() as { data: { trend: { existing_customers: number; total_revenue_existing: number }[] } }

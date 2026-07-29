@@ -8,10 +8,9 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui'
-import { useDivisionOptions } from '@/hooks/useDivisionOptions'
+import { useActiveDivisions } from '@/hooks/useDivisions'
 import { useUnmappedChannels } from '@/hooks/useChannelDivisions'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
-import type { Division } from '@/types/customers'
 import type { Company } from '@/types/companies'
 import { getApiErrorMessage } from '@/utils/apiError'
 
@@ -33,11 +32,15 @@ export function DivisionMappingDialog({
   open, mode, selected, companies, isPending, error, onClose, onCreate, onUpdate,
 }: Props) {
   const { t } = useTranslation()
-  const divisionOptions = useDivisionOptions('all')
 
   const [channelName, setChannelName] = useState('')
-  const [division, setDivision] = useState<NonNullable<Division> | ''>('')
+  const [division, setDivision] = useState<number | ''>('')
   const [companyId, setCompanyId] = useState<number | ''>('')
+
+  // Dropdown Division cascading ke company yang lagi dipilih (task012 v2 — company_id
+  // sekarang WAJIB di channel_divisions, tidak ada opsi "Global" lagi karena division
+  // sendiri company-scoped). Kosong sampai company dipilih.
+  const { data: divisionOptions = [] } = useActiveDivisions(companyId === '' ? 'all' : companyId)
 
   // Opsi channel_name: hanya yang riil ada di invoices dan belum punya mapping —
   // tidak ada opsi hardcode/ketik bebas, cuma pilih dari apa yang ada.
@@ -58,19 +61,19 @@ export function DivisionMappingDialog({
     if (currentKey !== syncedKey) {
       setSyncedKey(currentKey)
       setChannelName(selected?.channel_name ?? '')
-      setDivision((selected?.division ?? '') as NonNullable<Division> | '')
+      setDivision(selected?.division_id ?? '')
       setCompanyId(selected?.company_id ?? '')
     }
   }
 
-  const isValid = channelName.trim().length > 0 && division !== ''
+  const isValid = channelName.trim().length > 0 && division !== '' && companyId !== ''
 
   const handleSubmit = () => {
     if (!isValid) return
     const payload = {
       channel_name: channelName.trim().toUpperCase(),
-      division: division as NonNullable<Division>,
-      company_id: companyId !== '' ? companyId : null,
+      division_id: division as number,
+      company_id: companyId as number,
     }
     if (mode === 'create') {
       onCreate(payload)
@@ -124,28 +127,31 @@ export function DivisionMappingDialog({
         )}
 
         <FormControl fullWidth size="small" required>
-          <InputLabel>{t('divisions.division')}</InputLabel>
-          <Select
-            value={division}
-            label={t('divisions.division')}
-            onChange={(e) => setDivision(e.target.value as NonNullable<Division>)}
-          >
-            {divisionOptions.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl fullWidth size="small">
           <InputLabel>{t('divisions.scope')}</InputLabel>
           <Select
             value={companyId}
             label={t('divisions.scope')}
-            onChange={(e) => setCompanyId(e.target.value as number | '')}
+            onChange={(e) => {
+              setCompanyId(Number(e.target.value))
+              // Reset division — daftar opsi berubah begitu company berubah (cascading)
+              setDivision('')
+            }}
           >
-            <MenuItem value="">{t('divisions.scopeGlobal')}</MenuItem>
             {companies.map((c) => (
               <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth size="small" required disabled={companyId === ''}>
+          <InputLabel>{t('divisions.division')}</InputLabel>
+          <Select
+            value={division}
+            label={t('divisions.division')}
+            onChange={(e) => setDivision(Number(e.target.value))}
+          >
+            {divisionOptions.map((opt) => (
+              <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
             ))}
           </Select>
         </FormControl>

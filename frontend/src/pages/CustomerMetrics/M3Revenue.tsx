@@ -122,7 +122,7 @@ interface Props {
   isLoading: boolean
   companyId: number | 'all'
   branchId?: number
-  division?: string
+  division?: number
   excludeIntercompany?: boolean
 }
 

@@ -71,7 +71,10 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
         <TextField
           select size={size} label={t('customers.detail.division')}
           value={division}
-          onChange={(e) => setDivision(e.target.value as typeof division)}
+          // Division sekarang division_id (number, task012 v2) — konversi eksplisit,
+          // sama seperti Entity/Branch di atas (jangan andalkan `as` cast, MUI Select
+          // event value bisa datang sebagai string tergantung render path).
+          onChange={(e) => setDivision(e.target.value === '' ? '' : Number(e.target.value))}
           sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
           // MUI Select tidak render teks MenuItem terpilih kalau value === '' kecuali
           // displayEmpty di-set - beda dari Entity/Branch yang pakai sentinel 'all'

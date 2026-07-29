@@ -35,7 +35,7 @@ interface Props {
   hm: { bought_pct: number; not_bought_pct: number } | undefined
   companyId: number | 'all'
   branchId?: number
-  division?: string
+  division?: number
   periodEnd: string
   excludeIntercompany?: boolean
 }

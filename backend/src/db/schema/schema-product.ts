@@ -17,7 +17,7 @@ import {
   integer,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { companies } from './schema-company'
+import { companies, divisions } from './schema-company'
 import { users } from './schema-auth'
 
 // ─── product_categories ───────────────────────────────────────────────────────
@@ -143,16 +143,18 @@ export type NewItemType = typeof item_types.$inferInsert
 // ─── channel_divisions ────────────────────────────────────────────────────────
 
 /**
- * Mapping channel_name -> divisi channel penjualan. company_id nullable = rule
- * global (berlaku semua company). Cocok dengan invoices.channel_name (UPPERCASE).
+ * Mapping channel_name -> divisi channel penjualan. Cocok dengan invoices.channel_name
+ * (UPPERCASE). `division_id` FK eksplisit ke divisions.id (task012 v2, dulunya varchar
+ * `division` soft-reference). `company_id` sekarang WAJIB (dulu nullable = rule global
+ * lintas company) — konsekuensi logis dari division yang company-scoped, tidak ada
+ * "division row" yang berlaku utk semua company sekaligus. Dicek aman: 0 baris company_id
+ * NULL di data existing sebelum migrasi.
  */
 export const channel_divisions = pgTable('channel_divisions', {
   id: serial('id').primaryKey(),
-  // null = global rule (berlaku untuk semua company)
-  company_id: integer('company_id').references(() => companies.id, { onDelete: 'cascade' }),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  division_id: integer('division_id').notNull().references(() => divisions.id, { onDelete: 'cascade' }),
   channel_name: varchar('channel_name', { length: 255 }).notNull(),
-  // distribution | project | e_commerce | intercompany | freelancer | support | other
-  division: varchar('division', { length: 50 }).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

@@ -6,7 +6,8 @@ export const invoicesQuerySchema = z.object({
     .optional()
     .default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
-  business_unit: z.enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']).optional(),
+  // Division sekarang FK integer per company (task012 v2) — filter pakai division_id.
+  business_unit: z.coerce.number().int().positive().optional(),
   // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany'. Lihat
   // utils/scope.ts buildExcludeIntercompanyCondition/-Raw(). BUKAN z.coerce.boolean() —
   // Boolean("false") === true di JS, jadi toggle OFF (?exclude_intercompany=false)

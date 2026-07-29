@@ -1,14 +1,20 @@
 import { db } from '@/config/db'
-import { invoices, invoice_items, customers, companies, channel_divisions, import_logs } from '@/db/schema'
+import { invoices, invoice_items, customers, companies, channel_divisions, import_logs, divisions } from '@/db/schema'
 import { and, eq, inArray, isNull, sql, desc, asc, ilike, or, gte, lte } from 'drizzle-orm'
-import { buildBranchCondition, buildDivisionCondition, buildExcludeIntercompanyCondition } from '@/utils/scope'
+import {
+  buildBranchCondition,
+  buildDivisionCondition,
+  buildExcludeIntercompanyCondition,
+  loadDivisionFallbackIds,
+  flattenFallbackByBranch,
+} from '@/utils/scope'
 import type { InvoicesQuery } from './transactions.schema'
 
 export async function findInvoices(
   params: InvoicesQuery,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   const { company_id, branch_id, business_unit, exclude_intercompany, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
   const offset = (page - 1) * per_page
@@ -31,11 +37,21 @@ export async function findInvoices(
   if (date_to) conditions.push(lte(invoices.invoice_date, date_to))
 
   const whereClause = and(...conditions)
-  const divisionCond = business_unit ? eq(channel_divisions.division, business_unit) : undefined
+
+  // Fallback division_id 'other'/'intercompany' per company (task012 v2 — COALESCE
+  // dulu literal string tunggal, sekarang beda id per company, lihat utils/scope.ts)
+  const [otherIdByCompany, intercompanyIdByCompany] = await Promise.all([
+    loadDivisionFallbackIds('other'),
+    loadDivisionFallbackIds('intercompany'),
+  ])
+  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
+
+  // Division filter (business_unit param, sekarang numeric division_id — task012 v2)
+  const divisionCond = business_unit ? eq(channel_divisions.division_id, business_unit) : undefined
   const branchFilterCond = branch_id ? eq(invoices.branch_id, branch_id) : undefined
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
-  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
-  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(channel_divisions.division, exclude_intercompany)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, intercompanyIdByCompany, exclude_intercompany)
   const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond, excludeIntercompanyCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
@@ -61,7 +77,7 @@ export async function findInvoices(
         channel_divisions,
         and(
           eq(channel_divisions.channel_name, invoices.channel_name),
-          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+          eq(channel_divisions.company_id, invoices.company_id),
         ),
       )
       .where(whereWithDivision)
@@ -74,7 +90,7 @@ export async function findInvoices(
         customer_id:    customers.id,
         customer_code:  customers.customer_code,
         customer_name:  customers.customer_name,
-        division:       channel_divisions.division,
+        division:       divisions.label,
         company_id:     companies.id,
         company_name:   companies.name,
         total_revenue:  invoices.total_revenue,
@@ -89,13 +105,14 @@ export async function findInvoices(
         channel_divisions,
         and(
           eq(channel_divisions.channel_name, invoices.channel_name),
-          or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+          eq(channel_divisions.company_id, invoices.company_id),
         ),
       )
+      .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
       .leftJoin(import_logs, eq(import_logs.id, invoices.import_log_id))
       .leftJoin(invoice_items, eq(invoice_items.invoice_id, invoices.id))
       .where(whereWithDivision)
-      .groupBy(invoices.id, customers.id, channel_divisions.division, companies.id, import_logs.source)
+      .groupBy(invoices.id, customers.id, divisions.label, companies.id, import_logs.source)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -131,16 +148,21 @@ export async function findInvoiceDetail(
   invoiceId: number,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   if (scopeIds && scopeIds.length === 0) return null
 
   const conditions = [eq(invoices.id, invoiceId), isNull(invoices.deleted_at)]
   if (scopeIds) conditions.push(inArray(invoices.company_id, scopeIds))
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
-  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division, divisionScope)
   if (branchScopeCond) conditions.push(branchScopeCond)
-  if (divisionScopeCond) conditions.push(divisionScopeCond)
+
+  if (divisionScope) {
+    const otherIdByCompany = await loadDivisionFallbackIds('other')
+    const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
+    const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+    if (divisionScopeCond) conditions.push(divisionScopeCond)
+  }
 
   const [row] = await db
     .select({
@@ -162,7 +184,7 @@ export async function findInvoiceDetail(
       channel_divisions,
       and(
         eq(channel_divisions.channel_name, invoices.channel_name),
-        or(eq(channel_divisions.company_id, invoices.company_id), isNull(channel_divisions.company_id)),
+        eq(channel_divisions.company_id, invoices.company_id),
       ),
     )
     .where(and(...conditions))

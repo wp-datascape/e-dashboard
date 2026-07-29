@@ -12,13 +12,15 @@ export interface CategoryProductsRepoParams {
   perPage: number
   excludeIntercompany?: boolean
   branchScope?: Map<number, number[]>
-  divisionScope?: Map<number, string[]>
+  divisionScope?: Map<number, number[]>
+  otherIdByBranch?: Map<number, number>
+  intercompanyIdByCompany?: Map<number, number>
   // Task008 — filter ke produk yang BENAR-BENAR ditandai high margin di tabel
   // high_margin_products (bukan cuma "pernah terjual di kategori ini"). Opsional
   // (default false) karena query yang sama dipakai juga di tab Target Upsell &
   // halaman Products biasa, yang sengaja tetap tampilkan semua produk kategori.
   onlyHighMargin?: boolean
-  division?: string | null   // filter laporan - mirror division di high-margin-penetration.repository.ts
+  division?: number | null   // filter laporan - mirror division di high-margin-penetration.repository.ts
   branchFilter?: number | null // filter laporan - mirror branch_id di high-margin-penetration.repository.ts
 }
 
@@ -55,9 +57,9 @@ export interface CategoryProductsResult {
 // summary tetap harus balikin 0, bukan hilang/undefined.
 function categoryProductsCte(p: CategoryProductsRepoParams) {
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
@@ -105,7 +107,7 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
       JOIN customers c ON c.id = i.customer_id
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
-        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND cd.company_id = i.company_id
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
@@ -113,7 +115,7 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id = ${p.categoryId}::int
         AND ${onlyHmCond}
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

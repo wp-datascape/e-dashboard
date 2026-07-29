@@ -6,7 +6,7 @@ import type { DashboardData } from '@/types/dashboard';
 export interface DashboardParams {
   company_id?: number | 'all';
   branch_id?: number;
-  division?: string;
+  division?: number;
   period_end?: string;
   exclude_intercompany?: boolean;
 }

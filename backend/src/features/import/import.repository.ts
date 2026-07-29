@@ -15,6 +15,7 @@ import {
   import_log_errors,
   item_classification_rules,
   channel_divisions,
+  divisions,
   companies,
   company_branches,
   users,
@@ -152,15 +153,15 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
   if (data.channel_name) {
     const upperCh = data.channel_name.trim().toUpperCase()
     const [divRow] = await db
-      .select({ division: channel_divisions.division })
+      .select({ key: divisions.key })
       .from(channel_divisions)
+      .innerJoin(divisions, eq(divisions.id, channel_divisions.division_id))
       .where(and(
         eq(channel_divisions.channel_name, upperCh),
-        or(eq(channel_divisions.company_id, data.company_id), isNull(channel_divisions.company_id)),
+        eq(channel_divisions.company_id, data.company_id),
       ))
-      .orderBy(sql`${channel_divisions.company_id} IS NULL`)
       .limit(1)
-    division = divRow?.division ?? null
+    division = divRow?.key ?? null
   }
 
   // Cari existing customer by company_id + UPPER(customer_name)

@@ -52,11 +52,11 @@ export function getScopedDivisions(
   scope: MyScope,
   companyId: number | 'all',
   branchId: number | 'all' | undefined,
-): ScopedOptions<string> {
+): ScopedOptions<number> {
   if (scope.isSuperAdmin) return { restricted: false, options: [] }
 
   if (companyId === 'all') {
-    const union = new Set<string>()
+    const union = new Set<number>()
     scope.companies.forEach((c) => c.branches.forEach((b) => b.divisions.forEach((d) => union.add(d))))
     return { restricted: true, options: [...union] }
   }
@@ -73,7 +73,7 @@ export function getScopedDivisions(
   if (company.isFullBranchAccess && company.branches.every((b) => b.isFullDivisionAccess)) {
     return { restricted: false, options: [] }
   }
-  const union = new Set<string>()
+  const union = new Set<number>()
   company.branches.forEach((b) => b.divisions.forEach((d) => union.add(d)))
   return { restricted: true, options: [...union] }
 }

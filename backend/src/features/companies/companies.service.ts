@@ -12,6 +12,7 @@ import {
   deleteCompany,
 } from './companies.repository'
 import { seedDefaultItemTypes } from '@/features/settings/item-types.repository'
+import { seedDefaultDivisions } from '@/features/settings/divisions.repository'
 import type { CreateCompanyDto, UpdateCompanyDto } from './companies.schema'
 
 export async function getCompanies(companyIds?: number[]) {
@@ -35,6 +36,11 @@ export async function createCompanyService(dto: CreateCompanyDto, ctx: Context) 
     // Item Type per company (task011) - company baru langsung punya 4 default
     // (unit/consumable/sparepart/service), tidak kosong pas pertama kali dipakai.
     await seedDefaultItemTypes(company!.id)
+
+    // Division per company (task012 v2) - company baru langsung punya 7 default
+    // (distribution/project/e_commerce/intercompany/freelancer/support/other),
+    // company-wide (branch_id NULL).
+    await seedDefaultDivisions(company!.id)
 
     await logAudit(ctx, {
       action: 'company.create',

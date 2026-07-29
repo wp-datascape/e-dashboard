@@ -49,7 +49,7 @@ interface Props {
   thresholdPct: number
   companyId: number | 'all'
   branchId?: number
-  division?: string
+  division?: number
   periodEnd: string
   excludeIntercompany?: boolean
 }

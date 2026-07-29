@@ -78,6 +78,20 @@
       "when": 1785262653992,
       "tag": "0010_confused_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785287392994,
+      "tag": "0011_strong_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785287530229,
+      "tag": "0012_dry_nemesis",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 // frontend/src/types/customers.ts
 
-export type Division = 'distribution' | 'project' | 'e_commerce' | 'intercompany' | 'freelancer' | 'support' | null;
+// Division sekarang dinamis per company (task012 v2, FK-based) — field ini
+// membawa LABEL display (mis. "Distribution"), bukan key/union literal tetap lagi.
+export type Division = string | null;
 export type CustomerStatus = 'active' | 'dormant' | 'new' | 'existing';
 
 export interface CustomerRow {
@@ -46,7 +48,9 @@ export interface CustomerDetail {
 export interface CustomerParams {
   company_id?: number | 'all';
   branch_id?: number;
-  business_unit?: string;
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  business_unit?: number;
   status?: CustomerStatus;
   search?: string;
   sort_by?: 'avg_monthly_revenue' | 'lifetime_value' | 'category_count' | 'last_invoice_date';

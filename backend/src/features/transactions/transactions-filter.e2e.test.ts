@@ -22,12 +22,19 @@
  */
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+import { db } from '@/config/db'
+import { divisions } from '@/db/schema'
 import { createRouter } from '@/router'
 
 const app = new Hono()
 createRouter(app)
 
 let cookie: string
+// Division sekarang FK integer per company (task012 v2) — id + label dinamis,
+// di-resolve di beforeAll (bukan literal string tetap lagi).
+let divisionIdByKey: Map<string, number>
+let divisionLabelByKey: Map<string, string>
 
 beforeAll(async () => {
   const res = await app.request('/api/v1/auth/login', {
@@ -39,6 +46,13 @@ beforeAll(async () => {
   const match = setCookie.match(/access_token=([^;,]+)/)
   if (!match) throw new Error(`Login gagal: ${await res.text()}`)
   cookie = `access_token=${match[1]}`
+
+  const companyDivisions = await db
+    .select({ id: divisions.id, key: divisions.key, label: divisions.label })
+    .from(divisions)
+    .where(eq(divisions.company_id, 1))
+  divisionIdByKey = new Map(companyDivisions.map((d) => [d.key, d.id]))
+  divisionLabelByKey = new Map(companyDivisions.map((d) => [d.key, d.label]))
 })
 
 interface InvoiceRow {
@@ -151,18 +165,20 @@ describe('GET /invoices — filter company + branch', () => {
 })
 
 describe('GET /invoices — filter division (business_unit)', () => {
-  const DIVISIONS: string[] = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
+  const DIVISION_KEYS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
 
-  test.each(DIVISIONS)('business_unit=%s hanya mengembalikan baris divisi itu', async (division: string) => {
-    const res = await getInvoices(`company_id=all&business_unit=${division}&per_page=50`)
-    for (const row of res.data) expect(row.customer.business_unit).toBe(division)
+  test.each(DIVISION_KEYS)('business_unit=%s hanya mengembalikan baris divisi itu', async (key: string) => {
+    const divisionId = divisionIdByKey.get(key)!
+    const res = await getInvoices(`company_id=all&business_unit=${divisionId}&per_page=50`)
+    for (const row of res.data) expect(row.customer.business_unit).toBe(divisionLabelByKey.get(key) ?? null)
   })
 
   test('total gabungan semua divisi <= total tanpa filter divisi (sisanya null/unclassified)', async () => {
     const totalAll = await getInvoices('company_id=all&per_page=1')
     let sumDivisions = 0
-    for (const division of DIVISIONS) {
-      const res = await getInvoices(`company_id=all&business_unit=${division}&per_page=1`)
+    for (const key of DIVISION_KEYS) {
+      const divisionId = divisionIdByKey.get(key)!
+      const res = await getInvoices(`company_id=all&business_unit=${divisionId}&per_page=1`)
       sumDivisions += res.meta.total
     }
     expect(sumDivisions).toBeLessThanOrEqual(totalAll.meta.total)
@@ -172,21 +188,23 @@ describe('GET /invoices — filter division (business_unit)', () => {
 describe('GET /invoices — kombinasi company + branch + division + periode', () => {
   test('kombinasi lengkap tidak error dan hasilnya konsisten (subset dari tiap filter tunggal)', async () => {
     const { from, to } = windowDates(3)
+    const distributionId = divisionIdByKey.get('distribution')!
     const combined = await getInvoices(
-      `company_id=${COMPANY_WITH_DATA}&branch_id=1&business_unit=distribution&date_from=${from}&date_to=${to}&per_page=50`,
+      `company_id=${COMPANY_WITH_DATA}&branch_id=1&business_unit=${distributionId}&date_from=${from}&date_to=${to}&per_page=50`,
     )
     const companyBranchOnly = await getInvoices(`company_id=${COMPANY_WITH_DATA}&branch_id=1&per_page=1`)
     expect(combined.meta.total).toBeLessThanOrEqual(companyBranchOnly.meta.total)
     for (const row of combined.data) {
       expect(row.company.id).toBe(COMPANY_WITH_DATA)
-      expect(row.customer.business_unit).toBe('distribution')
+      expect(row.customer.business_unit).toBe(divisionLabelByKey.get('distribution') ?? null)
       expect(row.invoice_date >= from).toBe(true)
       expect(row.invoice_date <= to).toBe(true)
     }
   })
 
   test('company tanpa data + division apapun tetap total 0 (bukan blank karena error tersembunyi)', async () => {
-    const res = await getInvoices(`company_id=${COMPANY_WITHOUT_DATA_1}&business_unit=distribution&per_page=10`)
+    const distributionId = divisionIdByKey.get('distribution')!
+    const res = await getInvoices(`company_id=${COMPANY_WITHOUT_DATA_1}&business_unit=${distributionId}&per_page=10`)
     expect(res.meta.total).toBe(0)
     expect(res.data).toEqual([])
   })

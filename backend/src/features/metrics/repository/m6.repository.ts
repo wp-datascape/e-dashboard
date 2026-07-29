@@ -11,9 +11,9 @@ export async function fetchRorBreakdown(
   const { cid, filterDate, activeMonths, division, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -25,12 +25,12 @@ export async function fetchRorBreakdown(
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
-        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND cd.company_id = i.company_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
-        AND (${division}::text IS NULL OR cd.division = ${division}::text)
+        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}

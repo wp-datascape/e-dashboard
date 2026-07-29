@@ -11,10 +11,8 @@ import {
   userDivisions,
   companies,
   company_branches,
+  divisions,
 } from '@/db/schema'
-
-// 6 value bisnis existing + 'other' ("Lainnya") - lihat docs-v2/task/task001.md §4.5
-const ALL_DIVISION_VALUES = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other']
 
 export async function findActiveUserByEmail(email: string) {
   const result = await db
@@ -107,9 +105,9 @@ export async function getUserBranchScopes(
 
 export async function getUserDivisionScopes(
   userId: number,
-): Promise<{ branch_id: number; division: string }[]> {
+): Promise<{ branch_id: number; division_id: number }[]> {
   return db
-    .select({ branch_id: userDivisions.branch_id, division: userDivisions.division })
+    .select({ branch_id: userDivisions.branch_id, division_id: userDivisions.division_id })
     .from(userDivisions)
     .where(eq(userDivisions.user_id, userId))
 }
@@ -118,7 +116,7 @@ export interface MyScopeBranch {
   branch_id: number
   branch_name: string
   isFullDivisionAccess: boolean
-  divisions: string[]
+  divisions: number[]
 }
 export interface MyScopeCompany {
   company_id: number
@@ -141,7 +139,7 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
   const companyIds = await getUserCompanyIds(userId)
   if (companyIds.length === 0) return []
 
-  const [companyRows, branchScopes, divisionScopes, allBranchRows] = await Promise.all([
+  const [companyRows, branchScopes, divisionScopes, allBranchRows, activeDivisionRows] = await Promise.all([
     db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, companyIds)),
     getUserBranchScopes(userId),
     getUserDivisionScopes(userId),
@@ -149,12 +147,19 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
       .select({ id: company_branches.id, name: company_branches.name, company_id: company_branches.company_id })
       .from(company_branches)
       .where(inArray(company_branches.company_id, companyIds)),
+    // Division sekarang FK + branch_id nullable (task012 v2) — "full division access"
+    // dibandingkan ke daftar division VALID utk company+branch itu (company-wide,
+    // branch_id NULL, ATAU spesifik branch itu), bukan 7 value tetap lagi.
+    db
+      .select({ id: divisions.id, company_id: divisions.company_id, branch_id: divisions.branch_id })
+      .from(divisions)
+      .where(and(inArray(divisions.company_id, companyIds), eq(divisions.is_active, true))),
   ])
 
-  const divisionsByBranch = new Map<number, string[]>()
-  for (const { branch_id, division } of divisionScopes) {
+  const divisionsByBranch = new Map<number, number[]>()
+  for (const { branch_id, division_id } of divisionScopes) {
     if (!divisionsByBranch.has(branch_id)) divisionsByBranch.set(branch_id, [])
-    divisionsByBranch.get(branch_id)!.push(division)
+    divisionsByBranch.get(branch_id)!.push(division_id)
   }
 
   const assignedBranchIdsByCompany = new Map<number, number[]>()
@@ -169,6 +174,21 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
     allBranchesByCompany.get(b.company_id)!.push({ id: b.id, name: b.name })
   }
 
+  // Division company-wide (branch_id NULL) per company — berlaku semua branch company itu
+  const companyWideDivisionsByCompany = new Map<number, number[]>()
+  for (const d of activeDivisionRows) {
+    if (d.branch_id != null) continue
+    if (!companyWideDivisionsByCompany.has(d.company_id)) companyWideDivisionsByCompany.set(d.company_id, [])
+    companyWideDivisionsByCompany.get(d.company_id)!.push(d.id)
+  }
+  // Division spesifik 1 branch (branch_id NOT NULL)
+  const branchSpecificDivisionsByBranch = new Map<number, number[]>()
+  for (const d of activeDivisionRows) {
+    if (d.branch_id == null) continue
+    if (!branchSpecificDivisionsByBranch.has(d.branch_id)) branchSpecificDivisionsByBranch.set(d.branch_id, [])
+    branchSpecificDivisionsByBranch.get(d.branch_id)!.push(d.id)
+  }
+
   return companyRows.map((company) => {
     const assignedBranchIds = new Set(assignedBranchIdsByCompany.get(company.id) ?? [])
     const allBranches = allBranchesByCompany.get(company.id) ?? []
@@ -178,7 +198,11 @@ export async function getMyScopeTree(userId: number): Promise<MyScopeCompany[]> 
       .filter((b) => assignedBranchIds.has(b.id))
       .map((b) => {
         const divisions = divisionsByBranch.get(b.id) ?? []
-        const isFullDivisionAccess = ALL_DIVISION_VALUES.every((d) => divisions.includes(d))
+        const validDivisionIds = [
+          ...(companyWideDivisionsByCompany.get(company.id) ?? []),
+          ...(branchSpecificDivisionsByBranch.get(b.id) ?? []),
+        ]
+        const isFullDivisionAccess = validDivisionIds.length > 0 && validDivisionIds.every((id) => divisions.includes(id))
         return { branch_id: b.id, branch_name: b.name, isFullDivisionAccess, divisions }
       })
 

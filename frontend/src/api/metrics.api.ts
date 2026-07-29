@@ -7,7 +7,7 @@ export const metricsApi = {
   getCrossSelling: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
-    division?: string;
+    division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
   }): Promise<CrossSellingData> => {
@@ -18,7 +18,7 @@ export const metricsApi = {
   getCustomerMetrics: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
-    division?: string;
+    division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
   }): Promise<CustomerMetricsData> => {
@@ -29,7 +29,7 @@ export const metricsApi = {
   getDormantCustomer: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
-    division?: string;
+    division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
   }): Promise<DormantData> => {
@@ -37,27 +37,27 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getRevenueBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string; branch_id?: number; exclude_intercompany?: boolean }): Promise<RevenueBreakdownData> => {
+  getRevenueBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RevenueBreakdownData> => {
     const res = await api.get<ApiResponse<RevenueBreakdownData>>('/metrics/revenue-breakdown', { params });
     return res.data.data;
   },
 
-  getExpansionBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
+  getExpansionBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
     const res = await api.get<ApiResponse<ExpansionBreakdownData>>('/metrics/expansion-breakdown', { params });
     return res.data.data;
   },
 
-  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
+  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
     const res = await api.get<ApiResponse<GpBreakdownData>>('/metrics/gp-breakdown', { params });
     return res.data.data;
   },
 
-  getHmBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string; branch_id?: number; exclude_intercompany?: boolean }): Promise<HmBreakdownData> => {
+  getHmBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<HmBreakdownData> => {
     const res = await api.get<ApiResponse<HmBreakdownData>>('/metrics/hm-breakdown', { params });
     return res.data.data;
   },
 
-  getRorBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: string; branch_id?: number; exclude_intercompany?: boolean }): Promise<RorBreakdownData> => {
+  getRorBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RorBreakdownData> => {
     const res = await api.get<ApiResponse<RorBreakdownData>>('/metrics/ror-breakdown', { params });
     return res.data.data;
   },

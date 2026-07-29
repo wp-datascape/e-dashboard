@@ -6,7 +6,7 @@ export async function getInvoices(
   params: InvoicesQuery,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   try {
     return await findInvoices(params, scopeIds, branchScope, divisionScope)
@@ -20,7 +20,7 @@ export async function getInvoiceDetail(
   id: number,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
-  divisionScope?: Map<number, string[]>,
+  divisionScope?: Map<number, number[]>,
 ) {
   try {
     const detail = await findInvoiceDetail(id, scopeIds, branchScope, divisionScope)

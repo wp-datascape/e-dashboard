@@ -7,7 +7,7 @@ interface FakeUser {
   isSuperAdmin: boolean
   companyIds: number[]
   branchScopes: { company_id: number; branch_id: number }[]
-  divisionScopes: { branch_id: number; division: string }[]
+  divisionScopes: { branch_id: number; division_id: number }[]
   enforcementEnabled?: boolean
 }
 
@@ -107,14 +107,14 @@ describe('resolveDivisionScope', () => {
       companyIds: [1],
       branchScopes: [],
       divisionScopes: [
-        { branch_id: 10, division: 'distribution' },
-        { branch_id: 10, division: 'project' },
+        { branch_id: 10, division_id: 1 },
+        { branch_id: 10, division_id: 2 },
       ],
     })
     // branchScope hasil resolveBranchScope: company 1 -> branch [10, 11]
     const branchScope = new Map([[1, [10, 11]]])
     // branch 11 tidak muncul di divisionScope sama sekali → child dianggap kosong, bukan "tidak dibatasi"
-    expect(resolveDivisionScope(c, branchScope)).toEqual(new Map([[10, ['distribution', 'project']]]))
+    expect(resolveDivisionScope(c, branchScope)).toEqual(new Map([[10, [1, 2]]]))
   })
 
   test('division utk branch yang TIDAK ada di branchScope diabaikan (branch sendiri sudah default-deny)', () => {
@@ -122,7 +122,7 @@ describe('resolveDivisionScope', () => {
       isSuperAdmin: false,
       companyIds: [1],
       branchScopes: [],
-      divisionScopes: [{ branch_id: 99, division: 'distribution' }],
+      divisionScopes: [{ branch_id: 99, division_id: 1 }],
     })
     const branchScope = new Map([[1, [10]]]) // branch 99 bukan bagian dari branchScope user
     expect(resolveDivisionScope(c, branchScope)).toEqual(new Map())

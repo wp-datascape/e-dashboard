@@ -116,16 +116,16 @@ export function resolveBranchScope(
 export function resolveDivisionScope(
   c: Context,
   branchScope: Map<number, number[]> | undefined,
-): Map<number, string[]> | undefined {
+): Map<number, number[]> | undefined {
   const { divisionScopes, isSuperAdmin, enforcementEnabled } = c.var.user
   if (isSuperAdmin || !enforcementEnabled) return undefined
 
   const allowedBranchIds = new Set(branchScope ? [...branchScope.values()].flat() : [])
-  const map = new Map<number, string[]>()
-  for (const { branch_id, division } of divisionScopes as { branch_id: number; division: string }[]) {
+  const map = new Map<number, number[]>()
+  for (const { branch_id, division_id } of divisionScopes as { branch_id: number; division_id: number }[]) {
     if (!allowedBranchIds.has(branch_id)) continue
     if (!map.has(branch_id)) map.set(branch_id, [])
-    map.get(branch_id)!.push(division)
+    map.get(branch_id)!.push(division_id)
   }
   return map
 }

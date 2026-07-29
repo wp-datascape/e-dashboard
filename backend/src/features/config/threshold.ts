@@ -4,7 +4,7 @@
  * Shared utility untuk threshold config (active window + dormant).
  *
  * Sumber kebenaran tunggal untuk:
- * - Mapping business_unit / division → dormant config key
+ * - Resolve division_id → dormant config key (dormant_category, kolom `divisions.dormant_category`)
  * - Parsing raw config rows → typed ThresholdConfig
  * - loadThresholds() convenience wrapper
  *
@@ -12,12 +12,18 @@
  * - customers.repository.ts (SQL CASE + filter status)
  * - metrics.service.ts (segment params)
  * - segment.helper.ts (divisionToDormantKey)
+ *
+ * Division sekarang FK integer (task012 v2, docs-v2/task/task012.md) — dulu
+ * `BU_DORMANT_KEY_MAP` const hardcoded (mapping string division → kategori dormant),
+ * sekarang lookup langsung ke kolom `divisions.dormant_category` by `division_id`
+ * (LEBIH SEDERHANA dari desain v1 yang masih company+key based).
  */
 
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { findAllConfigs } from './config.repository'
 import { db } from '@/config/db'
+import { divisions } from '@/db/schema'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,31 +41,25 @@ export interface ThresholdConfig {
   reactivationTargetHigh: number
 }
 
-// ─── Mapping business_unit / division → dormant config key ────────────────────
+// ─── division_id → dormant config key ──────────────────────────────────────────
 
 /**
- * Mapping dari nilai business_unit (customers.business_unit) / division
- * (channel_divisions.division) ke key di dormant threshold config.
- *
- * SUMBER KEBENARAN TUNGGAL — jika ada perubahan mapping, cukup edit di sini.
- * Konsumen SQL CASE expression harus menggunakan mapping yang sama.
+ * Resolve division_id → dormant_category (b2b_dc | b2b_project | b2c | manufacturing).
+ * `divisionId=null` (tidak ada channel mapping yang match) → fallback 'b2b_dc', sama
+ * seperti perilaku lama.
  */
-export const BU_DORMANT_KEY_MAP: Record<string, keyof ThresholdConfig['dormant']> = {
-  distribution:  'b2b_dc',
-  project:       'b2b_project',
-  e_commerce:    'b2c',
-  intercompany:  'b2b_project',
-  freelancer:    'b2c',
-  support:       'b2b_dc',
-  manufacturing: 'manufacturing',
+export async function resolveDormantCategory(divisionId: number | null): Promise<keyof ThresholdConfig['dormant']> {
+  if (divisionId == null) return 'b2b_dc'
+  const [row] = await db.select({ dormant_category: divisions.dormant_category }).from(divisions).where(eq(divisions.id, divisionId))
+  return (row?.dormant_category as keyof ThresholdConfig['dormant'] | undefined) ?? 'b2b_dc'
 }
 
 /**
- * Konversi nama division → key business_configs.
- * Contoh: 'project' → 'dormant_threshold_months.b2b_project'
+ * Konversi division_id → key business_configs.
+ * Contoh: division_id=2 (dormant_category='b2b_project') → 'dormant_threshold_months.b2b_project'
  */
-export function divisionToDormantKey(division: string): string {
-  const key = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
+export async function divisionToDormantKey(divisionId: number | null): Promise<string> {
+  const key = await resolveDormantCategory(divisionId)
   return `dormant_threshold_months.${key}`
 }
 
@@ -166,55 +166,53 @@ export async function resolveDormantMonths(
   dormant: ThresholdConfig['dormant'],
 ): Promise<number> {
   const result = await db.execute(sql`
-    SELECT cd.division, COUNT(*) AS cnt
+    SELECT cd.division_id, COUNT(*) AS cnt
     FROM invoices i
     JOIN channel_divisions cd
       ON cd.channel_name = i.channel_name
-     AND (cd.company_id = ${cid === 0 ? null : cid}::int OR cd.company_id IS NULL)
+     AND cd.company_id = i.company_id
     WHERE i.deleted_at IS NULL
       AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
       AND i.channel_name IS NOT NULL
-    GROUP BY cd.division
+    GROUP BY cd.division_id
     ORDER BY cnt DESC
     LIMIT 1
   `)
   const rows = result as unknown[]
   const first = rows[0] as Record<string, unknown> | undefined
-  const division = first?.division != null ? String(first.division) : 'distribution'
-  const dormantKey = BU_DORMANT_KEY_MAP[division] ?? 'b2b_dc'
+  const divisionId = first?.division_id != null ? Number(first.division_id) : null
+  const dormantKey = await resolveDormantCategory(divisionId)
   return dormant[dormantKey]
 }
 
 // ─── SQL CASE builder ─────────────────────────────────────────────────────────
 
 /**
- * Build SQL CASE expression untuk mapping `business_unit` / `division` ke
- * dormant threshold value.
+ * Ambil mapping division_id → dormant category, dipakai bareng buildDormantCaseSql().
+ * `companyId` opsional — kalau diisi, cuma division milik company itu (+ company-wide
+ * divisions company itu); kalau tidak, semua division di semua company.
+ */
+export async function getDormantCategoryMap(companyId?: number): Promise<Map<number, keyof ThresholdConfig['dormant']>> {
+  const rows = companyId != null
+    ? await db.select({ id: divisions.id, dormant_category: divisions.dormant_category }).from(divisions).where(eq(divisions.company_id, companyId))
+    : await db.select({ id: divisions.id, dormant_category: divisions.dormant_category }).from(divisions)
+  return new Map(rows.map((r) => [r.id, r.dormant_category as keyof ThresholdConfig['dormant']]))
+}
+
+/**
+ * Build SQL CASE expression untuk mapping `division_id` ke dormant threshold value.
  *
- * Menggunakan BU_DORMANT_KEY_MAP sebagai sumber kebenaran tunggal —
- * jika mapping berubah di sini, semua konsumen SQL otomatis menyesuaikan.
- *
- * Contoh output:
- *   CASE "customers"."business_unit"
- *     WHEN 'distribution'  THEN 3::int
- *     WHEN 'project'       THEN 12::int
- *     WHEN 'e_commerce'    THEN 6::int
- *     WHEN 'intercompany'  THEN 12::int
- *     WHEN 'freelancer'    THEN 6::int
- *     WHEN 'support'       THEN 3::int
- *     WHEN 'manufacturing' THEN 6::int
- *     ELSE                      3::int
- *   END
- *
- * @param column  Kolom SQL yang berisi business_unit / division (e.g. customers.business_unit)
+ * @param column  Kolom SQL yang berisi division_id (e.g. channel_divisions.division_id)
  * @param dormant Nilai dormant threshold dari ThresholdConfig
+ * @param mapping Mapping division_id → dormant category (dari getDormantCategoryMap())
  */
 export function buildDormantCaseSql(
   column: SQL | unknown,
   dormant: ThresholdConfig['dormant'],
+  mapping: Map<number, keyof ThresholdConfig['dormant']>,
 ): SQL {
-  const whenClauses = Object.entries(BU_DORMANT_KEY_MAP).map(
-    ([bu, key]) => sql`WHEN ${bu} THEN ${dormant[key]}::int`,
+  const whenClauses = [...mapping.entries()].map(
+    ([divisionId, key]) => sql`WHEN ${divisionId} THEN ${dormant[key]}::int`,
   )
 
   return sql`CASE ${column}

@@ -25,7 +25,9 @@ export interface InvoiceRow {
 export interface InvoiceParams {
   company_id?: number | 'all'
   branch_id?: number
-  business_unit?: string
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  business_unit?: number
   exclude_intercompany?: boolean
   date_from?: string
   date_to?: string

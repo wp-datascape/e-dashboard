@@ -13,11 +13,9 @@ export interface UserCompany {
 }
 
 // Isolasi data Company/Branch/Division (docs-v2/task/task001.md).
-// "other" = kategori "Lainnya" - value asli, di-assign biasa seperti division lain.
-export const DIVISION_VALUES = [
-  'distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other',
-] as const;
-export type DivisionValue = typeof DIVISION_VALUES[number];
+// Division sekarang FK integer per company (task012 v2, tabel `divisions`) — array
+// division_id, bukan union literal tetap lagi. Opsi diambil dari useActiveDivisions(companyId).
+export type DivisionValue = number;
 
 export interface BranchAssignment {
   branch_id: number;

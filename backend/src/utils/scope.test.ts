@@ -75,34 +75,45 @@ describe('buildBranchConditionRaw', () => {
   })
 })
 
+// Division sekarang FK integer per company (task012 v2) — division_id, bukan string
+// key lagi. Fallback 'other'/'intercompany' di-resolve PER BRANCH/COMPANY (Map<id,
+// fallbackId>), bukan literal string tunggal — lihat docs-v2/task/task012.md §2b.
 describe('buildDivisionConditionRaw', () => {
   test('scopeMap=undefined → bypass', () => {
-    const q = dialect.sqlToQuery(buildDivisionConditionRaw('i.branch_id', 'cd.division', undefined))
+    const q = dialect.sqlToQuery(buildDivisionConditionRaw('i.branch_id', 'cd.division_id', undefined, undefined))
     expect(q.sql).toBe('true')
   })
 
   test('scopeMap kosong → default deny total', () => {
-    const q = dialect.sqlToQuery(buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map()))
+    const q = dialect.sqlToQuery(buildDivisionConditionRaw('i.branch_id', 'cd.division_id', new Map(), undefined))
     expect(q.sql).toBe('false')
   })
 
-  test('1 branch, multi division', () => {
+  test('1 branch, multi division — fallback other_id di-resolve dari otherIdByBranch', () => {
     const q = dialect.sqlToQuery(
-      buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map([[10, ['distribution', 'other']]])),
+      buildDivisionConditionRaw('i.branch_id', 'cd.division_id', new Map([[10, [1, 7]]]), new Map([[10, 7]])),
     )
-    expect(q.sql).toBe("((i.branch_id = $1 AND coalesce(cd.division, 'other') IN ($2, $3)))")
-    expect(q.params).toEqual([10, 'distribution', 'other'])
+    expect(q.sql).toBe('((i.branch_id = $1 AND coalesce(cd.division_id, 7) IN ($2, $3)))')
+    expect(q.params).toEqual([10, 1, 7])
   })
 
   // Regresi (2026-07-06): channel_name yang tidak match rule apa pun di channel_divisions
-  // menghasilkan division NULL - tanpa COALESCE, "NULL IN (...)" selalu UNKNOWN di SQL,
+  // menghasilkan division_id NULL - tanpa COALESCE, "NULL IN (...)" selalu UNKNOWN di SQL,
   // jadi baris itu TIDAK PERNAH lolos walau 'other' ada di daftar scope (ditemukan lewat
   // E2E test G4 - full-coverage user kehilangan 1 baris dibanding superadmin bypass).
-  test('division NULL dianggap "other" — COALESCE wajib ada di SQL yang dihasilkan', () => {
+  test('division_id NULL dianggap fallback "other" — COALESCE wajib ada di SQL yang dihasilkan', () => {
     const q = dialect.sqlToQuery(
-      buildDivisionConditionRaw('i.branch_id', 'cd.division', new Map([[10, ['other']]])),
+      buildDivisionConditionRaw('i.branch_id', 'cd.division_id', new Map([[10, [7]]]), new Map([[10, 7]])),
     )
-    expect(q.sql).toContain("coalesce(cd.division, 'other')")
+    expect(q.sql).toContain('coalesce(cd.division_id, 7)')
+  })
+
+  test('otherIdByBranch undefined utk branch tertentu → tanpa COALESCE sama sekali (defensif, bukan crash)', () => {
+    const q = dialect.sqlToQuery(
+      buildDivisionConditionRaw('i.branch_id', 'cd.division_id', new Map([[10, [1]]]), undefined),
+    )
+    expect(q.sql).toBe('((i.branch_id = $1 AND cd.division_id IN ($2)))')
+    expect(q.params).toEqual([10, 1])
   })
 })
 
@@ -129,36 +140,53 @@ describe('buildBranchCondition (Drizzle column-based)', () => {
 
 describe('buildDivisionCondition (Drizzle column-based)', () => {
   test('scopeMap=undefined → bypass, return undefined', () => {
-    expect(buildDivisionCondition(invoices.branch_id, channel_divisions.division, undefined)).toBeUndefined()
+    expect(buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, undefined, undefined)).toBeUndefined()
   })
 
   test('scopeMap kosong → default deny total', () => {
-    const q = toQuery(buildDivisionCondition(invoices.branch_id, channel_divisions.division, new Map()))
+    const q = toQuery(buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, new Map(), undefined))
     expect(q?.sql).toBe('false')
   })
+
+  test('otherIdByBranch undefined → COALESCE tetap dibangun dengan fallback NULL (no-op, sama efeknya tanpa fallback)', () => {
+    const q = toQuery(buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, new Map([[10, [1]]]), undefined))
+    expect(q?.sql).toBe('("invoices"."branch_id" = $1 and coalesce("channel_divisions"."division_id", $2) in ($3))')
+    expect(q?.params).toEqual([10, null, 1])
+  })
 })
 
-describe('buildExcludeIntercompanyCondition (Drizzle column-based)', () => {
+describe('buildExcludeIntercompanyCondition (Drizzle column-based, company-keyed)', () => {
   test('toggle mati (undefined/false) → bypass, return undefined (tidak nambah WHERE clause)', () => {
-    expect(buildExcludeIntercompanyCondition(channel_divisions.division, undefined)).toBeUndefined()
-    expect(buildExcludeIntercompanyCondition(channel_divisions.division, false)).toBeUndefined()
+    expect(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), undefined)).toBeUndefined()
+    expect(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), false)).toBeUndefined()
   })
 
-  test('toggle nyala → division != intercompany, NULL tetap lolos (bukan intercompany)', () => {
-    const q = toQuery(buildExcludeIntercompanyCondition(channel_divisions.division, true))
-    expect(q?.sql).toBe('("channel_divisions"."division" is null or "channel_divisions"."division" <> $1)')
-    expect(q?.params).toEqual(['intercompany'])
+  test('intercompanyIdByCompany kosong/undefined → bypass, return undefined', () => {
+    expect(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map(), true)).toBeUndefined()
+    expect(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, undefined, true)).toBeUndefined()
+  })
+
+  test('toggle nyala → division_id != intercompany id company itu, NULL tetap lolos (bukan intercompany)', () => {
+    const q = toQuery(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), true))
+    expect(q?.sql).toBe('("invoices"."company_id" = $1 and "channel_divisions"."division_id" <> $2)')
+    expect(q?.params).toEqual([1, 4])
   })
 })
 
-describe('buildExcludeIntercompanyRaw', () => {
+describe('buildExcludeIntercompanyRaw (company-keyed)', () => {
   test('toggle mati (undefined/false) → bypass, selalu true', () => {
-    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', undefined)).sql).toBe('true')
-    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', false)).sql).toBe('true')
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map([[1, 4]]), undefined)).sql).toBe('true')
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map([[1, 4]]), false)).sql).toBe('true')
   })
 
-  test('toggle nyala → division != intercompany, NULL dianggap "other" (bukan intercompany, tetap lolos)', () => {
-    const q = dialect.sqlToQuery(buildExcludeIntercompanyRaw('cd.division', true))
-    expect(q.sql).toBe(`coalesce(cd.division, 'other') != 'intercompany'`)
+  test('intercompanyIdByCompany kosong/undefined → bypass, selalu true', () => {
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map(), true)).sql).toBe('true')
+    expect(dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', undefined, true)).sql).toBe('true')
+  })
+
+  test('toggle nyala → division_id IS DISTINCT FROM intercompany id company itu (NULL tetap lolos)', () => {
+    const q = dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map([[1, 4]]), true))
+    expect(q.sql).toBe('((i.company_id = $1 AND cd.division_id IS DISTINCT FROM $2))')
+    expect(q.params).toEqual([1, 4])
   })
 })

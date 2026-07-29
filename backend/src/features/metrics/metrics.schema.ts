@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-const divisionEnum = z
-  .enum(['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support', 'other'])
-  .optional()
+// Division sekarang FK integer per company (task012 v2, tabel `divisions`) — filter
+// query pakai division_id numeric, bukan string key lagi (lihat docs-v2/task/task012.md §2d).
+const divisionEnum = z.coerce.number().int().positive().optional()
 
 // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil metrik.
 // Lihat utils/scope.ts buildExcludeIntercompanyCondition/-Raw().

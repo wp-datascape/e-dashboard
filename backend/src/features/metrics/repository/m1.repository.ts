@@ -12,17 +12,17 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
     JOIN customers c ON c.id = i.customer_id
     LEFT JOIN channel_divisions cd
       ON  cd.channel_name  = i.channel_name
-      AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+      AND cd.company_id = i.company_id
     WHERE i.deleted_at IS NULL
       AND c.is_placeholder = false
       AND i.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.filterDate}::date
       AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
-      AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+      AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
       AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
-      AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
-      AND ${buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)}
+      AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
+      AND ${buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)}
   )
 `
 
@@ -88,17 +88,17 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
       JOIN invoice_items ii ON ii.invoice_id = i.id
       LEFT JOIN channel_divisions cd
         ON  cd.channel_name  = i.channel_name
-        AND (cd.company_id = i.company_id OR cd.company_id IS NULL)
+        AND cd.company_id = i.company_id
       WHERE i.deleted_at IS NULL
         AND c.is_placeholder = false
         AND i.invoice_date >  ${p.filterDate}::date - INTERVAL '12 months'
         AND i.invoice_date <= ${p.filterDate}::date
         AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
-        AND (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
+        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
-        AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division', p.divisionScope)}
-        AND ${buildExcludeIntercompanyRaw('cd.division', p.excludeIntercompany)}
+        AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
+        AND ${buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)}
         AND ii.product_category_id IS NOT NULL
     ),
     monthly AS (

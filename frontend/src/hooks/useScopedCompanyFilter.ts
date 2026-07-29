@@ -3,8 +3,6 @@ import { useCompanies, useBranchesByCompany } from './useCompanies';
 import { useDivisionOptions } from './useDivisionOptions';
 import { useMyScope } from './useMyScope';
 import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
-import { formatEnumLabel } from '@/utils/format';
-import type { Division } from '@/types/customers';
 
 /**
  * State + opsi filter Company/Branch/Division yang dipakai berulang di tiap
@@ -22,7 +20,9 @@ export function useScopedCompanyFilter() {
 
   const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
   const [branchId, setBranchIdState] = useState<number | 'all'>('all');
-  const [division, setDivision] = useState<NonNullable<Division> | ''>('');
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  const [division, setDivision] = useState<number | ''>('');
   // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil
   // metrik. Independen dari company/branch/division di atas (tidak di-reset saat
   // filter lain berubah) - lihat ExcludeIntercompanyToggle.tsx + utils/scope.ts
@@ -64,8 +64,11 @@ export function useScopedCompanyFilter() {
 
   const scopedDivisions = getScopedDivisions(myScope, companyId, branchId);
   const fullDivisionOptions = useDivisionOptions(companyId);
+  // Scope tree cuma punya division_id (task012 v2) — label diambil dari
+  // fullDivisionOptions (katalog divisions company ini, sudah include id+label),
+  // difilter ke ID yang di-assign user.
   const divisionOptions = scopedDivisions.restricted
-    ? scopedDivisions.options.map((value) => ({ value: value as NonNullable<Division>, label: formatEnumLabel(value) }))
+    ? fullDivisionOptions.filter((opt) => scopedDivisions.options.includes(opt.value))
     : fullDivisionOptions;
   const showDivisionFilter = divisionOptions.length > 1;
 

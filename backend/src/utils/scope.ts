@@ -7,10 +7,55 @@
  *
  * "Lainnya" (branch atau division) diperlakukan seperti value lain — TIDAK ada
  * logic/pengecualian khusus di sini (lihat task001.md §4.5, §4.6, revisi 2026-07-06).
+ *
+ * Division sekarang FK integer (task012 v2, docs-v2/task/task012.md) — dulu string
+ * varchar ('distribution' dst), sekarang division_id merujuk ke tabel `divisions`
+ * (per company). Konsekuensi: fallback "'other'"/"'intercompany'" yang dulu literal
+ * string tunggal SEKARANG jadi row BEDA per company (id beda-beda) — makanya butuh
+ * `loadDivisionFallbackIds()` di bawah, dipanggil SEKALI per request (bukan subquery
+ * runtime per row), hasilnya di-pass sebagai Map ke buildDivisionCondition/
+ * buildExcludeIntercompanyCondition.
  */
 
-import { or, and, eq, ne, isNull, inArray, sql, type SQL } from 'drizzle-orm'
+import { or, and, eq, ne, inArray, sql, type SQL } from 'drizzle-orm'
 import type { AnyColumn } from 'drizzle-orm'
+import { db } from '@/config/db'
+import { divisions } from '@/db/schema'
+
+/**
+ * Resolve division_id "fallback" (company-wide, `key='other'` atau `key='intercompany'`)
+ * per company — dipakai buildDivisionCondition (branch-keyed) & buildExcludeIntercompanyCondition
+ * (company-keyed) untuk COALESCE. SATU query kecil TANPA filter company (tabel `divisions`
+ * sangat kecil, puluhan baris total — scan penuh jauh lebih murah daripada threading
+ * "company mana saja yang relevan" ke tiap call site, apalagi utk superadmin/company_id='all'
+ * yang scope company-nya sendiri belum tentu diketahui di titik ini).
+ */
+export async function loadDivisionFallbackIds(key: 'other' | 'intercompany'): Promise<Map<number, number>> {
+  const rows = await db
+    .select({ company_id: divisions.company_id, id: divisions.id })
+    .from(divisions)
+    .where(eq(divisions.key, key))
+  return new Map(rows.map((r) => [r.company_id, r.id]))
+}
+
+/**
+ * branchScope: hasil resolveBranchScope() (Map<company_id, branch_id[]>) — dipakai
+ * "meratakan" fallback per-company (loadDivisionFallbackIds) jadi per-branch, karena
+ * buildDivisionCondition butuh Map<branch_id, id> (division scope-nya branch-keyed).
+ */
+export function flattenFallbackByBranch(
+  branchScope: Map<number, number[]> | undefined,
+  fallbackByCompany: Map<number, number>,
+): Map<number, number> {
+  const result = new Map<number, number>()
+  if (!branchScope) return result
+  for (const [companyId, branchIds] of branchScope.entries()) {
+    const fallbackId = fallbackByCompany.get(companyId)
+    if (fallbackId == null) continue
+    for (const branchId of branchIds) result.set(branchId, fallbackId)
+  }
+  return result
+}
 
 /**
  * Filter branch — di-scope per company_id (level 1 dari hierarki).
@@ -38,22 +83,28 @@ export function buildBranchCondition(
  *
  * scopeMap: hasil resolveDivisionScope() — undefined = bypass (superadmin),
  * Map kosong / branch tidak ada di key = default deny total untuk branch itu.
+ * otherIdByBranch: hasil flattenFallbackByBranch(branchScope, loadDivisionFallbackIds(..., 'other')).
  */
 export function buildDivisionCondition(
   branchCol: AnyColumn,
   divisionCol: AnyColumn,
-  scopeMap: Map<number, string[]> | undefined,
+  scopeMap: Map<number, number[]> | undefined,
+  otherIdByBranch: Map<number, number> | undefined,
 ): SQL | undefined {
   if (!scopeMap) return undefined
   if (scopeMap.size === 0) return sql`false`
-  // COALESCE ke 'other' — division NULL (channel_name tidak match rule apa pun di
-  // channel_divisions) dianggap "Lainnya" utk keperluan scope check (§4.5). Tanpa ini,
-  // `inArray(divisionCol, [...])` gagal diam-diam utk baris NULL walau 'other' ada di
-  // daftar scope — semantik SQL: NULL IN (...) selalu UNKNOWN, bukan match ke 'other'.
-  const divisionExpr = sql`coalesce(${divisionCol}, 'other')`
-  const clauses = [...scopeMap.entries()].map(([branchId, divisions]) =>
-    and(eq(branchCol, branchId), inArray(divisionExpr, divisions)),
-  )
+  // COALESCE ke division_id "other" MILIK COMPANY BRANCH INI — division_id NULL
+  // (channel_name tidak match rule apa pun di channel_divisions) dianggap "Lainnya"
+  // utk keperluan scope check (§4.5 task001.md). Fallback di-resolve PER BRANCH
+  // (bukan literal tunggal lagi — tiap company punya row 'other' sendiri, id beda),
+  // makanya COALESCE-nya juga dibuat per klausa branch, bukan sekali di luar loop.
+  const clauses = [...scopeMap.entries()].map(([branchId, divisionIds]) => {
+    // otherId undefined (harusnya tidak terjadi, 'other' selalu di-seed) → COALESCE(col, NULL)
+    // = col, sama efeknya dengan tidak ada fallback sama sekali (defensif, bukan crash).
+    const otherId = otherIdByBranch?.get(branchId) ?? null
+    const divisionExpr = sql`coalesce(${divisionCol}, ${otherId})`
+    return and(eq(branchCol, branchId), inArray(divisionExpr, divisionIds))
+  })
   return or(...clauses)
 }
 
@@ -121,18 +172,20 @@ export function buildCompanyConditionRaw(
 export function buildDivisionConditionRaw(
   branchExpr: string,
   divisionExpr: string,
-  scopeMap: Map<number, string[]> | undefined,
+  scopeMap: Map<number, number[]> | undefined,
+  otherIdByBranch: Map<number, number> | undefined,
 ): SQL {
   if (!scopeMap) return sql`true`
   if (scopeMap.size === 0) return sql`false`
-  // COALESCE ke 'other' — lihat penjelasan di buildDivisionCondition() di atas.
-  const clauses = [...scopeMap.entries()].map(
-    ([branchId, divisions]) =>
-      sql`(${sql.raw(branchExpr)} = ${branchId} AND coalesce(${sql.raw(divisionExpr)}, 'other') IN (${sql.join(
-        divisions.map((d) => sql`${d}`),
-        sql`, `,
-      )}))`,
-  )
+  // COALESCE ke division_id "other" per-branch — lihat penjelasan di buildDivisionCondition().
+  const clauses = [...scopeMap.entries()].map(([branchId, divisionIds]) => {
+    const otherId = otherIdByBranch?.get(branchId)
+    const coalesced = otherId != null ? `coalesce(${divisionExpr}, ${otherId})` : divisionExpr
+    return sql`(${sql.raw(branchExpr)} = ${branchId} AND ${sql.raw(coalesced)} IN (${sql.join(
+      divisionIds.map((id) => sql`${id}`),
+      sql`, `,
+    )}))`
+  })
   // Wrap dalam parens — lihat penjelasan di buildBranchConditionRaw() di atas. Bug ini
   // lebih sering kena di sini karena divisionScope map hampir selalu >1 entry (per branch).
   return sql`(${sql.join(clauses, sql` OR `)})`
@@ -142,40 +195,58 @@ export function buildDivisionConditionRaw(
  * Filter REPORT (pilihan user di UI, BUKAN RBAC scope seperti fungsi-fungsi di atas) —
  * exclude division 'intercompany' dari hasil metrik. Dipakai utk transaksi antar-company
  * dalam 1 holding (mis. PT Mesin Kasir Online menjual ke PT Kode Niaga Tama - customer
- * "KODE NIAGA TAMA, PT" di company 1 sendiri, channel_divisions.division = 'intercompany')
- * yang bisa mendistorsi metrik performa eksternal kalau ikut terhitung.
+ * "KODE NIAGA TAMA, PT" di company 1 sendiri, channel_divisions.division_id = id division
+ * 'intercompany' company 1) yang bisa mendistorsi metrik performa eksternal kalau ikut
+ * terhitung.
+ *
+ * BEDA dari buildDivisionCondition (branch-keyed, RBAC scope) — ini COMPANY-keyed karena
+ * toggle ini berlaku UNIVERSAL (termasuk superadmin, tidak ada bypass), jadi tidak bisa
+ * numpang di branchScope (undefined saat superadmin). companyCol = kolom company_id BARIS
+ * yang difilter (mis. invoices.company_id), intercompanyIdByCompany = hasil
+ * loadDivisionFallbackIds(companyIds, 'intercompany').
  *
  * excludeIntercompany falsy → bypass, semua division lolos (default, tidak ada perubahan
- * perilaku existing). true → division HARUS bukan 'intercompany' (NULL/division lain tetap
- * lolos — mirror pola COALESCE ke 'other' di buildDivisionCondition/-Raw: NULL berarti
- * channel_name tidak match rule apa pun, itu bukan intercompany, jadi tidak boleh ikut
- * ke-exclude).
- *
- * Return SQL|undefined (bukan SQL|undefined vs selalu-SQL seperti *Raw) — dipakai lewat
- * Drizzle `and(...)` yang otomatis skip argumen undefined, konsisten dgn buildBranchCondition/
- * buildDivisionCondition di atas.
+ * perilaku existing). true → division_id HARUS bukan id 'intercompany' company baris itu
+ * (NULL/division lain tetap lolos — NULL berarti channel_name tidak match rule apa pun,
+ * itu bukan intercompany, jadi tidak boleh ikut ke-exclude).
  */
 export function buildExcludeIntercompanyCondition(
+  companyCol: AnyColumn,
   divisionCol: AnyColumn,
+  intercompanyIdByCompany: Map<number, number> | undefined,
   excludeIntercompany: boolean | undefined,
 ): SQL | undefined {
   if (!excludeIntercompany) return undefined
-  return or(isNull(divisionCol), ne(divisionCol, 'intercompany'))
+  if (!intercompanyIdByCompany || intercompanyIdByCompany.size === 0) return undefined
+  const clauses = [...intercompanyIdByCompany.entries()].map(([companyId, intercompanyId]) =>
+    and(eq(companyCol, companyId), ne(divisionCol, intercompanyId)),
+  )
+  // Company yang TIDAK punya row 'intercompany' sama sekali (harusnya tidak terjadi,
+  // 'other'/division default selalu di-seed, tapi defensif) — tidak ada apa pun yang
+  // di-exclude untuk company itu, biar tidak keliru exclude semua data.
+  return or(...clauses)
 }
 
 /**
  * Varian raw-SQL dari buildExcludeIntercompanyCondition() — lihat penjelasan di atas.
- * divisionExpr HARUS string literal trusted (nama kolom/alias tetap dari kode, BUKAN
- * dari input user), sama seperti *Raw lain di file ini.
+ * companyExpr/divisionExpr HARUS string literal trusted (nama kolom/alias tetap dari
+ * kode, BUKAN dari input user), sama seperti *Raw lain di file ini.
  *
  * Selalu return SQL valid (`true` kalau toggle mati) supaya bisa langsung di-embed di
  * WHERE dengan `AND (${cond})` tanpa perlu cek undefined dulu — konsisten dgn pola *Raw
  * lain di file ini (buildBranchConditionRaw/buildDivisionConditionRaw/buildCompanyConditionRaw).
  */
 export function buildExcludeIntercompanyRaw(
+  companyExpr: string,
   divisionExpr: string,
+  intercompanyIdByCompany: Map<number, number> | undefined,
   excludeIntercompany: boolean | undefined,
 ): SQL {
   if (!excludeIntercompany) return sql`true`
-  return sql`coalesce(${sql.raw(divisionExpr)}, 'other') != 'intercompany'`
+  if (!intercompanyIdByCompany || intercompanyIdByCompany.size === 0) return sql`true`
+  const clauses = [...intercompanyIdByCompany.entries()].map(
+    ([companyId, intercompanyId]) =>
+      sql`(${sql.raw(companyExpr)} = ${companyId} AND ${sql.raw(divisionExpr)} IS DISTINCT FROM ${intercompanyId})`,
+  )
+  return sql`(${sql.join(clauses, sql` OR `)})`
 }

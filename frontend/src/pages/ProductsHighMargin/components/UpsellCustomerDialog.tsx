@@ -17,7 +17,7 @@ interface Props {
   filterCategory: CategoryRef | null
   companyId: number | 'all'
   branchId?: number
-  division?: string
+  division?: number
   periodMonth: string
   activeWindow: number
   excludeIntercompany?: boolean

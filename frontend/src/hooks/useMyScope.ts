@@ -6,7 +6,9 @@ export interface MyScopeBranch {
   branch_id: number
   branch_name: string
   isFullDivisionAccess: boolean
-  divisions: string[]
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  divisions: number[]
 }
 
 export interface MyScopeCompany {

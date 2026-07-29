@@ -15,14 +15,19 @@ import {
   findUnmappedChannelNames,
   findDistinctDivisions,
 } from './channel-divisions.repository'
+import { findActiveDivisions } from './divisions.repository'
 import type {
   ListChannelDivisionsQuery,
   CreateChannelDivisionDto,
   UpdateChannelDivisionDto,
 } from './channel-divisions.schema'
 
-const VALID_DIVISIONS = ['distribution', 'project', 'e_commerce', 'intercompany', 'freelancer', 'support'] as const
-type DivisionValue = typeof VALID_DIVISIONS[number]
+// Division sekarang FK integer per company (task012 v2, tabel `divisions`) — validasi
+// terhadap DB (company-scoped), bukan const VALID_DIVISIONS tetap lagi.
+async function isValidDivision(companyId: number, divisionId: number): Promise<boolean> {
+  const activeDivisions = await findActiveDivisions(companyId)
+  return activeDivisions.some((d) => d.id === divisionId)
+}
 
 export async function listChannelDivisionsService(query: ListChannelDivisionsQuery) {
   try {
@@ -54,6 +59,9 @@ export async function listUnmappedChannelsService(companyId: number | 'all') {
 
 export async function createChannelDivisionService(body: CreateChannelDivisionDto, ctx: Context) {
   try {
+    if (!(await isValidDivision(body.company_id, body.division_id))) {
+      throw new AppError(ErrorCode.VALIDATION_ERROR, `Division tidak terdaftar untuk company ini`, 400)
+    }
     const existing = await findChannelDivisionByName(body.channel_name)
     if (existing.length > 0) {
       throw new AppError(ErrorCode.DUPLICATE_ENTRY, `Channel "${body.channel_name}" sudah ada`, 409)
@@ -64,7 +72,7 @@ export async function createChannelDivisionService(body: CreateChannelDivisionDt
       action: 'channel_division.create',
       entity: 'channel_divisions',
       entityId: result!.id,
-      companyId: body.company_id ?? null,
+      companyId: body.company_id,
       newValue: body,
     })
 
@@ -81,6 +89,13 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
     const existing = await findChannelDivisionById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Channel division dengan id ${id} tidak ditemukan`, 404)
 
+    if (body.division_id) {
+      const scopeCompanyId = body.company_id ?? existing.company_id
+      if (!(await isValidDivision(scopeCompanyId, body.division_id))) {
+        throw new AppError(ErrorCode.VALIDATION_ERROR, `Division tidak terdaftar untuk company ini`, 400)
+      }
+    }
+
     if (body.channel_name && body.channel_name !== existing.channel_name) {
       const duplicate = await findChannelDivisionByName(body.channel_name, id)
       if (duplicate.length > 0) {
@@ -94,9 +109,9 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
       action: 'channel_division.update',
       entity: 'channel_divisions',
       entityId: id,
-      companyId: existing.company_id ?? null,
-      oldValue: { channel_name: existing.channel_name, division: existing.division },
-      newValue: { channel_name: body.channel_name ?? existing.channel_name, division: body.division ?? existing.division },
+      companyId: existing.company_id,
+      oldValue: { channel_name: existing.channel_name, division_id: existing.division_id },
+      newValue: { channel_name: body.channel_name ?? existing.channel_name, division_id: body.division_id ?? existing.division_id },
     })
 
     return result
@@ -145,19 +160,25 @@ export async function importChannelDivisionsService(
   let skipped = 0
   const errors: Array<{ row: number; message: string }> = []
 
+  // File import pakai KEY string (human-authored text di CSV/XLSX), bukan division_id
+  // mentah — di-resolve ke ID sekali di luar loop (mirror pola item_type task011).
+  const activeDivisions = await findActiveDivisions(companyId)
+  const divisionIdByKey = new Map(activeDivisions.map((d) => [d.key, d.id]))
+
   for (let i = 0; i < parsed.length; i++) {
     const row = parsed[i]
     const rowNum = i + 2
 
     const channelName = row.channel_name?.toUpperCase().trim()
-    const division = row.division?.toLowerCase().trim() as DivisionValue | undefined
+    const divisionKey = row.division?.toLowerCase().trim()
+    const divisionId = divisionKey ? divisionIdByKey.get(divisionKey) : undefined
 
     if (!channelName) {
       errors.push({ row: rowNum, message: 'channel_name wajib diisi' })
       continue
     }
-    if (!division || !(VALID_DIVISIONS as readonly string[]).includes(division)) {
-      errors.push({ row: rowNum, message: `division "${division ?? ''}" tidak valid. Pilihan: ${VALID_DIVISIONS.join(', ')}` })
+    if (!divisionId) {
+      errors.push({ row: rowNum, message: `division "${divisionKey ?? ''}" tidak valid. Pilihan: ${[...divisionIdByKey.keys()].join(', ')}` })
       continue
     }
 
@@ -167,7 +188,7 @@ export async function importChannelDivisionsService(
       continue
     }
 
-    await createChannelDivision({ channel_name: channelName, division, company_id: companyId })
+    await createChannelDivision({ channel_name: channelName, division_id: divisionId, company_id: companyId })
     added++
   }
 
@@ -225,8 +246,8 @@ export async function deleteChannelDivisionService(id: number, ctx: Context) {
       action: 'channel_division.delete',
       entity: 'channel_divisions',
       entityId: id,
-      companyId: existing.company_id ?? null,
-      oldValue: { channel_name: existing.channel_name, division: existing.division },
+      companyId: existing.company_id,
+      oldValue: { channel_name: existing.channel_name, division_id: existing.division_id },
     })
   } catch (err) {
     if (err instanceof AppError) throw err

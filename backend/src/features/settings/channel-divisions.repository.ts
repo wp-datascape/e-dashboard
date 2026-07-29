@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
-import { channel_divisions, companies } from '@/db/schema'
-import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm'
+import { channel_divisions, companies, divisions } from '@/db/schema'
+import { and, eq, ilike, sql } from 'drizzle-orm'
 import type { CreateChannelDivisionDto, UpdateChannelDivisionDto, ListChannelDivisionsQuery } from './channel-divisions.schema'
 
 export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
@@ -8,16 +8,12 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
 
   const conditions = []
 
-  if (division) conditions.push(eq(channel_divisions.division, division))
+  if (division) conditions.push(eq(channel_divisions.division_id, division))
 
+  // company_id sekarang WAJIB di channel_divisions (task012 v2 — tidak ada rule
+  // global lagi, division company-scoped)
   if (company_id !== 'all') {
-    // tampilkan: rule milik company ini + rule global
-    conditions.push(
-      or(
-        eq(channel_divisions.company_id, company_id),
-        isNull(channel_divisions.company_id),
-      )!,
-    )
+    conditions.push(eq(channel_divisions.company_id, company_id))
   }
 
   if (search) {
@@ -28,7 +24,8 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
     .select({
       id: channel_divisions.id,
       channel_name: channel_divisions.channel_name,
-      division: channel_divisions.division,
+      division: divisions.label,
+      division_id: channel_divisions.division_id,
       company_id: channel_divisions.company_id,
       company_name: companies.name,
       created_at: channel_divisions.created_at,
@@ -36,31 +33,32 @@ export async function findChannelDivisions(params: ListChannelDivisionsQuery) {
     })
     .from(channel_divisions)
     .leftJoin(companies, eq(channel_divisions.company_id, companies.id))
+    .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(channel_divisions.channel_name)
 }
 
 /**
- * Nilai divisi unik yang benar-benar punya mapping untuk company ini (rule
- * company + rule global) — dipakai dropdown filter divisi (useDivisionOptions)
- * yang tersebar di banyak halaman. Sengaja TIDAK ikut channel_name di sini
- * (beda dari findChannelDivisions) supaya endpoint ini bisa dibuka tanpa
- * requirePermission('settings.channel.division:view') — nama channel penjualan
- * asli tetap hanya kelihatan lewat endpoint mapping penuh yang tetap terproteksi.
+ * division_id unik yang benar-benar punya mapping untuk company ini — dipakai
+ * dropdown filter divisi (useDivisionOptions) yang tersebar di banyak halaman.
+ * Sengaja TIDAK ikut channel_name di sini (beda dari findChannelDivisions)
+ * supaya endpoint ini bisa dibuka tanpa requirePermission('settings.channel.division:view')
+ * — nama channel penjualan asli tetap hanya kelihatan lewat endpoint mapping penuh
+ * yang tetap terproteksi.
  */
-export async function findDistinctDivisions(companyId: number | 'all'): Promise<string[]> {
+export async function findDistinctDivisions(companyId: number | 'all'): Promise<number[]> {
   const conditions = []
   if (companyId !== 'all') {
-    conditions.push(or(eq(channel_divisions.company_id, companyId), isNull(channel_divisions.company_id))!)
+    conditions.push(eq(channel_divisions.company_id, companyId))
   }
 
   const rows = await db
-    .selectDistinct({ division: channel_divisions.division })
+    .selectDistinct({ division_id: channel_divisions.division_id })
     .from(channel_divisions)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(channel_divisions.division)
+    .orderBy(channel_divisions.division_id)
 
-  return rows.map((r) => r.division)
+  return rows.map((r) => r.division_id)
 }
 
 export async function findChannelDivisionById(id: number) {
@@ -96,8 +94,8 @@ export async function createChannelDivision(data: CreateChannelDivisionDto) {
     .insert(channel_divisions)
     .values({
       channel_name: data.channel_name,
-      division: data.division,
-      company_id: data.company_id ?? null,
+      division_id: data.division_id,
+      company_id: data.company_id,
     })
     .returning()
   return result
@@ -131,7 +129,7 @@ export async function findUnmappedChannelNames(cid: number): Promise<string[]> {
       AND NOT EXISTS (
         SELECT 1 FROM channel_divisions cd
         WHERE cd.channel_name = i.channel_name
-          AND (cd.company_id IS NULL OR cd.company_id = i.company_id)
+          AND cd.company_id = i.company_id
       )
     ORDER BY i.channel_name
   `)
