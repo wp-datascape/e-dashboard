@@ -17,7 +17,7 @@
  * buildExcludeIntercompanyCondition.
  */
 
-import { or, and, eq, ne, inArray, sql, type SQL } from 'drizzle-orm'
+import { or, and, eq, inArray, sql, type SQL } from 'drizzle-orm'
 import type { AnyColumn } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { divisions } from '@/db/schema'
@@ -209,17 +209,25 @@ export function buildDivisionConditionRaw(
  * perilaku existing). true → division_id HARUS bukan id 'intercompany' company baris itu
  * (NULL/division lain tetap lolos — NULL berarti channel_name tidak match rule apa pun,
  * itu bukan intercompany, jadi tidak boleh ikut ke-exclude).
+ *
+ * divisionCol boleh kolom mentah (channel_divisions.division_id) ATAU SQL expression
+ * (mis. COALESCE(customers.division_override_id, channel_divisions.division_id) — task013,
+ * override customer representasi sister company menang atas mapping channel).
  */
 export function buildExcludeIntercompanyCondition(
   companyCol: AnyColumn,
-  divisionCol: AnyColumn,
+  divisionCol: AnyColumn | SQL,
   intercompanyIdByCompany: Map<number, number> | undefined,
   excludeIntercompany: boolean | undefined,
 ): SQL | undefined {
   if (!excludeIntercompany) return undefined
   if (!intercompanyIdByCompany || intercompanyIdByCompany.size === 0) return undefined
   const clauses = [...intercompanyIdByCompany.entries()].map(([companyId, intercompanyId]) =>
-    and(eq(companyCol, companyId), ne(divisionCol, intercompanyId)),
+    // IS DISTINCT FROM (bukan ne/<>) - divisionCol bisa NULL saat channel_name tidak
+    // match rule mapping apa pun (LEFT JOIN channel_divisions kosong). `<>` dengan NULL
+    // selalu bernilai NULL/false di WHERE, jadi row NULL itu diam-diam ikut ter-exclude
+    // padahal jelas bukan intercompany - kontradiksi komentar function ini sendiri.
+    and(eq(companyCol, companyId), sql`${divisionCol} IS DISTINCT FROM ${intercompanyId}`),
   )
   // Company yang TIDAK punya row 'intercompany' sama sekali (harusnya tidak terjadi,
   // 'other'/division default selalu di-seed, tapi defensif) — tidak ada apa pun yang

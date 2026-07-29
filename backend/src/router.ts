@@ -45,6 +45,7 @@ import { highMarginRoutes } from '@/features/settings/high-margin.route'
 import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.route'
 import { itemTypesRoutes } from '@/features/settings/item-types.route'
 import { divisionsRoutes } from '@/features/settings/divisions.route'
+import { intercompanyNamesRoutes } from '@/features/settings/intercompany-names.route'
 import { docsRoutes } from '@/features/docs/docs.route'
 import { abTestingRoutes } from '@/features/ab-testing/ab-testing.route'
 
@@ -107,6 +108,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/settings/channel-divisions', channelDivisionsRoutes)
   protectedApi.route('/settings/item-types', itemTypesRoutes)
   protectedApi.route('/settings/divisions', divisionsRoutes)
+  protectedApi.route('/settings/intercompany-names', intercompanyNamesRoutes)
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)

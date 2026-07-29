@@ -166,9 +166,9 @@ describe('buildExcludeIntercompanyCondition (Drizzle column-based, company-keyed
     expect(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, undefined, true)).toBeUndefined()
   })
 
-  test('toggle nyala → division_id != intercompany id company itu, NULL tetap lolos (bukan intercompany)', () => {
+  test('toggle nyala → division_id IS DISTINCT FROM intercompany id company itu, NULL tetap lolos (bukan intercompany)', () => {
     const q = toQuery(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), true))
-    expect(q?.sql).toBe('("invoices"."company_id" = $1 and "channel_divisions"."division_id" <> $2)')
+    expect(q?.sql).toBe('("invoices"."company_id" = $1 and "channel_divisions"."division_id" IS DISTINCT FROM $2)')
     expect(q?.params).toEqual([1, 4])
   })
 })

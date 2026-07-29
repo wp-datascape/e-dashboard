@@ -43,7 +43,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -72,6 +72,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
@@ -102,6 +103,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
@@ -384,7 +386,7 @@ export async function fetchRevenueBreakdown(
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -395,6 +397,7 @@ export async function fetchRevenueBreakdown(
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
@@ -425,6 +428,7 @@ export async function fetchRevenueBreakdown(
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
@@ -524,7 +528,7 @@ export async function fetchExpansionBreakdown(
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -535,6 +539,7 @@ export async function fetchExpansionBreakdown(
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
@@ -551,6 +556,7 @@ export async function fetchExpansionBreakdown(
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'

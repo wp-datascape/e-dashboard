@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { AppError, ErrorCode } from '@/errors'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   findDivisions,
   findActiveDivisions,
@@ -83,6 +84,7 @@ export async function updateDivisionService(id: number, body: UpdateDivisionDto,
   try {
     const existing = await findDivisionById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Division dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // throw 403 kalau division ini di luar akses company user
 
     if (existing.is_protected && body.is_active === false) {
       throw new AppError(ErrorCode.RESOURCE_IN_USE, `Division "${existing.label}" adalah fallback wajib, tidak bisa dinonaktifkan`, 409)
@@ -110,6 +112,7 @@ export async function deleteDivisionService(id: number, ctx: Context) {
   try {
     const existing = await findDivisionById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Division dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // throw 403 kalau division ini di luar akses company user
 
     if (existing.is_protected) {
       throw new AppError(ErrorCode.RESOURCE_IN_USE, `Division "${existing.label}" adalah fallback wajib, tidak bisa dihapus`, 409)

@@ -19,7 +19,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { companies, company_branches } from './schema-company'
+import { companies, company_branches, divisions } from './schema-company'
 import { users } from './schema-auth'
 import { product_categories, products } from './schema-product'
 
@@ -43,12 +43,43 @@ export const customers = pgTable('customers', {
   first_invoice_date: date('first_invoice_date'),
   // MAX(invoice_date) dari transaksi customer ini
   last_invoice_date: date('last_invoice_date'),
+  // NULL (default) = division ikut channel invoice terbaru seperti biasa. Diisi =
+  // division customer ini SELALU ikut nilai ini di semua laporan/filter, terlepas
+  // channel invoice apa pun (task013) — dipakai utk customer yang representasi
+  // sister company (klasifikasi harus konstan, tidak boleh ikut tenaga penjual per
+  // invoice). Diisi OTOMATIS lewat sync intercompany_customer_names, bukan form
+  // manual (tidak ada UI create/edit customer di app ini, lifecycle-nya via import).
+  division_override_id: integer('division_override_id').references(() => divisions.id, { onDelete: 'set null' }),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
+
+// ─── intercompany_customer_names ───────────────────────────────────────────────
+
+/**
+ * Daftar nama customer (per company) yang representasi sister company - dikelola
+ * admin di Settings, dipakai sync otomatis ke customers.division_override_id
+ * (task013). customer_name disimpan UPPERCASE, sama normalisasi dengan
+ * customers.customer_name (upsertCustomer) supaya matching-nya konsisten.
+ */
+export const intercompany_customer_names = pgTable('intercompany_customer_names', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  customer_name: varchar('customer_name', { length: 255 }).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqueNamePerCompany: uniqueIndex('uq_intercompany_names_company_name').on(
+    table.company_id,
+    table.customer_name,
+  ),
+}))
+
+export type IntercompanyCustomerName = typeof intercompany_customer_names.$inferSelect
+export type NewIntercompanyCustomerName = typeof intercompany_customer_names.$inferInsert
 
 // ─── invoices ─────────────────────────────────────────────────────────────────
 

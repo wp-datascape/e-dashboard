@@ -127,6 +127,13 @@ const defaultPermissions = [
   { name: 'settings.division:create', description: 'Create Division', category: 'Division' },
   { name: 'settings.division:update', description: 'Update Division', category: 'Division' },
   { name: 'settings.division:delete', description: 'Delete Division', category: 'Division' },
+  // Sister Company Names (task013) — daftar nama customer yang representasi sister
+  // company per company, sync otomatis ke customers.division_override_id. Sub-widget
+  // di halaman Settings/Divisions yang sama, TIDAK punya :menu sendiri (pola sama
+  // dengan settings.division:* di atas).
+  { name: 'settings.intercompany:view',   description: 'View Sister Company Names',   category: 'Division' },
+  { name: 'settings.intercompany:create', description: 'Create Sister Company Name',  category: 'Division' },
+  { name: 'settings.intercompany:delete', description: 'Delete Sister Company Name',  category: 'Division' },
   // Product Settings (High Margin mapping)
   { name: 'settings.product:menu',   description: 'Menu Product Settings', category: 'Product Settings' },
   { name: 'settings.product:view',   description: 'View Product Settings', category: 'Product Settings' },
@@ -224,6 +231,7 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.branch:view', 'settings.branch:update',
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
   'settings.division:view', 'settings.division:update',
+  'settings.intercompany:view', 'settings.intercompany:create', 'settings.intercompany:delete',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'audit.log:menu', 'audit.log:view',

@@ -13,7 +13,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -32,6 +32,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
         AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
@@ -138,7 +139,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH
@@ -148,6 +149,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
