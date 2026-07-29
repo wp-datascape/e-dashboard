@@ -21,9 +21,9 @@ function slugify(label: string): string {
   return slug || 'division'
 }
 
-export async function listDivisionsService(companyId: number | 'all') {
+export async function listDivisionsService(scopeIds?: number[]) {
   try {
-    return await findDivisions(companyId)
+    return await findDivisions(scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar division', 500)

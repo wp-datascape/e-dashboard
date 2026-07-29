@@ -1,0 +1,22 @@
+{
+  "title": "Division",
+  "subtitle": "Manage the Division list per entity — used by channel mapping and per-user RBAC access",
+  "add": "Add Division",
+  "addTitle": "Add Division",
+  "editTitle": "Edit Division",
+  "colLabel": "Division Name",
+  "colDormantCategory": "Dormant Category",
+  "colActive": "Active",
+  "namePlaceholder": "New Division name...",
+  "deleteConfirm": "Delete this Division? This action cannot be undone.",
+  "deleteInUse": "This Division is still used by channel mapping or user access — deactivate it instead of deleting.",
+  "empty": "No Division yet for this entity.",
+  "dormantCategory": "Dormant Category",
+  "dormantCategoryHelp": "Determines how many months a customer in this division is considered dormant (see Threshold Settings)",
+  "dormantCategoryLabels": {
+    "b2b_dc": "B2B Distribution",
+    "b2b_project": "B2B Project",
+    "b2c": "B2C",
+    "manufacturing": "Manufacturing"
+  }
+}

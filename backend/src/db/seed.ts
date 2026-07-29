@@ -120,19 +120,20 @@ const defaultPermissions = [
   { name: 'settings.channel.division:delete', description: 'Delete Channel Division', category: 'Channel Division' },
   // Division CRUD (task012 v2) — permission TERPISAH dari settings.channel.division:*
   // (yang cuma mapping channel->division) karena division menyentuh RBAC/scope akses
-  // user lain, sengaja dipisah biar lebih ketat. Sub-widget di halaman yang sama
-  // (Settings/Divisions), TIDAK punya :menu sendiri (mirror settings.branch:*/
-  // access.permission:* — sub-fitur dalam halaman yang sudah ada :menu-nya).
+  // user lain, sengaja dipisah biar lebih ketat. Halaman sendiri sejak task014
+  // (dulu sub-widget di Settings/Divisions, tanpa :menu sendiri).
+  { name: 'settings.division:menu',   description: 'Menu Division Management', category: 'Division' },
   { name: 'settings.division:view',   description: 'View Division',   category: 'Division' },
   { name: 'settings.division:create', description: 'Create Division', category: 'Division' },
   { name: 'settings.division:update', description: 'Update Division', category: 'Division' },
   { name: 'settings.division:delete', description: 'Delete Division', category: 'Division' },
-  // Sister Company Names (task013) — daftar nama customer yang representasi sister
-  // company per company, sync otomatis ke customers.division_override_id. Sub-widget
-  // di halaman Settings/Divisions yang sama, TIDAK punya :menu sendiri (pola sama
-  // dengan settings.division:* di atas).
+  // Sister Company Names / Customer Intercompany (task013, halaman sendiri +
+  // is_active sejak task014) — daftar nama customer yang representasi sister
+  // company per company, sync otomatis ke customers.division_override_id.
+  { name: 'settings.intercompany:menu',   description: 'Menu Customer Intercompany',   category: 'Division' },
   { name: 'settings.intercompany:view',   description: 'View Sister Company Names',   category: 'Division' },
   { name: 'settings.intercompany:create', description: 'Create Sister Company Name',  category: 'Division' },
+  { name: 'settings.intercompany:update', description: 'Update Sister Company Name',  category: 'Division' },
   { name: 'settings.intercompany:delete', description: 'Delete Sister Company Name',  category: 'Division' },
   // Product Settings (High Margin mapping)
   { name: 'settings.product:menu',   description: 'Menu Product Settings', category: 'Product Settings' },
@@ -230,8 +231,8 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.company:menu', 'settings.company:view', 'settings.company:update',
   'settings.branch:view', 'settings.branch:update',
   'settings.channel.division:menu', 'settings.channel.division:view', 'settings.channel.division:update',
-  'settings.division:view', 'settings.division:update',
-  'settings.intercompany:view', 'settings.intercompany:create', 'settings.intercompany:delete',
+  'settings.division:menu', 'settings.division:view', 'settings.division:update',
+  'settings.intercompany:menu', 'settings.intercompany:view', 'settings.intercompany:create', 'settings.intercompany:update', 'settings.intercompany:delete',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'audit.log:menu', 'audit.log:view',
@@ -298,6 +299,8 @@ const defaultPageSettings = [
   { page_key: 'login-log', ready: true },
   { page_key: 'companies', ready: true },
   { page_key: 'settings-divisions', ready: true },
+  { page_key: 'settings-division-management', ready: true },
+  { page_key: 'settings-customer-intercompany', ready: true },
   { page_key: 'settings-high-margin', ready: true },
   { page_key: 'settings-classification', ready: true },
   { page_key: 'settings-threshold', ready: true },

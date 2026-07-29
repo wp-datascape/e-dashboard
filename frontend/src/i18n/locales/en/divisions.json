@@ -9,28 +9,5 @@
   "division": "Division",
   "scope": "Scope",
   "scopeGlobal": "Global (all companies)",
-  "searchPlaceholder": "Search channel name...",
-  "divisionSectionTitle": "Division",
-  "divisionSectionSubtitle": "Manage Division list per entity — used by channel mapping below and per-user RBAC access",
-  "divisionAddLabel": "Add Division",
-  "divisionAddPlaceholder": "New Division name...",
-  "divisionEmpty": "No Division yet for this entity.",
-  "divisionProtectedHint": "(required)",
-  "divisionInactiveHint": "(inactive)",
-  "dormantCategory": "Dormant Category",
-  "dormantCategoryHelp": "Determines how many months a customer in this division is considered dormant (see Threshold Settings)",
-  "dormantCategoryLabels": {
-    "b2b_dc": "B2B Distribution",
-    "b2b_project": "B2B Project",
-    "b2c": "B2C",
-    "manufacturing": "Manufacturing"
-  },
-  "intercompanySectionTitle": "Intercompany Customer Names",
-  "intercompanySectionSubtitle": "List of customers whose transactions are treated as Intercompany (within the holding group) in all reports/filters, regardless of sales channel — pick from existing customer data, not free text",
-  "intercompanyAddLabel": "Add Name",
-  "intercompanyAddPlaceholder": "Search customer name...",
-  "intercompanyEmpty": "No intercompany customer names yet for this entity.",
-  "ambiguousChannelTitle": "Ambiguous Channel Detected",
-  "ambiguousChannelHint": "The channels below are used by both overridden customers and regular customers — there may be intercompany transactions that haven't been caught. Check and add the customer name to the list above if needed.",
-  "ambiguousChannelStats": "{{override}} overridden customers, {{regular}} regular customers"
+  "searchPlaceholder": "Search channel name..."
 }

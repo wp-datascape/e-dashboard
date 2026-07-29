@@ -37,6 +37,15 @@ export async function createIntercompanyName(data: { company_id: number; custome
   return result
 }
 
+export async function updateIntercompanyName(id: number, data: { is_active: boolean }) {
+  const [result] = await db
+    .update(intercompany_customer_names)
+    .set({ ...data, updated_at: new Date() })
+    .where(eq(intercompany_customer_names.id, id))
+    .returning()
+  return result
+}
+
 export async function deleteIntercompanyName(id: number) {
   await db.delete(intercompany_customer_names).where(eq(intercompany_customer_names.id, id))
 }

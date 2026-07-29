@@ -1,0 +1,1 @@
+ALTER TABLE "intercompany_customer_names" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;

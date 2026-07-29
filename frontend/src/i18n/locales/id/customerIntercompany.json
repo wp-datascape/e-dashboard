@@ -1,0 +1,14 @@
+{
+  "title": "Nama Customer Intercompany",
+  "subtitle": "Daftar customer yang transaksinya dianggap Intercompany (antar-perusahaan dalam holding) di semua laporan/filter, apa pun channel penjualannya — pilih dari data customer yang sudah ada, bukan ketik bebas",
+  "add": "Tambah Nama",
+  "addTitle": "Tambah Nama Customer Intercompany",
+  "colName": "Nama Customer",
+  "colActive": "Aktif",
+  "namePlaceholder": "Cari nama customer...",
+  "deleteConfirm": "Yakin hapus nama customer ini dari daftar Intercompany? Tindakan ini tidak bisa dibatalkan.",
+  "empty": "Belum ada nama customer intercompany untuk entitas ini.",
+  "ambiguousChannelTitle": "Channel Ambigu Terdeteksi",
+  "ambiguousChannelHint": "Channel di bawah dipakai baik oleh customer yang sudah di-override maupun customer biasa — kemungkinan ada transaksi intercompany yang belum tertangkap. Cek dan tambahkan nama customer-nya ke daftar di atas kalau perlu.",
+  "ambiguousChannelStats": "{{override}} customer ber-override, {{regular}} customer biasa"
+}

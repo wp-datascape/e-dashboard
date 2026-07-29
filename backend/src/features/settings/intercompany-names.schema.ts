@@ -21,5 +21,10 @@ export const intercompanyNameIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })
 
+export const updateIntercompanyNameSchema = z.object({
+  is_active: z.boolean(),
+})
+
 export type CreateIntercompanyNameDto = z.infer<typeof createIntercompanyNameSchema>
 export type ListIntercompanyNamesQuery = z.infer<typeof listIntercompanyNamesQuerySchema>
+export type UpdateIntercompanyNameDto = z.infer<typeof updateIntercompanyNameSchema>

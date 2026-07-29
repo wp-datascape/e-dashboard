@@ -3,11 +3,12 @@
  *
  * Daftar nama customer (per company) yang representasi sister company (task013).
  * Dipakai sync otomatis ke customers.division_override_id - lihat
- * docs-v2/task/task013.md §3.
+ * docs-v2/task/task013.md §3 dan task014.md §3 (kolom is_active + PATCH).
  *
  * Endpoints:
  *   GET    /settings/intercompany-names                    — List per company
  *   POST   /settings/intercompany-names                    — Tambah nama, langsung sync override
+ *   PATCH  /settings/intercompany-names/:id                — Toggle is_active, sync/clear override
  *   DELETE /settings/intercompany-names/:id                — Hapus nama, langsung clear override
  *   GET    /settings/intercompany-names/customer-options   — Daftar nama customer riil (autocomplete)
  *   GET    /settings/intercompany-names/ambiguous-channels — Deteksi channel dipakai campuran (proaktif)
@@ -16,6 +17,7 @@ import { Hono } from 'hono'
 import {
   handleListIntercompanyNames,
   handleCreateIntercompanyName,
+  handleUpdateIntercompanyName,
   handleDeleteIntercompanyName,
   handleListCustomerOptions,
   handleListAmbiguousChannels,
@@ -34,4 +36,5 @@ intercompanyNamesRoutes.get('/ambiguous-channels', requirePermission('settings.i
 intercompanyNamesRoutes.get('/customer-options', requirePermission('settings.intercompany:view'), handleListCustomerOptions)
 intercompanyNamesRoutes.get('/', requirePermission('settings.intercompany:view'), handleListIntercompanyNames)
 intercompanyNamesRoutes.post('/', requirePermission('settings.intercompany:create'), intercompanyMutationRateLimit, handleCreateIntercompanyName)
+intercompanyNamesRoutes.patch('/:id', requirePermission('settings.intercompany:update'), intercompanyMutationRateLimit, handleUpdateIntercompanyName)
 intercompanyNamesRoutes.delete('/:id', requirePermission('settings.intercompany:delete'), intercompanyMutationRateLimit, handleDeleteIntercompanyName)

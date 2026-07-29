@@ -1,0 +1,14 @@
+{
+  "title": "Intercompany Customer Names",
+  "subtitle": "List of customers whose transactions are treated as Intercompany (within the holding group) in all reports/filters, regardless of sales channel — pick from existing customer data, not free text",
+  "add": "Add Name",
+  "addTitle": "Add Intercompany Customer Name",
+  "colName": "Customer Name",
+  "colActive": "Active",
+  "namePlaceholder": "Search customer name...",
+  "deleteConfirm": "Delete this customer name from the Intercompany list? This action cannot be undone.",
+  "empty": "No intercompany customer names yet for this entity.",
+  "ambiguousChannelTitle": "Ambiguous Channel Detected",
+  "ambiguousChannelHint": "The channels below are used by both overridden customers and regular customers — there may be intercompany transactions that haven't been caught. Check and add the customer name to the list above if needed.",
+  "ambiguousChannelStats": "{{override}} overridden customers, {{regular}} regular customers"
+}

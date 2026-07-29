@@ -3,6 +3,7 @@ import type { ApiResponse } from '@/types/api'
 import type {
   IntercompanyNameRow,
   CreateIntercompanyNamePayload,
+  UpdateIntercompanyNamePayload,
   ListIntercompanyNamesParams,
   AmbiguousChannelRow,
   CustomerNameOption,
@@ -28,6 +29,11 @@ export const intercompanyNamesApi = {
 
   create: async (payload: CreateIntercompanyNamePayload): Promise<IntercompanyNameRow> => {
     const res = await api.post<ApiResponse<IntercompanyNameRow>>('/settings/intercompany-names', payload)
+    return res.data.data
+  },
+
+  update: async (id: number, payload: UpdateIntercompanyNamePayload): Promise<IntercompanyNameRow> => {
+    const res = await api.patch<ApiResponse<IntercompanyNameRow>>(`/settings/intercompany-names/${id}`, payload)
     return res.data.data
   },
 

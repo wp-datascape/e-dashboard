@@ -1,0 +1,22 @@
+{
+  "title": "Division",
+  "subtitle": "Kelola daftar Division per entitas — dipakai channel mapping dan akses RBAC per user",
+  "add": "Tambah Division",
+  "addTitle": "Tambah Division",
+  "editTitle": "Edit Division",
+  "colLabel": "Nama Division",
+  "colDormantCategory": "Kategori Dormant",
+  "colActive": "Aktif",
+  "namePlaceholder": "Nama Division...",
+  "deleteConfirm": "Yakin hapus Division ini? Tindakan ini tidak bisa dibatalkan.",
+  "deleteInUse": "Division masih dipakai channel mapping atau akses user — nonaktifkan saja, jangan dihapus.",
+  "empty": "Belum ada Division untuk entitas ini.",
+  "dormantCategory": "Kategori Dormant",
+  "dormantCategoryHelp": "Menentukan berapa bulan customer di division ini dianggap dormant (lihat Threshold Settings)",
+  "dormantCategoryLabels": {
+    "b2b_dc": "B2B Distribusi",
+    "b2b_project": "B2B Proyek",
+    "b2c": "B2C",
+    "manufacturing": "Manufaktur"
+  }
+}
