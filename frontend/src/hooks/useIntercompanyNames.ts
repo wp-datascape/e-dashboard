@@ -18,6 +18,14 @@ export function useAmbiguousChannels(params?: ListIntercompanyNamesParams) {
   })
 }
 
+export function useCustomerNameOptions(companyId: number | null) {
+  return useQuery({
+    queryKey: [KEY, 'customer-options', companyId],
+    queryFn: () => intercompanyNamesApi.listCustomerOptions(companyId as number),
+    enabled: companyId != null,
+  })
+}
+
 export function useCreateIntercompanyName() {
   const qc = useQueryClient()
   return useMutation({

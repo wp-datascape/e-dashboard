@@ -23,3 +23,8 @@ export interface AmbiguousChannelRow {
   override_customers: number
   regular_customers: number
 }
+
+export interface CustomerNameOption {
+  id: number
+  customer_name: string
+}

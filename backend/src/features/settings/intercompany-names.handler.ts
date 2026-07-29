@@ -6,12 +6,14 @@ import {
   createIntercompanyNameSchema,
   listIntercompanyNamesQuerySchema,
   intercompanyNameIdParamSchema,
+  customerOptionsQuerySchema,
 } from './intercompany-names.schema'
 import {
   listIntercompanyNamesService,
   createIntercompanyNameService,
   deleteIntercompanyNameService,
   listAmbiguousChannelsService,
+  listCustomerNameOptionsService,
 } from './intercompany-names.service'
 
 export async function handleListIntercompanyNames(c: Context) {
@@ -32,6 +34,13 @@ export async function handleDeleteIntercompanyName(c: Context) {
   const { id } = validateParam(c, intercompanyNameIdParamSchema)
   await deleteIntercompanyNameService(id, c)
   return success(c, { id })
+}
+
+export async function handleListCustomerOptions(c: Context) {
+  const query = validateQuery(c, customerOptionsQuerySchema)
+  resolveCompanyScope(c, query.company_id) // throw 403 kalau company di luar akses user
+  const result = await listCustomerNameOptionsService(query.company_id)
+  return success(c, result)
 }
 
 export async function handleListAmbiguousChannels(c: Context) {

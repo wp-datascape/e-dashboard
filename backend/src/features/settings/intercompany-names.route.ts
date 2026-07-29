@@ -9,6 +9,7 @@
  *   GET    /settings/intercompany-names                    — List per company
  *   POST   /settings/intercompany-names                    — Tambah nama, langsung sync override
  *   DELETE /settings/intercompany-names/:id                — Hapus nama, langsung clear override
+ *   GET    /settings/intercompany-names/customer-options   — Daftar nama customer riil (autocomplete)
  *   GET    /settings/intercompany-names/ambiguous-channels — Deteksi channel dipakai campuran (proaktif)
  */
 import { Hono } from 'hono'
@@ -16,6 +17,7 @@ import {
   handleListIntercompanyNames,
   handleCreateIntercompanyName,
   handleDeleteIntercompanyName,
+  handleListCustomerOptions,
   handleListAmbiguousChannels,
 } from './intercompany-names.handler'
 import { requirePermission } from '@/middleware/permission'
@@ -29,6 +31,7 @@ const intercompanyMutationRateLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 
 // tidak ketabrak param matching Hono - tapi ini GET vs DELETE beda method jadi
 // aman, taruh di atas cuma soal keterbacaan urutan endpoint di file.
 intercompanyNamesRoutes.get('/ambiguous-channels', requirePermission('settings.intercompany:view'), handleListAmbiguousChannels)
+intercompanyNamesRoutes.get('/customer-options', requirePermission('settings.intercompany:view'), handleListCustomerOptions)
 intercompanyNamesRoutes.get('/', requirePermission('settings.intercompany:view'), handleListIntercompanyNames)
 intercompanyNamesRoutes.post('/', requirePermission('settings.intercompany:create'), intercompanyMutationRateLimit, handleCreateIntercompanyName)
 intercompanyNamesRoutes.delete('/:id', requirePermission('settings.intercompany:delete'), intercompanyMutationRateLimit, handleDeleteIntercompanyName)
