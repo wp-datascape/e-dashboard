@@ -90,7 +90,14 @@ export async function getCustomerSegments(
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope, otherIdByBranch)
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'lc.division_id', intercompanyIdByCompany, excludeIntercompany)
+  // Dipakai di WHERE clause final (bukan di dalam CTE) - alias 'i' TIDAK in-scope
+  // di situ (cuma exist di dalam CTE cust_dates/latest_channel), jadi harus pakai
+  // 'lc.company_id' (kolom company_id yang di-expose CTE latest_channel), bukan
+  // 'i.company_id' seperti sebelumnya (bug lama, query error kalau
+  // excludeIntercompany=true - ketahuan saat wiring override task013). alias 'ov'
+  // (override) - join customers baru khusus di final SELECT, terpisah dari alias
+  // 'c' di CTE cust_dates (scope-nya cuma di dalam CTE itu).
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('lc.company_id', 'COALESCE(ov.division_override_id, lc.division_id)', intercompanyIdByCompany, excludeIntercompany)
 
   const rows = await db.execute(sql`
     WITH
@@ -146,6 +153,7 @@ export async function getCustomerSegments(
 
     FROM cust_dates cd
     LEFT JOIN latest_channel lc ON lc.customer_id = cd.customer_id
+    LEFT JOIN customers ov ON ov.id = cd.customer_id
     WHERE (${division}::int IS NULL OR lc.division_id = ${division}::int)
       AND (${p.branchFilter}::int IS NULL OR lc.branch_id = ${p.branchFilter}::int)
       AND ${excludeIntercompanyCond}
@@ -250,7 +258,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   return sql`
     established_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -296,7 +304,7 @@ export function cteNewCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   return sql`
     new_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -340,7 +348,7 @@ export function cteActiveCustomers(p: SegmentParams) {
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   return sql`
     active_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -390,8 +398,8 @@ export function cteExistingCustomers(p: SegmentParams) {
   const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
   const companyCondIx2 = buildCompanyConditionRaw('ix2.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
-  const excludeIntercompanyCond2 = buildExcludeIntercompanyRaw('ix2.company_id', 'cd2.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond2 = buildExcludeIntercompanyRaw('ix2.company_id', 'COALESCE(c.division_override_id, cd2.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   return sql`
     existing_customers AS (
       SELECT DISTINCT c.id, c.customer_name, c.customer_code
@@ -451,7 +459,7 @@ export function cteDormantCustomers(p: SegmentParams) {
   const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
   const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'cd.division_id', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   return sql`
     dormant_customers AS (
       SELECT c.id, c.customer_name, c.customer_code

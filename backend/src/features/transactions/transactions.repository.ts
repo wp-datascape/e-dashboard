@@ -51,7 +51,14 @@ export async function findInvoices(
   const branchFilterCond = branch_id ? eq(invoices.branch_id, branch_id) : undefined
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
-  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, intercompanyIdByCompany, exclude_intercompany)
+  // COALESCE override customer (task013, representasi sister company) menang atas
+  // mapping channel biasa - lihat docs-v2/task/task013.md
+  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(
+    invoices.company_id,
+    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
+    intercompanyIdByCompany,
+    exclude_intercompany,
+  )
   const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond, excludeIntercompanyCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )

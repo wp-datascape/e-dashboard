@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { success, error } from '@/utils/response'
 import { validateBody, validateQuery, validateParam } from '@/utils/validator'
 import { ErrorCode } from '@/utils/error'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   createChannelDivisionSchema,
   updateChannelDivisionSchema,
@@ -40,6 +41,7 @@ export async function handleListUnmappedChannels(c: Context) {
 
 export async function handleCreateChannelDivision(c: Context) {
   const body = await validateBody(c, createChannelDivisionSchema)
+  resolveCompanyScope(c, body.company_id) // throw 403 kalau company di luar akses user
   const result = await createChannelDivisionService(body, c)
   return success(c, result, 'Created', 201)
 }
@@ -67,6 +69,7 @@ export async function handleImportChannelDivisions(c: Context) {
 
   const companyId = Number(companyIdRaw)
   if (!Number.isInteger(companyId) || companyId <= 0) return error(c, ErrorCode.VALIDATION_ERROR, 'company_id tidak valid', 400)
+  resolveCompanyScope(c, companyId) // throw 403 kalau company di luar akses user
 
   if (file.size > 5 * 1024 * 1024) return error(c, ErrorCode.FILE_TOO_LARGE, 'File terlalu besar (max 5MB)', 413)
 

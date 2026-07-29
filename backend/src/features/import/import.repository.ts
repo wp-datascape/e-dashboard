@@ -19,6 +19,7 @@ import {
   companies,
   company_branches,
   users,
+  intercompany_customer_names,
 } from '@/db/schema'
 import type { NewInvoice, NewInvoiceItem, NewImportLog, NewImportLogError, NewItemClassificationRule } from '@/db/schema'
 
@@ -208,6 +209,32 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
     return updated
   }
 
+  // Customer BARU — cek terhadap daftar nama sister company (task013) sebelum
+  // insert, supaya division_override_id langsung ke-set sejak awal dibuat (tidak
+  // perlu admin nambah alias lagi kalau customer sister company ini baru pertama
+  // kali muncul di import). Cuma dijalankan di jalur create (jarang, bukan hot
+  // path), TIDAK PERNAH di jalur update di atas — override yang sudah ke-set
+  // (baik dari sini maupun sync alias manual) tidak boleh ketimpa oleh import
+  // berikutnya, updateData di atas sengaja tidak menyertakan field ini sama sekali.
+  const [aliasMatch] = await db
+    .select({ id: intercompany_customer_names.id })
+    .from(intercompany_customer_names)
+    .where(and(
+      eq(intercompany_customer_names.company_id, data.company_id),
+      eq(intercompany_customer_names.customer_name, upperName),
+    ))
+    .limit(1)
+
+  let divisionOverrideId: number | undefined
+  if (aliasMatch) {
+    const [intercompanyDivision] = await db
+      .select({ id: divisions.id })
+      .from(divisions)
+      .where(and(eq(divisions.company_id, data.company_id), eq(divisions.key, 'intercompany')))
+      .limit(1)
+    divisionOverrideId = intercompanyDivision?.id
+  }
+
   const [created] = await db
     .insert(customers)
     .values({
@@ -217,6 +244,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
       first_invoice_date: invoiceDateStr,
       last_invoice_date: invoiceDateStr,
       business_unit: division ?? undefined,
+      division_override_id: divisionOverrideId,
     })
     .returning()
   return created

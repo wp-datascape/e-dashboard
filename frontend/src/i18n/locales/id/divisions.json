@@ -24,5 +24,13 @@
     "b2b_project": "B2B Proyek",
     "b2c": "B2C",
     "manufacturing": "Manufaktur"
-  }
+  },
+  "intercompanySectionTitle": "Nama Sister Company",
+  "intercompanySectionSubtitle": "Daftar nama customer yang representasi sister company (transaksi antar-perusahaan dalam holding) — selalu dianggap Intercompany di semua laporan/filter, apa pun channel penjualannya",
+  "intercompanyAddLabel": "Tambah Nama",
+  "intercompanyAddPlaceholder": "Nama customer persis seperti di faktur...",
+  "intercompanyEmpty": "Belum ada nama sister company untuk entitas ini.",
+  "ambiguousChannelTitle": "Channel Ambigu Terdeteksi",
+  "ambiguousChannelHint": "Channel di bawah dipakai baik oleh customer yang sudah di-override maupun customer biasa — kemungkinan ada transaksi intercompany yang belum tertangkap. Cek dan tambahkan nama customer-nya ke daftar di atas kalau perlu.",
+  "ambiguousChannelStats": "{{override}} customer ber-override, {{regular}} customer biasa"
 }

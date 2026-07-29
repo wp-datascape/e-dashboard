@@ -133,7 +133,14 @@ export async function findCustomers(
   // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
   // branchScopeCond (enforcement akses) meski keduanya nyasar ke kolom yang sama
   const branchFilterCond = branch_id ? eq(latestSalespersonSq.branch_id, branch_id) : undefined
-  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(customers.company_id, channel_divisions.division_id, intercompanyIdByCompany, exclude_intercompany)
+  // COALESCE override customer (task013, representasi sister company) menang atas
+  // mapping channel biasa - lihat docs-v2/task/task013.md
+  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(
+    customers.company_id,
+    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
+    intercompanyIdByCompany,
+    exclude_intercompany,
+  )
 
   const scopeConditions = [divisionCond, branchFilterCond, branchScopeCond, divisionScopeCond, excludeIntercompanyCond].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,

@@ -24,5 +24,13 @@
     "b2b_project": "B2B Project",
     "b2c": "B2C",
     "manufacturing": "Manufacturing"
-  }
+  },
+  "intercompanySectionTitle": "Sister Company Names",
+  "intercompanySectionSubtitle": "List of customer names that represent sister companies (transactions within the holding group) — always treated as Intercompany in all reports/filters, regardless of sales channel",
+  "intercompanyAddLabel": "Add Name",
+  "intercompanyAddPlaceholder": "Exact customer name as on the invoice...",
+  "intercompanyEmpty": "No sister company names yet for this entity.",
+  "ambiguousChannelTitle": "Ambiguous Channel Detected",
+  "ambiguousChannelHint": "The channels below are used by both overridden customers and regular customers — there may be intercompany transactions that haven't been caught. Check and add the customer name to the list above if needed.",
+  "ambiguousChannelStats": "{{override}} overridden customers, {{regular}} regular customers"
 }

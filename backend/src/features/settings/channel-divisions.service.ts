@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { AppError, ErrorCode } from '@/utils/error'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   findChannelDivisions,
   findChannelDivisionById,
@@ -88,6 +89,10 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
   try {
     const existing = await findChannelDivisionById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Channel division dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // throw 403 kalau row ini di luar akses company user
+    if (body.company_id && body.company_id !== existing.company_id) {
+      resolveCompanyScope(ctx, body.company_id) // company_id BARU (kalau diubah) juga wajib dalam akses user
+    }
 
     if (body.division_id) {
       const scopeCompanyId = body.company_id ?? existing.company_id
@@ -239,6 +244,7 @@ export async function deleteChannelDivisionService(id: number, ctx: Context) {
   try {
     const existing = await findChannelDivisionById(id)
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Channel division dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // throw 403 kalau row ini di luar akses company user
 
     await deleteChannelDivision(id)
 
