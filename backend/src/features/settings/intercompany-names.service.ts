@@ -8,12 +8,13 @@ import {
   findIntercompanyNames,
   findIntercompanyNameById,
   createIntercompanyName,
+  updateIntercompanyName,
   deleteIntercompanyName,
   syncCustomerDivisionOverride,
   findAmbiguousChannels,
   findCustomerNameOptions,
 } from './intercompany-names.repository'
-import type { CreateIntercompanyNameDto } from './intercompany-names.schema'
+import type { CreateIntercompanyNameDto, UpdateIntercompanyNameDto } from './intercompany-names.schema'
 
 export async function listIntercompanyNamesService(scopeIds?: number[]) {
   try {
@@ -66,6 +67,45 @@ export async function createIntercompanyNameService(body: CreateIntercompanyName
     if (isDuplicateError(err)) throw new AppError(ErrorCode.DUPLICATE_ENTRY, `Nama "${body.customer_name}" sudah ada di daftar company ini`, 409)
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menambah nama sister company', 500)
+  }
+}
+
+export async function updateIntercompanyNameService(id: number, body: UpdateIntercompanyNameDto, ctx: Context) {
+  try {
+    const existing = await findIntercompanyNameById(id)
+    if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `Nama sister company dengan id ${id} tidak ditemukan`, 404)
+    resolveCompanyScope(ctx, existing.company_id) // throw 403 kalau row ini di luar akses company user
+
+    const result = await updateIntercompanyName(id, body)
+
+    // toggle non-destruktif: false → clear override (sama efek dengan delete tapi
+    // record tetap ada), true → set lagi (sama efek dengan create)
+    if (body.is_active !== existing.is_active) {
+      if (body.is_active) {
+        const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
+        const divisionId = intercompanyIdByCompany.get(existing.company_id)
+        if (!divisionId) {
+          throw new AppError(ErrorCode.VALIDATION_ERROR, 'Company ini belum punya division "Intercompany" - jalankan seed division default dulu', 400)
+        }
+        await syncCustomerDivisionOverride(existing.company_id, existing.customer_name, divisionId)
+      } else {
+        await syncCustomerDivisionOverride(existing.company_id, existing.customer_name, null)
+      }
+    }
+
+    await logAudit(ctx, {
+      action: 'intercompany_name.update',
+      entity: 'intercompany_customer_names',
+      entityId: id,
+      companyId: existing.company_id,
+      oldValue: { is_active: existing.is_active },
+      newValue: body,
+    })
+
+    return result
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengupdate status nama sister company', 500)
   }
 }
 

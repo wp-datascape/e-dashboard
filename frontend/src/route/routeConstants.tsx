@@ -21,6 +21,8 @@ import {
   Companies,
   HighMarginSettings,
   DivisionsSettings,
+  DivisionManagementSettings,
+  CustomerIntercompanySettings,
   ClassificationSettings,
   ThresholdSettings,
   AppSettings,
@@ -62,6 +64,8 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'settings-app':         { path: '/settings/app',           element: withLayout(<AppSettings />),           protected: true, permissionKey: 'settings.app:view' },
   'companies':            { path: '/companies',              element: withLayout(<Companies />),             protected: true, permissionKey: 'settings.company:view' },
   'settings-divisions':   { path: '/settings/divisions',     element: withLayout(<DivisionsSettings />),     protected: true, permissionKey: 'settings.channel.division:view' },
+  'settings-division-management':    { path: '/settings/division-management',   element: withLayout(<DivisionManagementSettings />),    protected: true, permissionKey: 'settings.division:view' },
+  'settings-customer-intercompany':  { path: '/settings/customer-intercompany', element: withLayout(<CustomerIntercompanySettings />),  protected: true, permissionKey: 'settings.intercompany:view' },
   'settings-high-margin': { path: '/settings/high-margin',   element: withLayout(<HighMarginSettings />),    protected: true, permissionKey: 'settings.product:view' },
   'settings-threshold':   { path: '/settings/threshold',     element: withLayout(<ThresholdSettings />),     protected: true, permissionKey: 'settings.threshold:view' },
   // ── Administration — Configuration ───────────────────────────────────────

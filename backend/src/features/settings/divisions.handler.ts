@@ -18,7 +18,8 @@ import {
 
 export async function handleListDivisions(c: Context) {
   const query = validateQuery(c, listDivisionsQuerySchema)
-  const result = await listDivisionsService(query.company_id)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listDivisionsService(scopeIds)
   return success(c, result)
 }
 

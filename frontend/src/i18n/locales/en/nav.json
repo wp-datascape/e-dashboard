@@ -29,6 +29,8 @@
   "settingsHighMargin": "Product",
   "settingsClassification": "Classification",
   "settingsDivisions": "Channel Divisions",
+  "settingsDivisionManagement": "Division",
+  "settingsCustomerIntercompany": "Customer Intercompany",
   "settingsThreshold": "Threshold",
   "settingsApp": "App Settings",
   "configApp": "App Settings",

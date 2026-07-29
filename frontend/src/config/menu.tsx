@@ -23,6 +23,8 @@ import ApiIcon from '@mui/icons-material/Api';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import CategoryIcon from '@mui/icons-material/Category';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 import WebIcon from '@mui/icons-material/Web';
@@ -165,6 +167,20 @@ export const NAV_ITEMS: NavItem[] = [
         labelKey: 'nav.settingsDivisions',
         icon: <AccountTreeIcon fontSize="small" />,
         permissionKey: 'settings.channel.division:menu',
+      },
+      {
+        key: 'settings-division-management',
+        path: '/settings/division-management',
+        labelKey: 'nav.settingsDivisionManagement',
+        icon: <CategoryIcon fontSize="small" />,
+        permissionKey: 'settings.division:menu',
+      },
+      {
+        key: 'settings-customer-intercompany',
+        path: '/settings/customer-intercompany',
+        labelKey: 'nav.settingsCustomerIntercompany',
+        icon: <CompareArrowsIcon fontSize="small" />,
+        permissionKey: 'settings.intercompany:menu',
       },
       {
         key: 'settings-product',

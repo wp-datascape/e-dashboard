@@ -1,16 +1,17 @@
 import { db } from '@/config/db'
 import { divisions, channel_divisions, userDivisions, company_branches } from '@/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, inArray } from 'drizzle-orm'
 import type { UpdateDivisionDto } from './divisions.schema'
 
-export async function findDivisions(companyId: number | 'all') {
-  const conditions = []
-  if (companyId !== 'all') conditions.push(eq(divisions.company_id, companyId))
-
+// scopeIds undefined → superadmin + 'all' → tidak ada filter company (lihat semua)
+// scopeIds array     → company spesifik ATAU 'all' non-superadmin → filter ke company itu
+export async function findDivisions(scopeIds?: number[]) {
+  if (scopeIds && scopeIds.length === 0) return []
+  const condition = scopeIds ? inArray(divisions.company_id, scopeIds) : undefined
   return db
     .select()
     .from(divisions)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(condition)
     .orderBy(divisions.label)
 }
 

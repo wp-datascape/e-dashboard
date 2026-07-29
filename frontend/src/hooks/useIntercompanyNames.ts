@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { intercompanyNamesApi } from '@/api/intercompanyNames.api'
-import type { CreateIntercompanyNamePayload, ListIntercompanyNamesParams } from '@/types/intercompanyNames'
+import type { CreateIntercompanyNamePayload, UpdateIntercompanyNamePayload, ListIntercompanyNamesParams } from '@/types/intercompanyNames'
 
 const KEY = 'intercompany-names'
 
@@ -30,6 +30,14 @@ export function useCreateIntercompanyName() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateIntercompanyNamePayload) => intercompanyNamesApi.create(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  })
+}
+
+export function useUpdateIntercompanyName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateIntercompanyNamePayload }) => intercompanyNamesApi.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   })
 }

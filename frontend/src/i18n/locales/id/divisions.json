@@ -9,28 +9,5 @@
   "division": "Divisi",
   "scope": "Lingkup",
   "scopeGlobal": "Global (semua perusahaan)",
-  "searchPlaceholder": "Cari nama channel...",
-  "divisionSectionTitle": "Division",
-  "divisionSectionSubtitle": "Kelola daftar Division per entitas — dipakai channel mapping di bawah dan akses RBAC per user",
-  "divisionAddLabel": "Tambah Division",
-  "divisionAddPlaceholder": "Nama Division baru...",
-  "divisionEmpty": "Belum ada Division untuk entitas ini.",
-  "divisionProtectedHint": "(wajib ada)",
-  "divisionInactiveHint": "(nonaktif)",
-  "dormantCategory": "Kategori Dormant",
-  "dormantCategoryHelp": "Menentukan berapa bulan customer di division ini dianggap dormant (lihat Threshold Settings)",
-  "dormantCategoryLabels": {
-    "b2b_dc": "B2B Distribusi",
-    "b2b_project": "B2B Proyek",
-    "b2c": "B2C",
-    "manufacturing": "Manufaktur"
-  },
-  "intercompanySectionTitle": "Nama Customer Intercompany",
-  "intercompanySectionSubtitle": "Daftar customer yang transaksinya dianggap Intercompany (antar-perusahaan dalam holding) di semua laporan/filter, apa pun channel penjualannya — pilih dari data customer yang sudah ada, bukan ketik bebas",
-  "intercompanyAddLabel": "Tambah Nama",
-  "intercompanyAddPlaceholder": "Cari nama customer...",
-  "intercompanyEmpty": "Belum ada nama customer intercompany untuk entitas ini.",
-  "ambiguousChannelTitle": "Channel Ambigu Terdeteksi",
-  "ambiguousChannelHint": "Channel di bawah dipakai baik oleh customer yang sudah di-override maupun customer biasa — kemungkinan ada transaksi intercompany yang belum tertangkap. Cek dan tambahkan nama customer-nya ke daftar di atas kalau perlu.",
-  "ambiguousChannelStats": "{{override}} customer ber-override, {{regular}} customer biasa"
+  "searchPlaceholder": "Cari nama channel..."
 }

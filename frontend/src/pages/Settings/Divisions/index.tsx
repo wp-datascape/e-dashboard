@@ -6,10 +6,6 @@ import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
-import Autocomplete from '@mui/material/Autocomplete'
-import Stack from '@mui/material/Stack'
-import Chip from '@mui/material/Chip'
-import Alert from '@mui/material/Alert'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -26,25 +22,8 @@ import {
   useDeleteChannelDivision,
 } from '@/hooks/useChannelDivisions'
 import { useDivisionOptions } from '@/hooks/useDivisionOptions'
-import {
-  useDivisions,
-  useCreateDivision,
-  useUpdateDivision,
-  useDeleteDivision,
-} from '@/hooks/useDivisions'
-import {
-  useIntercompanyNames,
-  useCreateIntercompanyName,
-  useDeleteIntercompanyName,
-  useAmbiguousChannels,
-  useCustomerNameOptions,
-} from '@/hooks/useIntercompanyNames'
-import { getApiErrorMessage } from '@/utils/apiError'
-import { getDivisionColor } from '@/utils/divisionColor'
 import type { ChannelDivisionRow, CreateChannelDivisionPayload, UpdateChannelDivisionPayload } from '@/types/channelDivisions'
 import type { Division } from '@/types/customers'
-import { DORMANT_CATEGORY_VALUES } from '@/types/divisions'
-import type { DormantCategory } from '@/types/divisions'
 import { DivisionMappingDialog } from './components/DivisionMappingDialog'
 import { useCan } from '@/hooks/useCan'
 
@@ -75,66 +54,6 @@ export default function DivisionsSettings() {
   const { mutate: create, isPending: isCreating, error: createError, reset: resetCreate } = useCreateChannelDivision()
   const { mutate: update, isPending: isUpdating, error: updateError, reset: resetUpdate } = useUpdateChannelDivision()
   const { mutate: remove } = useDeleteChannelDivision()
-
-  // ── Division CRUD widget (task012 v2) — permission TERPISAH (settings.division:*)
-  // dari Channel Division mapping di atas (settings.channel.division:*) karena
-  // division menyentuh RBAC/scope akses user lain.
-  const [divisionManageCompanyId, setDivisionManageCompanyId] = useState<number | null>(null)
-  const activeDivisionCompanyId = divisionManageCompanyId ?? companies[0]?.id ?? null
-  const [newDivisionLabel, setNewDivisionLabel] = useState('')
-  const [newDivisionDormantCategory, setNewDivisionDormantCategory] = useState<DormantCategory | ''>('')
-  const { data: divisionList = [] } = useDivisions(
-    activeDivisionCompanyId ? { company_id: activeDivisionCompanyId } : undefined,
-  )
-  const createDivision = useCreateDivision()
-  const updateDivision = useUpdateDivision()
-  const deleteDivision = useDeleteDivision()
-  const divisionCrudError = createDivision.error ?? updateDivision.error ?? deleteDivision.error
-
-  // ── Customer Intercompany widget (task013) — sub-section terpisah dari Division
-  // CRUD di atas, sama-sama scoped ke activeDivisionCompanyId (company selector
-  // dishare). Nama yang ditambah di sini otomatis sync ke customers.division_override_id
-  // di backend (lihat docs-v2/task/task013.md) - tidak ada pilihan division manual di
-  // sini, selalu dipetakan ke division "Intercompany" company yang bersangkutan.
-  // Input WAJIB autocomplete dari nama customer riil (bukan ketik bebas) - exact
-  // match ke customers.customer_name, ketik bebas rawan typo/mismatch yang bikin
-  // sync diam-diam gagal (tidak ada baris yang cocok, tapi alias tetap tersimpan).
-  const [newIntercompanyName, setNewIntercompanyName] = useState<string | null>(null)
-  const { data: intercompanyNames = [] } = useIntercompanyNames(
-    activeDivisionCompanyId ? { company_id: activeDivisionCompanyId } : undefined,
-  )
-  const { data: customerNameOptions = [] } = useCustomerNameOptions(activeDivisionCompanyId)
-  const alreadyAddedNames = new Set(intercompanyNames.map((n) => n.customer_name))
-  const customerNameChoices = customerNameOptions
-    .map((o) => o.customer_name)
-    .filter((name) => !alreadyAddedNames.has(name))
-  const createIntercompanyName = useCreateIntercompanyName()
-  const deleteIntercompanyName = useDeleteIntercompanyName()
-  const intercompanyCrudError = createIntercompanyName.error ?? deleteIntercompanyName.error
-
-  // Deteksi proaktif channel yang dipakai campuran (task013 §3g) — peringatan
-  // sebelum kejadian salah lapor macam SALES SUPPORT/KODE NIAGA TAMA terulang di
-  // channel/entitas lain. Di-scope company yang sama dengan widget di atas.
-  const { data: ambiguousChannels = [] } = useAmbiguousChannels(
-    activeDivisionCompanyId ? { company_id: activeDivisionCompanyId } : undefined,
-  )
-
-  const handleAddIntercompanyName = () => {
-    if (!newIntercompanyName || !activeDivisionCompanyId) return
-    createIntercompanyName.mutate(
-      { company_id: activeDivisionCompanyId, customer_name: newIntercompanyName },
-      { onSuccess: () => setNewIntercompanyName(null) },
-    )
-  }
-
-  const handleAddDivision = () => {
-    const label = newDivisionLabel.trim()
-    if (!label || !activeDivisionCompanyId || !newDivisionDormantCategory) return
-    createDivision.mutate(
-      { company_id: activeDivisionCompanyId, label, dormant_category: newDivisionDormantCategory },
-      { onSuccess: () => { setNewDivisionLabel(''); setNewDivisionDormantCategory('') } },
-    )
-  }
 
   // ── Handlers (Channel Division mapping) ──
   const closeDialog = () => {
@@ -229,181 +148,6 @@ export default function DivisionsSettings() {
           </Button>
         )}
       </Box>
-
-      {/* Division CRUD widget (task012 v2) */}
-      {can('settings.division:view') && (
-        <Box sx={{ mb: 3, p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap', mb: 1.5 }}>
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t('divisions.divisionSectionTitle')}</Typography>
-              <Typography variant="body2" color="text.secondary">{t('divisions.divisionSectionSubtitle')}</Typography>
-            </Box>
-            {companies.length > 1 && (
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel>{t('common.filters.entity')}</InputLabel>
-                <Select
-                  value={activeDivisionCompanyId ?? ''}
-                  label={t('common.filters.entity')}
-                  onChange={(e) => setDivisionManageCompanyId(Number(e.target.value))}
-                >
-                  {companies.map((c) => (
-                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-          </Box>
-
-          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 1.5 }}>
-            {divisionList.length === 0 && (
-              <Typography variant="body2" color="text.secondary">{t('divisions.divisionEmpty')}</Typography>
-            )}
-            {divisionList.map((d) => {
-              const labelText = d.is_protected
-                ? `${d.label} ${t('divisions.divisionProtectedHint')}`
-                : d.is_active ? d.label : `${d.label} ${t('divisions.divisionInactiveHint')}`
-              return (
-                <Chip
-                  key={d.id}
-                  label={labelText}
-                  variant={d.is_active ? 'filled' : 'outlined'}
-                  color={d.is_active ? getDivisionColor(d.key) : 'default'}
-                  onClick={can('settings.division:update') && !d.is_protected
-                    ? () => updateDivision.mutate({ id: d.id, payload: { is_active: !d.is_active } })
-                    : undefined}
-                  onDelete={can('settings.division:delete') && !d.is_protected
-                    ? () => deleteDivision.mutate(d.id)
-                    : undefined}
-                  size="small"
-                />
-              )
-            })}
-          </Stack>
-
-          {divisionCrudError && (
-            <Alert
-              severity="error"
-              sx={{ mb: 1.5 }}
-              onClose={() => { createDivision.reset(); updateDivision.reset(); deleteDivision.reset() }}
-            >
-              {getApiErrorMessage(divisionCrudError, t)}
-            </Alert>
-          )}
-
-          {can('settings.division:create') && (
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                placeholder={t('divisions.divisionAddPlaceholder')}
-                value={newDivisionLabel}
-                onChange={(e) => setNewDivisionLabel(e.target.value)}
-                sx={{ minWidth: 220 }}
-              />
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel>{t('divisions.dormantCategory')}</InputLabel>
-                <Select
-                  value={newDivisionDormantCategory}
-                  label={t('divisions.dormantCategory')}
-                  onChange={(e) => setNewDivisionDormantCategory(e.target.value as DormantCategory)}
-                >
-                  {DORMANT_CATEGORY_VALUES.map((cat) => (
-                    <MenuItem key={cat} value={cat}>{t(`divisions.dormantCategoryLabels.${cat}`)}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={handleAddDivision}
-                disabled={!newDivisionLabel.trim() || !newDivisionDormantCategory || createDivision.isPending}
-              >
-                {t('divisions.divisionAddLabel')}
-              </Button>
-            </Stack>
-          )}
-        </Box>
-      )}
-
-      {/* Customer Intercompany widget (task013) */}
-      {can('settings.intercompany:view') && (
-        <Box sx={{ mb: 3, p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-          <Box sx={{ mb: 1.5 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t('divisions.intercompanySectionTitle')}</Typography>
-            <Typography variant="body2" color="text.secondary">{t('divisions.intercompanySectionSubtitle')}</Typography>
-          </Box>
-
-          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 1.5 }}>
-            {intercompanyNames.length === 0 && (
-              <Typography variant="body2" color="text.secondary">{t('divisions.intercompanyEmpty')}</Typography>
-            )}
-            {intercompanyNames.map((n) => (
-              <Chip
-                key={n.id}
-                label={n.customer_name}
-                variant="filled"
-                color="warning"
-                onDelete={can('settings.intercompany:delete') ? () => deleteIntercompanyName.mutate(n.id) : undefined}
-                size="small"
-              />
-            ))}
-          </Stack>
-
-          {intercompanyCrudError && (
-            <Alert
-              severity="error"
-              sx={{ mb: 1.5 }}
-              onClose={() => { createIntercompanyName.reset(); deleteIntercompanyName.reset() }}
-            >
-              {getApiErrorMessage(intercompanyCrudError, t)}
-            </Alert>
-          )}
-
-          {can('settings.intercompany:create') && (
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-              <Autocomplete
-                size="small"
-                options={customerNameChoices}
-                value={newIntercompanyName}
-                onChange={(_, val) => setNewIntercompanyName(val)}
-                disablePortal
-                sx={{ minWidth: 280 }}
-                renderInput={(params) => (
-                  <TextField {...params} placeholder={t('divisions.intercompanyAddPlaceholder')} />
-                )}
-              />
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={handleAddIntercompanyName}
-                disabled={!newIntercompanyName || createIntercompanyName.isPending}
-              >
-                {t('divisions.intercompanyAddLabel')}
-              </Button>
-            </Stack>
-          )}
-
-          {ambiguousChannels.length > 0 && (
-            <Alert severity="warning" sx={{ mt: 1.5 }}>
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                {t('divisions.ambiguousChannelTitle')}
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                {t('divisions.ambiguousChannelHint')}
-              </Typography>
-              <Stack spacing={0.5}>
-                {ambiguousChannels.map((ch) => (
-                  <Typography key={ch.channel_name} variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {ch.channel_name} — {t('divisions.ambiguousChannelStats', {
-                      override: ch.override_customers,
-                      regular: ch.regular_customers,
-                    })}
-                  </Typography>
-                ))}
-              </Stack>
-            </Alert>
-          )}
-        </Box>
-      )}
 
       {/* Filters */}
       <Card sx={{ p: 2, mb: 2 }}>

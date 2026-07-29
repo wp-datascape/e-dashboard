@@ -4,6 +4,7 @@ export interface IntercompanyNameRow {
   id: number
   company_id: number
   customer_name: string
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -11,6 +12,10 @@ export interface IntercompanyNameRow {
 export interface CreateIntercompanyNamePayload {
   company_id: number
   customer_name: string
+}
+
+export interface UpdateIntercompanyNamePayload {
+  is_active: boolean
 }
 
 export interface ListIntercompanyNamesParams {
