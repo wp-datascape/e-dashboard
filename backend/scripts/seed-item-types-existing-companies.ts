@@ -24,9 +24,9 @@ async function main() {
   console.log(`Total company: ${allCompanies.length}`)
 
   for (const c of allCompanies) {
-    const before = await findItemTypes(c.id)
+    const before = await findItemTypes([c.id])
     await seedDefaultItemTypes(c.id)
-    const after = await findItemTypes(c.id)
+    const after = await findItemTypes([c.id])
     console.log(`  ${c.name} (id ${c.id}): ${before.length} -> ${after.length} item type`)
   }
 

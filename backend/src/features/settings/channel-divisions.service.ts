@@ -15,10 +15,10 @@ import {
   deleteChannelDivision,
   findUnmappedChannelNames,
   findDistinctDivisions,
+  type FindChannelDivisionsParams,
 } from './channel-divisions.repository'
 import { findActiveDivisions } from './divisions.repository'
 import type {
-  ListChannelDivisionsQuery,
   CreateChannelDivisionDto,
   UpdateChannelDivisionDto,
 } from './channel-divisions.schema'
@@ -30,9 +30,9 @@ async function isValidDivision(companyId: number, divisionId: number): Promise<b
   return activeDivisions.some((d) => d.id === divisionId)
 }
 
-export async function listChannelDivisionsService(query: ListChannelDivisionsQuery) {
+export async function listChannelDivisionsService(params: FindChannelDivisionsParams) {
   try {
-    return await findChannelDivisions(query)
+    return await findChannelDivisions(params)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar channel division', 500)

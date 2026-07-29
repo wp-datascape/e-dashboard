@@ -1,16 +1,20 @@
 import { db } from '@/config/db'
 import { item_types, product_categories, item_classification_rules } from '@/db/schema'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, or, inArray } from 'drizzle-orm'
 import type { UpdateItemTypeDto } from './item-types.schema'
 
-export async function findItemTypes(companyId: number | 'all') {
-  const conditions = []
-  if (companyId !== 'all') conditions.push(eq(item_types.company_id, companyId))
-
+// task015 §2d — sebelumnya filter company_id cuma jalan kalau BUKAN 'all', tanpa
+// scope check apa pun (defense-in-depth: config.classification:* saat ini
+// superadmin-only, jadi belum exploitable, tapi pola tetap disamakan dengan
+// divisions/intercompany-names supaya tidak jadi celah kalau permission ini
+// suatu saat di-grant ke role lain).
+export async function findItemTypes(scopeIds?: number[]) {
+  if (scopeIds && scopeIds.length === 0) return []
+  const condition = scopeIds ? inArray(item_types.company_id, scopeIds) : undefined
   return db
     .select()
     .from(item_types)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(condition)
     .orderBy(item_types.label)
 }
 
