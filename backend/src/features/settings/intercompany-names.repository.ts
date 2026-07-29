@@ -14,6 +14,19 @@ export async function findIntercompanyNames(scopeIds?: number[]) {
     .orderBy(intercompany_customer_names.customer_name)
 }
 
+/**
+ * Opsi nama customer riil (bukan ketik bebas) untuk company tertentu — dipakai
+ * autocomplete form tambah nama, supaya input SELALU cocok persis data DB (tidak
+ * rawan typo/mismatch yang bikin sync ke division_override_id diam-diam gagal).
+ */
+export async function findCustomerNameOptions(companyId: number) {
+  return db
+    .select({ id: customers.id, customer_name: customers.customer_name })
+    .from(customers)
+    .where(and(eq(customers.company_id, companyId), eq(customers.is_placeholder, false)))
+    .orderBy(customers.customer_name)
+}
+
 export async function findIntercompanyNameById(id: number) {
   const [row] = await db.select().from(intercompany_customer_names).where(eq(intercompany_customer_names.id, id))
   return row ?? null

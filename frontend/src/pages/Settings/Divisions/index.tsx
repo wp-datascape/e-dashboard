@@ -6,6 +6,7 @@ import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
+import Autocomplete from '@mui/material/Autocomplete'
 import Stack from '@mui/material/Stack'
 import Chip from '@mui/material/Chip'
 import Alert from '@mui/material/Alert'
@@ -36,6 +37,7 @@ import {
   useCreateIntercompanyName,
   useDeleteIntercompanyName,
   useAmbiguousChannels,
+  useCustomerNameOptions,
 } from '@/hooks/useIntercompanyNames'
 import { getApiErrorMessage } from '@/utils/apiError'
 import { getDivisionColor } from '@/utils/divisionColor'
@@ -89,15 +91,23 @@ export default function DivisionsSettings() {
   const deleteDivision = useDeleteDivision()
   const divisionCrudError = createDivision.error ?? updateDivision.error ?? deleteDivision.error
 
-  // ── Sister Company Names widget (task013) — sub-section terpisah dari Division
+  // ── Customer Intercompany widget (task013) — sub-section terpisah dari Division
   // CRUD di atas, sama-sama scoped ke activeDivisionCompanyId (company selector
   // dishare). Nama yang ditambah di sini otomatis sync ke customers.division_override_id
   // di backend (lihat docs-v2/task/task013.md) - tidak ada pilihan division manual di
   // sini, selalu dipetakan ke division "Intercompany" company yang bersangkutan.
-  const [newIntercompanyName, setNewIntercompanyName] = useState('')
+  // Input WAJIB autocomplete dari nama customer riil (bukan ketik bebas) - exact
+  // match ke customers.customer_name, ketik bebas rawan typo/mismatch yang bikin
+  // sync diam-diam gagal (tidak ada baris yang cocok, tapi alias tetap tersimpan).
+  const [newIntercompanyName, setNewIntercompanyName] = useState<string | null>(null)
   const { data: intercompanyNames = [] } = useIntercompanyNames(
     activeDivisionCompanyId ? { company_id: activeDivisionCompanyId } : undefined,
   )
+  const { data: customerNameOptions = [] } = useCustomerNameOptions(activeDivisionCompanyId)
+  const alreadyAddedNames = new Set(intercompanyNames.map((n) => n.customer_name))
+  const customerNameChoices = customerNameOptions
+    .map((o) => o.customer_name)
+    .filter((name) => !alreadyAddedNames.has(name))
   const createIntercompanyName = useCreateIntercompanyName()
   const deleteIntercompanyName = useDeleteIntercompanyName()
   const intercompanyCrudError = createIntercompanyName.error ?? deleteIntercompanyName.error
@@ -110,11 +120,10 @@ export default function DivisionsSettings() {
   )
 
   const handleAddIntercompanyName = () => {
-    const customerName = newIntercompanyName.trim()
-    if (!customerName || !activeDivisionCompanyId) return
+    if (!newIntercompanyName || !activeDivisionCompanyId) return
     createIntercompanyName.mutate(
-      { company_id: activeDivisionCompanyId, customer_name: customerName },
-      { onSuccess: () => setNewIntercompanyName('') },
+      { company_id: activeDivisionCompanyId, customer_name: newIntercompanyName },
+      { onSuccess: () => setNewIntercompanyName(null) },
     )
   }
 
@@ -315,7 +324,7 @@ export default function DivisionsSettings() {
         </Box>
       )}
 
-      {/* Sister Company Names widget (task013) */}
+      {/* Customer Intercompany widget (task013) */}
       {can('settings.intercompany:view') && (
         <Box sx={{ mb: 3, p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
           <Box sx={{ mb: 1.5 }}>
@@ -351,18 +360,22 @@ export default function DivisionsSettings() {
 
           {can('settings.intercompany:create') && (
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-              <TextField
+              <Autocomplete
                 size="small"
-                placeholder={t('divisions.intercompanyAddPlaceholder')}
+                options={customerNameChoices}
                 value={newIntercompanyName}
-                onChange={(e) => setNewIntercompanyName(e.target.value)}
+                onChange={(_, val) => setNewIntercompanyName(val)}
+                disablePortal
                 sx={{ minWidth: 280 }}
+                renderInput={(params) => (
+                  <TextField {...params} placeholder={t('divisions.intercompanyAddPlaceholder')} />
+                )}
               />
               <Button
                 variant="outlined"
                 startIcon={<AddIcon />}
                 onClick={handleAddIntercompanyName}
-                disabled={!newIntercompanyName.trim() || createIntercompanyName.isPending}
+                disabled={!newIntercompanyName || createIntercompanyName.isPending}
               >
                 {t('divisions.intercompanyAddLabel')}
               </Button>

@@ -11,6 +11,7 @@ import {
   deleteIntercompanyName,
   syncCustomerDivisionOverride,
   findAmbiguousChannels,
+  findCustomerNameOptions,
 } from './intercompany-names.repository'
 import type { CreateIntercompanyNameDto } from './intercompany-names.schema'
 
@@ -20,6 +21,15 @@ export async function listIntercompanyNamesService(scopeIds?: number[]) {
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar nama sister company', 500)
+  }
+}
+
+export async function listCustomerNameOptionsService(companyId: number) {
+  try {
+    return await findCustomerNameOptions(companyId)
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar nama customer', 500)
   }
 }
 

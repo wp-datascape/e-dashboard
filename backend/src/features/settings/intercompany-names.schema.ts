@@ -11,6 +11,12 @@ export const listIntercompanyNamesQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).optional().default('all'),
 })
 
+// customer-options SELALU 1 company spesifik (dropdown autocomplete di form tambah
+// nama, bukan report lintas company)
+export const customerOptionsQuerySchema = z.object({
+  company_id: z.coerce.number().int().positive(),
+})
+
 export const intercompanyNameIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })

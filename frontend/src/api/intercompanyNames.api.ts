@@ -5,6 +5,7 @@ import type {
   CreateIntercompanyNamePayload,
   ListIntercompanyNamesParams,
   AmbiguousChannelRow,
+  CustomerNameOption,
 } from '@/types/intercompanyNames'
 
 export const intercompanyNamesApi = {
@@ -15,6 +16,13 @@ export const intercompanyNamesApi = {
 
   listAmbiguousChannels: async (params?: ListIntercompanyNamesParams): Promise<AmbiguousChannelRow[]> => {
     const res = await api.get<ApiResponse<AmbiguousChannelRow[]>>('/settings/intercompany-names/ambiguous-channels', { params })
+    return res.data.data
+  },
+
+  listCustomerOptions: async (companyId: number): Promise<CustomerNameOption[]> => {
+    const res = await api.get<ApiResponse<CustomerNameOption[]>>('/settings/intercompany-names/customer-options', {
+      params: { company_id: companyId },
+    })
     return res.data.data
   },
 
