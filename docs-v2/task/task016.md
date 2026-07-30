@@ -4,8 +4,10 @@
 > (`bunx tsc --noEmit`/`tsc -b` bersih backend+frontend, `bun test` 82 pass/0 fail,
 > `bun run build`+`lint` sukses, smoke test manual end-to-end via curl: create
 > Pareto customer → threshold → report semua konsisten). Migration `0015` sudah
-> diterapkan ke DB lokal. **Belum commit/push/PR** — menunggu instruksi user.
-> Lihat §11 untuk detail lengkap apa yang sudah/belum dikerjakan.
+> diterapkan ke DB lokal. **PR #67 sudah dibuat** (branch
+> `feature/task016-pareto-analisis`), belum di-merge — migrate/seed production
+> belum dijalankan, tunggu PR merge dulu. Lihat §11 untuk detail lengkap apa
+> yang sudah/belum dikerjakan.
 
 ## 1. Latar Belakang
 
