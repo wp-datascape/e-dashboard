@@ -32,6 +32,7 @@ const editSchema = (t: (key: string) => string) => z.object({
   is_active: z.boolean(),
   resetPassword: z.boolean(),
   newPassword: z.string(),
+  notificationEmail: z.union([z.string().email(t('users.validation.notificationEmailInvalid')), z.literal('')]),
 }).refine(
   (data) => !data.resetPassword || data.newPassword.length >= 8,
   { message: t('users.validation.newPasswordMin'), path: ['newPassword'] },
@@ -70,7 +71,7 @@ export function EditUserDialog({
     formState: { errors },
   } = useForm<EditFormData>({
     resolver: zodResolver(editSchema(t)),
-    defaultValues: { name: '', role_id: 0, company_assignments: [], is_active: true, resetPassword: false, newPassword: '' },
+    defaultValues: { name: '', role_id: 0, company_assignments: [], is_active: true, resetPassword: false, newPassword: '', notificationEmail: '' },
   });
 
   const resetPassword = watch('resetPassword');
@@ -88,6 +89,7 @@ export function EditUserDialog({
         is_active: user.is_active,
         resetPassword: false,
         newPassword: '',
+        notificationEmail: user.notification_email ?? '',
       });
     }
   }, [user, open, reset]);
@@ -98,6 +100,7 @@ export function EditUserDialog({
       role_ids: [data.role_id],
       company_assignments: data.company_assignments,
       is_active: data.is_active,
+      notification_email: data.notificationEmail,
       ...(data.resetPassword ? { password: data.newPassword } : {}),
     });
   };
@@ -136,6 +139,23 @@ export function EditUserDialog({
             fullWidth
             size="small"
             disabled
+          />
+
+          {/* Notification email — task016, terpisah dari email login */}
+          <Controller
+            name="notificationEmail"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label={t('users.notificationEmail')}
+                placeholder={t('users.notificationEmailPlaceholder')}
+                helperText={errors.notificationEmail?.message ?? t('users.notificationEmailHint')}
+                fullWidth
+                size="small"
+                error={!!errors.notificationEmail}
+              />
+            )}
           />
 
           {/* Role */}

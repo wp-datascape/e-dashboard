@@ -31,6 +31,11 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
+  // Email tujuan notifikasi/alert (task016) — TERPISAH dari `email` login. `email`
+  // wajib+unik dipakai autentikasi, belum tentu alamat kerja asli yang dipantau
+  // user. Nullable — user tanpa ini terisi tetap dapat notifikasi in-app, cuma
+  // di-skip dari pengiriman email.
+  notification_email: varchar('notification_email', { length: 255 }),
   password: varchar('password', { length: 255 }).notNull(),
   is_active: boolean('is_active').notNull().default(true),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

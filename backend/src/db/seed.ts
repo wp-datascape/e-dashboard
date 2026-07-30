@@ -145,6 +145,19 @@ const defaultPermissions = [
   { name: 'settings.threshold:menu',   description: 'Menu Threshold Config',   category: 'Threshold' },
   { name: 'settings.threshold:view',   description: 'View Threshold Config',   category: 'Threshold' },
   { name: 'settings.threshold:update', description: 'Update Threshold Config', category: 'Threshold' },
+  // Pareto Customer Monitoring (task016 Fase A) — flagging customer prioritas +
+  // laporan on-demand. Threshold-nya SENGAJA reuse permission settings.threshold:*
+  // di atas (tampil di halaman Settings/Threshold yang sama, bukan halaman baru).
+  { name: 'settings.pareto:menu',   description: 'Menu Pareto Customer',   category: 'Pareto Customer' },
+  { name: 'settings.pareto:view',   description: 'View Pareto Customer',   category: 'Pareto Customer' },
+  { name: 'settings.pareto:create', description: 'Create Pareto Customer', category: 'Pareto Customer' },
+  { name: 'settings.pareto:update', description: 'Update Pareto Customer', category: 'Pareto Customer' },
+  { name: 'settings.pareto:delete', description: 'Delete Pareto Customer', category: 'Pareto Customer' },
+  // Analisis (task016 §12) — laporan customer lengkap + prioritas Pareto,
+  // permission SENGAJA terpisah dari settings.pareto:* (bukan halaman
+  // konfigurasi, ada di menu Transaction & Revenue bukan Settings).
+  { name: 'analisis:menu', description: 'Menu Analisis', category: 'Analisis' },
+  { name: 'analisis:view', description: 'View Analisis', category: 'Analisis' },
 
   // ── Configuration ──────────────────────────────────────────────────────
   { name: 'config.classification:menu',   description: 'Menu Classification Rules', category: 'Classification' },
@@ -235,6 +248,8 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.intercompany:menu', 'settings.intercompany:view', 'settings.intercompany:create', 'settings.intercompany:update', 'settings.intercompany:delete',
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
+  'settings.pareto:menu', 'settings.pareto:view', 'settings.pareto:create', 'settings.pareto:update', 'settings.pareto:delete',
+  'analisis:menu', 'analisis:view',
   'audit.log:menu', 'audit.log:view',
   'activity.log:menu', 'activity.log:view',
   'login.log:menu', 'login.log:view',
@@ -302,6 +317,8 @@ const defaultPageSettings = [
   { page_key: 'settings-division-management', ready: true },
   { page_key: 'settings-customer-intercompany', ready: true },
   { page_key: 'settings-high-margin', ready: true },
+  { page_key: 'settings-pareto-customers', ready: true },
+  { page_key: 'analisis', ready: true },
   { page_key: 'settings-classification', ready: true },
   { page_key: 'settings-threshold', ready: true },
   { page_key: 'settings-app', ready: true },

@@ -1,0 +1,17 @@
+{
+  "title": "Pareto Customer Alert Threshold",
+  "subtitle": "Drop percentage per company, period, and metric that counts as alert-worthy — independent per company",
+  "company": "Company",
+  "selectCompanyHint": "Select a company to view/edit its threshold",
+  "periodColumn": "Period",
+  "period": {
+    "quarter": "Quarter",
+    "semester": "Semester",
+    "annual": "Annual"
+  },
+  "metric": {
+    "revenue": "Revenue",
+    "margin": "Margin"
+  },
+  "defaultLabel": "default"
+}

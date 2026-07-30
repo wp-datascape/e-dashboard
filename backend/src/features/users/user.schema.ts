@@ -37,6 +37,11 @@ export const updateUserSchema = z.object({
   role_ids: z.array(z.number().int().positive()).optional(),
   company_assignments: z.array(companyAssignmentSchema).optional(),
   password: z.string().min(8).max(72).optional(),
+  // Email tujuan notifikasi/alert (task016) — TERPISAH dari email login. Empty
+  // string dari form ditransform jadi null (clear di DB), bukan invalid/disimpan
+  // sebagai string kosong.
+  notification_email: z.union([z.string().email(), z.literal('')]).optional()
+    .transform(v => v === '' ? null : v),
 })
 
 export const userIdParamSchema = z.object({
@@ -49,6 +54,7 @@ export const userResponseSchema = z.object({
   id: z.number(),
   name: z.string(),
   email: z.string(),
+  notification_email: z.string().nullable(),
   is_active: z.boolean(),
   created_at: z.date(),
   updated_at: z.date(),

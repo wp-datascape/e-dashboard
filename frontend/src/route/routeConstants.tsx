@@ -25,6 +25,8 @@ import {
   CustomerIntercompanySettings,
   ClassificationSettings,
   ThresholdSettings,
+  ParetoCustomersSettings,
+  AnalisisPage,
   AppSettings,
   IntegrationPage,
   FeaturesPage,
@@ -60,6 +62,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Transaction & Revenue ────────────────────────────────────────────────
   'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },
+  'analisis':             { path: '/analisis',                element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
   // ── Administration — Settings ────────────────────────────────────────────
   'settings-app':         { path: '/settings/app',           element: withLayout(<AppSettings />),           protected: true, permissionKey: 'settings.app:view' },
   'companies':            { path: '/companies',              element: withLayout(<Companies />),             protected: true, permissionKey: 'settings.company:view' },
@@ -68,6 +71,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'settings-customer-intercompany':  { path: '/settings/customer-intercompany', element: withLayout(<CustomerIntercompanySettings />),  protected: true, permissionKey: 'settings.intercompany:view' },
   'settings-high-margin': { path: '/settings/high-margin',   element: withLayout(<HighMarginSettings />),    protected: true, permissionKey: 'settings.product:view' },
   'settings-threshold':   { path: '/settings/threshold',     element: withLayout(<ThresholdSettings />),     protected: true, permissionKey: 'settings.threshold:view' },
+  'settings-pareto-customers': { path: '/settings/pareto-customers', element: withLayout(<ParetoCustomersSettings />), protected: true, permissionKey: 'settings.pareto:view' },
   // ── Administration — Configuration ───────────────────────────────────────
   'settings-classification': { path: '/settings/classification', element: withLayout(<ClassificationSettings />), protected: true, permissionKey: 'config.classification:view' },
   'import':               { path: '/import',                 element: withLayout(<Import />),                protected: true, permissionKey: 'config.import:view' },

@@ -1,0 +1,25 @@
+{
+  "title": "Analysis",
+  "subtitle": "Revenue and margin performance of all customers, priority (Pareto) ones first, compared to the previous period and/or same period last year",
+  "company": "Company",
+  "allCompanies": "All Entities",
+  "customer": "Customer",
+  "paretoBadge": "Pareto",
+  "onlyPareto": "Pareto only",
+  "searchPlaceholder": "Search customer name",
+  "current": "Current Period",
+  "vsPrevious": "vs Previous Period",
+  "vsYoy": "vs Same Period Last Year",
+  "periodLabel": "Period",
+  "inProgress": "In progress",
+  "comparisonLabel": "Comparison",
+  "comparison": {
+    "qoq": "Previous Period",
+    "yoy": "Year over Year",
+    "both": "Both"
+  },
+  "metricRevenue": "Revenue",
+  "metricMargin": "Margin",
+  "alert": "Alert",
+  "normal": "Normal"
+}
