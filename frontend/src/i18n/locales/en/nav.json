@@ -32,6 +32,8 @@
   "settingsDivisionManagement": "Division",
   "settingsCustomerIntercompany": "Customer Intercompany",
   "settingsThreshold": "Threshold",
+  "settingsParetoCustomers": "Pareto Customer",
+  "analisis": "Analysis",
   "settingsApp": "App Settings",
   "configApp": "App Settings",
   "configIntegration": "Integration",

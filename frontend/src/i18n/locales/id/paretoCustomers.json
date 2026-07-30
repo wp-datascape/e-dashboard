@@ -1,0 +1,18 @@
+{
+  "title": "Pareto Customer",
+  "subtitle": "Tandai customer prioritas yang revenue dan margin-nya dipantau ketat tiap kuartal, semester, dan tahun",
+  "add": "Tambah",
+  "addTitle": "Tandai Pareto Customer",
+  "editTitle": "Ubah Pareto Customer",
+  "company": "Perusahaan",
+  "allCompanies": "Semua Entitas",
+  "customer": "Customer",
+  "customerPlaceholder": "Cari nama customer",
+  "effectiveFrom": "Berlaku Sejak",
+  "effectiveUntil": "Berlaku Sampai",
+  "effectiveUntilHint": "Kosongkan kalau masih berlangsung",
+  "ongoing": "Berlangsung",
+  "note": "Catatan",
+  "activeOnly": "Hanya yang aktif",
+  "deactivate": "Nonaktifkan"
+}

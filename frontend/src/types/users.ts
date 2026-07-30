@@ -42,6 +42,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  notification_email: string | null; // task016 — email tujuan alert, terpisah dari email login
   is_active: boolean;
   roles: UserRole[];
   permissions: string[];          // list nama permission, derived dari roles
@@ -66,6 +67,7 @@ export interface UpdateUserPayload {
   company_assignments?: CompanyAssignment[];
   is_active?: boolean;
   password?: string;
+  notification_email?: string; // '' berarti clear (backend transform jadi null)
 }
 
 export interface Company {

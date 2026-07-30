@@ -31,6 +31,8 @@ export const DivisionManagementSettings = lazy(() => import('../pages/Settings/D
 export const CustomerIntercompanySettings = lazy(() => import('../pages/Settings/CustomerIntercompany/index'))
 export const ClassificationSettings = lazy(() => import('../pages/Config/Classification/index'))
 export const ThresholdSettings = lazy(() => import('../pages/Settings/Threshold/index'))
+export const ParetoCustomersSettings = lazy(() => import('../pages/Settings/ParetoCustomers/index'))
+export const AnalisisPage = lazy(() => import('../pages/Analisis/index'))
 export const AppSettings = lazy(() => import('../pages/Settings/AppSettings/index'))
 export const IntegrationPage = lazy(() => import('../pages/Config/Integration/index'))
 export const FeaturesPage = lazy(() => import('../pages/Config/Features/index'))

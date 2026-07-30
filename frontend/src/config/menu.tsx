@@ -29,6 +29,8 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 import WebIcon from '@mui/icons-material/Web';
 import LoginIcon from '@mui/icons-material/Login';
+import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 
 export interface NavItem {
   key: string;
@@ -128,6 +130,13 @@ export const NAV_ITEMS: NavItem[] = [
     groupLabelKey: 'nav.groups.transactionRevenue',
   },
   {
+    key: 'analisis',
+    path: '/analisis',
+    labelKey: 'nav.analisis',
+    icon: <AssessmentIcon fontSize="small" />,
+    permissionKey: 'analisis:menu',
+  },
+  {
     key: 'project',
     path: '/projects',
     labelKey: 'nav.projectMilestone',
@@ -195,6 +204,13 @@ export const NAV_ITEMS: NavItem[] = [
         labelKey: 'nav.settingsThreshold',
         icon: <TuneIcon fontSize="small" />,
         permissionKey: 'settings.threshold:menu',
+      },
+      {
+        key: 'settings-pareto-customers',
+        path: '/settings/pareto-customers',
+        labelKey: 'nav.settingsParetoCustomers',
+        icon: <WorkspacePremiumIcon fontSize="small" />,
+        permissionKey: 'settings.pareto:menu',
       },
     ],
   },

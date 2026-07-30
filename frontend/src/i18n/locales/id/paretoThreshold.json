@@ -1,0 +1,17 @@
+{
+  "title": "Threshold Alert Pareto Customer",
+  "subtitle": "Persentase penurunan per company, periode, dan metrik yang dianggap alert-worthy — independen per company",
+  "company": "Perusahaan",
+  "selectCompanyHint": "Pilih company untuk lihat/ubah threshold-nya",
+  "periodColumn": "Periode",
+  "period": {
+    "quarter": "Kuartal",
+    "semester": "Semester",
+    "annual": "Tahunan"
+  },
+  "metric": {
+    "revenue": "Revenue",
+    "margin": "Margin"
+  },
+  "defaultLabel": "default"
+}

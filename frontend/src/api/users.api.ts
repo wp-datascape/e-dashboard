@@ -10,6 +10,7 @@ function adaptUser(raw: Record<string, unknown>): User {
     id: raw.id as number,
     name: raw.name as string,
     email: raw.email as string,
+    notification_email: (raw.notification_email ?? null) as string | null,
     // Backend uses isActive (camelCase), frontend expects is_active (snake_case)
     is_active: (raw.is_active) as boolean,
     // These fields only available after RBAC is implemented — default to empty array

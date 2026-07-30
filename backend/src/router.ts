@@ -46,6 +46,9 @@ import { channelDivisionsRoutes } from '@/features/settings/channel-divisions.ro
 import { itemTypesRoutes } from '@/features/settings/item-types.route'
 import { divisionsRoutes } from '@/features/settings/divisions.route'
 import { intercompanyNamesRoutes } from '@/features/settings/intercompany-names.route'
+import { paretoCustomersRoutes } from '@/features/settings/pareto-customers.route'
+import { paretoThresholdsRoutes } from '@/features/settings/pareto-thresholds.route'
+import { analisisRoutes } from '@/features/analisis/analisis.route'
 import { docsRoutes } from '@/features/docs/docs.route'
 import { abTestingRoutes } from '@/features/ab-testing/ab-testing.route'
 
@@ -109,6 +112,9 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/settings/item-types', itemTypesRoutes)
   protectedApi.route('/settings/divisions', divisionsRoutes)
   protectedApi.route('/settings/intercompany-names', intercompanyNamesRoutes)
+  protectedApi.route('/settings/pareto-customers', paretoCustomersRoutes)
+  protectedApi.route('/settings/pareto-thresholds', paretoThresholdsRoutes)
+  protectedApi.route('/analisis', analisisRoutes)
   protectedApi.route('/metrics', metricsRoutes)
   protectedApi.route('/invoices', transactionsRoutes)
   protectedApi.route('/dashboard', dashboardRoutes)

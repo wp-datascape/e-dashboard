@@ -84,6 +84,57 @@ export const intercompany_customer_names = pgTable('intercompany_customer_names'
 export type IntercompanyCustomerName = typeof intercompany_customer_names.$inferSelect
 export type NewIntercompanyCustomerName = typeof intercompany_customer_names.$inferInsert
 
+// ─── pareto_customers ───────────────────────────────────────────────────────────
+
+/**
+ * Flag customer sebagai "Pareto" (customer prioritas, dipantau ketat) — mirror
+ * pola high_margin_products (task016 Fase A). Manual oleh admin, bukan
+ * auto-detect dari 80/20 rule. effective_until null = masih aktif.
+ */
+export const pareto_customers = pgTable('pareto_customers', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  customer_id: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  effective_from: date('effective_from').notNull(),
+  effective_until: date('effective_until'),
+  note: text('note'),
+  created_by: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type ParetoCustomer = typeof pareto_customers.$inferSelect
+export type NewParetoCustomer = typeof pareto_customers.$inferInsert
+
+// ─── pareto_alert_thresholds ─────────────────────────────────────────────────────
+
+/**
+ * Threshold penurunan revenue/margin yang dianggap alert-worthy untuk customer
+ * Pareto, company-scoped (task016 §5/§9) — SETIAP company independen, bukan
+ * global seperti business_configs. 1 baris per (company_id, period_type, metric).
+ */
+export const pareto_alert_thresholds = pgTable('pareto_alert_thresholds', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  // quarter | semester | annual
+  period_type: varchar('period_type', { length: 20 }).notNull(),
+  // revenue | margin
+  metric: varchar('metric', { length: 20 }).notNull(),
+  drop_percent: numeric('drop_percent', { precision: 5, scale: 2 }).notNull().default('15'),
+  is_active: boolean('is_active').notNull().default(true),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqueThresholdPerCompanyPeriodMetric: uniqueIndex('uq_pareto_threshold_company_period_metric').on(
+    table.company_id,
+    table.period_type,
+    table.metric,
+  ),
+}))
+
+export type ParetoAlertThreshold = typeof pareto_alert_thresholds.$inferSelect
+export type NewParetoAlertThreshold = typeof pareto_alert_thresholds.$inferInsert
+
 // ─── invoices ─────────────────────────────────────────────────────────────────
 
 /**

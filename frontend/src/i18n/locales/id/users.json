@@ -20,6 +20,9 @@
   "passwordPlaceholder": "Kata sandi sementara",
   "resetPassword": "Reset Password",
   "newPassword": "Password Baru",
+  "notificationEmail": "Email Notifikasi",
+  "notificationEmailPlaceholder": "Email asli untuk menerima alert",
+  "notificationEmailHint": "Terpisah dari email login — dipakai untuk notifikasi alert (mis. Pareto Customer)",
   "selectRole": "Pilih Role",
   "selectCompanies": "Pilih Perusahaan",
   "selectBranches": "Pilih Cabang",
@@ -41,6 +44,7 @@
     "emailInvalid": "Format email tidak valid",
     "passwordMin": "Password minimal 6 karakter",
     "newPasswordMin": "Password baru minimal 8 karakter",
+    "notificationEmailInvalid": "Format email tidak valid",
     "roleRequired": "Pilih role",
     "companiesRequired": "Pilih minimal 1 perusahaan"
   }

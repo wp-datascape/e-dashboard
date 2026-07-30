@@ -1,0 +1,18 @@
+{
+  "title": "Pareto Customer",
+  "subtitle": "Flag priority customers whose revenue and margin are closely monitored every quarter, semester, and year",
+  "add": "Add",
+  "addTitle": "Flag Pareto Customer",
+  "editTitle": "Edit Pareto Customer",
+  "company": "Company",
+  "allCompanies": "All Entities",
+  "customer": "Customer",
+  "customerPlaceholder": "Search customer name",
+  "effectiveFrom": "Effective From",
+  "effectiveUntil": "Effective Until",
+  "effectiveUntilHint": "Leave empty if still ongoing",
+  "ongoing": "Ongoing",
+  "note": "Note",
+  "activeOnly": "Active only",
+  "deactivate": "Deactivate"
+}

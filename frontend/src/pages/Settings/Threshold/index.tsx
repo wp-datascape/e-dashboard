@@ -26,6 +26,7 @@ import { useConfig, useUpdateConfig } from '@/hooks/usePageSettings'
 import type { ConfigItem } from '@/types/page'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
+import { ParetoThresholdSection } from './components/ParetoThresholdSection'
 
 function getBuLabels(t: TFunction): Record<string, string> {
   return {
@@ -206,6 +207,7 @@ function ConfigRow({ item, label, desc }: { item: ConfigItem; label?: string; de
 
 export default function ThresholdSettings() {
   const { t } = useTranslation()
+  const can = useCan()
   const BU_LABELS = getBuLabels(t)
   const BU_DESC = getBuDesc(t)
   const KPI_TARGET_LABELS = getKpiTargetLabels(t)
@@ -345,6 +347,8 @@ export default function ThresholdSettings() {
               <Stack divider={<Divider />}>{otherItems.map((item) => <ConfigRow key={item.key} item={item} label={GENERAL_LABELS[item.key]} desc={GENERAL_DESC[item.key]} />)}</Stack>
             </Card>
           )}
+
+          {can('settings.pareto:view') && <ParetoThresholdSection />}
 
           <Card sx={{ p: 3, bgcolor: 'action.hover' }}>
             <Box sx={{ display: 'flex', gap: 1.5 }}>

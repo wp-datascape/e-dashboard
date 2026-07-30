@@ -13,7 +13,8 @@
  * - schema-product.ts     — product_categories, products, high_margin_products,
  *                           item_classification_rules, channel_divisions
  * - schema-transaction.ts — customers, invoices, invoice_items, import_logs,
- *                           import_log_errors
+ *                           import_log_errors, pareto_customers,
+ *                           pareto_alert_thresholds
  * - page_settings.ts      — berdiri sendiri (tidak ada FK ke domain manapun)
  *
  * Naming convention: snake_case plural (contoh: invoices, invoice_items, companies)

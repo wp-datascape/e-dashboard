@@ -20,6 +20,9 @@
   "passwordPlaceholder": "Temporary password",
   "resetPassword": "Reset Password",
   "newPassword": "New Password",
+  "notificationEmail": "Notification Email",
+  "notificationEmailPlaceholder": "Real email to receive alerts",
+  "notificationEmailHint": "Separate from login email — used for alert notifications (e.g. Pareto Customer)",
   "selectRole": "Select Role",
   "selectCompanies": "Select Companies",
   "selectBranches": "Select Branches",
@@ -41,6 +44,7 @@
     "emailInvalid": "Invalid email format",
     "passwordMin": "Password must be at least 6 characters",
     "newPasswordMin": "New password must be at least 8 characters",
+    "notificationEmailInvalid": "Invalid email format",
     "roleRequired": "Please select a role",
     "companiesRequired": "Please select at least 1 company"
   }
