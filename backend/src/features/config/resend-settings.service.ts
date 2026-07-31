@@ -6,23 +6,45 @@ import { encrypt, decrypt } from '@/utils/crypto'
 import { findResendSettings, upsertResendSettings } from './resend-settings.repository'
 import { findRecentNotificationsByType } from '@/features/notifications/notifications.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
+import { parseDigestEntityRef, type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
 import type { UpsertResendSettingsDto } from './resend-settings.schema'
 import type { ResendSetting } from '@/db/schema'
 
 const DIGEST_PREVIEW_LIMIT = 10
 
+function sampleMetric(current: { revenue: number; margin: number }, comparison: { revenue: number; margin: number }): MetricComparisonDetail {
+  const revPct = comparison.revenue > 0 ? ((current.revenue - comparison.revenue) / comparison.revenue) * 100 : null
+  const marPct = comparison.margin > 0 ? ((current.margin - comparison.margin) / comparison.margin) * 100 : null
+  return {
+    current,
+    comparison,
+    revenue_change_value: current.revenue - comparison.revenue,
+    margin_change_value: current.margin - comparison.margin,
+    revenue_change_pct: revPct,
+    margin_change_pct: marPct,
+    revenue_alert: revPct !== null && revPct <= -20,
+    margin_alert: marPct !== null && marPct <= -20,
+  }
+}
+
 // Fallback kalau belum ada notifikasi analisis_alert sama sekali di DB (mis. baru
 // setup, belum ada penurunan customer terdeteksi) — tetap contoh REALISTIS
-// (bukan lorem ipsum) supaya admin bisa lihat layout digest yang sesungguhnya,
-// ditandai jelas "(Contoh)" biar tidak dikira alert asli.
-const SAMPLE_DIGEST_ITEMS = [
+// (bukan lorem ipsum) supaya admin bisa lihat layout digest (termasuk PDF)
+// yang sesungguhnya, nama customer ditandai jelas "(Contoh)" biar tidak
+// dikira alert asli.
+const SAMPLE_DIGEST_ITEMS: DigestNotificationItem[] = [
   {
-    title: '[Laporan Kuartal] PT Contoh Sejahtera turun performa (Contoh)',
-    body: 'vs periode sebelumnya: Revenue -18.4% | vs tahun lalu: Revenue -22.1%, Margin -15.0% — periode 2026-Q2.',
-  },
-  {
-    title: '[Progres Bulanan] CV Contoh Makmur turun performa (Contoh)',
-    body: 'vs tahun lalu: Margin -12.7% — progres s.d. tanggal 14, periode 2026-07 (bulan belum tutup).',
+    customer_name: 'PT Contoh Sejahtera (Contoh)',
+    company_name: 'PT Mesin Kasir Online',
+    is_pareto: true,
+    period_type: 'quarter',
+    period_key: '2026-Q2',
+    checkpoint: 'closed',
+    detail: {
+      previous_period: sampleMetric({ revenue: 20_600_000, margin: 3_600_000 }, { revenue: 25_200_000, margin: 4_400_000 }),
+      last_year: sampleMetric({ revenue: 20_600_000, margin: 3_600_000 }, { revenue: 26_400_000, margin: 4_600_000 }),
+      ytd: sampleMetric({ revenue: 41_200_000, margin: 7_200_000 }, { revenue: 52_800_000, margin: 9_200_000 }),
+    },
   },
 ]
 
@@ -110,8 +132,12 @@ export async function sendTestDigestEmail(to: string): Promise<{ success: boolea
     return { success: false, message: 'API key atau sender email belum diisi' }
   }
 
-  const recent = await findRecentNotificationsByType('analisis_alert', DIGEST_PREVIEW_LIMIT)
-  const items = recent.length > 0 ? recent : SAMPLE_DIGEST_ITEMS
+  const recentRows = await findRecentNotificationsByType('analisis_alert', DIGEST_PREVIEW_LIMIT)
+  const parsed = recentRows
+    .map(row => parseDigestEntityRef(row.entity_ref as Record<string, unknown> | null))
+    .filter((item): item is DigestNotificationItem => item !== null)
+  const usingSample = parsed.length === 0
+  const items = usingSample ? SAMPLE_DIGEST_ITEMS : parsed
 
   const sent = await sendDigestEmail(to, items, { skipActiveCheck: true })
   if (!sent) {
@@ -119,8 +145,8 @@ export async function sendTestDigestEmail(to: string): Promise<{ success: boolea
   }
   return {
     success: true,
-    message: recent.length > 0
-      ? `Contoh laporan terkirim (${items.length} notifikasi terbaru dari data asli).`
-      : `Contoh laporan terkirim (${items.length} item contoh — belum ada notifikasi analisis_alert di database).`,
+    message: usingSample
+      ? `Contoh laporan terkirim (${items.length} item contoh — belum ada notifikasi analisis_alert dgn detail lengkap di database).`
+      : `Contoh laporan terkirim (${items.length} notifikasi terbaru dari data asli).`,
   }
 }

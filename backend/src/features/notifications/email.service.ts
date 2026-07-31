@@ -1,9 +1,14 @@
 /**
- * email.service.ts — kirim digest email alert Analisis (task016 Fase C, §21).
+ * email.service.ts — kirim digest email alert Analisis (task016 Fase C §21,
+ * direvisi §23 jadi lampiran PDF).
  *
  * SATU email per recipient per run scheduler, isi SEMUA notifikasi yang
  * dibuat run itu (lintas company/period type/checkpoint) — keputusan user:
  * "1 email berisi all notifikasi", "semua trigger" (mid_month s/d annual).
+ * Badan email HANYA paragraf singkat (permintaan user 2026-07-31: "body email
+ * buatkan paragraf saja penjelasan email ini dikirim otomatis sebagai
+ * peringatan") — detail LENGKAP (tabel PoP/YoY/YTD per customer) ada di
+ * lampiran PDF (pdf.service.ts), bukan di HTML lagi.
  *
  * Retry 3x (2s/5s/10s) + logging tiap percobaan — kalau semua gagal, digest
  * TIDAK terkirim tapi tidak melempar error ke caller (dipanggil fire-and-forget
@@ -13,6 +18,10 @@
 import { Resend } from 'resend'
 import { logger } from '@/utils/logger'
 import { getDecryptedResendSettings } from '@/features/config/resend-settings.service'
+import { buildDigestPdf } from './pdf.service'
+import type { DigestNotificationItem } from './digest.types'
+
+export type { DigestNotificationItem } from './digest.types'
 
 const RETRY_DELAYS_MS = [2000, 5000, 10000]
 const BRAND_COLOR = '#2563EB' // theme/palettes.ts blue.primary.light (DEFAULT_PALETTE) — email tanpa konteks tema user, pakai warna brand statis
@@ -27,11 +36,6 @@ const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" 
   </g>
 </svg>`
 
-export interface DigestNotificationItem {
-  title: string
-  body: string
-}
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -44,19 +48,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+/** Badan email cuma paragraf penjelasan singkat — detail lengkap ada di PDF terlampir. */
 function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | null): string {
-  const rows = items
-    .map(
-      n => `
-      <tr>
-        <td style="padding:14px 0;border-bottom:1px solid #E5E7EB;">
-          <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(n.title)}</div>
-          <div style="color:#4B5563;font-size:13px;margin-top:4px;line-height:1.5;">${escapeHtml(n.body)}</div>
-        </td>
-      </tr>`,
-    )
-    .join('')
-
+  const customerCount = new Set(items.map(i => `${i.company_name}:${i.customer_name}`)).size
   const generatedAt = new Date().toLocaleString('id-ID', {
     dateStyle: 'full',
     timeStyle: 'short',
@@ -72,9 +66,13 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
         <div style="color:#FFFFFF;font-weight:700;font-size:16px;margin-top:10px;">Executive Dashboard</div>
       </div>
       <div style="padding:24px;background:#FFFFFF;">
-        <h2 style="margin:0 0 4px;color:#111827;font-size:18px;">Ringkasan Alert Analisis</h2>
-        <p style="margin:0 0 16px;color:#6B7280;font-size:13px;">${items.length} notifikasi penurunan performa customer terdeteksi.</p>
-        <table style="width:100%;border-collapse:collapse;">${rows}</table>
+        <h2 style="margin:0 0 12px;color:#111827;font-size:18px;">Peringatan Performa Customer</h2>
+        <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">
+          Email ini dikirim otomatis oleh sistem Executive Dashboard sebagai peringatan atas penurunan performa
+          (revenue dan/atau margin) pada ${customerCount} customer, dibandingkan periode sebelumnya maupun tahun
+          lalu. Rincian lengkap per customer — termasuk perbandingan Previous Period, Year-over-Year, dan
+          Year-to-Date — tersedia pada lampiran PDF pada email ini.
+        </p>
       </div>
       <div style="padding:16px 24px;background:#F9FAFB;color:#9CA3AF;font-size:11px;text-align:center;border-top:1px solid #E5E7EB;">
         ${appBaseUrl ? `<div>Sumber: <a href="${escapeHtml(appBaseUrl)}" style="color:${BRAND_COLOR};">${escapeHtml(appBaseUrl)}</a></div>` : ''}
@@ -85,12 +83,13 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
 </html>`
 }
 
-/** Kirim SATU digest email ke satu recipient. Dipanggil per-user dari scheduler
- * setelah 1 run evaluasi selesai — lihat runAnalisisAlertEvaluation di scheduler.ts.
- * Return boolean (bukan throw) SENGAJA — caller fire-and-forget (scheduler) boleh
- * abaikan return value-nya, tapi caller yang butuh tahu hasil kirim (mis. tombol
- * "kirim contoh laporan" di resend-settings.service.ts) bisa cek. Semua error tetap
- * ditelan+di-log di sini, TIDAK PERNAH throw — jaga kontrak lama tetap aman fire-and-forget.
+/** Kirim SATU digest email (+ lampiran PDF) ke satu recipient. Dipanggil per-user
+ * dari scheduler setelah 1 run evaluasi selesai — lihat runAnalisisAlertEvaluation
+ * di scheduler.ts. Return boolean (bukan throw) SENGAJA — caller fire-and-forget
+ * (scheduler) boleh abaikan return value-nya, tapi caller yang butuh tahu hasil
+ * kirim (mis. tombol "kirim contoh laporan" di resend-settings.service.ts) bisa
+ * cek. Semua error tetap ditelan+di-log di sini, TIDAK PERNAH throw — jaga kontrak
+ * lama tetap aman fire-and-forget.
  *
  * `skipActiveCheck` cuma dipakai jalur test/preview admin (sendTestDigestEmail) —
  * supaya admin bisa lihat hasil digest SEBELUM toggle is_active dinyalakan, tanpa
@@ -114,11 +113,19 @@ export async function sendDigestEmail(
     : settings.sender_email
   const subject = `[Executive Dashboard] ${items.length} Alert Analisis Customer`
   const html = buildDigestHtml(items, settings.app_base_url)
+  const pdfBuffer = buildDigestPdf(items, settings.app_base_url)
+  const today = new Date().toISOString().split('T')[0]
 
   const maxAttempts = RETRY_DELAYS_MS.length + 1
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const { error } = await resend.emails.send({ from, to, subject, html })
+      const { error } = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        attachments: [{ content: pdfBuffer, filename: `laporan-alert-analisis-${today}.pdf` }],
+      })
       if (error) throw new Error(error.message)
       logger.info('[email-digest] Terkirim', { to, count: items.length, attempt })
       return true
