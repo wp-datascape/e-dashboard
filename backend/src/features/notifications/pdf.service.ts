@@ -151,6 +151,17 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
     ]
 
     for (const section of sections) {
+      // Cuma tampilkan customer yang Kritis DI BASIS INI SPESIFIK — customer yang
+      // ter-trigger lewat basis LAIN (mis. YoY) tapi basis ini sendiri Normal TIDAK
+      // ikut ditampilkan di sini. Sebelumnya semua customer ter-trigger ditampilkan
+      // di ketiga section tanpa filter, jadi section PoP bisa berisi baris "Normal"
+      // padahal maksud laporan ini murni daftar yang Kritis — salah, diperbaiki.
+      const criticalItems = batchItems.filter(item => {
+        const d = item.detail[section.basis]
+        return d.revenue_alert || d.margin_alert
+      })
+      if (criticalItems.length === 0) continue
+
       if (cursorY > 260) { doc.addPage(); cursorY = 20 }
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
@@ -168,7 +179,7 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
       autoTable(doc, {
         startY: cursorY,
         head: [['Perusahaan', 'Customer', 'Pembanding', 'Periode', 'Perubahan Nilai', 'Perubahan (%)', 'Status']],
-        body: batchItems.map(item => detailRow(item, item.detail[section.basis])),
+        body: criticalItems.map(item => detailRow(item, item.detail[section.basis])),
         headStyles: { fillColor: BRAND_COLOR, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7.5, cellPadding: 2 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
