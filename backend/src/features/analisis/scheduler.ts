@@ -331,8 +331,25 @@ async function runIfNewDay(): Promise<void> {
 }
 
 /** Dipanggil sekali saat server start (index.ts), fire-and-forget — pola sama
- * dgn initNetworkThrottleFromDb(). */
+ * dgn initNetworkThrottleFromDb().
+ *
+ * `.catch()` di sini WAJIB — tanpa ini, error apa pun dari `runIfNewDay()`
+ * (mis. tabel baru belum ada karena migration production belum dijalankan,
+ * kejadian nyata 2026-07-31: deploy code duluan sebelum migrate, scheduler
+ * langsung query tabel `pareto_alert_settings` yang belum ada) jadi unhandled
+ * promise rejection yang CRASH SELURUH PROSES server (bukan cuma scheduler-nya
+ * yang gagal) — HTTP server ikut mati walau errornya cuma di fitur alert.
+ * Loop di dalam `runAnalisisAlertEvaluation` sendiri sudah try/catch per
+ * company (skip 1 company yang gagal, lanjut yang lain) — ini lapisan
+ * terakhir yang jaga proses TETAP HIDUP walau seluruh evaluasi gagal total. */
 export function startAnalisisAlertScheduler(): void {
-  void runIfNewDay()
-  setInterval(() => { void runIfNewDay() }, CHECK_INTERVAL_MS)
+  const safeRun = () => {
+    runIfNewDay().catch((err) => {
+      logger.error('[analisis-scheduler] evaluasi harian gagal, proses tetap jalan', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+  }
+  safeRun()
+  setInterval(safeRun, CHECK_INTERVAL_MS)
 }
