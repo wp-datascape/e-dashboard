@@ -1,9 +1,10 @@
 import type { ParetoPeriodType } from './paretoThresholds'
 
-// Laporan Analisis punya opsi "monthly"/"ytd" tambahan yang TIDAK berlaku
-// untuk Settings Threshold (threshold evaluasi tetap kuartal/semester/tahunan
-// saja, task016 §2) — jadi tipe ini sengaja dipisah dari `ParetoPeriodType`.
-export type AnalisisPeriodType = ParetoPeriodType | 'monthly' | 'ytd'
+// Laporan Analisis punya opsi "ytd" tambahan yang TIDAK berlaku untuk Settings
+// Threshold — YTD tetap laporan on-demand saja, tidak dievaluasi scheduler
+// (task016 §18) — jadi tipe ini sengaja dipisah dari `ParetoPeriodType`.
+// ('monthly' sendiri SUDAH ikut di `ParetoPeriodType` sejak §18.)
+export type AnalisisPeriodType = ParetoPeriodType | 'ytd'
 
 // Filter "Pembanding" — basis comparison yang dipilih user (revisi UI/UX
 // review 2026-07-31): 'last_year' (default, YoY) atau 'previous_period'

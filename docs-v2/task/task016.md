@@ -1,14 +1,15 @@
 # Task 016 — Pareto Customer Monitoring & Alert
 
-> Status: **Fase A SELESAI & SUDAH DI-PRODUCTION** (PR #67 merged 2026-07-30,
-> migration `0015` + seed sudah dijalankan manual ke Neon production, Vercel+
-> Railway deploy sukses). **Fase B (scheduler + notification center) SELESAI
-> DIKERJAKAN**, terverifikasi (`tsc`/`bun test` 82 pass/`build`/`lint` semua
-> hijau, smoke test end-to-end: scheduler generate 2856 snapshot + 5165
-> notifikasi, API notifications CRUD semua benar). **Revisi lanjutan laporan
-> Analisis + popup notifikasi (2026-07-31) SELESAI**, lihat §17. Migration
-> `0016` baru diterapkan ke DB LOKAL — **BELUM commit/push/PR, BELUM ke
-> production**. Lihat §16 untuk detail Fase B.
+> Status: **Fase A SELESAI & SUDAH DI-PRODUCTION** (PR #67 merged 2026-07-30).
+> **Fase B (scheduler + notification center) + revisi §17 (laporan Analisis +
+> popup notifikasi) SUDAH DI-PRODUCTION** (PR #68 merged 2026-07-31, Vercel+
+> Railway deploy sukses) — **TAPI migration `0016` (tabel `notifications` +
+> `pareto_period_snapshots`) BELUM dijalankan manual ke Neon production**,
+> jadi scheduler/notifikasi belum aktif di production sampai itu dijalankan.
+> **§18 (Aturan 2 "Report/Alert Monitoring" bulanan) + §19 (toggle scheduler
+> per-company + permission notifikasi) SELESAI DIKERJAKAN DI LOKAL
+> (2026-07-31)**, migration `0017`+`0018` diterapkan ke DB LOKAL — akan
+> commit/push/PR + migrate/seed production sekarang.
 
 ## 1. Latar Belakang
 
@@ -606,3 +607,127 @@ Analisis" → verifikasi data yang tampil identik.
 **Belum dikerjakan**: commit/push/PR sesi ini (dikerjakan setelah §17
 ditulis), migrate+seed+deploy production (masih menunggu migration `0016`
 dari §16 juga).
+
+## 18. Aturan 2 — "Report/Alert Monitoring" Bulanan Berjenjang (2026-07-31)
+
+**Latar belakang keputusan**: user angkat concern penting — Aturan 1 ("Report
+Akhir", evaluasi cuma di akhir kuartal/semester/tahunan) baru kasih tahu
+setelah periode itu SELESAI, jadi tidak ada yang bisa ditindaklanjuti untuk
+periode itu lagi (padahal tujuan alert justru supaya masalah bisa DITANGANI
+sebelum terlambat). Sempat dibahas skema checkpoint 25/50/75/100% dari
+kuartal/semester/YTD, tapi user putuskan pakai pendekatan lebih sederhana:
+**evaluasi bulanan**, karena `period_type='monthly'` sudah lengkap
+infrastrukturnya (dipakai laporan Analisis on-demand sejak §17) — tinggal
+dipasang ke scheduler, tanpa perlu logika checkpoint persentase yang rumit
+dan ambigu (basis perbandingan periode yang belum tutup pun jadi lebih
+jelas: potongan tanggal, bukan proyeksi/pace).
+
+**Keputusan final — DUA aturan berjalan paralel & independen** (sengaja
+dipisah biar user tidak bingung mana yang "final" vs "sekadar progress"):
+- **Aturan 1 "Report Akhir"** — TIDAK BERUBAH, tetap kuartal/semester/
+  tahunan, evaluasi di akhir periode saja (`PERIOD_TYPES` di `scheduler.ts`).
+- **Aturan 2 "Report/Alert Monitoring" bulanan** — 2 sub-trigger:
+  - **Trigger A** (tanggal 14 tiap bulan, `MID_MONTH_CHECKPOINT_DAY`):
+    periode BELUM tutup. Basis perbandingan: **apple-to-apple potongan hari
+    yang sama** (dikonfirmasi user, bukan proyeksi/pace) — tanggal 1-14
+    bulan berjalan vs tanggal 1-14 bulan sebelumnya DAN vs tanggal 1-14
+    bulan sama tahun lalu.
+  - **Trigger B** (awal bulan baru): bulan yang BARU tutup, dievaluasi
+    penuh — reuse alur yang SAMA dengan kuartal/semester/tahunan (cuma
+    tambah `'monthly'` ke daftar tipe periode yang di-loop).
+  - Email (Fase C) SENGAJA belum ikut — user putuskan notifikasi in-app
+    dulu, integrasi Resend jadi task terpisah nanti.
+
+**Perubahan skema**:
+- `pareto_period_snapshots` — tambah kolom `checkpoint` (`'closed'` default,
+  atau `'mid_month'`), unique index diperluas jadi `(customer_id,
+  period_type, period_key, checkpoint)` — sebelumnya cuma `(customer_id,
+  period_type, period_key)`. Sekarang 1 bulan bisa punya 2 snapshot (mid_month
+  tgl 14 + closed awal bulan berikutnya), 2-2nya independen sebagai penanda
+  "sudah dievaluasi" (migration `0017`).
+- `pareto_alert_thresholds` (+ Zod schema, tipe frontend `ParetoPeriodType`,
+  halaman Settings/Threshold) — tambah `'monthly'` ke period_type yang bisa
+  dikonfigurasi. Threshold `monthly` dipakai SAMA oleh Trigger A dan Trigger
+  B (bukan dipisah lagi per-trigger) — konsisten dgn 1 metrik "kesehatan
+  bulanan", cuma beda titik ceknya. `'ytd'` SENGAJA tidak ditambah di sini —
+  YTD tetap laporan on-demand saja, tidak dievaluasi scheduler.
+
+**Implementasi** (`scheduler.ts` dirombak, fungsi `evaluateAndNotify` jadi
+inti bersama dipakai Aturan 1 & Aturan 2 — sebelumnya `evaluateCompanyPeriod`
+cuma dipakai 1 alur): `evaluateClosedPeriod` (Aturan 1 + Trigger B, hitung
+range via `getPeriodRange` seperti biasa) dan `evaluateMonthlyMidpoint`
+(Trigger A, range dihitung manual `${monthKey}-01` s/d
+`${monthKey}-14`) sama-sama panggil `evaluateAndNotify`. Trigger A punya
+guard eksplisit `today.getDate() >= 14` di `runAnalisisAlertEvaluation` —
+BUKAN cuma andalkan snapshot-check, karena snapshot-check doang tidak bisa
+bedakan "belum waktunya" vs "sudah dicek, tidak ada". Body notifikasi
+Trigger A dapat catatan tambahan ("progres s.d. tanggal 14, bulan belum
+tutup") supaya user tidak salah kira ini alert FINAL.
+
+**Verifikasi**: `tsc --noEmit` bersih, `bun test` 82 pass/0 fail. Smoke test
+manual `runAnalisisAlertEvaluation()` via `bun run` (server dev yang sedang
+jalan otomatis re-run scheduler tiap hot-reload — kebetulan jadi bukti alur
+production-path juga jalan benar, bukan cuma script manual): Trigger A
+generate notifikasi utk Juli 2026 (`checkpoint=mid_month`, body ada catatan
+"bulan belum tutup"), Trigger B generate notifikasi utk Juni 2026
+(`checkpoint=closed`, bulan yg baru tutup sebelum Juli). Volume masuk akal
+(995 notifikasi mid_month, 1115 closed monthly — sebanding dgn kuartal/
+semester yg sudah ada), tidak ada duplikasi saat scheduler jalan ulang.
+Halaman Settings/Threshold dicek visual via Playwright — baris "Bulanan"
+muncul & bisa dikonfigurasi terpisah dari Kuartalan/Semester/Tahunan.
+
+**Belum dikerjakan**: commit/push/PR sesi ini (dikerjakan setelah §19 ditulis),
+migrate ke production, Fase C (email).
+
+## 19. Toggle Scheduler Per-Company + Permission Notifikasi (2026-07-31)
+
+Dua penyempurnaan lanjutan setelah §18, dipicu pertanyaan/klarifikasi user:
+
+**Toggle on/off scheduler per company** — tabel baru `pareto_alert_settings`
+(migration `0018`, 1 row per company, kolom `scheduler_enabled` default
+`true`). SENGAJA terpisah dari 2 mekanisme toggle lain yang sudah ada supaya
+tidak rancu: BUKAN `page_settings.ready` (itu cuma sembunyikan halaman
+`/notifications`, tidak matikan generate-nya) dan BUKAN
+`pareto_alert_thresholds.is_active` (itu per period_type+metric, bukan
+switch keseluruhan company). Kalau `scheduler_enabled=false`,
+`runAnalisisAlertEvaluation` skip company itu TOTAL — Aturan 1 MAUPUN
+Aturan 2 sama-sama tidak jalan untuk company tsb, tapi laporan Analisis
+on-demand TETAP bisa diakses seperti biasa (query terpisah, tidak kena
+toggle ini). UI: switch baru "Aktifkan Alert Otomatis" di halaman Settings/
+Threshold, di atas tabel threshold, per company yang sedang dipilih. Endpoint
+`GET/PUT /settings/pareto-alert-settings`, reuse permission
+`settings.threshold:*` (section yang sama, bukan permission baru).
+
+Judul section threshold JUGA diganti: "Threshold Alert Pareto Customer" →
+**"Threshold Alert Customer"** (id & en) — konsisten dengan laporan Analisis
+yang sejak §12 sudah tidak eksklusif Pareto (SEMUA customer kena threshold,
+bukan cuma yang di-flag), jadi kata "Pareto" di judul section threshold ini
+juga sudah tidak akurat lagi.
+
+**Permission notifikasi** — sebelumnya fitur Notification Center (§16) SAMA
+SEKALI tanpa permission ("siapa pun login boleh akses, personal by
+user_id"). User eksplisit minta disamakan dengan pola menu lain di app ini
+(role-permission based, bukan pengecualian). Ditambah 2 permission baru:
+`notifications:menu` (kontrol ikon lonceng di AppBar — BUKAN Sidebar,
+karena notifikasi tidak punya entry sidebar, cuma dipicu ikon header) dan
+`notifications:view` (kontrol akses halaman `/notifications` + SEMUA
+endpoint API-nya, 403 kalau tidak ada — persis pola `analisis:menu`/
+`analisis:view`). Diberikan ke superadmin (otomatis) + role `admin`
+(`ADMIN_PERMISSION_NAMES`), SENGAJA TIDAK ke role `user` biasa — alert
+notifikasi cuma pernah dikirim ke admin/superadmin (`recipients.ts`), jadi
+lonceng yang pasti selalu kosong buat `user` cuma bikin bingung, bukan
+pengurangan akses yang berarti.
+
+**Verifikasi**: `tsc`/`bun test` 82 pass/0 fail bersih backend+frontend.
+End-to-end via Playwright: toggle scheduler OFF pada company 1 → hapus
+snapshot company itu → jalankan scheduler manual → 0 snapshot baru
+ter-generate (skip terbukti). Toggle ON lagi → scheduler jalan normal →
+4760 snapshot ter-generate (volume sama seperti sebelum toggle ditambahkan,
+tidak ada regresi). Permission: login sebagai role `user` → ikon lonceng
+hilang dari AppBar + akses langsung `/notifications` → redirect `/403`.
+Login sebagai `admin` → lonceng tetap tampil normal. Halaman Manajemen
+Role & Permission dicek — kategori "Notifications" otomatis muncul dengan
+toggle Menu/View, tanpa perlu perubahan UI manual (sistem RBAC generik baca
+dari nama permission `kategori:aksi`).
+
+**Belum dikerjakan**: commit/push/PR sesi ini, migrate+seed production.

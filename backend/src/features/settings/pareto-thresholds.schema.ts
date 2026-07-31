@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-const periodTypeEnum = z.enum(['quarter', 'semester', 'annual'])
+// 'monthly' ditambah task016 §18 — dipakai Aturan 2 "Report/Alert Monitoring"
+// bulanan (Trigger A minggu ke-2 + Trigger B awal bulan baru).
+const periodTypeEnum = z.enum(['monthly', 'quarter', 'semester', 'annual'])
 const metricEnum = z.enum(['revenue', 'margin'])
 
 export const upsertParetoThresholdSchema = z.object({

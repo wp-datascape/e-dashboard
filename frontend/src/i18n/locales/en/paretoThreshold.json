@@ -1,5 +1,5 @@
 {
-  "title": "Pareto Customer Alert Threshold",
+  "title": "Customer Alert Threshold",
   "subtitle": "Drop percentage per company, period, and metric that counts as alert-worthy — independent per company",
   "company": "Company",
   "selectCompanyHint": "Select a company to view/edit its threshold",
@@ -15,5 +15,9 @@
     "revenue": "Revenue",
     "margin": "Margin"
   },
-  "defaultLabel": "default"
+  "defaultLabel": "default",
+  "schedulerToggle": {
+    "label": "Enable Automatic Alerts",
+    "hint": "When disabled, the scheduler will not generate alert notifications for this company at all (End Report or monthly Monitoring) — the Analysis report remains accessible as usual"
+  }
 }
