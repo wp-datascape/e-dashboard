@@ -139,6 +139,70 @@ export function getYoyPeriodKey(periodType: PeriodType, periodKey: string): stri
   return `${Number(yearStr) - 1}-S${sStr}`
 }
 
+/** Potongan tanggal 1 s.d. `day` dalam bulan `monthKey` — dipakai Trigger A
+ * mid-month (scheduler.ts) supaya perbandingan apple-to-apple (potongan hari
+ * sama antara bulan berjalan vs bulan pembanding), BUKAN 1 bulan penuh. */
+export function getMidMonthDayRange(monthKey: string, day: number): PeriodRange {
+  const d = String(day).padStart(2, '0')
+  return { start: `${monthKey}-01`, end: `${monthKey}-${d}` }
+}
+
+/** YTD (Year-to-Date) turunan dari tanggal akhir SEBUAH range — dipakai digest
+ * laporan (task016 §23) sebagai basis INFORMASI TAMBAHAN (bukan trigger),
+ * dihitung dari string tanggal akhir langsung supaya konsisten baik untuk
+ * periode penuh (getPeriodRange) maupun potongan tanggal 14 (getMidMonthDayRange). */
+export function getYtdRange(end: string): PeriodRange {
+  const year = end.slice(0, 4)
+  return { start: `${year}-01-01`, end }
+}
+
+/** Pembanding YTD — YTD tahun lalu, "sampai tanggal yang sama" (apple-to-apple). */
+export function getYtdYoyRange(end: string): PeriodRange {
+  const year = Number(end.slice(0, 4)) - 1
+  return { start: `${year}-01-01`, end: `${year}${end.slice(4)}` }
+}
+
+export interface TriggerRanges {
+  current: PeriodRange
+  previousKey: string
+  previous: PeriodRange
+  yoyKey: string
+  yoy: PeriodRange
+  ytd: PeriodRange
+  ytdYoy: PeriodRange
+}
+
+/**
+ * Satu sumber kebenaran resolve SEMUA rentang tanggal 1 trigger alert (current/
+ * previous/yoy/ytd/ytdYoy) dari (period_type, period_key, checkpoint) saja —
+ * dipakai scheduler.ts (saat evaluasi, generate notifikasi) MAUPUN
+ * notifications/pdf.service.ts (saat susun ulang caption "Pembanding: X •
+ * Periode: Y" di PDF, TANPA perlu simpan string range di entity_ref — cukup
+ * simpan period_type/period_key/checkpoint, ranges selalu deterministik
+ * dihitung ulang dari situ, task016 §23).
+ */
+export function resolveTriggerRanges(
+  periodType: PeriodType,
+  periodKey: string,
+  checkpoint: 'closed' | 'mid_month',
+  midMonthDay: number,
+): TriggerRanges {
+  const previousKey = getPreviousPeriodKey(periodType, periodKey)
+  const yoyKey = getYoyPeriodKey(periodType, periodKey)
+  const rangeFor = (key: string): PeriodRange =>
+    checkpoint === 'mid_month' ? getMidMonthDayRange(key, midMonthDay) : getPeriodRange(periodType, key)
+  const current = rangeFor(periodKey)
+  return {
+    current,
+    previousKey,
+    previous: rangeFor(previousKey),
+    yoyKey,
+    yoy: rangeFor(yoyKey),
+    ytd: getYtdRange(current.end),
+    ytdYoy: getYtdYoyRange(current.end),
+  }
+}
+
 /**
  * Periode terakhir yang SUDAH TUTUP penuh relatif ke `today` (default hari ini)
  * — dipakai sebagai default kalau user tidak pilih periode eksplisit di UI.
