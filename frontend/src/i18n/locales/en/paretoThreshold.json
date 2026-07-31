@@ -5,6 +5,8 @@
   "selectCompanyHint": "Select a company to view/edit its threshold",
   "periodColumn": "Period",
   "period": {
+    "monthly": "Monthly",
+    "ytd": "YTD",
     "quarter": "Quarter",
     "semester": "Semester",
     "annual": "Annual"

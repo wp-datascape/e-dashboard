@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -45,12 +46,19 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
         </IconButton>
 
         {/* Brand */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-          <AppLogo sx={{ fontSize: 20 }} />
+        {/* minWidth:0 WAJIB — tanpa ini flex item dgn flexGrow:1 tidak bisa
+            menyusut di bawah lebar natural judul "Executive Dashboard", jadi
+            di layar mobile sempit dia mendorong avatar (UserMenu, item paling
+            kanan) keluar dari AppBar sama sekali (bukan cuma ketutup, benar-benar
+            hilang dari viewport). overflow+textOverflow di Typography biar
+            judulnya di-ellipsis kalau memang harus menyusut, bukan cuma diam
+            kepotong tanpa "...". */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0 }}>
+          <AppLogo sx={{ fontSize: 20, flexShrink: 0 }} />
           <Typography
             variant="h6"
             noWrap
-            sx={{ fontWeight: 700, color: 'inherit', fontSize: '0.95rem' }}
+            sx={{ fontWeight: 700, color: 'inherit', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
             {t('common.appName')}
           </Typography>
@@ -58,6 +66,8 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
 
         {/* Actions */}
         <ThemeToggle />
+
+        <NotificationBell />
 
         <UserMenu />
       </Toolbar>

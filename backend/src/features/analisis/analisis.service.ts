@@ -8,8 +8,8 @@ import {
 } from './analisis.repository'
 import {
   getPeriodRange,
-  getPreviousPeriodKey,
   getYoyPeriodKey,
+  getPreviousPeriodKey,
   getLatestClosedPeriodKey,
   type PeriodType,
 } from './period.util'
@@ -19,6 +19,11 @@ interface MetricComparison {
   period_key: string
   revenue: number
   margin: number
+  // Growth Value (Current - Previous) — indikator UTAMA (Metric Comparison
+  // Standard task016 §18), Growth % cuma pendukung. Selalu terisi (beda dari
+  // *_change_pct yang bisa null kalau previous = 0 / "New Business").
+  revenue_change_value: number
+  margin_change_value: number
   revenue_change_pct: number | null
   margin_change_pct: number | null
   revenue_alert: boolean
@@ -35,8 +40,9 @@ export interface AnalisisRow {
   period_type: PeriodType
   period_key: string
   current: { revenue: number; margin: number }
-  previous: MetricComparison | null
-  yoy: MetricComparison | null
+  // Comparison SELALU vs periode sama tahun lalu (YoY) — tidak ada lagi QoQ
+  // terpisah (Metric Comparison Standard, task016 §18).
+  comparison: MetricComparison
 }
 
 export interface AnalisisResult {
@@ -65,6 +71,8 @@ function buildComparison(
     period_key: periodKey,
     revenue: prevRevenue,
     margin: prevMargin,
+    revenue_change_value: currentAgg.revenue - prevRevenue,
+    margin_change_value: currentAgg.margin - prevMargin,
     revenue_change_pct: revenueChangePct,
     margin_change_pct: marginChangePct,
     revenue_alert: revenueChangePct !== null && revenueChangePct <= -revenueDropThreshold,
@@ -76,7 +84,7 @@ function buildComparison(
  * Laporan Analisis menampilkan SEMUA customer di scope (bukan cuma yang
  * di-flag Pareto) — yang di-flag ditandai `is_pareto` dan diprioritaskan
  * tampil duluan (mirror pola High Margin di Product Ledger: chip + tetap
- * dalam list lengkap). Kondisi kalkulasi (threshold, perbandingan QoQ/YoY)
+ * dalam list lengkap). Kondisi kalkulasi (threshold, perbandingan YoY)
  * SAMA untuk semua baris, supaya customer non-Pareto yang kebetulan turun
  * tajam juga kelihatan — dasar untuk "tabel kedua" di notifikasi email Fase C
  * (lihat task016).
@@ -102,21 +110,25 @@ export async function generateAnalisis(query: AnalisisQuery, scopeIds?: number[]
     currentRange,
     query.page,
     query.per_page,
+    query.customer_id,
   )
   if (customerRows.length === 0) return { rows: [], total }
 
   const customerIds = customerRows.map(c => c.customer_id)
   const companyIds = [...new Set(customerRows.map(c => c.company_id))]
 
-  const wantsPrevious = query.comparison === 'qoq' || query.comparison === 'both'
-  const wantsYoy = query.comparison === 'yoy' || query.comparison === 'both'
+  // Pembanding — user pilih eksplisit di UI (default 'last_year'/YoY).
+  // YTD SENGAJA dikecualikan dari 'previous_period': range YTD selalu mulai
+  // dari 1 Jan tahun berjalan, jadi "periode sebelumnya" (mundur 1 bulan di
+  // tahun yang sama) menghasilkan rentang beda panjang bulan (mis. Jan-Jul
+  // vs Jan-Jun) — tidak apple-to-apple. Satu-satunya pembanding yang adil
+  // untuk YTD adalah YTD tahun lalu di bulan akhir yang SAMA (YoY).
+  const comparisonKey = query.comparison === 'previous_period' && periodType !== 'ytd'
+    ? getPreviousPeriodKey(periodType, periodKey)
+    : getYoyPeriodKey(periodType, periodKey)
 
-  const previousKey = getPreviousPeriodKey(periodType, periodKey)
-  const yoyKey = getYoyPeriodKey(periodType, periodKey)
-
-  const [previousAggMap, yoyAggMap, thresholdRows] = await Promise.all([
-    wantsPrevious ? aggregateInvoicesByCustomer(customerIds, getPeriodRange(periodType, previousKey)) : Promise.resolve(new Map<number, CustomerPeriodAggregate>()),
-    wantsYoy ? aggregateInvoicesByCustomer(customerIds, getPeriodRange(periodType, yoyKey)) : Promise.resolve(new Map<number, CustomerPeriodAggregate>()),
+  const [comparisonAggMap, thresholdRows] = await Promise.all([
+    aggregateInvoicesByCustomer(customerIds, getPeriodRange(periodType, comparisonKey)),
     findParetoThresholds(companyIds),
   ])
 
@@ -146,12 +158,7 @@ export async function generateAnalisis(query: AnalisisQuery, scopeIds?: number[]
       period_type: periodType,
       period_key: periodKey,
       current: { revenue: current.revenue, margin: current.margin },
-      previous: wantsPrevious
-        ? buildComparison(previousKey, current, previousAggMap.get(c.customer_id), revenueThreshold, marginThreshold)
-        : null,
-      yoy: wantsYoy
-        ? buildComparison(yoyKey, current, yoyAggMap.get(c.customer_id), revenueThreshold, marginThreshold)
-        : null,
+      comparison: buildComparison(comparisonKey, current, comparisonAggMap.get(c.customer_id), revenueThreshold, marginThreshold),
     }
   })
 

@@ -1,12 +1,16 @@
 /**
  * utils/analisisPeriod.ts
  *
- * Helper murni untuk navigasi periode kuartal/semester/tahunan di halaman
- * Analisis (task016). Mirror logic `period.util.ts` backend — dibutuhkan versi
- * frontend sendiri untuk hitung label/navigasi tanpa round-trip ke server tiap
- * klik prev/next.
+ * Helper murni untuk navigasi periode bulanan/kuartal/semester/tahunan di
+ * halaman Analisis (task016). Mirror logic `period.util.ts` backend —
+ * dibutuhkan versi frontend sendiri untuk hitung label/navigasi tanpa
+ * round-trip ke server tiap klik prev/next.
  */
-import type { ParetoPeriodType } from '@/types/paretoThresholds'
+import type { AnalisisPeriodType } from '@/types/analisis'
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
 
 function quarterOf(month: number): number {
   return Math.floor((month - 1) / 3) + 1 // month 1-12 -> 1-4
@@ -16,22 +20,42 @@ function semesterOf(month: number): number {
   return month <= 6 ? 1 : 2
 }
 
+function quarterMonths(q: number): [number, number] {
+  const start = (q - 1) * 3 + 1
+  return [start, start + 2]
+}
+
+function semesterMonths(s: number): [number, number] {
+  return s === 1 ? [1, 6] : [7, 12]
+}
+
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
+}
+
 /** Periode kalender yang memuat `today` — bisa jadi periode BERJALAN (belum tutup). */
-export function getCurrentPeriodKey(periodType: ParetoPeriodType, today: Date = new Date()): string {
+export function getCurrentPeriodKey(periodType: AnalisisPeriodType, today: Date = new Date()): string {
   const year = today.getFullYear()
   const month = today.getMonth() + 1
   if (periodType === 'annual') return String(year)
+  if (periodType === 'monthly' || periodType === 'ytd') return `${year}-${pad2(month)}`
   if (periodType === 'quarter') return `${year}-Q${quarterOf(month)}`
   return `${year}-S${semesterOf(month)}`
 }
 
 /** Periode terakhir yang SUDAH TUTUP penuh — default awal buka halaman. */
-export function getLatestClosedPeriodKey(periodType: ParetoPeriodType, today: Date = new Date()): string {
+export function getLatestClosedPeriodKey(periodType: AnalisisPeriodType, today: Date = new Date()): string {
   return getPreviousPeriodKey(periodType, getCurrentPeriodKey(periodType, today))
 }
 
-export function getPreviousPeriodKey(periodType: ParetoPeriodType, periodKey: string): string {
+export function getPreviousPeriodKey(periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return String(Number(periodKey) - 1)
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return month === 1 ? `${year - 1}-12` : `${year}-${pad2(month - 1)}`
+  }
   if (periodType === 'quarter') {
     const [yearStr, qStr] = periodKey.split('-Q')
     const year = Number(yearStr)
@@ -44,8 +68,14 @@ export function getPreviousPeriodKey(periodType: ParetoPeriodType, periodKey: st
   return s === 1 ? `${year - 1}-S2` : `${year}-S1`
 }
 
-export function getNextPeriodKey(periodType: ParetoPeriodType, periodKey: string): string {
+export function getNextPeriodKey(periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return String(Number(periodKey) + 1)
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return month === 12 ? `${year + 1}-01` : `${year}-${pad2(month + 1)}`
+  }
   if (periodType === 'quarter') {
     const [yearStr, qStr] = periodKey.split('-Q')
     const year = Number(yearStr)
@@ -58,17 +88,103 @@ export function getNextPeriodKey(periodType: ParetoPeriodType, periodKey: string
   return s === 2 ? `${year + 1}-S1` : `${year}-S2`
 }
 
-/** Label manusiawi, e.g. "Kuartal 2 2026" / "Semester 1 2026" / "2026". */
-export function formatPeriodLabel(
-  periodType: ParetoPeriodType,
-  periodKey: string,
-  periodTypeLabel: string, // t(`paretoThreshold.period.${periodType}`) — "Kuartal"/"Semester"/"Tahunan"
-): string {
+/** Periode sama persis tahun lalu (YoY) — basis comparison satu-satunya di laporan Analisis (task016 §18). */
+export function getYoyPeriodKey(periodType: AnalisisPeriodType, periodKey: string): string {
+  if (periodType === 'annual') return getPreviousPeriodKey(periodType, periodKey)
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    return `${Number(yearStr) - 1}-${monthStr}`
+  }
+  if (periodType === 'quarter') {
+    const [yearStr, qStr] = periodKey.split('-Q')
+    return `${Number(yearStr) - 1}-Q${qStr}`
+  }
+  const [yearStr, sStr] = periodKey.split('-S')
+  return `${Number(yearStr) - 1}-S${sStr}`
+}
+
+const MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
+
+/**
+ * Label periode, format rapi (revisi 2026-07-31):
+ *   monthly  → "Juni 2026"
+ *   ytd      → "s.d. Juni 2026"
+ *   quarter  → "Kuartal (2) Tahun 2026"
+ *   semester → "Semester (1) Tahun 2026"
+ *   annual   → "2026"
+ */
+export function formatPeriodLabel(periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return periodKey
+  if (periodType === 'monthly') {
+    const [year, month] = periodKey.split('-')
+    return `${MONTH_NAMES_ID[Number(month) - 1]} ${year}`
+  }
+  if (periodType === 'ytd') {
+    const [year, month] = periodKey.split('-')
+    return `s.d. ${MONTH_NAMES_ID[Number(month) - 1]} ${year}`
+  }
   if (periodType === 'quarter') {
     const [year, q] = periodKey.split('-Q')
-    return `${periodTypeLabel} ${q} ${year}`
+    return `Kuartal (${q}) Tahun ${year}`
   }
   const [year, s] = periodKey.split('-S')
-  return `${periodTypeLabel} ${s} ${year}`
+  return `Semester (${s}) Tahun ${year}`
+}
+
+export interface PeriodDateRange {
+  start: string // YYYY-MM-DD, inklusif
+  end: string   // YYYY-MM-DD, inklusif
+}
+
+/** Rentang tanggal aktual dari period_key — mirror `period.util.ts` backend. */
+export function getPeriodDateRange(periodType: AnalisisPeriodType, periodKey: string): PeriodDateRange {
+  if (periodType === 'annual') {
+    const year = Number(periodKey)
+    return { start: `${year}-01-01`, end: `${year}-12-31` }
+  }
+  if (periodType === 'monthly') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return {
+      start: `${year}-${pad2(month)}-01`,
+      end: `${year}-${pad2(month)}-${pad2(lastDayOfMonth(year, month))}`,
+    }
+  }
+  if (periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return {
+      start: `${year}-01-01`,
+      end: `${year}-${pad2(month)}-${pad2(lastDayOfMonth(year, month))}`,
+    }
+  }
+  if (periodType === 'quarter') {
+    const [yearStr, qStr] = periodKey.split('-Q')
+    const year = Number(yearStr)
+    const [startMonth, endMonth] = quarterMonths(Number(qStr))
+    return {
+      start: `${year}-${pad2(startMonth)}-01`,
+      end: `${year}-${pad2(endMonth)}-${pad2(lastDayOfMonth(year, endMonth))}`,
+    }
+  }
+  const [yearStr, sStr] = periodKey.split('-S')
+  const year = Number(yearStr)
+  const [startMonth, endMonth] = semesterMonths(Number(sStr))
+  return {
+    start: `${year}-${pad2(startMonth)}-01`,
+    end: `${year}-${pad2(endMonth)}-${pad2(lastDayOfMonth(year, endMonth))}`,
+  }
+}
+
+/** "1-30 Juni 2026" / "1 Jan - 31 Mar 2026" — rentang tanggal manusiawi. Semua tipe periode Analisis selalu dalam 1 tahun kalender, jadi tahun cukup ditulis sekali di akhir. */
+export function formatDateRange(range: PeriodDateRange): string {
+  const [sy, sm, sd] = range.start.split('-').map(Number)
+  const [, em, ed] = range.end.split('-').map(Number)
+  if (sm === em) return `${sd}–${ed} ${MONTH_NAMES_ID[sm - 1]} ${sy}`
+  return `${sd} ${MONTH_NAMES_ID[sm - 1]} – ${ed} ${MONTH_NAMES_ID[em - 1]} ${sy}`
 }

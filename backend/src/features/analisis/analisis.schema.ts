@@ -2,15 +2,24 @@ import { z } from 'zod'
 
 export const analisisQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).optional().default('all'),
-  period_type: z.enum(['quarter', 'semester', 'annual']).optional().default('quarter'),
+  period_type: z.enum(['monthly', 'ytd', 'quarter', 'semester', 'annual']).optional().default('quarter'),
   // Default: periode terakhir yang sudah tutup penuh (dihitung server-side kalau kosong)
   period_key: z.string().optional(),
-  // Basis perbandingan yang ditampilkan — user pilih di UI (task016 §2)
-  comparison: z.enum(['qoq', 'yoy', 'both']).optional().default('both'),
+  // Filter "Pembanding" — basis comparison, dipilih eksplisit oleh user di UI
+  // (revisi UI/UX review 2026-07-31, task016 §18): 'last_year' (default, sama
+  // periode tahun lalu) atau 'previous_period' (periode sejenis sebelumnya,
+  // mis. Q2 vs Q1). Cuma SATU basis ditampilkan per request (bukan simultan
+  // qoq+yoy seperti mode 'both' yang lama).
+  comparison: z.enum(['last_year', 'previous_period']).optional().default('last_year'),
   // Menampilkan SEMUA customer (bukan cuma yang di-flag Pareto) — yang di-flag
   // ditandai `is_pareto` + diprioritaskan tampil duluan (mirror pola High Margin
   // di halaman Product Ledger), lihat task016 §12.
   search: z.string().optional(),
+  // Filter langsung by customer_id — dipakai popup detail notifikasi buat
+  // ambil baris comparison PERSIS customer+periode yang disebut di pesan alert
+  // (entity_ref), tanpa perlu search by name (title notifikasi bisa ada prefix
+  // "[Pareto] " yang bikin search text tidak match persis).
+  customer_id: z.coerce.number().int().positive().optional(),
   // Toggle "Hanya Pareto" — mirror `high_margin_only` di Product Ledger.
   // z.coerce.boolean() SALAH untuk query string: Boolean("false") === true
   // (lihat pola yang sama di high-margin.schema.ts active_only).

@@ -11,6 +11,8 @@ export interface MonthYearPickerProps {
   onChange: (value: string) => void
   size?: 'small' | 'medium'
   sx?: SxProps<Theme>
+  /** Format 'YYYY-MM' — batasi bulan terakhir yang bisa dipilih (mis. bulan berjalan). */
+  maxDate?: string
 }
 
 /**
@@ -27,7 +29,7 @@ export interface MonthYearPickerProps {
  * API-nya sengaja tetap string 'YYYY-MM' polos (bukan dayjs object) supaya drop-in
  * replacement utk semua pemanggil yang sebelumnya pakai `<DatePicker type="month">`.
  */
-export function MonthYearPicker({ label, value, onChange, size = 'small', sx }: MonthYearPickerProps) {
+export function MonthYearPicker({ label, value, onChange, size = 'small', sx, maxDate }: MonthYearPickerProps) {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <MuiDatePicker
@@ -36,6 +38,7 @@ export function MonthYearPicker({ label, value, onChange, size = 'small', sx }: 
         openTo="month"
         format="MMMM YYYY"
         value={value ? dayjs(`${value}-01`) : null}
+        maxDate={maxDate ? dayjs(`${maxDate}-01`) : undefined}
         onChange={(newValue) => {
           if (newValue?.isValid()) onChange(newValue.format('YYYY-MM'))
         }}
