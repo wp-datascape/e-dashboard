@@ -23,7 +23,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
-import { useResendSettings, useSaveResendSettings, useSendTestEmail } from '@/hooks/useResendSettings'
+import { useResendSettings, useSaveResendSettings, useSendTestEmail, useSendTestDigestEmail } from '@/hooks/useResendSettings'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
@@ -313,6 +313,8 @@ function ResendIntegrationTab() {
 
   const saveResendMutation = useSaveResendSettings()
   const testEmailMutation = useSendTestEmail()
+  const testDigestMutation = useSendTestDigestEmail()
+  const [testDigestResult, setTestDigestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'fail'; message?: string }>({ status: 'idle' })
 
   const handleSaveResend = async () => {
     setResendStatus('saving')
@@ -342,6 +344,17 @@ function ResendIntegrationTab() {
       setTestEmailResult({ status: result.success ? 'success' : 'fail', message: result.message })
     } catch (err: unknown) {
       setTestEmailResult({ status: 'fail', message: getApiErrorMessage(err, t) })
+    }
+  }
+
+  const handleSendTestDigest = async () => {
+    if (!testEmailTo.trim()) return
+    setTestDigestResult({ status: 'testing' })
+    try {
+      const result = await testDigestMutation.mutateAsync(testEmailTo.trim())
+      setTestDigestResult({ status: result.success ? 'success' : 'fail', message: result.message })
+    } catch (err: unknown) {
+      setTestDigestResult({ status: 'fail', message: getApiErrorMessage(err, t) })
     }
   }
 
@@ -448,12 +461,26 @@ function ResendIntegrationTab() {
               >
                 {t('config.integration.resend.testEmailButton')}
               </Button>
+              <Button
+                variant="outlined"
+                onClick={handleSendTestDigest}
+                disabled={!testEmailTo.trim() || testDigestResult.status === 'testing'}
+                startIcon={testDigestResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}
+              >
+                {t('config.integration.resend.testDigestButton')}
+              </Button>
             </Box>
             {testEmailResult.status === 'success' && (
               <Alert severity="success" icon={<DoneIcon />}>{testEmailResult.message || t('config.integration.resend.testEmailSuccess')}</Alert>
             )}
             {testEmailResult.status === 'fail' && (
               <Alert severity="error" icon={<CloseIcon />}>{testEmailResult.message || t('config.integration.resend.testEmailFail')}</Alert>
+            )}
+            {testDigestResult.status === 'success' && (
+              <Alert severity="success" icon={<DoneIcon />}>{testDigestResult.message}</Alert>
+            )}
+            {testDigestResult.status === 'fail' && (
+              <Alert severity="error" icon={<CloseIcon />}>{testDigestResult.message || t('config.integration.resend.testDigestFail')}</Alert>
             )}
           </>
         )}

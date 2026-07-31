@@ -4,8 +4,27 @@ import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import { encrypt, decrypt } from '@/utils/crypto'
 import { findResendSettings, upsertResendSettings } from './resend-settings.repository'
+import { findRecentNotificationsByType } from '@/features/notifications/notifications.repository'
+import { sendDigestEmail } from '@/features/notifications/email.service'
 import type { UpsertResendSettingsDto } from './resend-settings.schema'
 import type { ResendSetting } from '@/db/schema'
+
+const DIGEST_PREVIEW_LIMIT = 10
+
+// Fallback kalau belum ada notifikasi analisis_alert sama sekali di DB (mis. baru
+// setup, belum ada penurunan customer terdeteksi) — tetap contoh REALISTIS
+// (bukan lorem ipsum) supaya admin bisa lihat layout digest yang sesungguhnya,
+// ditandai jelas "(Contoh)" biar tidak dikira alert asli.
+const SAMPLE_DIGEST_ITEMS = [
+  {
+    title: '[Laporan Kuartal] PT Contoh Sejahtera turun performa (Contoh)',
+    body: 'vs periode sebelumnya: Revenue -18.4% | vs tahun lalu: Revenue -22.1%, Margin -15.0% — periode 2026-Q2.',
+  },
+  {
+    title: '[Progres Bulanan] CV Contoh Makmur turun performa (Contoh)',
+    body: 'vs tahun lalu: Margin -12.7% — progres s.d. tanggal 14, periode 2026-07 (bulan belum tutup).',
+  },
+]
 
 // Dipakai fitur lain (notifications/email.service.ts) buat ambil kredensial
 // SUDAH TER-DEKRIPSI — jangan expose ini ke handler/frontend langsung
@@ -77,5 +96,31 @@ export async function sendTestEmail(to: string): Promise<{ success: boolean; mes
   } catch (err) {
     logger.error('[resend-settings] Test email failed', { error: err instanceof Error ? err.message : String(err) })
     return { success: false, message: err instanceof Error ? err.message : 'Gagal mengirim email test' }
+  }
+}
+
+/** Kirim CONTOH digest laporan pakai template asli (email.service.ts sendDigestEmail),
+ * bukan pesan generik seperti sendTestEmail di atas — supaya admin bisa lihat hasil
+ * layout/branding yang SUNGGUHAN sebelum toggle is_active dinyalakan. Isi diambil dari
+ * notifikasi analisis_alert TERBARU yang sudah ada di DB (data nyata, read-only, TIDAK
+ * membuat notifikasi baru) — fallback ke contoh statis kalau belum ada sama sekali. */
+export async function sendTestDigestEmail(to: string): Promise<{ success: boolean; message: string }> {
+  const settings = await getDecryptedResendSettings()
+  if (!settings?.api_key || !settings.sender_email) {
+    return { success: false, message: 'API key atau sender email belum diisi' }
+  }
+
+  const recent = await findRecentNotificationsByType('analisis_alert', DIGEST_PREVIEW_LIMIT)
+  const items = recent.length > 0 ? recent : SAMPLE_DIGEST_ITEMS
+
+  const sent = await sendDigestEmail(to, items, { skipActiveCheck: true })
+  if (!sent) {
+    return { success: false, message: 'Gagal mengirim contoh laporan — cek log server untuk detail error dari Resend.' }
+  }
+  return {
+    success: true,
+    message: recent.length > 0
+      ? `Contoh laporan terkirim (${items.length} notifikasi terbaru dari data asli).`
+      : `Contoh laporan terkirim (${items.length} item contoh — belum ada notifikasi analisis_alert di database).`,
   }
 }

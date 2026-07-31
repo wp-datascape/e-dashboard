@@ -5,7 +5,7 @@ import {
   handleTestAccurateConnection,
 } from './config.handler'
 import {
-  handleGetResendSettings, handleSaveResendSettings, handleSendTestEmail,
+  handleGetResendSettings, handleSaveResendSettings, handleSendTestEmail, handleSendTestDigestEmail,
 } from './resend-settings.handler'
 import { requirePermission } from '@/middleware/permission'
 import { rateLimit, keyByUser } from '@/middleware/rate-limit'
@@ -37,3 +37,7 @@ configRoutes.post('/accurate/test-connection', requirePermission('config.integra
 configRoutes.get('/resend/settings', requirePermission('config.integration:view'), handleGetResendSettings)
 configRoutes.put('/resend/settings', requirePermission('config.integration:create', 'config.integration:update'), credentialMutationRateLimit, handleSaveResendSettings)
 configRoutes.post('/resend/test-email', requirePermission('config.integration:test'), testConnectionRateLimit, handleSendTestEmail)
+// Kirim CONTOH digest laporan pakai template asli (task016 §22) — beda dari
+// test-email di atas yang cuma pesan generik, ini exercise layout/branding
+// digest sungguhan sebelum admin nyalakan toggle is_active.
+configRoutes.post('/resend/test-digest-email', requirePermission('config.integration:test'), testConnectionRateLimit, handleSendTestDigestEmail)

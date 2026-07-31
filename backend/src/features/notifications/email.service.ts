@@ -86,14 +86,26 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
 }
 
 /** Kirim SATU digest email ke satu recipient. Dipanggil per-user dari scheduler
- * setelah 1 run evaluasi selesai — lihat runAnalisisAlertEvaluation di scheduler.ts. */
-export async function sendDigestEmail(to: string, items: DigestNotificationItem[]): Promise<void> {
-  if (items.length === 0) return
+ * setelah 1 run evaluasi selesai — lihat runAnalisisAlertEvaluation di scheduler.ts.
+ * Return boolean (bukan throw) SENGAJA — caller fire-and-forget (scheduler) boleh
+ * abaikan return value-nya, tapi caller yang butuh tahu hasil kirim (mis. tombol
+ * "kirim contoh laporan" di resend-settings.service.ts) bisa cek. Semua error tetap
+ * ditelan+di-log di sini, TIDAK PERNAH throw — jaga kontrak lama tetap aman fire-and-forget.
+ *
+ * `skipActiveCheck` cuma dipakai jalur test/preview admin (sendTestDigestEmail) —
+ * supaya admin bisa lihat hasil digest SEBELUM toggle is_active dinyalakan, tanpa
+ * ngubah semantik is_active sebagai kill-switch pengiriman alert asli. */
+export async function sendDigestEmail(
+  to: string,
+  items: DigestNotificationItem[],
+  opts?: { skipActiveCheck?: boolean },
+): Promise<boolean> {
+  if (items.length === 0) return false
 
   const settings = await getDecryptedResendSettings()
-  if (!settings?.is_active || !settings.api_key || !settings.sender_email) {
+  if (!settings?.api_key || !settings.sender_email || (!opts?.skipActiveCheck && !settings.is_active)) {
     logger.info('[email-digest] Resend belum dikonfigurasi/nonaktif, skip', { to, count: items.length })
-    return
+    return false
   }
 
   const resend = new Resend(settings.api_key)
@@ -109,7 +121,7 @@ export async function sendDigestEmail(to: string, items: DigestNotificationItem[
       const { error } = await resend.emails.send({ from, to, subject, html })
       if (error) throw new Error(error.message)
       logger.info('[email-digest] Terkirim', { to, count: items.length, attempt })
-      return
+      return true
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       logger.error('[email-digest] Percobaan gagal', { to, attempt, maxAttempts, error: message })
@@ -120,4 +132,5 @@ export async function sendDigestEmail(to: string, items: DigestNotificationItem[
       }
     }
   }
+  return false
 }

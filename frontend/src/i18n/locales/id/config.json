@@ -74,6 +74,8 @@
       "testEmailButton": "Kirim Email Test",
       "testEmailSuccess": "Email test berhasil dikirim.",
       "testEmailFail": "Gagal mengirim email test.",
+      "testDigestButton": "Kirim Contoh Laporan",
+      "testDigestFail": "Gagal mengirim contoh laporan.",
       "saveSuccess": "Pengaturan email berhasil disimpan.",
       "saveFail": "Gagal menyimpan pengaturan email."
     }

@@ -29,4 +29,15 @@ export const resendApi = {
       throw err
     }
   },
+
+  sendTestDigestEmail: async (to: string): Promise<SendTestEmailResult> => {
+    try {
+      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-digest-email', { to })
+      return response.data.data
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      if (axiosErr.response?.data) throw axiosErr.response.data
+      throw err
+    }
+  },
 }
