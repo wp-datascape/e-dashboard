@@ -1,6 +1,9 @@
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import TrendingDownIcon from '@mui/icons-material/TrendingDown'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
@@ -57,16 +60,20 @@ export function MetricPair({
   )
 }
 
-// ─── Trend persentase — teks polos berwarna, rata kanan (bukan chip pill +
-// ikon lagi, sengaja dikurangi penekanan visualnya — kolom ini tidak perlu
-// lebih menonjol dari kolom Rupiah di sebelahnya) ───────────────────────────
+// ─── Trend persentase — teks polos berwarna + ikon panah kecil (bukan chip
+// pill lagi, tapi ikon panah naik/turun dikembalikan atas permintaan user
+// 2026-07-31 — cuma badge pill-nya yang dihapus, ikon tren tetap perlu) ─────
 export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: string; pct: number | null; alert: boolean; newBusinessLabel: string }) {
   const color = pct === null ? 'info.main' : `${trendColor(pct, alert)}.main`
   const text = pct === null ? `${label}: ${newBusinessLabel}` : `${label}: ${formatGrowthPct(pct)}`
+  const icon = pct === null
+    ? <AutoAwesomeIcon sx={{ fontSize: 12 }} />
+    : pct < 0 ? <TrendingDownIcon sx={{ fontSize: 12 }} /> : <TrendingUpIcon sx={{ fontSize: 12 }} />
   return (
-    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500, color }}>
-      {text}
-    </Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.4, color }}>
+      <Typography variant="caption" sx={{ fontWeight: 500, color: 'inherit' }}>{text}</Typography>
+      {icon}
+    </Box>
   )
 }
 
