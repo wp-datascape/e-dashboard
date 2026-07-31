@@ -93,6 +93,7 @@ export async function findAnalisisCustomers(
   currentRange: { start: string; end: string },
   page: number,
   perPage: number,
+  customerId?: number,
 ): Promise<{ rows: AnalisisCustomerRow[]; total: number }> {
   if (scopeIds && scopeIds.length === 0) return { rows: [], total: 0 }
 
@@ -123,6 +124,7 @@ export async function findAnalisisCustomers(
   const baseConditions = [eq(customers.is_placeholder, false)]
   if (scopeIds) baseConditions.push(inArray(customers.company_id, scopeIds))
   if (search) baseConditions.push(ilike(customers.customer_name, `%${search}%`))
+  if (customerId) baseConditions.push(eq(customers.id, customerId))
   if (excludeIntercompanyCond) baseConditions.push(excludeIntercompanyCond)
 
   const activeParetoJoin = and(

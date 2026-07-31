@@ -98,7 +98,7 @@
     "window3Months": "3 Bulan",
     "window6Months": "6 Bulan",
     "window12Months": "12 Bulan",
-    "excludeIntercompany": "Exclude Intercompany"
+    "excludeIntercompany": "Kecualikan Intercompany"
   },
   "userMenu": {
     "moreCount": "+{{count}} lainnya",

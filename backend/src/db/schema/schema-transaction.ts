@@ -15,6 +15,7 @@ import {
   boolean,
   text,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
@@ -134,6 +135,63 @@ export const pareto_alert_thresholds = pgTable('pareto_alert_thresholds', {
 
 export type ParetoAlertThreshold = typeof pareto_alert_thresholds.$inferSelect
 export type NewParetoAlertThreshold = typeof pareto_alert_thresholds.$inferInsert
+
+// ─── pareto_period_snapshots ──────────────────────────────────────────────────────
+
+/**
+ * Hasil hitung revenue/margin per customer per periode TERTUTUP (task016 Fase B)
+ * — disimpan sekali saat periode selesai, dipakai scheduler sebagai penanda
+ * "periode ini sudah dievaluasi" (supaya tidak generate notifikasi duplikat tiap
+ * hari) sekaligus basis histori yang stabil (invoice lama yang di-edit belakangan
+ * tidak mengubah angka yang sudah pernah dinotifikasi). BUKAN dipakai laporan
+ * Analisis on-demand (itu tetap hitung real-time dari invoices, lihat task016 §12).
+ */
+export const pareto_period_snapshots = pgTable('pareto_period_snapshots', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  customer_id: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  // quarter | semester | annual
+  period_type: varchar('period_type', { length: 20 }).notNull(),
+  // '2026-Q3' | '2026-S2' | '2026'
+  period_key: varchar('period_key', { length: 20 }).notNull(),
+  revenue: numeric('revenue', { precision: 15, scale: 2 }).notNull().default('0'),
+  margin: numeric('margin', { precision: 15, scale: 2 }).notNull().default('0'),
+  computed_at: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqueSnapshotPerCustomerPeriod: uniqueIndex('uq_pareto_snapshot_customer_period').on(
+    table.customer_id,
+    table.period_type,
+    table.period_key,
+  ),
+}))
+
+export type ParetoPeriodSnapshot = typeof pareto_period_snapshots.$inferSelect
+export type NewParetoPeriodSnapshot = typeof pareto_period_snapshots.$inferInsert
+
+// ─── notifications ────────────────────────────────────────────────────────────────
+
+/**
+ * Notifikasi in-app generik (task016 Fase B) — dipakai fitur alert Analisis
+ * sekarang, didesain dipakai fitur lain nanti juga (bukan tabel khusus Pareto).
+ * `entity_ref` jsonb bebas per `type` (mis. utk 'analisis_alert':
+ * {customer_id, company_id, period_type, period_key, metric, pct}) — dipakai
+ * deep-link dari notifikasi ke halaman Analisis yang relevan.
+ */
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  entity_ref: jsonb('entity_ref').$type<Record<string, unknown>>(),
+  is_read: boolean('is_read').notNull().default(false),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userUnreadIdx: index('idx_notifications_user_unread').on(table.user_id, table.is_read),
+}))
+
+export type Notification = typeof notifications.$inferSelect
+export type NewNotification = typeof notifications.$inferInsert
 
 // ─── invoices ─────────────────────────────────────────────────────────────────
 

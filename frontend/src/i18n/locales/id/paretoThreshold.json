@@ -5,7 +5,9 @@
   "selectCompanyHint": "Pilih company untuk lihat/ubah threshold-nya",
   "periodColumn": "Periode",
   "period": {
-    "quarter": "Kuartal",
+    "monthly": "Bulanan",
+    "ytd": "YTD",
+    "quarter": "Kuartalan",
     "semester": "Semester",
     "annual": "Tahunan"
   },

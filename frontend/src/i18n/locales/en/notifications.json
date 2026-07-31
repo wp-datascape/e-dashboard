@@ -1,0 +1,13 @@
+{
+  "title": "Notifications",
+  "subtitle": "Alert history for customers whose revenue or margin dropped past threshold",
+  "empty": "No notifications yet",
+  "markAllRead": "Mark all as read",
+  "viewAll": "View all notifications",
+  "viewInAnalisis": "View in Analysis",
+  "unreadOnly": "Unread only",
+  "unread": "Unread",
+  "read": "Read",
+  "colTitle": "Notification",
+  "colDate": "Date"
+}

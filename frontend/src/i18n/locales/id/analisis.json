@@ -1,25 +1,25 @@
 {
   "title": "Analisis",
-  "subtitle": "Performa revenue dan margin seluruh customer, customer prioritas (Pareto) ditampilkan duluan, dibandingkan periode sebelumnya dan/atau periode sama tahun lalu",
+  "subtitle": "Performa revenue dan margin seluruh customer, customer prioritas (Pareto) ditampilkan duluan, dibandingkan periode sama tahun lalu",
   "company": "Perusahaan",
   "allCompanies": "Semua Entitas",
   "customer": "Customer",
   "paretoBadge": "Pareto",
-  "onlyPareto": "Hanya Pareto",
-  "searchPlaceholder": "Cari nama customer",
-  "current": "Periode Ini",
-  "vsPrevious": "vs Periode Sebelumnya",
-  "vsYoy": "vs Periode Sama Tahun Lalu",
+  "onlyPareto": "Customer Pareto",
+  "searchPlaceholder": "Cari customer...",
+  "changeValue": "Perubahan Nilai",
+  "changePercent": "Perubahan (%)",
   "periodLabel": "Periode",
-  "inProgress": "Sedang berjalan",
-  "comparisonLabel": "Perbandingan",
-  "comparison": {
-    "qoq": "Periode Sebelumnya",
-    "yoy": "Tahun ke Tahun",
-    "both": "Keduanya"
+  "periodDataLabel": "Periode Data",
+  "comparisonLabel": "Pembanding",
+  "comparisonOption": {
+    "last_year": "Tahun Lalu",
+    "previous_period": "Periode Sebelumnya"
   },
-  "metricRevenue": "Revenue",
-  "metricMargin": "Margin",
-  "alert": "Alert",
+  "inProgress": "Sedang berjalan",
+  "newBusiness": "Baru",
+  "metricRevenue": "Rev",
+  "metricMargin": "GM",
+  "critical": "Kritis",
   "normal": "Normal"
 }

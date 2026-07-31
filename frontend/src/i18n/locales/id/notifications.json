@@ -1,0 +1,13 @@
+{
+  "title": "Notifikasi",
+  "subtitle": "Riwayat alert customer yang revenue atau margin-nya turun melewati threshold",
+  "empty": "Belum ada notifikasi",
+  "markAllRead": "Tandai semua dibaca",
+  "viewAll": "Lihat semua notifikasi",
+  "viewInAnalisis": "Lihat di Analisis",
+  "unreadOnly": "Hanya yang belum dibaca",
+  "unread": "Belum dibaca",
+  "read": "Sudah dibaca",
+  "colTitle": "Notifikasi",
+  "colDate": "Tanggal"
+}

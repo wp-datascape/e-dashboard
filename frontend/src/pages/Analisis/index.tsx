@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -12,64 +13,29 @@ import IconButton from '@mui/material/IconButton'
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import SearchIcon from '@mui/icons-material/Search'
-import TrendingDownIcon from '@mui/icons-material/TrendingDown'
-import TrendingUpIcon from '@mui/icons-material/TrendingUp'
-import RemoveIcon from '@mui/icons-material/Remove'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { Card, StatusChip } from '@/components/ui'
-import type { StatusChipColor } from '@/components/ui/StatusChip'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useAnalisis } from '@/hooks/useAnalisis'
-import { formatIDR } from '@/utils/format'
-import { getCurrentPeriodKey, getLatestClosedPeriodKey, getPreviousPeriodKey, getNextPeriodKey, formatPeriodLabel } from '@/utils/analisisPeriod'
-import type { ParetoPeriodType } from '@/types/paretoThresholds'
-import type { AnalisisComparisonMode, AnalisisRow, AnalisisMetricComparison } from '@/types/analisis'
+import { formatIDR, formatIDRSigned } from '@/utils/format'
+import {
+  getCurrentPeriodKey, getLatestClosedPeriodKey, getPreviousPeriodKey, getNextPeriodKey,
+  getYoyPeriodKey, formatPeriodLabel, getPeriodDateRange, formatDateRange,
+} from '@/utils/analisisPeriod'
+import { MetricPair, MetricPercentPair, ComparisonSections } from '@/components/analisis/ComparisonMetrics'
+import { trendColor } from '@/utils/analisisComparison'
+import type { AnalisisPeriodType, AnalisisComparisonBasis, AnalisisRow } from '@/types/analisis'
 
-const PERIOD_TYPES: ParetoPeriodType[] = ['quarter', 'semester', 'annual']
-const COMPARISON_MODES: AnalisisComparisonMode[] = ['qoq', 'yoy', 'both']
-
-// ─── Badge naik/turun — hijau naik, kuning turun tapi belum lewat threshold,
-// merah turun DAN sudah lewat threshold ─────────────────────────────────────
-function TrendBadge({ label, pct, alert }: { label: string; pct: number | null; alert: boolean }) {
-  // Tidak ada baseline (previous period 0 — customer baru/belum ada transaksi,
-  // task016 §9) — tampilkan "0%" TAPI netral abu-abu, BUKAN hijau/naik atau
-  // merah/turun. Ini bukan klaim "tidak ada perubahan", cuma memang tidak ada
-  // data pembanding sama sekali.
-  if (pct === null) {
-    return <StatusChip size="small" label={`${label}: 0%`} icon={<RemoveIcon />} color="default" />
-  }
-
-  const isDown = pct < 0
-  const color: StatusChipColor = !isDown ? 'success' : (alert ? 'error' : 'warning')
-  const icon = isDown ? <TrendingDownIcon /> : <TrendingUpIcon />
-
-  return (
-    <StatusChip
-      size="small"
-      color={color}
-      icon={icon}
-      label={`${label}: ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`}
-    />
-  )
-}
-
-function ChangeCell({ comparison }: { comparison: AnalisisMetricComparison | null }) {
-  const { t } = useTranslation()
-  if (!comparison) return <Typography variant="body2" color="text.secondary">-</Typography>
-
-  return (
-    <Stack spacing={0.75} sx={{ py: 1 }}>
-      <TrendBadge label={t('analisis.metricRevenue')} pct={comparison.revenue_change_pct} alert={comparison.revenue_alert} />
-      <TrendBadge label={t('analisis.metricMargin')} pct={comparison.margin_change_pct} alert={comparison.margin_alert} />
-    </Stack>
-  )
-}
+// Urutan terpendek -> terpanjang (UI/UX review 2026-07-31).
+const PERIOD_TYPES: AnalisisPeriodType[] = ['monthly', 'quarter', 'semester', 'ytd', 'annual']
+const COMPARISON_BASES: AnalisisComparisonBasis[] = ['last_year', 'previous_period']
 
 // ─── Badge Pareto — mirror pola "highMarginBadge" di Product Ledger: chip kecil
 // di sebelah nama, customer yang di-flag tetap tampil dalam list lengkap ──────
@@ -89,11 +55,25 @@ export default function AnalisisPage() {
   const { t } = useTranslation()
   const { data: companies = [] } = useCompanies()
 
-  const [companyId, setCompanyId] = useState<number | 'all'>('all')
-  const [periodType, setPeriodType] = useState<ParetoPeriodType>('quarter')
-  const [periodKey, setPeriodKey] = useState<string>(() => getLatestClosedPeriodKey('quarter'))
-  const [comparison, setComparison] = useState<AnalisisComparisonMode>('both')
-  const [search, setSearch] = useState('')
+  // Baca filter awal dari query string (SEKALI, saat mount) — dipakai tombol
+  // "Lihat di Analisis" di popup detail notifikasi biar halaman ini kebuka
+  // dengan data yang PERSIS sama dengan yang disebut di pesan notifikasi
+  // (company/periode/pembanding/search), bukan halaman generik kosong.
+  const [searchParams] = useSearchParams()
+  const initialPeriodType = (PERIOD_TYPES as string[]).includes(searchParams.get('period_type') ?? '')
+    ? (searchParams.get('period_type') as AnalisisPeriodType)
+    : 'quarter'
+  const initialComparison: AnalisisComparisonBasis =
+    searchParams.get('comparison') === 'previous_period' ? 'previous_period' : 'last_year'
+
+  const [companyId, setCompanyId] = useState<number | 'all'>(() => {
+    const v = searchParams.get('company_id')
+    return v ? Number(v) : 'all'
+  })
+  const [periodType, setPeriodType] = useState<AnalisisPeriodType>(initialPeriodType)
+  const [periodKey, setPeriodKey] = useState<string>(() => searchParams.get('period_key') || getLatestClosedPeriodKey(initialPeriodType))
+  const [comparison, setComparison] = useState<AnalisisComparisonBasis>(initialComparison)
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [onlyPareto, setOnlyPareto] = useState(false)
   const [excludeIntercompany, setExcludeIntercompany] = useState(false)
   const [sortModel, setSortModel] = useState<GridSortModel>([])
@@ -104,14 +84,30 @@ export default function AnalisisPage() {
   const sortBy = sortModel[0]?.field === 'current' ? 'revenue' : 'default'
   const sortDir = sortModel[0]?.sort ?? 'desc'
 
-  const handlePeriodTypeChange = (nextType: ParetoPeriodType) => {
+  const handlePeriodTypeChange = (nextType: AnalisisPeriodType) => {
     setPeriodType(nextType)
     setPeriodKey(getLatestClosedPeriodKey(nextType))
+    // YTD tidak punya "periode sebelumnya" yang apple-to-apple (lihat catatan
+    // di bawah) — reset ke satu-satunya opsi yang valid biar tidak nyangkut
+    // di pilihan yang sudah tidak berlaku.
+    if (nextType === 'ytd') setComparison('last_year')
   }
 
   const currentInProgressKey = getCurrentPeriodKey(periodType)
   const isViewingInProgress = periodKey === currentInProgressKey
-  const periodTypeLabel = t(`paretoThreshold.period.${periodType}`)
+  // Key periode pembanding — ikut filter "Pembanding" yang dipilih user
+  // (UI/UX review 2026-07-31). Label kolom/caption SELALU "Pembanding"/
+  // "Periode" statis (bukan "Tahun Lalu"/"Periode Sebelumnya" dinamis) —
+  // basis yang dipilih tetap kelihatan lewat dropdown filternya sendiri.
+  // YTD SENGAJA dikecualikan dari 'previous_period': range YTD selalu mulai
+  // 1 Jan tahun berjalan, jadi "mundur 1 bulan" menghasilkan rentang beda
+  // panjang bulan (Jan-Jul vs Jan-Jun) — tidak apple-to-apple. Satu-satunya
+  // pembanding adil untuk YTD adalah YTD tahun lalu di bulan akhir yang SAMA.
+  const comparisonKey = comparison === 'previous_period' && periodType !== 'ytd'
+    ? getPreviousPeriodKey(periodType, periodKey)
+    : getYoyPeriodKey(periodType, periodKey)
+  const currentRangeText = formatDateRange(getPeriodDateRange(periodType, periodKey))
+  const comparisonRangeText = formatDateRange(getPeriodDateRange(periodType, comparisonKey))
 
   const { data, isLoading } = useAnalisis({
     company_id: companyId,
@@ -130,7 +126,11 @@ export default function AnalisisPage() {
   const rows = (data?.data ?? []).map((row) => ({ ...row, id: row.customer_id }))
 
   const hasAnyAlert = (row: AnalisisRow) =>
-    row.previous?.revenue_alert || row.previous?.margin_alert || row.yoy?.revenue_alert || row.yoy?.margin_alert
+    row.comparison.revenue_alert || row.comparison.margin_alert
+
+  const revLabel = t('analisis.metricRevenue')
+  const gmLabel = t('analisis.metricMargin')
+  const newBusinessLabel = t('analisis.newBusiness')
 
   const renderReportCard = (rawRow: Record<string, unknown>) => {
     const row = rawRow as unknown as AnalisisRow
@@ -141,42 +141,28 @@ export default function AnalisisPage() {
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
             <Box sx={{ minWidth: 0 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{row.customer_name}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{row.customer_name}</Typography>
                 {row.is_pareto && <ParetoBadge />}
               </Stack>
               <Typography variant="caption" color="text.secondary" noWrap>{row.company_name ?? '-'}</Typography>
             </Box>
             <StatusChip
-              label={alert ? t('analisis.alert') : t('analisis.normal')}
+              label={alert ? t('analisis.critical') : t('analisis.normal')}
               color={alert ? 'error' : 'success'}
             />
           </Stack>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              {t('analisis.current')}
-            </Typography>
-            <Typography variant="body2">{formatIDR(row.current.revenue)}</Typography>
-            <Typography variant="caption" color="text.secondary">GP {formatIDR(row.current.margin)}</Typography>
-          </Box>
-
-          {row.previous && (
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('analisis.vsPrevious')}
-              </Typography>
-              <ChangeCell comparison={row.previous} />
-            </Box>
-          )}
-
-          {row.yoy && (
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('analisis.vsYoy')}
-              </Typography>
-              <ChangeCell comparison={row.yoy} />
-            </Box>
-          )}
+          <ComparisonSections
+            comparisonSectionLabel={t('analisis.comparisonLabel')}
+            periodSectionLabel={t('analisis.periodLabel')}
+            changeValueSectionLabel={t('analisis.changeValue')}
+            changePercentSectionLabel={t('analisis.changePercent')}
+            current={row.current}
+            comparison={row.comparison}
+            revenueLabel={revLabel}
+            marginLabel={gmLabel}
+            newBusinessLabel={newBusinessLabel}
+          />
         </Stack>
       </Card>
     )
@@ -213,36 +199,59 @@ export default function AnalisisPage() {
       ),
     },
     {
+      field: 'periode_lampau',
+      headerName: t('analisis.comparisonLabel'),
+      width: 170,
+      sortable: false,
+      renderCell: ({ row }) => (
+        <MetricPair revenueLabel={revLabel} marginLabel={gmLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
+      ),
+    },
+    {
       field: 'current',
-      headerName: t('analisis.current'),
-      width: 150,
+      headerName: t('analisis.periodLabel'),
+      width: 170,
       sortable: true,
       // Klik pertama langsung descending (besar ke kecil) — default MUI DataGrid
       // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
       renderCell: ({ row }) => (
-        <Box sx={{ py: 1 }}>
-          <Typography variant="body2">{formatIDR(row.current.revenue)}</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>GP {formatIDR(row.current.margin)}</Typography>
-        </Box>
+        <MetricPair revenueLabel={revLabel} marginLabel={gmLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} />
       ),
     },
-    ...(comparison !== 'yoy' ? [{
-      field: 'previous',
-      headerName: t('analisis.vsPrevious'),
-      flex: 1.3,
-      minWidth: 190,
+    {
+      field: 'changeValue',
+      headerName: t('analisis.changeValue'),
+      width: 170,
       sortable: false,
-      renderCell: ({ row }: { row: AnalisisRow }) => <ChangeCell comparison={row.previous} />,
-    } as GridColDef<AnalisisRow>] : []),
-    ...(comparison !== 'qoq' ? [{
-      field: 'yoy',
-      headerName: t('analisis.vsYoy'),
-      flex: 1.3,
-      minWidth: 190,
+      renderCell: ({ row }) => (
+        <MetricPair
+          revenueLabel={revLabel}
+          marginLabel={gmLabel}
+          revenueText={formatIDRSigned(row.comparison.revenue_change_value)}
+          marginText={formatIDRSigned(row.comparison.margin_change_value)}
+          revenueColor={trendColor(row.comparison.revenue_change_pct, row.comparison.revenue_alert)}
+          marginColor={trendColor(row.comparison.margin_change_pct, row.comparison.margin_alert)}
+        />
+      ),
+    },
+    {
+      field: 'changePercent',
+      headerName: t('analisis.changePercent'),
+      width: 160,
       sortable: false,
-      renderCell: ({ row }: { row: AnalisisRow }) => <ChangeCell comparison={row.yoy} />,
-    } as GridColDef<AnalisisRow>] : []),
+      renderCell: ({ row }) => (
+        <MetricPercentPair
+          revenueLabel={revLabel}
+          marginLabel={gmLabel}
+          revenuePct={row.comparison.revenue_change_pct}
+          marginPct={row.comparison.margin_change_pct}
+          revenueAlert={row.comparison.revenue_alert}
+          marginAlert={row.comparison.margin_alert}
+          newBusinessLabel={newBusinessLabel}
+        />
+      ),
+    },
     {
       field: '_status',
       headerName: t('common.status'),
@@ -250,7 +259,7 @@ export default function AnalisisPage() {
       sortable: false,
       renderCell: ({ row }) => (
         hasAnyAlert(row)
-          ? <StatusChip label={t('analisis.alert')} color="error" />
+          ? <StatusChip label={t('analisis.critical')} color="error" />
           : <StatusChip label={t('analisis.normal')} color="success" />
       ),
     },
@@ -282,12 +291,12 @@ export default function AnalisisPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 }, flex: { sm: '1 1 180px' } }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 }, flex: { sm: '1 1 160px' } }}>
             <InputLabel>{t('analisis.periodLabel')}</InputLabel>
             <Select
               value={periodType}
               label={t('analisis.periodLabel')}
-              onChange={(e) => handlePeriodTypeChange(e.target.value as ParetoPeriodType)}
+              onChange={(e) => handlePeriodTypeChange(e.target.value as AnalisisPeriodType)}
             >
               {PERIOD_TYPES.map((p) => (
                 <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
@@ -295,18 +304,32 @@ export default function AnalisisPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 }, flex: { sm: '1 1 200px' } }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}>
             <InputLabel>{t('analisis.comparisonLabel')}</InputLabel>
             <Select
               value={comparison}
               label={t('analisis.comparisonLabel')}
-              onChange={(e) => setComparison(e.target.value as AnalisisComparisonMode)}
+              onChange={(e) => setComparison(e.target.value as AnalisisComparisonBasis)}
             >
-              {COMPARISON_MODES.map((c) => (
-                <MenuItem key={c} value={c}>{t(`analisis.comparison.${c}`)}</MenuItem>
-              ))}
+              {COMPARISON_BASES
+                // YTD cuma punya 1 pembanding yang valid (apple-to-apple) — lihat catatan di comparisonKey.
+                .filter((c) => periodType !== 'ytd' || c === 'last_year')
+                .map((c) => (
+                  <MenuItem key={c} value={c}>{t(`analisis.comparisonOption.${c}`)}</MenuItem>
+                ))}
             </Select>
           </FormControl>
+
+          {(periodType === 'monthly' || periodType === 'ytd') && (
+            <MonthYearPicker
+              size="small"
+              label={t('analisis.periodDataLabel')}
+              value={periodKey}
+              onChange={setPeriodKey}
+              maxDate={currentInProgressKey}
+              sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}
+            />
+          )}
 
           <TextField
             size="small"
@@ -344,19 +367,28 @@ export default function AnalisisPage() {
           />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
-          <IconButton size="small" onClick={() => setPeriodKey(getPreviousPeriodKey(periodType, periodKey))}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
+          <IconButton size="small" sx={{ flexShrink: 0 }} onClick={() => setPeriodKey(getPreviousPeriodKey(periodType, periodKey))}>
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
-          <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
-            <Typography variant="subtitle2">
-              {formatPeriodLabel(periodType, periodKey, periodTypeLabel)}
+          <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <Typography variant="subtitle2" noWrap sx={{ maxWidth: '100%' }}>
+              {formatPeriodLabel(periodType, periodKey)}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              noWrap
+              sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' }, maxWidth: '100%' }}
+            >
+              {t('analisis.comparisonLabel')}: {comparisonRangeText} • {t('analisis.periodLabel')}: {currentRangeText}
             </Typography>
             {isViewingInProgress && (
               <StatusChip size="small" color="warning" label={t('analisis.inProgress')} />
             )}
           </Stack>
           <IconButton
+            sx={{ flexShrink: 0 }}
             size="small"
             disabled={periodKey === currentInProgressKey}
             onClick={() => setPeriodKey(getNextPeriodKey(periodType, periodKey))}

@@ -9,6 +9,12 @@ export function formatIDR(val: number): string {
   return `Rp ${val.toLocaleString('id-ID')}`
 }
 
+/** formatIDR dengan tanda +/- di depan — buat Growth Value (current - previous) yang bisa negatif. */
+export function formatIDRSigned(val: number): string {
+  const sign = val > 0 ? '+' : val < 0 ? '-' : ''
+  return `${sign}${formatIDR(Math.abs(val))}`
+}
+
 /** Format value enum snake_case dari DB jadi label tampilan, mis. 'e_commerce' -> 'E Commerce'. */
 export function formatEnumLabel(value: string): string {
   return value

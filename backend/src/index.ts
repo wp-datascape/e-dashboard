@@ -10,6 +10,7 @@ import { env } from '@/config/env'
 import { createRouter } from '@/router'
 import { logger } from '@/utils/logger'
 import { initNetworkThrottleFromDb } from '@/middleware/network-throttle'
+import { startAnalisisAlertScheduler } from '@/features/analisis/scheduler'
 
 const app = new Hono()
 
@@ -18,6 +19,10 @@ createRouter(app)
 // Restore mode AB Testing network throttle dari DB (fire-and-forget — tidak
 // memblokir startup server, fail-safe ke 'off' selama proses load berjalan).
 void initNetworkThrottleFromDb()
+
+// Scheduler evaluasi alert Analisis (task016 Fase B) — in-process, sekali
+// sehari, fire-and-forget (tidak memblokir startup server).
+startAnalisisAlertScheduler()
 
 // ─── Start Server ───────────────────────────────────────────────────────────────
 

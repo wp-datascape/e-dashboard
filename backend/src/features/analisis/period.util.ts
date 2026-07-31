@@ -2,13 +2,24 @@
  * period.util.ts
  *
  * Helper murni (tanpa DB) untuk resolve rentang tanggal & key periode
- * kuartal/semester/tahunan (task016 Fase A, fitur Analisis). period_key format:
+ * bulanan/YTD/kuartal/semester/tahunan (task016 Fase A, fitur Analisis).
+ * period_key format:
+ *   monthly  → "YYYY-MM"
+ *   ytd      → "YYYY-MM" (year-to-date, "sampai dengan" bulan MM di tahun YYYY)
  *   quarter  → "YYYY-Q1".."YYYY-Q4"
  *   semester → "YYYY-S1"/"YYYY-S2"
  *   annual   → "YYYY"
+ *
+ * `monthly`/`ytd` HANYA dipakai laporan on-demand (filter di halaman
+ * Analisis) — scheduler alert (`scheduler.ts`) sengaja tetap loop 3 tipe
+ * periode lama saja (task016 §2, keputusan desain threshold).
+ *
+ * Comparison SELALU vs periode sama tahun lalu (YoY) — standar internal
+ * "Metric Comparison Standard" (2026-07-30): tidak ada lagi mode QoQ/Both,
+ * lihat task016 §18.
  */
 
-export type PeriodType = 'quarter' | 'semester' | 'annual'
+export type PeriodType = 'monthly' | 'ytd' | 'quarter' | 'semester' | 'annual'
 
 export interface PeriodRange {
   start: string // YYYY-MM-DD, inklusif
@@ -39,6 +50,26 @@ export function getPeriodRange(periodType: PeriodType, periodKey: string): Perio
     return { start: `${year}-01-01`, end: `${year}-12-31` }
   }
 
+  if (periodType === 'monthly') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return {
+      start: `${year}-${pad2(month)}-01`,
+      end: `${year}-${pad2(month)}-${pad2(lastDayOfMonth(year, month))}`,
+    }
+  }
+
+  if (periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return {
+      start: `${year}-01-01`,
+      end: `${year}-${pad2(month)}-${pad2(lastDayOfMonth(year, month))}`,
+    }
+  }
+
   if (periodType === 'quarter') {
     const [yearStr, qStr] = periodKey.split('-Q')
     const year = Number(yearStr)
@@ -61,10 +92,19 @@ export function getPeriodRange(periodType: PeriodType, periodKey: string): Perio
   }
 }
 
-/** Periode sejenis sebelumnya (QoQ/SoS) — quarter/semester mundur 1, tahun ikut kalau perlu. */
+/**
+ * Mundur 1 satuan periode — dipakai UNTUK NAVIGASI (tombol chevron di UI),
+ * BUKAN untuk comparison (comparison sekarang selalu YoY, lihat getYoyPeriodKey).
+ */
 export function getPreviousPeriodKey(periodType: PeriodType, periodKey: string): string {
   if (periodType === 'annual') {
     return String(Number(periodKey) - 1)
+  }
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    return month === 1 ? `${year - 1}-12` : `${year}-${pad2(month - 1)}`
   }
   if (periodType === 'quarter') {
     const [yearStr, qStr] = periodKey.split('-Q')
@@ -78,9 +118,19 @@ export function getPreviousPeriodKey(periodType: PeriodType, periodKey: string):
   return s === 1 ? `${year - 1}-S2` : `${year}-S1`
 }
 
-/** Periode sama persis tahun lalu (YoY) — untuk annual, sama dengan getPreviousPeriodKey. */
+/**
+ * Periode sama persis tahun lalu (YoY) — SATU-SATUNYA basis comparison yang
+ * ditampilkan di laporan Analisis sekarang (Metric Comparison Standard,
+ * task016 §18). Untuk annual, sama dengan getPreviousPeriodKey. Untuk ytd,
+ * hasilnya tetap "sampai bulan yang sama" tahun lalu (range awal tahun ikut
+ * berubah otomatis lewat getPeriodRange).
+ */
 export function getYoyPeriodKey(periodType: PeriodType, periodKey: string): string {
   if (periodType === 'annual') return getPreviousPeriodKey(periodType, periodKey)
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [yearStr, monthStr] = periodKey.split('-')
+    return `${Number(yearStr) - 1}-${monthStr}`
+  }
   if (periodType === 'quarter') {
     const [yearStr, qStr] = periodKey.split('-Q')
     return `${Number(yearStr) - 1}-Q${qStr}`
@@ -100,6 +150,10 @@ export function getLatestClosedPeriodKey(periodType: PeriodType, today: Date = n
 
   if (periodType === 'annual') {
     return String(year - 1)
+  }
+
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    return month === 1 ? `${year - 1}-12` : `${year}-${pad2(month - 1)}`
   }
 
   if (periodType === 'quarter') {

@@ -1,13 +1,14 @@
 # Task 016 — Pareto Customer Monitoring & Alert
 
-> Status: **Fase A selesai dikerjakan (2026-07-29)**, terverifikasi lokal
-> (`bunx tsc --noEmit`/`tsc -b` bersih backend+frontend, `bun test` 82 pass/0 fail,
-> `bun run build`+`lint` sukses, smoke test manual end-to-end via curl: create
-> Pareto customer → threshold → report semua konsisten). Migration `0015` sudah
-> diterapkan ke DB lokal. **PR #67 sudah dibuat** (branch
-> `feature/task016-pareto-analisis`), belum di-merge — migrate/seed production
-> belum dijalankan, tunggu PR merge dulu. Lihat §11 untuk detail lengkap apa
-> yang sudah/belum dikerjakan.
+> Status: **Fase A SELESAI & SUDAH DI-PRODUCTION** (PR #67 merged 2026-07-30,
+> migration `0015` + seed sudah dijalankan manual ke Neon production, Vercel+
+> Railway deploy sukses). **Fase B (scheduler + notification center) SELESAI
+> DIKERJAKAN**, terverifikasi (`tsc`/`bun test` 82 pass/`build`/`lint` semua
+> hijau, smoke test end-to-end: scheduler generate 2856 snapshot + 5165
+> notifikasi, API notifications CRUD semua benar). **Revisi lanjutan laporan
+> Analisis + popup notifikasi (2026-07-31) SELESAI**, lihat §17. Migration
+> `0016` baru diterapkan ke DB LOKAL — **BELUM commit/push/PR, BELUM ke
+> production**. Lihat §16 untuk detail Fase B.
 
 ## 1. Latar Belakang
 
@@ -446,3 +447,162 @@ Detail penuh + memory feedback baru: [[feedback_zod_coerce_boolean_query_string]
 **Verifikasi**: smoke test curl utk semua kombinasi (default/only_pareto/
 exclude_intercompany/sort_by × asc/desc), `tsc` backend+frontend bersih,
 `bun test` 82 pass, `build`+`lint` frontend sukses.
+
+## 16. Fase B — Scheduler, Recipient Resolution, Notification Center (2026-07-30)
+
+Keputusan desain (klarifikasi dengan user sebelum eksekusi):
+- **Cakupan alert**: SEMUA customer yang kena threshold (bukan cuma yang di-flag
+  Pareto) — konsisten dengan revisi §12 yang sudah bikin laporan Analisis
+  menampilkan semua customer. Notifikasi tetap tandai `is_pareto` di
+  `entity_ref` + judul dikasih prefix `[Pareto]` kalau relevan, buat pembeda.
+- **Penerima**: role `admin`+`superadmin` yang punya akses ke scope customer
+  (company, +branch+division kalau `branch_division_enforcement_enabled`
+  aktif) — role `user` biasa tidak dapat alert prioritas ini.
+- **Frekuensi**: sekali sehari, in-process (`setInterval` + cek "sudah ganti
+  hari", BUKAN node-cron — tidak nambah dependency baru, cukup untuk kuartal/
+  semester/tahun yang jarang tutup).
+
+**Data model baru** (migration `0016_wet_peter_parker.sql`):
+- `pareto_period_snapshots` — hasil hitung revenue/margin per customer per
+  periode TERTUTUP, unique (customer_id, period_type, period_key). Fungsi
+  ganda: penanda "periode ini sudah dievaluasi" (skip kalau sudah ada snapshot
+  utk company+period itu) + histori stabil (invoice lama yang di-edit
+  belakangan tidak mengubah angka yang sudah dinotifikasi). Ini yang SENGAJA
+  ditunda dari Fase A (§11) — laporan on-demand tetap hitung real-time, tabel
+  ini KHUSUS dipakai scheduler.
+- `notifications` — generik (bukan cuma buat fitur ini), `entity_ref` jsonb
+  bebas per `type`. Index `(user_id, is_read)` utk query unread count/list
+  cepat.
+
+**Backend**:
+- `features/analisis/recipients.ts` — `resolveCustomerScope()` (branch_id dari
+  invoice terbaru, division_id COALESCE `division_override_id`/
+  `channel_divisions.division_id`, pola sama persis exclude-intercompany §12)
+  + `resolveAlertRecipients()` (query admin/superadmin, lalu utk masing-masing
+  reuse `getUserCompanyIds`/`getUserBranchScopes`/`getUserDivisionScopes` yang
+  SUDAH ADA di `auth.repository.ts` — bukan tulis ulang logic scope dari nol).
+  Superadmin selalu ikut, bypass semua scope check.
+- `features/analisis/scheduler.ts` — `runAnalisisAlertEvaluation()`: loop
+  3 period_type × semua company, skip kalau sudah ada snapshot utk
+  company+period itu, kalau belum: agregasi revenue/margin SEMUA customer
+  company itu (reuse `aggregateInvoicesByCustomer` dari Fase A), simpan
+  snapshot, bandingkan ke threshold company, generate notifikasi ke recipient
+  yang di-resolve per customer yang alert. `startAnalisisAlertScheduler()`
+  dipanggil dari `index.ts` (fire-and-forget, pola sama `initNetworkThrottleFromDb()`).
+- `features/notifications/*` — 4-layer CRUD read-mostly: list (paginated,
+  filter unread_only), unread-count, mark-read (SATU, dgn ownership check —
+  404 kalau bukan notifikasi milik user itu, bukan expose keberadaannya),
+  mark-all-read. Tidak butuh `requirePermission` — personal, cukup
+  `authMiddleware` yang sudah wajib di `protectedApi`.
+
+**Frontend**:
+- `components/ui/NotificationBell` — icon lonceng + badge unread count
+  (polling tiap 60 detik) di `AppBar.tsx`, dropdown Menu menampilkan 8
+  notifikasi terbaru, klik = mark-read + (kalau tipe `analisis_alert`)
+  navigate ke `/analisis`.
+- `pages/Notifications` — halaman riwayat penuh, pagination server-side +
+  toggle "Hanya yang belum dibaca", tombol "Tandai semua dibaca". Route
+  `/notifications`, TANPA `permissionKey` (personal, cukup login) — perlu
+  entry `page_settings` (`page_key: 'notifications'`) juga, karena routing
+  di `App.tsx` di-generate dari daftar `page_settings` DB, bukan cuma dari
+  `routeRegistry` (kalau lupa ini, halaman TIDAK akan pernah ke-render walau
+  route-nya terdaftar).
+
+**Verifikasi**: `bunx tsc --noEmit` (backend) + `tsc -b` (frontend) bersih,
+`bun test` 82 pass/0 fail, `build`+`lint` frontend 0 error. Smoke test manual:
+`runAnalisisAlertEvaluation()` dijalankan langsung via `bun -e` (backfill
+pertama, evaluasi 3 period_type sekaligus karena belum pernah jalan) →
+2856 snapshot + 5165 notifikasi ter-generate, isi body masuk akal (contoh:
+"SAMA SIDE, CV turun performa | vs periode sebelumnya: Revenue -62.7%, Margin
+-41.9%"). API notifications: list/unread-count/mark-read (dgn proteksi
+kepemilikan, dicoba akses notifikasi user lain → 404)/mark-all-read semua
+diverifikasi via curl, hasilnya benar.
+
+**Catatan volume**: 5165 notifikasi dari SATU backfill pertama itu banyak —
+konsekuensi dari keputusan "semua customer kena threshold" (bukan cuma
+Pareto) dikombinasikan dengan threshold default 15% yang cukup sensitif utk
+customer kecil yang fluktuatif. User sudah diberi tahu soal ini sebelum
+eksekusi (task016 §14 pertanyaan awal juga sudah singgung risiko "noisy").
+Kalau nanti kebanyakan notifikasi tidak berguna, kandidat solusi: naikkan
+threshold default, atau community per-company bisa set threshold sendiri
+(fitur ini sudah ada sejak Fase A, §5).
+
+**Belum dikerjakan**: migrate+seed+deploy production (commit/push/PR baru
+dikerjakan §17). Fase C (integrasi Resend + email delivery sungguhan) juga
+masih belum dikerjakan — di luar scope sesi ini.
+
+## 17. Revisi Laporan Analisis + Popup Notifikasi (2026-07-31)
+
+Rangkaian revisi lanjutan setelah demo Fase A/B, dipicu review UI/UX
+mendetail dari user (bukan task baru, penyempurnaan laporan Analisis yang
+sudah ada + integrasi ke notifikasi):
+
+**Filter periode diperluas** — tambah tipe `monthly` (bulanan) dan `ytd`
+(year-to-date, "s.d. <bulan> <tahun>") di samping kuartal/semester/tahunan
+yang sudah ada sejak Fase A. `MonthYearPicker` (komponen existing, sebelumnya
+belum pernah dipakai) ditambahkan sebagai "Periode Data" untuk kedua tipe
+baru ini, dengan `maxDate` supaya tidak bisa pilih bulan yang belum tutup.
+
+**Metric Comparison Standard** — user kirim dokumen standar internal:
+comparison SELALU satu basis eksplisit (bukan tampil QoQ+YoY sekaligus
+seperti desain lama), Growth Value (Rupiah) jadi indikator utama, Growth %
+pendukung dengan cap tampilan `999%+` untuk kasus ekstrem (basis pembanding
+nyaris nol — matematis benar, bukan bug, cuma dibuat tidak menyesatkan
+tampilannya). Filter baru **Pembanding**: "Tahun Lalu" (YoY, default) atau
+"Periode Sebelumnya" (mis. Q2 vs Q1) — dirancang generik untuk gampang
+ditambah opsi lain (Budget/Target/Forecast) nanti tanpa ubah struktur UI.
+
+**YTD apple-to-apple** — YTD SENGAJA dikecualikan dari basis "Periode
+Sebelumnya": range YTD selalu mulai 1 Januari tahun berjalan, jadi "mundur 1
+bulan" menghasilkan rentang beda panjang (mis. Jan-Jul vs Jan-Jun) — tidak
+adil dibandingkan. YTD cuma boleh "Tahun Lalu" (YTD tahun lalu di bulan akhir
+yang sama), opsi lain disembunyikan dari dropdown-nya.
+
+**Tabel laporan dirombak jadi 7 kolom** (dari sebelumnya 4): Perusahaan,
+Customer, **Pembanding**, **Periode**, Perubahan Nilai, Perubahan (%),
+Status. Prefix disingkat "Rev:"/"GM:" konsisten di semua kolom. Status
+"Kritis" (bukan "Alert"). Komponen render (`MetricPair`, `MetricPercentPair`,
+`ComparisonSections`) diekstrak ke `components/analisis/ComparisonMetrics.tsx`
++ `utils/analisisComparison.ts` (pisah komponen vs fungsi murni, react-refresh
+butuh 1 file cuma isi export komponen) — dipakai ulang di halaman Analisis
+DAN popup notifikasi, bukan reimplementasi terpisah.
+
+**Popup detail notifikasi** — klik notifikasi (dropdown lonceng maupun
+halaman `/notifications`) SEBELUMNYA langsung `navigate('/analisis')` ke
+halaman generik kosong, kehilangan konteks pesan. Sekarang buka
+`NotificationDetailDialog`: judul+isi pesan tetap ditampilkan, DITAMBAH tabel
+pembanding lengkap (ambil data LIVE dari `GET /analisis?customer_id=...`,
+bukan snapshot dari body pesan) untuk basis yang disebut di body (satu
+notifikasi scheduler bisa kena "vs periode sebelumnya" DAN/ATAU "vs tahun
+lalu" sekaligus, tampilkan tabel utk yang relevan saja). Endpoint `/analisis`
+ditambah param `customer_id` (filter langsung, bukan search by name — title
+notifikasi bisa ada prefix `[Pareto] ` yang bikin text search meleset).
+Tombol "Lihat di Analisis" navigasi dengan query string PERSIS sama dengan
+`entity_ref` (company_id/period_type/period_key/comparison) + search nama
+customer — halaman Analisis dibuat baca initial state dari URL search params
+(sekali saat mount) supaya kebuka dengan data yang identik dengan notifikasi,
+bukan halaman kosong.
+
+**Bug UI ditemukan & diperbaiki selama review manual di mobile (375px)**:
+1. Dropdown notifikasi overflow keluar viewport ke kiri (`minWidth: 340`
+   fixed vs ikon lonceng dekat tepi kanan) — diganti width responsif +
+   anchor dari kanan.
+2. Avatar (UserMenu) hilang total dari AppBar mobile — Box judul "Executive
+   Dashboard" `flexGrow:1` tanpa `minWidth:0` mendorong avatar keluar
+   viewport sepenuhnya (bukan cuma ketutup). Ditambah `minWidth:0` +
+   title di-ellipsis.
+3. Nama customer di card mobile ke-truncate `noWrap` padahal muat kalau
+   boleh wrap ke baris kedua.
+4. Caption rentang tanggal periode overflow ("bocor") keluar card di mobile
+   sempit — parent flex tidak dikasih `minWidth:0`+`overflow:hidden`
+   eksplisit di antara dua tombol chevron.
+
+**Verifikasi**: `tsc --noEmit`/`tsc -b` bersih backend+frontend, `bun test`
+82 pass/0 fail, `lint` 0 error. Semua perubahan dicoba langsung via Playwright
+(desktop + viewport mobile 375×812) termasuk skenario reproduksi tiap bug di
+atas sebelum & sesudah fix, plus smoke test popup notifikasi → "Lihat di
+Analisis" → verifikasi data yang tampil identik.
+
+**Belum dikerjakan**: commit/push/PR sesi ini (dikerjakan setelah §17
+ditulis), migrate+seed+deploy production (masih menunggu migration `0016`
+dari §16 juga).

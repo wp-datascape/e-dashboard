@@ -319,6 +319,7 @@ const defaultPageSettings = [
   { page_key: 'settings-high-margin', ready: true },
   { page_key: 'settings-pareto-customers', ready: true },
   { page_key: 'analisis', ready: true },
+  { page_key: 'notifications', ready: true },
   { page_key: 'settings-classification', ready: true },
   { page_key: 'settings-threshold', ready: true },
   { page_key: 'settings-app', ready: true },
