@@ -83,8 +83,19 @@ function drawFooters(doc: jsPDF, appBaseUrl: string | null, generatedAt: string)
   }
 }
 
-function metricCell(revLabel: string, marLabel: string, rev: string, mar: string): string {
-  return `${revLabel}: ${rev}\n${marLabel}: ${mar}`
+// Kolom PERTAMA (Pembanding) tampilkan label "Rev:"/"GP:", kolom sesudahnya
+// (Periode, Perubahan Nilai) cukup angka polos — posisi vertikal (Rev di atas,
+// GP di bawah) KONSISTEN di semua kolom jadi tetap terbaca tanpa label
+// berulang tiap kolom (task016 §25, permintaan user "kurangi pengulangan").
+function metricCell(rev: string, mar: string, showLabels: boolean): string {
+  return showLabels ? `Rev: ${rev}\nGP: ${mar}` : `${rev}\n${mar}`
+}
+
+// Kolom Perubahan (%) TETAP pakai label GM (Gross Margin, rasio) — beda dari
+// kolom Rupiah lain yang pakai GP (Gross Profit, angka absolut). Cuma 1
+// kolom, tidak ada masalah pengulangan, jadi label tetap ditampilkan penuh.
+function metricPercentCell(rev: string, mar: string): string {
+  return `Rev: ${rev}\nGM: ${mar}`
 }
 
 function detailRow(item: DigestNotificationItem, d: MetricComparisonDetail): (string | number)[] {
@@ -92,10 +103,10 @@ function detailRow(item: DigestNotificationItem, d: MetricComparisonDetail): (st
   return [
     item.company_name,
     item.customer_name + (item.is_pareto ? ' (Pareto)' : ''),
-    metricCell('Rev', 'GM', fmtIDR(d.comparison.revenue), fmtIDR(d.comparison.margin)),
-    metricCell('Rev', 'GM', fmtIDR(d.current.revenue), fmtIDR(d.current.margin)),
-    metricCell('Rev', 'GM', fmtIDRSigned(d.revenue_change_value), fmtIDRSigned(d.margin_change_value)),
-    metricCell('Rev', 'GM', fmtPct(d.revenue_change_pct), fmtPct(d.margin_change_pct)),
+    metricCell(fmtIDR(d.comparison.revenue), fmtIDR(d.comparison.margin), true),
+    metricCell(fmtIDR(d.current.revenue), fmtIDR(d.current.margin), false),
+    metricCell(fmtIDRSigned(d.revenue_change_value), fmtIDRSigned(d.margin_change_value), false),
+    metricPercentCell(fmtPct(d.revenue_change_pct), fmtPct(d.margin_change_pct)),
     status,
   ]
 }
@@ -183,6 +194,16 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
         headStyles: { fillColor: BRAND_COLOR, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7.5, cellPadding: 2 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
+        // Kolom angka (Pembanding/Periode/Perubahan Nilai/Perubahan %) rata kanan
+        // biar besaran gampang dibandingkan sekilas (task016 §25) — kolom nama
+        // (Perusahaan/Customer) tetap rata kiri, Status di tengah.
+        columnStyles: {
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'center' },
+        },
         margin: { left: MARGIN, right: MARGIN, top: 16 },
         didParseCell: (data) => {
           if (data.section === 'body' && data.column.index === 6 && data.cell.raw === 'Kritis') {

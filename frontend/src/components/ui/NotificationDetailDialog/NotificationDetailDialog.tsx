@@ -105,7 +105,8 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
   const anyRow = lastYearRow ?? previousPeriodRow
 
   const revLabel = t('analisis.metricRevenue')
-  const gmLabel = t('analisis.metricMargin')
+  const gmLabel = t('analisis.metricMargin') // khusus nilai persentase
+  const gpLabel = t('analisis.metricGP') // khusus nilai Rupiah
   const newBusinessLabel = t('analisis.newBusiness')
 
   const handleViewAnalisis = () => {
@@ -156,7 +157,8 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
                         current={previousPeriodRow.current}
                         comparison={previousPeriodRow.comparison}
                         revenueLabel={revLabel}
-                        marginLabel={gmLabel}
+                        marginLabel={gpLabel}
+                        marginPercentLabel={gmLabel}
                         newBusinessLabel={newBusinessLabel}
                       />
                     ) : null
@@ -174,7 +176,8 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
                         current={lastYearRow.current}
                         comparison={lastYearRow.comparison}
                         revenueLabel={revLabel}
-                        marginLabel={gmLabel}
+                        marginLabel={gpLabel}
+                        marginPercentLabel={gmLabel}
                         newBusinessLabel={newBusinessLabel}
                       />
                     ) : null
