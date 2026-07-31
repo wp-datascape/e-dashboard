@@ -27,7 +27,7 @@ import { useAnalisis } from '@/hooks/useAnalisis'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import {
   getCurrentPeriodKey, getLatestClosedPeriodKey, getPreviousPeriodKey, getNextPeriodKey,
-  getYoyPeriodKey, formatPeriodLabel, getPeriodDateRange, formatDateRange,
+  getYoyPeriodKey, formatPeriodLabel, getPeriodDateRange, formatDateRange, getElapsedRangeEnd,
 } from '@/utils/analisisPeriod'
 import { MetricPair, MetricPercentPair, ComparisonSections } from '@/components/analisis/ComparisonMetrics'
 import { trendColor } from '@/utils/analisisComparison'
@@ -103,11 +103,32 @@ export default function AnalisisPage() {
   // 1 Jan tahun berjalan, jadi "mundur 1 bulan" menghasilkan rentang beda
   // panjang bulan (Jan-Jul vs Jan-Jun) — tidak apple-to-apple. Satu-satunya
   // pembanding adil untuk YTD adalah YTD tahun lalu di bulan akhir yang SAMA.
-  const comparisonKey = comparison === 'previous_period' && periodType !== 'ytd'
+  const isPreviousPeriodMode = comparison === 'previous_period' && periodType !== 'ytd'
+  const comparisonKey = isPreviousPeriodMode
     ? getPreviousPeriodKey(periodType, periodKey)
     : getYoyPeriodKey(periodType, periodKey)
-  const currentRangeText = formatDateRange(getPeriodDateRange(periodType, periodKey))
-  const comparisonRangeText = formatDateRange(getPeriodDateRange(periodType, comparisonKey))
+
+  // Periode MASIH BERJALAN — potong caption tanggal biar SAMA dengan angka yang
+  // benar-benar dihitung backend (backend juga potong currentRange/comparisonRange
+  // untuk kasus ini, lihat analisis.service.ts), bukan tampilkan rentang penuh yang
+  // menyesatkan (task016 §24, laporan Q3 yang baru jalan 1 bulan tidak boleh
+  // dibandingkan dengan Q3 tahun lalu yang datanya sudah penuh 3 bulan).
+  let currentRange = getPeriodDateRange(periodType, periodKey)
+  let comparisonRange = getPeriodDateRange(periodType, comparisonKey)
+  if (isViewingInProgress) {
+    const elapsedEnd = getElapsedRangeEnd(periodType)
+    const truncatedCurrentEnd = elapsedEnd < currentRange.start ? currentRange.start : (elapsedEnd < currentRange.end ? elapsedEnd : currentRange.end)
+    currentRange = { start: currentRange.start, end: truncatedCurrentEnd }
+    if (!isPreviousPeriodMode) {
+      const [, cMonth, cDay] = truncatedCurrentEnd.split('-')
+      const truncatedComparisonEnd = `${comparisonRange.end.slice(0, 4)}-${cMonth}-${cDay}`
+      if (truncatedComparisonEnd >= comparisonRange.start && truncatedComparisonEnd < comparisonRange.end) {
+        comparisonRange = { start: comparisonRange.start, end: truncatedComparisonEnd }
+      }
+    }
+  }
+  const currentRangeText = formatDateRange(currentRange)
+  const comparisonRangeText = formatDateRange(comparisonRange)
 
   const { data, isLoading } = useAnalisis({
     company_id: companyId,

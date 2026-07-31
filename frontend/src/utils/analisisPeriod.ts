@@ -48,6 +48,26 @@ export function getLatestClosedPeriodKey(periodType: AnalisisPeriodType, today: 
   return getPreviousPeriodKey(periodType, getCurrentPeriodKey(periodType, today))
 }
 
+/**
+ * Batas akhir data yang ADIL dibandingkan untuk periode yang MASIH BERJALAN
+ * (in-progress) — mirror `period.util.ts` backend `getElapsedRangeEnd`
+ * (task016 §24). Dipakai halaman Analisis buat potong caption "Pembanding:
+ * X • Periode: Y" SUPAYA SAMA dengan angka yang benar-benar dihitung backend
+ * (backend sudah potong currentRange/comparisonRange-nya sendiri) — kalau
+ * cuma backend yang dipotong tapi caption di sini tidak, teks yang tampil
+ * jadi menyesatkan (bilang "1 Jul - 30 Sep" padahal datanya cuma sampai Juli).
+ */
+export function getElapsedRangeEnd(periodType: AnalisisPeriodType, today: Date = new Date()): string {
+  if (periodType === 'monthly') {
+    return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  }
+  const currentMonth = today.getMonth() + 1
+  const currentYear = today.getFullYear()
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear
+  return `${prevYear}-${pad2(prevMonth)}-${pad2(lastDayOfMonth(prevYear, prevMonth))}`
+}
+
 export function getPreviousPeriodKey(periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return String(Number(periodKey) - 1)
   if (periodType === 'monthly' || periodType === 'ytd') {
