@@ -11,6 +11,8 @@ import {
   getYoyPeriodKey,
   getPreviousPeriodKey,
   getLatestClosedPeriodKey,
+  getCurrentPeriodKey,
+  getElapsedRangeEnd,
   type PeriodType,
 } from './period.util'
 import type { AnalisisQuery } from './analisis.schema'
@@ -100,6 +102,20 @@ export async function generateAnalisis(query: AnalisisQuery, scopeIds?: number[]
     throw new AppError(ErrorCode.VALIDATION_ERROR, `period_key "${periodKey}" tidak valid untuk period_type "${periodType}"`, 400)
   }
 
+  // Periode MASIH BERJALAN (in-progress, belum tutup) — potong currentRange
+  // biar apple-to-apple sama comparisonRange (task016 §24). Kalau belum ada
+  // satu unit elapsed pun (mis. cek Q3 padahal baru masuk hari pertama Juli),
+  // currentRange jadi 0 hari (start===end) — aggregate otomatis 0 semua,
+  // BUKAN dianggap error.
+  const isInProgress = periodKey === getCurrentPeriodKey(periodType)
+  if (isInProgress) {
+    const elapsedEnd = getElapsedRangeEnd(periodType)
+    currentRange = {
+      start: currentRange.start,
+      end: elapsedEnd < currentRange.start ? currentRange.start : (elapsedEnd < currentRange.end ? elapsedEnd : currentRange.end),
+    }
+  }
+
   const { rows: customerRows, total } = await findAnalisisCustomers(
     scopeIds,
     query.search,
@@ -123,12 +139,26 @@ export async function generateAnalisis(query: AnalisisQuery, scopeIds?: number[]
   // tahun yang sama) menghasilkan rentang beda panjang bulan (mis. Jan-Jul
   // vs Jan-Jun) — tidak apple-to-apple. Satu-satunya pembanding yang adil
   // untuk YTD adalah YTD tahun lalu di bulan akhir yang SAMA (YoY).
-  const comparisonKey = query.comparison === 'previous_period' && periodType !== 'ytd'
+  const isPreviousPeriodMode = query.comparison === 'previous_period' && periodType !== 'ytd'
+  const comparisonKey = isPreviousPeriodMode
     ? getPreviousPeriodKey(periodType, periodKey)
     : getYoyPeriodKey(periodType, periodKey)
 
+  let comparisonRange = getPeriodRange(periodType, comparisonKey)
+  // Potong comparisonRange JUGA kalau currentRange lagi dipotong (in-progress)
+  // — TAPI cuma basis YoY. Basis 'previous_period' TIDAK PERNAH perlu dipotong:
+  // periode sebelumnya selalu SUDAH tutup penuh duluan sebelum periode berjalan
+  // dimulai (mis. Q2 selalu tutup sebelum Q3 mulai), jadi otomatis sudah adil.
+  if (isInProgress && !isPreviousPeriodMode) {
+    const [, cMonth, cDay] = currentRange.end.split('-')
+    const truncatedCompEnd = `${comparisonRange.end.slice(0, 4)}-${cMonth}-${cDay}`
+    if (truncatedCompEnd >= comparisonRange.start && truncatedCompEnd < comparisonRange.end) {
+      comparisonRange = { ...comparisonRange, end: truncatedCompEnd }
+    }
+  }
+
   const [comparisonAggMap, thresholdRows] = await Promise.all([
-    aggregateInvoicesByCustomer(customerIds, getPeriodRange(periodType, comparisonKey)),
+    aggregateInvoicesByCustomer(customerIds, comparisonRange),
     findParetoThresholds(companyIds),
   ])
 

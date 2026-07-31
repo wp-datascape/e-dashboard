@@ -203,6 +203,45 @@ export function resolveTriggerRanges(
   }
 }
 
+/** Key periode yang SEDANG BERJALAN (belum tutup) relatif ke `today` — kebalikan
+ * dari getLatestClosedPeriodKey. Dipakai deteksi "user lagi lihat periode
+ * in-progress" (task016 §24) supaya current+comparison range bisa dipotong
+ * (truncate) apple-to-apple, BUKAN buat filter default (default tetap periode
+ * yang sudah tutup, lihat getLatestClosedPeriodKey). */
+export function getCurrentPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
+  const year = today.getFullYear()
+  const month = today.getMonth() + 1
+
+  if (periodType === 'annual') return String(year)
+  if (periodType === 'monthly' || periodType === 'ytd') return `${year}-${pad2(month)}`
+  if (periodType === 'quarter') return `${year}-Q${Math.floor((month - 1) / 3) + 1}`
+  return `${year}-S${month <= 6 ? 1 : 2}`
+}
+
+/**
+ * Batas akhir data yang ADIL dibandingkan untuk periode yang MASIH BERJALAN
+ * (in-progress) — task016 §24, permintaan user: cek Q3 yang baru jalan 1
+ * bulan (Juli), pembanding Q3 tahun lalu HARUS dipotong jadi cuma Juli juga
+ * (bukan Juli-September penuh), supaya tidak bandingkan data parsial vs data
+ * penuh setahun lalu.
+ *
+ * - monthly: granularitas HARI (dipotong s.d. HARI INI) — periode itu sendiri
+ *   cuma 1 bulan, tidak ada satuan "bulan penuh" di dalamnya buat dipotong.
+ * - quarter/semester/annual/ytd: granularitas BULAN (dipotong s.d. akhir bulan
+ *   TERAKHIR yang sudah PENUH tutup) — bulan berjalan datanya pasti belum
+ *   lengkap (invoice masih bisa nambah), jangan diikutkan sama sekali.
+ */
+export function getElapsedRangeEnd(periodType: PeriodType, today: Date = new Date()): string {
+  if (periodType === 'monthly') {
+    return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  }
+  const currentMonth = today.getMonth() + 1
+  const currentYear = today.getFullYear()
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear
+  return `${prevYear}-${pad2(prevMonth)}-${pad2(lastDayOfMonth(prevYear, prevMonth))}`
+}
+
 /**
  * Periode terakhir yang SUDAH TUTUP penuh relatif ke `today` (default hari ini)
  * — dipakai sebagai default kalau user tidak pilih periode eksplisit di UI.
