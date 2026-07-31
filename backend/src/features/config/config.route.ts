@@ -4,6 +4,9 @@ import {
   handleGetAccurateCredentials, handleSaveAccurateCredentials,
   handleTestAccurateConnection,
 } from './config.handler'
+import {
+  handleGetResendSettings, handleSaveResendSettings, handleSendTestEmail,
+} from './resend-settings.handler'
 import { requirePermission } from '@/middleware/permission'
 import { rateLimit, keyByUser } from '@/middleware/rate-limit'
 
@@ -27,3 +30,10 @@ configRoutes.put('/:key', requirePermission('settings.threshold:update'), config
 configRoutes.get('/accurate/credentials/:branchId', requirePermission('config.integration:view'), handleGetAccurateCredentials)
 configRoutes.put('/accurate/credentials/:branchId', requirePermission('config.integration:create', 'config.integration:update'), credentialMutationRateLimit, handleSaveAccurateCredentials)
 configRoutes.post('/accurate/test-connection', requirePermission('config.integration:test'), testConnectionRateLimit, handleTestAccurateConnection)
+
+// Resend integration (task016 Fase C, §21) — SINGLETON global, bukan per-branch
+// seperti Accurate di atas, reuse permission config.integration:* yang sama
+// (section berbeda di halaman Config/Integration yang sama).
+configRoutes.get('/resend/settings', requirePermission('config.integration:view'), handleGetResendSettings)
+configRoutes.put('/resend/settings', requirePermission('config.integration:create', 'config.integration:update'), credentialMutationRateLimit, handleSaveResendSettings)
+configRoutes.post('/resend/test-email', requirePermission('config.integration:test'), testConnectionRateLimit, handleSendTestEmail)

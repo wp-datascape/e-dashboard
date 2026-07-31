@@ -232,6 +232,36 @@ export const notifications = pgTable('notifications', {
 export type Notification = typeof notifications.$inferSelect
 export type NewNotification = typeof notifications.$inferInsert
 
+// ─── resend_settings ──────────────────────────────────────────────────────────────
+
+/**
+ * Kredensial + config email delivery via Resend (task016 Fase C, §21) —
+ * SINGLETON (1 row GLOBAL, cocokkan lewat id=1 di service), BUKAN
+ * per-company/branch seperti `accurate_credentials` — keputusan eksplisit
+ * user: 1 domain pengirim untuk semua company (nama tampilan "From" boleh
+ * beda per company, tapi itu dirender dinamis dari `companies.name` saat
+ * kirim, tidak butuh kolom terpisah).
+ *
+ * `api_key` di-encrypt AES-256-GCM pakai `utils/crypto.ts` (reuse persis
+ * pola `accurate_credentials.api_token`, jangan bikin util baru).
+ * `app_base_url` dipakai watermark footer email (link balik ke app) — field
+ * editable admin, bukan hardcode, karena app ini tidak punya konsep
+ * "base URL" tersimpan di mana pun sebelumnya.
+ */
+export const resend_settings = pgTable('resend_settings', {
+  id: serial('id').primaryKey(),
+  api_key: text('api_key'),
+  sender_email: varchar('sender_email', { length: 255 }),
+  sender_name_default: varchar('sender_name_default', { length: 255 }),
+  app_base_url: varchar('app_base_url', { length: 500 }),
+  is_active: boolean('is_active').notNull().default(false),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type ResendSetting = typeof resend_settings.$inferSelect
+export type NewResendSetting = typeof resend_settings.$inferInsert
+
 // ─── invoices ─────────────────────────────────────────────────────────────────
 
 /**

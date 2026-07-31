@@ -7,6 +7,8 @@
     "pageSettings": "Pengaturan Halaman"
   },
   "integration": {
+    "tabAccurate": "Accurate",
+    "tabResend": "Resend",
     "title": "Integrasi Accurate Online",
     "subtitle": "Masukkan kredensial API Accurate Online per cabang perusahaan.",
     "success": "Kredensial berhasil disimpan.",
@@ -50,7 +52,31 @@
     "failedToSave": "Gagal menyimpan",
     "appKeyLabel": "App Key:",
     "flowLabel": "Flow:",
-    "flowDescription": "API Token + HMAC-SHA256 signature → /api/api-token.do → host → data API"
+    "flowDescription": "API Token + HMAC-SHA256 signature → /api/api-token.do → host → data API",
+    "resend": {
+      "title": "Integrasi Email (Resend)",
+      "subtitle": "Konfigurasi global — dipakai untuk mengirim digest email alert Analisis (task016) ke semua perusahaan.",
+      "infoText": "Satu konfigurasi berlaku untuk seluruh sistem (bukan per cabang). Email dikirim otomatis saat scheduler alert Analisis menemukan penurunan performa customer.",
+      "apiKey": "API Key",
+      "apiKeyHelper": "Dari dashboard Resend > API Keys",
+      "apiKeySetHelper": "API Key sudah tersimpan. Isi ulang hanya jika ingin menggantinya.",
+      "apiKeyPlaceholder": "re_xxxxxxxxxxxxxxxxxxxxxxxx",
+      "senderEmail": "Email Pengirim",
+      "senderEmailHelper": "Harus dari domain yang sudah diverifikasi di Resend",
+      "senderName": "Nama Pengirim Default",
+      "senderNameHelper": "Contoh: Executive Dashboard",
+      "appBaseUrl": "URL Aplikasi",
+      "appBaseUrlHelper": "Dipakai sebagai link sumber di footer email",
+      "activeLabel": "Aktifkan Pengiriman Email",
+      "activeHelper": "Kalau nonaktif, notifikasi tetap muncul di aplikasi tapi email tidak dikirim.",
+      "saveButton": "Simpan Pengaturan",
+      "testEmailLabel": "Kirim Email Test Ke",
+      "testEmailButton": "Kirim Email Test",
+      "testEmailSuccess": "Email test berhasil dikirim.",
+      "testEmailFail": "Gagal mengirim email test.",
+      "saveSuccess": "Pengaturan email berhasil disimpan.",
+      "saveFail": "Gagal menyimpan pengaturan email."
+    }
   },
   "appSettings": {
     "title": "Pengaturan Aplikasi",

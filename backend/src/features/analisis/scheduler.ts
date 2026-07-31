@@ -37,6 +37,8 @@ import { DEFAULT_PARETO_DROP_PERCENT } from '@/features/settings/pareto-threshol
 import { findDisabledCompanyIds } from '@/features/settings/pareto-alert-settings.repository'
 import { resolveCustomerScope, resolveAlertRecipients } from './recipients'
 import { createNotifications } from '@/features/notifications/notifications.repository'
+import { sendDigestEmail, type DigestNotificationItem } from '@/features/notifications/email.service'
+import { users } from '@/db/schema'
 import type { NewNotification } from '@/db/schema'
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 jam — cukup sering utk pastikan "ganti hari" ke-detect
@@ -103,6 +105,22 @@ interface AlertHit {
   vsYoy: { metric: 'revenue' | 'margin'; pct: number }[]
 }
 
+/** Label eksplisit per trigger — dipakai di title notifikasi/email supaya recipient
+ * langsung tahu ini laporan progres (belum tutup) atau laporan akhir periode jenis
+ * apa, TANPA harus menebak dari format period_key (mis. "2026-Q3"). Penting terutama
+ * 1 Januari, saat bulanan+kuartal+semester+tahunan bisa tutup di hari yang sama dan
+ * masuk 1 digest email yang sama (task016 §21/§22). */
+function triggerLabel(periodType: PeriodType, checkpoint: Checkpoint): string {
+  if (checkpoint === 'mid_month') return 'Progres Bulanan'
+  switch (periodType) {
+    case 'monthly': return 'Laporan Bulanan'
+    case 'quarter': return 'Laporan Kuartal'
+    case 'semester': return 'Laporan Semester'
+    case 'annual': return 'Laporan Tahunan'
+    case 'ytd': return 'Laporan YTD' // tidak dipakai scheduler (YTD cuma on-demand di Analisis), dijaga exhaustive
+  }
+}
+
 /**
  * Inti evaluasi + generate notifikasi — dipakai Aturan 1 (kuartal/semester/
  * tahunan, checkpoint='closed') MAUPUN Aturan 2 (bulanan, checkpoint 'closed'
@@ -122,7 +140,7 @@ async function evaluateAndNotify(params: {
   yoyRange: { start: string; end: string }
   /** Catatan tambahan di body notifikasi, mis. "progres s.d. tanggal 14, bulan belum tutup" (Trigger A). */
   bodyNote?: string
-}): Promise<void> {
+}): Promise<NewNotification[]> {
   const { companyId, periodType, periodKey, checkpoint, currentRange, previousKey, previousRange, yoyKey, yoyRange, bodyNote } = params
 
   const companyCustomers = await db
@@ -130,7 +148,7 @@ async function evaluateAndNotify(params: {
     .from(customers)
     .where(and(eq(customers.company_id, companyId), eq(customers.is_placeholder, false)))
 
-  if (companyCustomers.length === 0) return
+  if (companyCustomers.length === 0) return []
 
   const customerIds = companyCustomers.map(c => c.id)
 
@@ -189,7 +207,7 @@ async function evaluateAndNotify(params: {
 
   if (alerts.length === 0) {
     logger.info(`[analisis-scheduler] company=${companyId} period=${periodType}:${periodKey}:${checkpoint} - 0 alert`)
-    return
+    return []
   }
 
   const notificationsToInsert: NewNotification[] = []
@@ -205,9 +223,10 @@ async function evaluateAndNotify(params: {
     if (alert.vsPrevious.length > 0) parts.push(`vs periode sebelumnya: ${describeHits(alert.vsPrevious)}`)
     if (alert.vsYoy.length > 0) parts.push(`vs tahun lalu: ${describeHits(alert.vsYoy)}`)
 
+    const label = triggerLabel(periodType, checkpoint)
     const title = alert.is_pareto
-      ? `[Pareto] ${alert.customer_name} turun performa`
-      : `${alert.customer_name} turun performa`
+      ? `[${label} · Pareto] ${alert.customer_name} turun performa`
+      : `[${label}] ${alert.customer_name} turun performa`
     const body = bodyNote
       ? `${parts.join(' | ')} — ${bodyNote}`
       : `${parts.join(' | ')} — periode ${periodKey}.`
@@ -234,13 +253,14 @@ async function evaluateAndNotify(params: {
   logger.info(
     `[analisis-scheduler] company=${companyId} period=${periodType}:${periodKey}:${checkpoint} - ${alerts.length} alert, ${notificationsToInsert.length} notifikasi dikirim`,
   )
+  return notificationsToInsert
 }
 
 /** Aturan 1 (kuartal/semester/tahunan) & Trigger B Aturan 2 (bulanan tertutup) — periode SUDAH tutup penuh. */
-async function evaluateClosedPeriod(companyId: number, periodType: PeriodType, periodKey: string): Promise<void> {
+async function evaluateClosedPeriod(companyId: number, periodType: PeriodType, periodKey: string): Promise<NewNotification[]> {
   const previousKey = getPreviousPeriodKey(periodType, periodKey)
   const yoyKey = getYoyPeriodKey(periodType, periodKey)
-  await evaluateAndNotify({
+  return evaluateAndNotify({
     companyId,
     periodType,
     periodKey,
@@ -254,11 +274,11 @@ async function evaluateClosedPeriod(companyId: number, periodType: PeriodType, p
 }
 
 /** Trigger A Aturan 2 — tanggal 14, bandingkan tanggal 1-14 bulan berjalan vs 1-14 bulan pembanding. */
-async function evaluateMonthlyMidpoint(companyId: number, monthKey: string): Promise<void> {
+async function evaluateMonthlyMidpoint(companyId: number, monthKey: string): Promise<NewNotification[]> {
   const dayRange = (mKey: string) => ({ start: `${mKey}-01`, end: `${mKey}-${pad2(MID_MONTH_CHECKPOINT_DAY)}` })
   const previousKey = getPreviousPeriodKey('monthly', monthKey)
   const yoyKey = getYoyPeriodKey('monthly', monthKey)
-  await evaluateAndNotify({
+  return evaluateAndNotify({
     companyId,
     periodType: 'monthly',
     periodKey: monthKey,
@@ -285,6 +305,11 @@ export async function runAnalisisAlertEvaluation(): Promise<void> {
   const today = new Date()
   const currentMonthKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
 
+  // Kumpulan SEMUA notifikasi yang dibuat sepanjang run ini, lintas company/
+  // period type/checkpoint — dipakai buat digest email di akhir fungsi (task016
+  // §21: "1 email berisi all notifikasi", BUKAN per-notifikasi/per-company).
+  const allNewNotifications: NewNotification[] = []
+
   // Aturan 1 — Report Akhir (kuartal/semester/tahunan) + Trigger B Aturan 2
   // (bulanan, checkpoint='closed') — SATU alur yang sama, 'monthly' cuma
   // tambahan tipe periode di loop ini (getLatestClosedPeriodKey utk 'monthly'
@@ -295,7 +320,8 @@ export async function runAnalisisAlertEvaluation(): Promise<void> {
       try {
         const alreadyDone = await hasSnapshotForPeriod(company.id, periodType, periodKey, 'closed')
         if (alreadyDone) continue
-        await evaluateClosedPeriod(company.id, periodType, periodKey)
+        const created = await evaluateClosedPeriod(company.id, periodType, periodKey)
+        allNewNotifications.push(...created)
       } catch (err) {
         logger.error(`[analisis-scheduler] gagal evaluasi company=${company.id} period=${periodType}:${periodKey}:closed`, {
           error: err instanceof Error ? err.message : String(err),
@@ -312,12 +338,53 @@ export async function runAnalisisAlertEvaluation(): Promise<void> {
       try {
         const alreadyDone = await hasSnapshotForPeriod(company.id, 'monthly', currentMonthKey, 'mid_month')
         if (alreadyDone) continue
-        await evaluateMonthlyMidpoint(company.id, currentMonthKey)
+        const created = await evaluateMonthlyMidpoint(company.id, currentMonthKey)
+        allNewNotifications.push(...created)
       } catch (err) {
         logger.error(`[analisis-scheduler] gagal evaluasi mid-month company=${company.id} period=monthly:${currentMonthKey}`, {
           error: err instanceof Error ? err.message : String(err),
         })
       }
+    }
+  }
+
+  await sendDigestEmailsForRun(allNewNotifications)
+}
+
+/** Group notifikasi 1 run scheduler per recipient (user_id), lalu kirim SATU
+ * digest email per recipient yang punya notification_email terisi — task016
+ * §21. Dipanggil di akhir runAnalisisAlertEvaluation, SETELAH semua company/
+ * period type selesai, supaya 1 admin yang pegang beberapa company tetap cuma
+ * dapat 1 email (bukan 1 email per company). Gagal kirim ke 1 recipient tidak
+ * boleh mengganggu recipient lain — per-recipient try/catch, sama prinsipnya
+ * dgn per-company try/catch di atas (lihat juga catatan insiden startAnalisisAlertScheduler).
+ */
+async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise<void> {
+  if (notifications.length === 0) return
+
+  const byUser = new Map<number, DigestNotificationItem[]>()
+  for (const n of notifications) {
+    const list = byUser.get(n.user_id) ?? []
+    list.push({ title: n.title, body: n.body })
+    byUser.set(n.user_id, list)
+  }
+
+  const userIds = [...byUser.keys()]
+  const recipientRows = await db
+    .select({ id: users.id, notification_email: users.notification_email })
+    .from(users)
+    .where(inArray(users.id, userIds))
+
+  for (const row of recipientRows) {
+    if (!row.notification_email) continue
+    const items = byUser.get(row.id)
+    if (!items || items.length === 0) continue
+    try {
+      await sendDigestEmail(row.notification_email, items)
+    } catch (err) {
+      logger.error(`[analisis-scheduler] gagal kirim digest email user_id=${row.id}`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 }

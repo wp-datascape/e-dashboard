@@ -7,6 +7,8 @@
     "pageSettings": "Page Settings"
   },
   "integration": {
+    "tabAccurate": "Accurate",
+    "tabResend": "Resend",
     "title": "Accurate Online Integration",
     "subtitle": "Enter Accurate Online API credentials per company branch.",
     "success": "Credentials saved successfully.",
@@ -50,7 +52,31 @@
     "failedToSave": "Failed to save",
     "appKeyLabel": "App Key:",
     "flowLabel": "Flow:",
-    "flowDescription": "API Token + HMAC-SHA256 signature → /api/api-token.do → host → data API"
+    "flowDescription": "API Token + HMAC-SHA256 signature → /api/api-token.do → host → data API",
+    "resend": {
+      "title": "Email Integration (Resend)",
+      "subtitle": "Global configuration — used to send Analisis alert digest emails (task016) to all companies.",
+      "infoText": "One configuration applies system-wide (not per branch). Emails are sent automatically when the Analisis alert scheduler finds a customer performance drop.",
+      "apiKey": "API Key",
+      "apiKeyHelper": "From Resend dashboard > API Keys",
+      "apiKeySetHelper": "API Key is already saved. Fill this in only if you want to replace it.",
+      "apiKeyPlaceholder": "re_xxxxxxxxxxxxxxxxxxxxxxxx",
+      "senderEmail": "Sender Email",
+      "senderEmailHelper": "Must be from a domain verified in Resend",
+      "senderName": "Default Sender Name",
+      "senderNameHelper": "e.g. Executive Dashboard",
+      "appBaseUrl": "App URL",
+      "appBaseUrlHelper": "Used as the source link in the email footer",
+      "activeLabel": "Enable Email Sending",
+      "activeHelper": "When disabled, notifications still appear in-app but no email is sent.",
+      "saveButton": "Save Settings",
+      "testEmailLabel": "Send Test Email To",
+      "testEmailButton": "Send Test Email",
+      "testEmailSuccess": "Test email sent successfully.",
+      "testEmailFail": "Failed to send test email.",
+      "saveSuccess": "Email settings saved successfully.",
+      "saveFail": "Failed to save email settings."
+    }
   },
   "appSettings": {
     "title": "Application Settings",
