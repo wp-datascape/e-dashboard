@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
@@ -58,16 +59,23 @@ export function MetricPair({
 }
 
 // ─── Trend persentase — teks polos berwarna + panah unicode kecil (▲/▼,
-// bukan ikon MUI lagi — permintaan user 2026-07-31 biar lebih simple) ──────
+// bukan ikon MUI lagi — permintaan user 2026-07-31 biar lebih simple).
+// Tooltip nampilin angka PERSIS (2 desimal, tanpa cap 999%) — formatGrowthPct
+// yang dipakai di teks utama sengaja MEMBULATKAN & MEN-CAP nilai ekstrem
+// (mis. "999%+") biar tidak menyesatkan tampilan, tapi angka aslinya tetap
+// harus bisa dicek — permintaan user, tooltip tetap dipertahankan. ─────────
 export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: string; pct: number | null; alert: boolean; newBusinessLabel: string }) {
   const color = pct === null ? 'info.main' : `${trendColor(pct, alert)}.main`
   const arrow = pct === null ? '' : pct < 0 ? '▼ ' : '▲ '
   const text = pct === null ? `${label}: ${newBusinessLabel}` : `${arrow}${label}: ${formatGrowthPct(pct)}`
-  return (
-    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500, color }}>
+  const exactText = pct === null ? null : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`
+
+  const content = (
+    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500, color, width: 'fit-content' }}>
       {text}
     </Typography>
   )
+  return exactText === null ? content : <Tooltip title={exactText} arrow placement="top">{content}</Tooltip>
 }
 
 export function MetricPercentPair({
