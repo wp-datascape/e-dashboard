@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { success } from '@/utils/response'
 import { validateBody } from '@/utils/validator'
 import { upsertResendSettingsSchema, sendTestEmailSchema } from './resend-settings.schema'
-import { getResendSettingsForUI, saveResendSettings, sendTestEmail } from './resend-settings.service'
+import { getResendSettingsForUI, saveResendSettings, sendTestEmail, sendTestDigestEmail } from './resend-settings.service'
 
 export async function handleGetResendSettings(c: Context) {
   const result = await getResendSettingsForUI()
@@ -18,5 +18,11 @@ export async function handleSaveResendSettings(c: Context) {
 export async function handleSendTestEmail(c: Context) {
   const body = await validateBody(c, sendTestEmailSchema)
   const result = await sendTestEmail(body.to)
+  return success(c, result)
+}
+
+export async function handleSendTestDigestEmail(c: Context) {
+  const body = await validateBody(c, sendTestEmailSchema)
+  const result = await sendTestDigestEmail(body.to)
   return success(c, result)
 }

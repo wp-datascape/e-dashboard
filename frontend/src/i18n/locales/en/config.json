@@ -74,6 +74,8 @@
       "testEmailButton": "Send Test Email",
       "testEmailSuccess": "Test email sent successfully.",
       "testEmailFail": "Failed to send test email.",
+      "testDigestButton": "Send Sample Report",
+      "testDigestFail": "Failed to send sample report.",
       "saveSuccess": "Email settings saved successfully.",
       "saveFail": "Failed to save email settings."
     }

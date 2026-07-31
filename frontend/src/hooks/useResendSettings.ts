@@ -28,3 +28,9 @@ export function useSendTestEmail() {
     mutationFn: (to: string) => resendApi.sendTestEmail(to),
   })
 }
+
+export function useSendTestDigestEmail() {
+  return useMutation({
+    mutationFn: (to: string) => resendApi.sendTestDigestEmail(to),
+  })
+}
