@@ -194,14 +194,9 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
         headStyles: { fillColor: BRAND_COLOR, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7.5, cellPadding: 2 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        // Kolom angka (Pembanding/Periode/Perubahan Nilai/Perubahan %) rata kanan
-        // biar besaran gampang dibandingkan sekilas (task016 §25) — kolom nama
-        // (Perusahaan/Customer) tetap rata kiri, Status di tengah.
+        // Kolom angka rata KIRI (permintaan user 2026-07-31, revisi dari rata
+        // kanan sebelumnya) — cuma Status yang tetap di tengah.
         columnStyles: {
-          2: { halign: 'right' },
-          3: { halign: 'right' },
-          4: { halign: 'right' },
-          5: { halign: 'right' },
           6: { halign: 'center' },
         },
         margin: { left: MARGIN, right: MARGIN, top: 16 },

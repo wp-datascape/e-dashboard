@@ -46,7 +46,7 @@ export function MetricPair({
   showLabels?: boolean
 }) {
   return (
-    <Box sx={{ py: 1, textAlign: 'right' }}>
+    <Box sx={{ py: 1 }}>
       <Typography variant="body2" sx={{ fontWeight: revenueColor ? 600 : 400, color: revenueColor ? `${revenueColor}.main` : undefined }}>
         {showLabels ? `${revenueLabel}: ${revenueText}` : revenueText}
       </Typography>
@@ -82,7 +82,7 @@ export function MetricPercentPair({
   newBusinessLabel: string
 }) {
   return (
-    <Stack spacing={0.5} sx={{ py: 1, alignItems: 'flex-end', textAlign: 'right' }}>
+    <Stack spacing={0.5} sx={{ py: 1 }}>
       <TrendChip label={revenueLabel} pct={revenuePct} alert={revenueAlert} newBusinessLabel={newBusinessLabel} />
       <TrendChip label={marginLabel} pct={marginPct} alert={marginAlert} newBusinessLabel={newBusinessLabel} />
     </Stack>

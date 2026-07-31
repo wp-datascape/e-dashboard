@@ -226,8 +226,6 @@ export default function AnalisisPage() {
       headerName: t('analisis.comparisonLabel'),
       width: 170,
       sortable: false,
-      align: 'right',
-      headerAlign: 'right',
       renderCell: ({ row }) => (
         <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
       ),
@@ -237,8 +235,6 @@ export default function AnalisisPage() {
       headerName: t('analisis.periodLabel'),
       width: 170,
       sortable: true,
-      align: 'right',
-      headerAlign: 'right',
       // Klik pertama langsung descending (besar ke kecil) — default MUI DataGrid
       // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
@@ -251,8 +247,6 @@ export default function AnalisisPage() {
       headerName: t('analisis.changeValue'),
       width: 170,
       sortable: false,
-      align: 'right',
-      headerAlign: 'right',
       renderCell: ({ row }) => (
         <MetricPair
           revenueLabel={revLabel}
@@ -270,8 +264,6 @@ export default function AnalisisPage() {
       headerName: t('analisis.changePercent'),
       width: 160,
       sortable: false,
-      align: 'right',
-      headerAlign: 'right',
       renderCell: ({ row }) => (
         <MetricPercentPair
           revenueLabel={revLabel}
