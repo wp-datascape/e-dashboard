@@ -111,6 +111,102 @@ interface AlertHit {
 }
 
 /**
+ * Hitung SEMUA customer yang statusnya Kritis (breach threshold PoP dan/atau
+ * YoY) untuk 1 company+periode — READ-ONLY, TIDAK insert snapshot, TIDAK buat
+ * notifikasi. Diekstrak dari evaluateAndNotify (yang punya side-effect itu)
+ * supaya bisa dipakai preview "Kirim Contoh Laporan" (task016 §23-24) — preview
+ * SEBELUMNYA baca histori tabel `notifications` yang formatnya bisa basi
+ * (dibuat sebelum field `detail` ditambahkan), sekarang hitung ulang LANGSUNG
+ * dari data invoice terkini, selalu akurat & selalu dapat SEMUA customer
+ * Kritis, bukan cuma 10 notifikasi terakhir yang mungkin sudah stale.
+ */
+async function computeCompanyAlerts(
+  companyId: number,
+  periodType: PeriodType,
+  ranges: TriggerRanges,
+): Promise<AlertHit[]> {
+  const { current: currentRange, previous: previousRange, yoy: yoyRange, ytd: ytdRange, ytdYoy: ytdYoyRange } = ranges
+
+  const companyCustomers = await db
+    .select({ id: customers.id, name: customers.customer_name })
+    .from(customers)
+    .where(and(eq(customers.company_id, companyId), eq(customers.is_placeholder, false)))
+
+  if (companyCustomers.length === 0) return []
+
+  const customerIds = companyCustomers.map(c => c.id)
+
+  const [currentAgg, previousAgg, yoyAgg, ytdAgg, ytdYoyAgg, thresholdRows, paretoIds] = await Promise.all([
+    aggregateInvoicesByCustomer(customerIds, currentRange),
+    aggregateInvoicesByCustomer(customerIds, previousRange),
+    aggregateInvoicesByCustomer(customerIds, yoyRange),
+    aggregateInvoicesByCustomer(customerIds, ytdRange),
+    aggregateInvoicesByCustomer(customerIds, ytdYoyRange),
+    findParetoThresholds([companyId]),
+    findActiveParetoCustomerIds(customerIds),
+  ])
+
+  const thresholdMap = new Map<string, number>()
+  for (const t of thresholdRows) {
+    if (!t.is_active || t.period_type !== periodType) continue
+    thresholdMap.set(t.metric, Number(t.drop_percent))
+  }
+  const revenueThreshold = thresholdMap.get('revenue') ?? DEFAULT_PARETO_DROP_PERCENT
+  const marginThreshold = thresholdMap.get('margin') ?? DEFAULT_PARETO_DROP_PERCENT
+
+  const computeDetail = (
+    current: CustomerPeriodAggregate | undefined,
+    compare: CustomerPeriodAggregate | undefined,
+    revThreshold: number,
+    marThreshold: number,
+  ): MetricComparisonDetail => {
+    const curRevenue = current?.revenue ?? 0
+    const curMargin = current?.margin ?? 0
+    const cmpRevenue = compare?.revenue ?? 0
+    const cmpMargin = compare?.margin ?? 0
+    const revenuePct = pctChange(curRevenue, cmpRevenue)
+    const marginPct = pctChange(curMargin, cmpMargin)
+    return {
+      current: { revenue: curRevenue, margin: curMargin },
+      comparison: { revenue: cmpRevenue, margin: cmpMargin },
+      revenue_change_value: curRevenue - cmpRevenue,
+      margin_change_value: curMargin - cmpMargin,
+      revenue_change_pct: revenuePct,
+      margin_change_pct: marginPct,
+      revenue_alert: revenuePct !== null && revenuePct <= -revThreshold,
+      margin_alert: marginPct !== null && marginPct <= -marThreshold,
+    }
+  }
+
+  const hitsFromDetail = (d: MetricComparisonDetail): { metric: 'revenue' | 'margin'; pct: number }[] => {
+    const hits: { metric: 'revenue' | 'margin'; pct: number }[] = []
+    if (d.revenue_alert && d.revenue_change_pct !== null) hits.push({ metric: 'revenue', pct: d.revenue_change_pct })
+    if (d.margin_alert && d.margin_change_pct !== null) hits.push({ metric: 'margin', pct: d.margin_change_pct })
+    return hits
+  }
+
+  const alerts: AlertHit[] = []
+  for (const c of companyCustomers) {
+    const current = currentAgg.get(c.id)
+    const previousDetail = computeDetail(current, previousAgg.get(c.id), revenueThreshold, marginThreshold)
+    const yoyDetail = computeDetail(current, yoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    const vsPrevious = hitsFromDetail(previousDetail)
+    const vsYoy = hitsFromDetail(yoyDetail)
+    if (vsPrevious.length === 0 && vsYoy.length === 0) continue
+    const ytdDetail = computeDetail(ytdAgg.get(c.id), ytdYoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    alerts.push({
+      customer_id: c.id,
+      customer_name: c.name,
+      is_pareto: paretoIds.has(c.id),
+      vsPrevious,
+      vsYoy,
+      detail: { previous_period: previousDetail, last_year: yoyDetail, ytd: ytdDetail },
+    })
+  }
+  return alerts
+}
+
+/**
  * Inti evaluasi + generate notifikasi — dipakai Aturan 1 (kuartal/semester/
  * tahunan, checkpoint='closed') MAUPUN Aturan 2 (bulanan, checkpoint 'closed'
  * ATAU 'mid_month'). Range/key current+pembanding dihitung oleh caller
@@ -410,6 +506,67 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
       })
     }
   }
+}
+
+/**
+ * Preview SEMUA customer yang statusnya Kritis SEKARANG, lintas company &
+ * period type — dipakai tombol "Kirim Contoh Laporan" (task016 §23-24).
+ * READ-ONLY total (reuse computeCompanyAlerts, tanpa insert snapshot/
+ * notifikasi, tanpa cek hasSnapshotForPeriod) — beda dari
+ * runAnalisisAlertEvaluation yang PUNYA efek samping & dedup harian. Preview
+ * ini SELALU hitung ulang dari data invoice terkini, jadi tidak pernah stale
+ * meski scheduler asli belum jalan lagi hari ini.
+ */
+export async function previewCurrentDigestItems(): Promise<DigestNotificationItem[]> {
+  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies)
+  const today = new Date()
+  const currentMonthKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
+  const items: DigestNotificationItem[] = []
+
+  const pushAlerts = (company: { id: number; name: string }, periodType: PeriodType, periodKey: string, checkpoint: Checkpoint, alerts: AlertHit[]) => {
+    for (const alert of alerts) {
+      items.push({
+        customer_name: alert.customer_name,
+        company_name: company.name,
+        is_pareto: alert.is_pareto,
+        period_type: periodType as Exclude<PeriodType, 'ytd'>,
+        period_key: periodKey,
+        checkpoint,
+        detail: alert.detail,
+      })
+    }
+  }
+
+  for (const periodType of [...PERIOD_TYPES, 'monthly' as PeriodType]) {
+    const periodKey = getLatestClosedPeriodKey(periodType)
+    const ranges = resolveTriggerRanges(periodType, periodKey, 'closed', MID_MONTH_CHECKPOINT_DAY)
+    for (const company of allCompanies) {
+      try {
+        const alerts = await computeCompanyAlerts(company.id, periodType, ranges)
+        pushAlerts(company, periodType, periodKey, 'closed', alerts)
+      } catch (err) {
+        logger.error(`[analisis-scheduler] preview gagal company=${company.id} period=${periodType}:${periodKey}:closed`, {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
+
+  if (today.getDate() >= MID_MONTH_CHECKPOINT_DAY) {
+    const ranges = resolveTriggerRanges('monthly', currentMonthKey, 'mid_month', MID_MONTH_CHECKPOINT_DAY)
+    for (const company of allCompanies) {
+      try {
+        const alerts = await computeCompanyAlerts(company.id, 'monthly', ranges)
+        pushAlerts(company, 'monthly', currentMonthKey, 'mid_month', alerts)
+      } catch (err) {
+        logger.error(`[analisis-scheduler] preview mid-month gagal company=${company.id}`, {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
+
+  return items
 }
 
 async function runIfNewDay(): Promise<void> {
