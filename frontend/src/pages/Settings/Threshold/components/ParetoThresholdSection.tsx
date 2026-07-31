@@ -9,6 +9,8 @@ import TextField from '@mui/material/TextField'
 import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
+import Switch from '@mui/material/Switch'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import Table from '@mui/material/Table'
 import TableHead from '@mui/material/TableHead'
 import TableBody from '@mui/material/TableBody'
@@ -21,11 +23,13 @@ import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useParetoThresholds, useUpsertParetoThreshold } from '@/hooks/useParetoThresholds'
+import { useParetoAlertSettings, useUpsertParetoAlertSetting } from '@/hooks/useParetoAlertSettings'
 import { useCan } from '@/hooks/useCan'
 import type { ParetoPeriodType, ParetoMetric, ParetoThresholdRow } from '@/types/paretoThresholds'
 
 const DEFAULT_DROP_PERCENT = 15
-const PERIOD_TYPES: ParetoPeriodType[] = ['quarter', 'semester', 'annual']
+// 'monthly' ditambah task016 §18 (Aturan 2 "Report/Alert Monitoring" bulanan)
+const PERIOD_TYPES: ParetoPeriodType[] = ['monthly', 'quarter', 'semester', 'annual']
 const METRICS: ParetoMetric[] = ['revenue', 'margin']
 
 function ThresholdCell({
@@ -93,6 +97,37 @@ function ThresholdCell({
   )
 }
 
+// Toggle on/off SCHEDULER alert per company (task016 §19) — TERPISAH dari
+// threshold di bawahnya (angka persentase). Default enabled=true kalau
+// company belum pernah di-set (row belum ada), konsisten dgn default backend.
+function AlertSchedulerToggle({ companyId, canUpdate }: { companyId: number; canUpdate: boolean }) {
+  const { t } = useTranslation()
+  const { data: settings = [] } = useParetoAlertSettings({ company_id: companyId })
+  const { mutate: upsert, isPending } = useUpsertParetoAlertSetting()
+
+  const row = settings.find(s => s.company_id === companyId)
+  const enabled = row?.scheduler_enabled ?? true
+
+  return (
+    <FormControlLabel
+      sx={{ mb: 2, display: 'flex' }}
+      control={
+        <Switch
+          checked={enabled}
+          disabled={!canUpdate || isPending}
+          onChange={(e) => upsert({ company_id: companyId, scheduler_enabled: e.target.checked })}
+        />
+      }
+      label={
+        <Box>
+          <Typography variant="body2">{t('paretoThreshold.schedulerToggle.label')}</Typography>
+          <Typography variant="caption" color="text.secondary">{t('paretoThreshold.schedulerToggle.hint')}</Typography>
+        </Box>
+      }
+    />
+  )
+}
+
 export function ParetoThresholdSection() {
   const { t } = useTranslation()
   const can = useCan()
@@ -125,6 +160,10 @@ export function ParetoThresholdSection() {
           ))}
         </Select>
       </FormControl>
+
+      {companyId !== '' && (
+        <AlertSchedulerToggle companyId={companyId} canUpdate={can('settings.threshold:update')} />
+      )}
 
       {companyId === '' ? (
         <Typography variant="body2" color="text.secondary">{t('paretoThreshold.selectCompanyHint')}</Typography>

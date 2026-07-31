@@ -158,6 +158,15 @@ const defaultPermissions = [
   // konfigurasi, ada di menu Transaction & Revenue bukan Settings).
   { name: 'analisis:menu', description: 'Menu Analisis', category: 'Analisis' },
   { name: 'analisis:view', description: 'View Analisis', category: 'Analisis' },
+  // Notification Center (task016 §19) — SEBELUMNYA tanpa permission sama
+  // sekali ("siapa pun login boleh akses", personal by user_id). Diubah biar
+  // konsisten dgn pola menu lain: 'notifications:menu' kontrol visibilitas
+  // ikon lonceng di AppBar (BUKAN Sidebar — notifications memang tidak
+  // punya entry sidebar, cuma dipicu ikon header), 'notifications:view'
+  // kontrol akses halaman /notifications + SEMUA endpoint API-nya (403 kalau
+  // tidak punya, sama seperti fitur lain).
+  { name: 'notifications:menu', description: 'Menu Notifikasi', category: 'Notifications' },
+  { name: 'notifications:view', description: 'View Notifikasi', category: 'Notifications' },
 
   // ── Configuration ──────────────────────────────────────────────────────
   { name: 'config.classification:menu',   description: 'Menu Classification Rules', category: 'Classification' },
@@ -250,6 +259,10 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'settings.pareto:menu', 'settings.pareto:view', 'settings.pareto:create', 'settings.pareto:update', 'settings.pareto:delete',
   'analisis:menu', 'analisis:view',
+  // Alert notifikasi (task016) cuma dikirim ke admin/superadmin (recipients.ts)
+  // — user biasa tidak pernah dapat isinya, jadi sengaja TIDAK dimasukkan ke
+  // USER_PERMISSION_NAMES (bell yang selalu kosong cuma bikin bingung).
+  'notifications:menu', 'notifications:view',
   'audit.log:menu', 'audit.log:view',
   'activity.log:menu', 'activity.log:view',
   'login.log:menu', 'login.log:view',

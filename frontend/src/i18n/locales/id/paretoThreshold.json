@@ -1,5 +1,5 @@
 {
-  "title": "Threshold Alert Pareto Customer",
+  "title": "Threshold Alert Customer",
   "subtitle": "Persentase penurunan per company, periode, dan metrik yang dianggap alert-worthy — independen per company",
   "company": "Perusahaan",
   "selectCompanyHint": "Pilih company untuk lihat/ubah threshold-nya",
@@ -15,5 +15,9 @@
     "revenue": "Revenue",
     "margin": "Margin"
   },
-  "defaultLabel": "default"
+  "defaultLabel": "default",
+  "schedulerToggle": {
+    "label": "Aktifkan Alert Otomatis",
+    "hint": "Kalau dimatikan, scheduler tidak akan generate notifikasi alert untuk company ini sama sekali (Report Akhir maupun Monitoring bulanan) — laporan Analisis tetap bisa diakses seperti biasa"
+  }
 }

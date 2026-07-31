@@ -66,7 +66,7 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'analisis':             { path: '/analisis',                element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
   // Personal, tidak butuh permission spesifik — siapa pun yang login berhak
   // lihat notifikasi miliknya sendiri (di-scope by user_id di backend).
-  'notifications':        { path: '/notifications',           element: withLayout(<NotificationsPage />),      protected: true },
+  'notifications':        { path: '/notifications',           element: withLayout(<NotificationsPage />),      protected: true, permissionKey: 'notifications:view' },
   // ── Administration — Settings ────────────────────────────────────────────
   'settings-app':         { path: '/settings/app',           element: withLayout(<AppSettings />),           protected: true, permissionKey: 'settings.app:view' },
   'companies':            { path: '/companies',              element: withLayout(<Companies />),             protected: true, permissionKey: 'settings.company:view' },

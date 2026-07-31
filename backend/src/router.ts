@@ -48,6 +48,7 @@ import { divisionsRoutes } from '@/features/settings/divisions.route'
 import { intercompanyNamesRoutes } from '@/features/settings/intercompany-names.route'
 import { paretoCustomersRoutes } from '@/features/settings/pareto-customers.route'
 import { paretoThresholdsRoutes } from '@/features/settings/pareto-thresholds.route'
+import { paretoAlertSettingsRoutes } from '@/features/settings/pareto-alert-settings.route'
 import { analisisRoutes } from '@/features/analisis/analisis.route'
 import { notificationsRoutes } from '@/features/notifications/notifications.route'
 import { docsRoutes } from '@/features/docs/docs.route'
@@ -115,6 +116,7 @@ export function createRouter(app: HonoType): void {
   protectedApi.route('/settings/intercompany-names', intercompanyNamesRoutes)
   protectedApi.route('/settings/pareto-customers', paretoCustomersRoutes)
   protectedApi.route('/settings/pareto-thresholds', paretoThresholdsRoutes)
+  protectedApi.route('/settings/pareto-alert-settings', paretoAlertSettingsRoutes)
   protectedApi.route('/analisis', analisisRoutes)
   protectedApi.route('/notifications', notificationsRoutes)
   protectedApi.route('/metrics', metricsRoutes)

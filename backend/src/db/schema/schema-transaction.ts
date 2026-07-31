@@ -117,7 +117,9 @@ export type NewParetoCustomer = typeof pareto_customers.$inferInsert
 export const pareto_alert_thresholds = pgTable('pareto_alert_thresholds', {
   id: serial('id').primaryKey(),
   company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  // quarter | semester | annual
+  // monthly | quarter | semester | annual — 'monthly' ditambah task016 §18
+  // (Aturan 2 "Report/Alert Monitoring" bulanan), dipakai Trigger A (minggu
+  // ke-2, apple-to-apple tanggal 1-14) & Trigger B (awal bulan, bulan tertutup).
   period_type: varchar('period_type', { length: 20 }).notNull(),
   // revenue | margin
   metric: varchar('metric', { length: 20 }).notNull(),
@@ -136,24 +138,60 @@ export const pareto_alert_thresholds = pgTable('pareto_alert_thresholds', {
 export type ParetoAlertThreshold = typeof pareto_alert_thresholds.$inferSelect
 export type NewParetoAlertThreshold = typeof pareto_alert_thresholds.$inferInsert
 
+// ─── pareto_alert_settings ────────────────────────────────────────────────────────
+
+/**
+ * Toggle on/off SCHEDULER alert per company (task016 §19) — TERPISAH dari
+ * threshold (`pareto_alert_thresholds`, angka persentase) dan TERPISAH dari
+ * visibilitas halaman `/notifications` (`page_settings`, itu cuma nyembunyiin
+ * riwayat, bukan matiin generate-nya). Kalau `scheduler_enabled=false`, company
+ * itu di-skip TOTAL oleh `runAnalisisAlertEvaluation` — Aturan 1 (Report Akhir)
+ * MAUPUN Aturan 2 (Monitoring bulanan) sama-sama tidak jalan untuk company ini.
+ * TIDAK mempengaruhi laporan Analisis on-demand (itu tetap selalu bisa diakses).
+ * Default `true` (opt-out, bukan opt-in) — company baru otomatis kena evaluasi,
+ * konsisten dgn `is_active` default true di tabel lain.
+ */
+export const pareto_alert_settings = pgTable('pareto_alert_settings', {
+  id: serial('id').primaryKey(),
+  company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }).unique(),
+  scheduler_enabled: boolean('scheduler_enabled').notNull().default(true),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type ParetoAlertSetting = typeof pareto_alert_settings.$inferSelect
+export type NewParetoAlertSetting = typeof pareto_alert_settings.$inferInsert
+
 // ─── pareto_period_snapshots ──────────────────────────────────────────────────────
 
 /**
- * Hasil hitung revenue/margin per customer per periode TERTUTUP (task016 Fase B)
- * — disimpan sekali saat periode selesai, dipakai scheduler sebagai penanda
- * "periode ini sudah dievaluasi" (supaya tidak generate notifikasi duplikat tiap
- * hari) sekaligus basis histori yang stabil (invoice lama yang di-edit belakangan
- * tidak mengubah angka yang sudah pernah dinotifikasi). BUKAN dipakai laporan
- * Analisis on-demand (itu tetap hitung real-time dari invoices, lihat task016 §12).
+ * Hasil hitung revenue/margin per customer per periode/checkpoint (task016
+ * Fase B + §17-18) — disimpan sekali saat periode/checkpoint itu dievaluasi,
+ * dipakai scheduler sebagai penanda "sudah dievaluasi" (supaya tidak generate
+ * notifikasi duplikat tiap hari) sekaligus basis histori yang stabil (invoice
+ * lama yang di-edit belakangan tidak mengubah angka yang sudah pernah
+ * dinotifikasi). BUKAN dipakai laporan Analisis on-demand (itu tetap hitung
+ * real-time dari invoices, lihat task016 §12).
+ *
+ * `checkpoint` (§18, Aturan 2 "Report/Alert Monitoring" bulanan):
+ *   'closed'    — periode TERTUTUP penuh (kuartal/semester/tahunan seperti
+ *                 semula, DAN bulan tertutup untuk Trigger B "awal bulan baru").
+ *   'mid_month' — Trigger A, checkpoint tanggal 14 (data 1-14 bulan berjalan,
+ *                 periode BELUM tutup) — cuma relevan utk period_type='monthly'.
+ * Kombinasi (customer_id, period_type, period_key, checkpoint) HARUS unik,
+ * bukan cuma (customer_id, period_type, period_key) lagi — 1 bulan sekarang
+ * bisa punya 2 snapshot (mid_month tgl 14 + closed awal bulan berikutnya).
  */
 export const pareto_period_snapshots = pgTable('pareto_period_snapshots', {
   id: serial('id').primaryKey(),
   company_id: integer('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   customer_id: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
-  // quarter | semester | annual
+  // monthly | quarter | semester | annual
   period_type: varchar('period_type', { length: 20 }).notNull(),
-  // '2026-Q3' | '2026-S2' | '2026'
+  // '2026-07' | '2026-Q3' | '2026-S2' | '2026'
   period_key: varchar('period_key', { length: 20 }).notNull(),
+  // 'closed' | 'mid_month' — lihat komentar di atas
+  checkpoint: varchar('checkpoint', { length: 20 }).notNull().default('closed'),
   revenue: numeric('revenue', { precision: 15, scale: 2 }).notNull().default('0'),
   margin: numeric('margin', { precision: 15, scale: 2 }).notNull().default('0'),
   computed_at: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
@@ -162,6 +200,7 @@ export const pareto_period_snapshots = pgTable('pareto_period_snapshots', {
     table.customer_id,
     table.period_type,
     table.period_key,
+    table.checkpoint,
   ),
 }))
 

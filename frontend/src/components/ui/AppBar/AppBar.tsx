@@ -9,6 +9,7 @@ import { AppLogo } from '@/components/ui/AppLogo';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import { useCan } from '@/hooks/useCan';
 
 interface AppBarProps {
   onToggleSidebar: () => void;
@@ -17,6 +18,7 @@ interface AppBarProps {
 
 export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
   const { t } = useTranslation();
+  const can = useCan();
 
   return (
     <MuiAppBar
@@ -67,7 +69,10 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
         {/* Actions */}
         <ThemeToggle />
 
-        <NotificationBell />
+        {/* 'notifications:menu' (task016 §19) — pola SAMA dgn Sidebar.tsx
+            (permissionKey menu), tapi diterapkan di sini karena notifikasi
+            memang tidak punya entry sidebar, cuma dipicu ikon header ini. */}
+        {can('notifications:menu') && <NotificationBell />}
 
         <UserMenu />
       </Toolbar>
