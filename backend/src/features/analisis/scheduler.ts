@@ -508,6 +508,15 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
   }
 }
 
+export interface DigestPreviewFilter {
+  /** undefined = semua period type (default, gabungan penuh seperti scheduler asli). */
+  periodType?: PeriodType
+  /** undefined = semua checkpoint. 'mid_month' eksplisit BYPASS gerbang tanggal 14
+   * (task016 §24) — buat simulasi/test, admin boleh lihat hasilnya kapan saja,
+   * beda dari jalur scheduler asli yang emang baru jalan mulai tgl 14. */
+  checkpoint?: Checkpoint
+}
+
 /**
  * Preview SEMUA customer yang statusnya Kritis SEKARANG, lintas company &
  * period type — dipakai tombol "Kirim Contoh Laporan" (task016 §23-24).
@@ -516,8 +525,12 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
  * runAnalisisAlertEvaluation yang PUNYA efek samping & dedup harian. Preview
  * ini SELALU hitung ulang dari data invoice terkini, jadi tidak pernah stale
  * meski scheduler asli belum jalan lagi hari ini.
+ *
+ * `filter` opsional — kosongkan utk gabungan semua trigger (perilaku lama),
+ * atau isi buat simulasi 1 trigger spesifik saja (mis. cuma "Progres Bulanan"
+ * atau cuma "Laporan Kuartal"), supaya admin bisa cek satu-satu.
  */
-export async function previewCurrentDigestItems(): Promise<DigestNotificationItem[]> {
+export async function previewCurrentDigestItems(filter?: DigestPreviewFilter): Promise<DigestNotificationItem[]> {
   const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies)
   const today = new Date()
   const currentMonthKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
@@ -537,22 +550,27 @@ export async function previewCurrentDigestItems(): Promise<DigestNotificationIte
     }
   }
 
-  for (const periodType of [...PERIOD_TYPES, 'monthly' as PeriodType]) {
-    const periodKey = getLatestClosedPeriodKey(periodType)
-    const ranges = resolveTriggerRanges(periodType, periodKey, 'closed', MID_MONTH_CHECKPOINT_DAY)
-    for (const company of allCompanies) {
-      try {
-        const alerts = await computeCompanyAlerts(company.id, periodType, ranges)
-        pushAlerts(company, periodType, periodKey, 'closed', alerts)
-      } catch (err) {
-        logger.error(`[analisis-scheduler] preview gagal company=${company.id} period=${periodType}:${periodKey}:closed`, {
-          error: err instanceof Error ? err.message : String(err),
-        })
+  if (!filter?.checkpoint || filter.checkpoint === 'closed') {
+    for (const periodType of [...PERIOD_TYPES, 'monthly' as PeriodType]) {
+      if (filter?.periodType && filter.periodType !== periodType) continue
+      const periodKey = getLatestClosedPeriodKey(periodType)
+      const ranges = resolveTriggerRanges(periodType, periodKey, 'closed', MID_MONTH_CHECKPOINT_DAY)
+      for (const company of allCompanies) {
+        try {
+          const alerts = await computeCompanyAlerts(company.id, periodType, ranges)
+          pushAlerts(company, periodType, periodKey, 'closed', alerts)
+        } catch (err) {
+          logger.error(`[analisis-scheduler] preview gagal company=${company.id} period=${periodType}:${periodKey}:closed`, {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       }
     }
   }
 
-  if (today.getDate() >= MID_MONTH_CHECKPOINT_DAY) {
+  const wantsMidMonth = !filter?.checkpoint || filter.checkpoint === 'mid_month'
+  const midMonthGateOpen = filter?.checkpoint === 'mid_month' || today.getDate() >= MID_MONTH_CHECKPOINT_DAY
+  if (wantsMidMonth && midMonthGateOpen && (!filter?.periodType || filter.periodType === 'monthly')) {
     const ranges = resolveTriggerRanges('monthly', currentMonthKey, 'mid_month', MID_MONTH_CHECKPOINT_DAY)
     for (const company of allCompanies) {
       try {

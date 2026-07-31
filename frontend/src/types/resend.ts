@@ -21,3 +21,5 @@ export interface SendTestEmailResult {
   success: boolean
   message: string
 }
+
+export type DigestTrigger = 'all' | 'mid_month' | 'monthly' | 'quarter' | 'semester' | 'annual'
