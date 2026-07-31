@@ -15,17 +15,22 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import FormLabel from '@mui/material/FormLabel'
 import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
+import Switch from '@mui/material/Switch'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
 import DoneIcon from '@mui/icons-material/Done'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
+import { useResendSettings, useSaveResendSettings, useSendTestEmail } from '@/hooks/useResendSettings'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
 import { getApiErrorMessage } from '@/utils/apiError'
 
-export default function IntegrationPage() {
+// ─── Tab 1: Accurate Online ───────────────────────────────────────────────────
+function AccurateIntegrationTab() {
   const { t } = useTranslation()
   const can = useCan()
 
@@ -159,127 +164,324 @@ export default function IntegrationPage() {
   }
 
   return (
+    <Card sx={{ p: 3 }}>
+      {status === 'saved' && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
+          {t('config.integration.success')}
+        </Alert>
+      )}
+      {status === 'error' && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
+          {statusMessage || t('config.integration.failedToSave')}
+        </Alert>
+      )}
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        <strong>{t('config.integration.infoTitle')}</strong> {t('config.integration.infoText')}
+        <br />
+        <strong>{t('config.integration.appKeyLabel')}</strong> <code>86ed8d58-3d00-487b-8e91-661d8f60e434</code>
+        <br />
+        <strong>{t('config.integration.flowLabel')}</strong> {t('config.integration.flowDescription')}
+      </Alert>
+
+      <Stack spacing={3}>
+        <FormControl fullWidth>
+          <InputLabel>{t('config.integration.selectCompany')}</InputLabel>
+          <Select value={selectedCompanyId} label={t('config.integration.selectCompany')} onChange={(e) => handleCompanyChange(Number(e.target.value))}>
+            <MenuItem value={0}><em>— {t('common.select')} —</em></MenuItem>
+            {companies.map((c) => <MenuItem key={c.id} value={c.id}>{c.name} ({c.code})</MenuItem>)}
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth disabled={!selectedCompanyId}>
+          <InputLabel>{t('config.integration.selectBranch')}</InputLabel>
+          <Select value={selectedBranchId} label={t('config.integration.selectBranch')} onChange={(e) => setSelectedBranchId(Number(e.target.value))}>
+            <MenuItem value={0}><em>— {t('common.select')} —</em></MenuItem>
+            {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.name} ({b.code})</MenuItem>)}
+          </Select>
+        </FormControl>
+
+        <Divider />
+
+        <FormControl component="fieldset">
+          <FormLabel component="legend">{t('config.integration.authMethod')}</FormLabel>
+          <RadioGroup row value={authMethod} onChange={(e) => setAuthMethod(e.target.value as 'api-token' | 'oauth')}>
+            <FormControlLabel value="oauth" control={<Radio />} label={t('config.integration.oauthLabel')} />
+            <FormControlLabel value="api-token" control={<Radio />} label={t('config.integration.apiTokenLabel')} />
+          </RadioGroup>
+        </FormControl>
+
+        <Divider />
+
+        {authMethod === 'api-token' && selectedBranch && (
+          <>
+            <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
+              {t('config.integration.apiTokenTitle')} — {selectedBranch.name}
+            </Typography>
+            <TextField fullWidth label={t('config.integration.subdomain')} value={subdomain} onChange={(e) => setSubdomain(e.target.value)} placeholder="odin" helperText={t('config.integration.subdomainHelper')} />
+            <TextField fullWidth label={t('config.integration.apiToken')} value={apiToken} onChange={(e) => setApiToken(e.target.value)} placeholder="aat.MTAw.eyJ2..." helperText={t('config.integration.apiTokenHelper')} type="password" />
+            <TextField fullWidth label={t('config.integration.signatureSecret')} value={signatureSecret} onChange={(e) => setSignatureSecret(e.target.value)} placeholder="3soFMSAKxTdkraVPtLqyE2H1..." helperText={t('config.integration.signatureSecretHelper')} type="password" />
+
+            {testResult.status === 'success' && (
+              <Alert severity="success" icon={<DoneIcon />}>
+                <strong>{t('config.integration.testSuccess')}</strong>
+                <Box sx={{ mt: 1, fontSize: '0.875rem' }}>
+                  <div>{t('config.integration.testUser')}: {testResult.userName}</div>
+                  <div>{t('config.integration.testHost')}: {testResult.host}</div>
+                  <div>{t('config.integration.testAlias')}: {testResult.alias}</div>
+                </Box>
+              </Alert>
+            )}
+            {testResult.status === 'fail' && (
+              <Alert severity="error" icon={<CloseIcon />}>
+                <strong>{t('config.integration.testFail')}</strong>
+                <Box sx={{ mt: 1, fontSize: '0.875rem' }}>{testResult.message}</Box>
+              </Alert>
+            )}
+            {testResult.status === 'testing' && (
+              <Alert severity="info" icon={<CircularProgress size={20} />}>{t('config.integration.testing')}</Alert>
+            )}
+          </>
+        )}
+
+        {authMethod === 'oauth' && selectedBranch && (
+          <>
+            <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
+              {t('config.integration.oauthTitle')} — {selectedBranch.name}
+            </Typography>
+            <TextField fullWidth label={t('config.integration.appKey')} value={appKey} onChange={(e) => setAppKey(e.target.value)} placeholder="86ed8d58-3d00-487b-8e91-661d8f60e434" helperText={t('config.integration.appKeyHelper')} />
+            <TextField fullWidth label={t('config.integration.signatureSecret')} type="password" value={signatureSecretOauth} onChange={(e) => setSignatureSecretOauth(e.target.value)} placeholder="3soFMSAKxTdkraVPtLqyE2H1..." helperText={t('config.integration.signatureSecretHelper')} />
+            <TextField fullWidth label={t('config.integration.clientId')} value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="c5b8369d-a63f-4443-9500-895117e04f08" helperText={t('config.integration.clientIdHelper')} />
+            <TextField fullWidth label={t('config.integration.clientSecret')} type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="1a4257ad235c73702af2c194e484e6d2" helperText={t('config.integration.clientSecretHelper')} />
+            <TextField fullWidth label={t('config.integration.callbackUrl')} value={callbackUrl} onChange={(e) => setCallbackUrl(e.target.value)} placeholder="https://your-domain.com/api/v1/accurate/callback" helperText={t('config.integration.callbackUrlHelper')} />
+            <TextField fullWidth label={t('config.integration.companyDb')} value={companyDb} onChange={(e) => setCompanyDb(e.target.value)} placeholder="2704558" helperText={t('config.integration.companyDbHelper')} />
+          </>
+        )}
+
+        {selectedBranch && (
+          <>
+            <Alert severity="warning">{t('config.integration.saveWarning')}</Alert>
+            <Divider />
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {(can('config.integration:create') || can('config.integration:update')) && (
+                <Button variant="contained" onClick={handleSave} disabled={!isFormValid || status === 'saving'} startIcon={status === 'saving' ? <CircularProgress size={16} /> : undefined}>
+                  {t('config.integration.saveButton')}
+                </Button>
+              )}
+              {authMethod === 'api-token' && can('config.integration:test') && (
+                <Button variant="outlined" color="secondary" onClick={handleTestConnection} disabled={!isFormValid || testResult.status === 'testing'} startIcon={testResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}>
+                  {t('config.integration.testButton')}
+                </Button>
+              )}
+              {can('config.integration:reset') && (
+                <Button variant="outlined" onClick={handleReset}>{t('common.reset')}</Button>
+              )}
+            </Box>
+          </>
+        )}
+      </Stack>
+    </Card>
+  )
+}
+
+// ─── Tab 2: Resend (task016 Fase C, §21) — konfigurasi email GLOBAL ───────────
+function ResendIntegrationTab() {
+  const { t } = useTranslation()
+  const can = useCan()
+
+  const { data: resendSettings } = useResendSettings()
+  const [resendApiKey, setResendApiKey] = useState('')
+  const [resendSenderEmail, setResendSenderEmail] = useState('')
+  const [resendSenderName, setResendSenderName] = useState('')
+  const [resendAppBaseUrl, setResendAppBaseUrl] = useState('')
+  const [resendActive, setResendActive] = useState(false)
+  const [resendStatus, setResendStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [resendStatusMessage, setResendStatusMessage] = useState('')
+  const [testEmailTo, setTestEmailTo] = useState('')
+  const [testEmailResult, setTestEmailResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'fail'; message?: string }>({ status: 'idle' })
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (resendSettings) {
+      setResendSenderEmail(resendSettings.sender_email ?? '')
+      setResendSenderName(resendSettings.sender_name_default ?? '')
+      setResendAppBaseUrl(resendSettings.app_base_url ?? '')
+      setResendActive(resendSettings.is_active)
+    }
+  }, [resendSettings])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveResendMutation = useSaveResendSettings()
+  const testEmailMutation = useSendTestEmail()
+
+  const handleSaveResend = async () => {
+    setResendStatus('saving')
+    setResendStatusMessage('')
+    try {
+      await saveResendMutation.mutateAsync({
+        api_key: resendApiKey.trim() || undefined,
+        sender_email: resendSenderEmail.trim(),
+        sender_name_default: resendSenderName.trim(),
+        app_base_url: resendAppBaseUrl.trim(),
+        is_active: resendActive,
+      })
+      setResendApiKey('')
+      setResendStatus('saved')
+      setTimeout(() => setResendStatus('idle'), 3000)
+    } catch (err: unknown) {
+      setResendStatus('error')
+      setResendStatusMessage(getApiErrorMessage(err, t))
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailTo.trim()) return
+    setTestEmailResult({ status: 'testing' })
+    try {
+      const result = await testEmailMutation.mutateAsync(testEmailTo.trim())
+      setTestEmailResult({ status: result.success ? 'success' : 'fail', message: result.message })
+    } catch (err: unknown) {
+      setTestEmailResult({ status: 'fail', message: getApiErrorMessage(err, t) })
+    }
+  }
+
+  if (!can('config.integration:view')) return null
+
+  return (
+    <Card sx={{ p: 3 }}>
+      <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600, mb: 0.5 }}>
+        {t('config.integration.resend.title')}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        {t('config.integration.resend.subtitle')}
+      </Typography>
+
+      {resendStatus === 'saved' && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setResendStatus('idle')}>
+          {t('config.integration.resend.saveSuccess')}
+        </Alert>
+      )}
+      {resendStatus === 'error' && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setResendStatus('idle')}>
+          {resendStatusMessage || t('config.integration.resend.saveFail')}
+        </Alert>
+      )}
+
+      <Alert severity="info" sx={{ mb: 3 }}>{t('config.integration.resend.infoText')}</Alert>
+
+      <Stack spacing={3}>
+        <TextField
+          fullWidth
+          type="password"
+          label={t('config.integration.resend.apiKey')}
+          value={resendApiKey}
+          onChange={(e) => setResendApiKey(e.target.value)}
+          placeholder={t('config.integration.resend.apiKeyPlaceholder')}
+          helperText={resendSettings?.has_api_key ? t('config.integration.resend.apiKeySetHelper') : t('config.integration.resend.apiKeyHelper')}
+        />
+        <TextField
+          fullWidth
+          label={t('config.integration.resend.senderEmail')}
+          value={resendSenderEmail}
+          onChange={(e) => setResendSenderEmail(e.target.value)}
+          placeholder="alert@perusahaan.com"
+          helperText={t('config.integration.resend.senderEmailHelper')}
+        />
+        <TextField
+          fullWidth
+          label={t('config.integration.resend.senderName')}
+          value={resendSenderName}
+          onChange={(e) => setResendSenderName(e.target.value)}
+          placeholder="Executive Dashboard"
+          helperText={t('config.integration.resend.senderNameHelper')}
+        />
+        <TextField
+          fullWidth
+          label={t('config.integration.resend.appBaseUrl')}
+          value={resendAppBaseUrl}
+          onChange={(e) => setResendAppBaseUrl(e.target.value)}
+          placeholder="https://dashboard.perusahaan.com"
+          helperText={t('config.integration.resend.appBaseUrlHelper')}
+        />
+        <FormControlLabel
+          control={<Switch checked={resendActive} onChange={(e) => setResendActive(e.target.checked)} />}
+          label={
+            <Box>
+              <Typography variant="body2">{t('config.integration.resend.activeLabel')}</Typography>
+              <Typography variant="caption" color="text.secondary">{t('config.integration.resend.activeHelper')}</Typography>
+            </Box>
+          }
+        />
+
+        <Divider />
+
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {(can('config.integration:create') || can('config.integration:update')) && (
+            <Button
+              variant="contained"
+              onClick={handleSaveResend}
+              disabled={resendStatus === 'saving'}
+              startIcon={resendStatus === 'saving' ? <CircularProgress size={16} /> : undefined}
+            >
+              {t('config.integration.resend.saveButton')}
+            </Button>
+          )}
+        </Box>
+
+        {can('config.integration:test') && (
+          <>
+            <Divider />
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <TextField
+                label={t('config.integration.resend.testEmailLabel')}
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                placeholder="you@example.com"
+                sx={{ minWidth: 260 }}
+              />
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={handleSendTestEmail}
+                disabled={!testEmailTo.trim() || testEmailResult.status === 'testing'}
+                startIcon={testEmailResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}
+              >
+                {t('config.integration.resend.testEmailButton')}
+              </Button>
+            </Box>
+            {testEmailResult.status === 'success' && (
+              <Alert severity="success" icon={<DoneIcon />}>{testEmailResult.message || t('config.integration.resend.testEmailSuccess')}</Alert>
+            )}
+            {testEmailResult.status === 'fail' && (
+              <Alert severity="error" icon={<CloseIcon />}>{testEmailResult.message || t('config.integration.resend.testEmailFail')}</Alert>
+            )}
+          </>
+        )}
+      </Stack>
+    </Card>
+  )
+}
+
+export default function IntegrationPage() {
+  const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState(0)
+
+  return (
     <Box sx={{ p: 3 }}>
       <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configIntegration')}</Typography>
       <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('config.integration.subtitle')}</Typography>
 
-      <Card sx={{ p: 3 }}>
-        {status === 'saved' && (
-          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
-            {t('config.integration.success')}
-          </Alert>
-        )}
-        {status === 'error' && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setStatus('idle')}>
-            {statusMessage || t('config.integration.failedToSave')}
-          </Alert>
-        )}
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label={t('config.integration.tabAccurate')} />
+        <Tab label={t('config.integration.tabResend')} />
+      </Tabs>
 
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>{t('config.integration.infoTitle')}</strong> {t('config.integration.infoText')}
-          <br />
-          <strong>{t('config.integration.appKeyLabel')}</strong> <code>86ed8d58-3d00-487b-8e91-661d8f60e434</code>
-          <br />
-          <strong>{t('config.integration.flowLabel')}</strong> {t('config.integration.flowDescription')}
-        </Alert>
-
-        <Stack spacing={3}>
-          <FormControl fullWidth>
-            <InputLabel>{t('config.integration.selectCompany')}</InputLabel>
-            <Select value={selectedCompanyId} label={t('config.integration.selectCompany')} onChange={(e) => handleCompanyChange(Number(e.target.value))}>
-              <MenuItem value={0}><em>— {t('common.select')} —</em></MenuItem>
-              {companies.map((c) => <MenuItem key={c.id} value={c.id}>{c.name} ({c.code})</MenuItem>)}
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth disabled={!selectedCompanyId}>
-            <InputLabel>{t('config.integration.selectBranch')}</InputLabel>
-            <Select value={selectedBranchId} label={t('config.integration.selectBranch')} onChange={(e) => setSelectedBranchId(Number(e.target.value))}>
-              <MenuItem value={0}><em>— {t('common.select')} —</em></MenuItem>
-              {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.name} ({b.code})</MenuItem>)}
-            </Select>
-          </FormControl>
-
-          <Divider />
-
-          <FormControl component="fieldset">
-            <FormLabel component="legend">{t('config.integration.authMethod')}</FormLabel>
-            <RadioGroup row value={authMethod} onChange={(e) => setAuthMethod(e.target.value as 'api-token' | 'oauth')}>
-              <FormControlLabel value="oauth" control={<Radio />} label={t('config.integration.oauthLabel')} />
-              <FormControlLabel value="api-token" control={<Radio />} label={t('config.integration.apiTokenLabel')} />
-            </RadioGroup>
-          </FormControl>
-
-          <Divider />
-
-          {authMethod === 'api-token' && selectedBranch && (
-            <>
-              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
-                {t('config.integration.apiTokenTitle')} — {selectedBranch.name}
-              </Typography>
-              <TextField fullWidth label={t('config.integration.subdomain')} value={subdomain} onChange={(e) => setSubdomain(e.target.value)} placeholder="odin" helperText={t('config.integration.subdomainHelper')} />
-              <TextField fullWidth label={t('config.integration.apiToken')} value={apiToken} onChange={(e) => setApiToken(e.target.value)} placeholder="aat.MTAw.eyJ2..." helperText={t('config.integration.apiTokenHelper')} type="password" />
-              <TextField fullWidth label={t('config.integration.signatureSecret')} value={signatureSecret} onChange={(e) => setSignatureSecret(e.target.value)} placeholder="3soFMSAKxTdkraVPtLqyE2H1..." helperText={t('config.integration.signatureSecretHelper')} type="password" />
-
-              {testResult.status === 'success' && (
-                <Alert severity="success" icon={<DoneIcon />}>
-                  <strong>{t('config.integration.testSuccess')}</strong>
-                  <Box sx={{ mt: 1, fontSize: '0.875rem' }}>
-                    <div>{t('config.integration.testUser')}: {testResult.userName}</div>
-                    <div>{t('config.integration.testHost')}: {testResult.host}</div>
-                    <div>{t('config.integration.testAlias')}: {testResult.alias}</div>
-                  </Box>
-                </Alert>
-              )}
-              {testResult.status === 'fail' && (
-                <Alert severity="error" icon={<CloseIcon />}>
-                  <strong>{t('config.integration.testFail')}</strong>
-                  <Box sx={{ mt: 1, fontSize: '0.875rem' }}>{testResult.message}</Box>
-                </Alert>
-              )}
-              {testResult.status === 'testing' && (
-                <Alert severity="info" icon={<CircularProgress size={20} />}>{t('config.integration.testing')}</Alert>
-              )}
-            </>
-          )}
-
-          {authMethod === 'oauth' && selectedBranch && (
-            <>
-              <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 600 }}>
-                {t('config.integration.oauthTitle')} — {selectedBranch.name}
-              </Typography>
-              <TextField fullWidth label={t('config.integration.appKey')} value={appKey} onChange={(e) => setAppKey(e.target.value)} placeholder="86ed8d58-3d00-487b-8e91-661d8f60e434" helperText={t('config.integration.appKeyHelper')} />
-              <TextField fullWidth label={t('config.integration.signatureSecret')} type="password" value={signatureSecretOauth} onChange={(e) => setSignatureSecretOauth(e.target.value)} placeholder="3soFMSAKxTdkraVPtLqyE2H1..." helperText={t('config.integration.signatureSecretHelper')} />
-              <TextField fullWidth label={t('config.integration.clientId')} value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="c5b8369d-a63f-4443-9500-895117e04f08" helperText={t('config.integration.clientIdHelper')} />
-              <TextField fullWidth label={t('config.integration.clientSecret')} type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="1a4257ad235c73702af2c194e484e6d2" helperText={t('config.integration.clientSecretHelper')} />
-              <TextField fullWidth label={t('config.integration.callbackUrl')} value={callbackUrl} onChange={(e) => setCallbackUrl(e.target.value)} placeholder="https://your-domain.com/api/v1/accurate/callback" helperText={t('config.integration.callbackUrlHelper')} />
-              <TextField fullWidth label={t('config.integration.companyDb')} value={companyDb} onChange={(e) => setCompanyDb(e.target.value)} placeholder="2704558" helperText={t('config.integration.companyDbHelper')} />
-            </>
-          )}
-
-          {selectedBranch && (
-            <>
-              <Alert severity="warning">{t('config.integration.saveWarning')}</Alert>
-              <Divider />
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {(can('config.integration:create') || can('config.integration:update')) && (
-                  <Button variant="contained" onClick={handleSave} disabled={!isFormValid || status === 'saving'} startIcon={status === 'saving' ? <CircularProgress size={16} /> : undefined}>
-                    {t('config.integration.saveButton')}
-                  </Button>
-                )}
-                {authMethod === 'api-token' && can('config.integration:test') && (
-                  <Button variant="outlined" color="secondary" onClick={handleTestConnection} disabled={!isFormValid || testResult.status === 'testing'} startIcon={testResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}>
-                    {t('config.integration.testButton')}
-                  </Button>
-                )}
-                {can('config.integration:reset') && (
-                  <Button variant="outlined" onClick={handleReset}>{t('common.reset')}</Button>
-                )}
-              </Box>
-            </>
-          )}
-        </Stack>
-      </Card>
+      {activeTab === 0 && <AccurateIntegrationTab />}
+      {activeTab === 1 && <ResendIntegrationTab />}
     </Box>
   )
 }

@@ -1,15 +1,19 @@
 # Task 016 — Pareto Customer Monitoring & Alert
 
-> Status: **Fase A SELESAI & SUDAH DI-PRODUCTION** (PR #67 merged 2026-07-30).
-> **Fase B (scheduler + notification center) + revisi §17 (laporan Analisis +
-> popup notifikasi) SUDAH DI-PRODUCTION** (PR #68 merged 2026-07-31, Vercel+
-> Railway deploy sukses) — **TAPI migration `0016` (tabel `notifications` +
-> `pareto_period_snapshots`) BELUM dijalankan manual ke Neon production**,
-> jadi scheduler/notifikasi belum aktif di production sampai itu dijalankan.
-> **§18 (Aturan 2 "Report/Alert Monitoring" bulanan) + §19 (toggle scheduler
-> per-company + permission notifikasi) SELESAI DIKERJAKAN DI LOKAL
-> (2026-07-31)**, migration `0017`+`0018` diterapkan ke DB LOKAL — akan
-> commit/push/PR + migrate/seed production sekarang.
+> Status (2026-07-31): **Fase A, Fase B, §17, §18, §19 SEMUA SUDAH DI-
+> PRODUCTION.** PR #67/#68/#69/#70 merged ke `main`, migration `0016`+`0017`+
+> `0018` sudah dijalankan manual ke Neon production, `bun run db:seed`
+> production juga sudah dijalankan (idempotent, termasuk catch-up beberapa
+> item dari PR sebelumnya yang sempat tertunda). Vercel + Railway deploy
+> **sukses**, backend production dikonfirmasi merespons normal. Scheduler
+> alert (Aturan 1 + Aturan 2) aktif di production sejak migration dijalankan.
+>
+> **Insiden 2026-07-31 (sudah resolved, lihat §20)**: PR #69 sempat merge &
+> deploy SEBELUM migration production dijalankan → scheduler crash-loop
+> (query ke tabel yang belum ada bikin unhandled rejection, proses server
+> mati total, bukan cuma fitur alert-nya). Ditangani lewat migrate manual +
+> PR #70 (fix defensif `.catch()` di scheduler). **Belum dikerjakan**: Fase C
+> (integrasi Resend + email delivery sungguhan).
 
 ## 1. Latar Belakang
 
@@ -528,9 +532,9 @@ Kalau nanti kebanyakan notifikasi tidak berguna, kandidat solusi: naikkan
 threshold default, atau community per-company bisa set threshold sendiri
 (fitur ini sudah ada sejak Fase A, §5).
 
-**Belum dikerjakan**: migrate+seed+deploy production (commit/push/PR baru
-dikerjakan §17). Fase C (integrasi Resend + email delivery sungguhan) juga
-masih belum dikerjakan — di luar scope sesi ini.
+**Update 2026-07-31**: PR #68 merged, migrate+seed+deploy production sudah
+dijalankan (lihat status header di atas). Fase C (integrasi Resend + email
+delivery sungguhan) masih belum dikerjakan — di luar scope sesi ini.
 
 ## 17. Revisi Laporan Analisis + Popup Notifikasi (2026-07-31)
 
@@ -604,9 +608,8 @@ bukan halaman kosong.
 atas sebelum & sesudah fix, plus smoke test popup notifikasi → "Lihat di
 Analisis" → verifikasi data yang tampil identik.
 
-**Belum dikerjakan**: commit/push/PR sesi ini (dikerjakan setelah §17
-ditulis), migrate+seed+deploy production (masih menunggu migration `0016`
-dari §16 juga).
+**Update 2026-07-31**: PR #68 (mencakup §16+§17) sudah merge & deploy
+production, migration `0016` sudah dijalankan (lihat status header + §20).
 
 ## 18. Aturan 2 — "Report/Alert Monitoring" Bulanan Berjenjang (2026-07-31)
 
@@ -676,8 +679,9 @@ semester yg sudah ada), tidak ada duplikasi saat scheduler jalan ulang.
 Halaman Settings/Threshold dicek visual via Playwright — baris "Bulanan"
 muncul & bisa dikonfigurasi terpisah dari Kuartalan/Semester/Tahunan.
 
-**Belum dikerjakan**: commit/push/PR sesi ini (dikerjakan setelah §19 ditulis),
-migrate ke production, Fase C (email).
+**Update 2026-07-31**: PR #69 sudah merge & migration `0017` sudah dijalankan
+ke production (lihat status header + §20). Fase C (email) masih belum
+dikerjakan.
 
 ## 19. Toggle Scheduler Per-Company + Permission Notifikasi (2026-07-31)
 
@@ -730,4 +734,205 @@ Role & Permission dicek — kategori "Notifications" otomatis muncul dengan
 toggle Menu/View, tanpa perlu perubahan UI manual (sistem RBAC generik baca
 dari nama permission `kategori:aksi`).
 
-**Belum dikerjakan**: commit/push/PR sesi ini, migrate+seed production.
+**Update 2026-07-31**: PR #69 sudah merge. Insiden deploy terjadi tepat
+setelah merge PR ini (code jalan sebelum migration production) — lihat §20
+untuk kronologi lengkap & resolusi.
+
+## 20. Insiden Deploy: Scheduler Crash-Loop Production (2026-07-31)
+
+**Kronologi**: PR #69 (§18-19) merge ke `main` → Vercel sukses, tapi Railway
+(backend) **failure**. Log Railway menunjukkan:
+```
+error: relation "pareto_alert_settings" does not exist
+```
+Root cause: migration `0018` (bikin tabel `pareto_alert_settings`) belum
+sempat dijalankan manual ke Neon production saat code baru sudah ter-deploy
+duluan (urutan yang salah — code duluan, migrate belakangan). Begitu
+`startAnalisisAlertScheduler()` jalan saat server start, query
+`findDisabledCompanyIds()` ke tabel yang belum ada langsung gagal.
+
+**Bug kedua yang ketemu dari insiden ini**: kegagalan itu SEHARUSNYA cuma
+bikin fitur alert gagal (sama seperti company individual yang gagal dievaluasi,
+sudah ada try/catch-nya) — tapi `runIfNewDay()` dipanggil fire-and-forget
+(`void runIfNewDay()`) TANPA `.catch()` di titik teratas. Error jadi
+*unhandled promise rejection*, yang bikin **seluruh proses Bun crash**,
+bukan cuma scheduler-nya — HTTP server ikut mati total. Ini yang bikin
+Railway health check gagal dan deployment ditandai "failed".
+
+**Resolusi** (investigasi + fix dikerjakan live saat insiden):
+1. Reproduksi lokal (`bun run build` → jalankan `dist/index.js`) — TERBUKTI
+   code sendiri valid, tidak ada error build/startup. Ini yang mengarahkan
+   dugaan ke masalah environment/data production, bukan bug kode — user
+   lalu share log Railway asli yang mengonfirmasi root cause di atas.
+2. `DATABASE_URL=<neon-production> bun run db:migrate` — terapkan migration
+   `0016`+`0017`+`0018` yang masih pending ke Neon production sekaligus.
+3. `DATABASE_URL=<neon-production> bun run db:seed` — idempotent, aman
+   dijalankan meski production sudah punya data asli (semua fungsi seed
+   cuma insert kalau belum ada, tidak pernah timpa/duplikat — dicek dulu
+   sebelum dijalankan, lihat pola `seedUsers`/`seedCompanies`/
+   `cleanupOldPermissions` di `seed.ts`).
+4. Fix defensif: `.catch()` ditambahkan di titik fire-and-forget
+   `startAnalisisAlertScheduler()` (PR #70) — supaya kegagalan scheduler
+   APA PUN di masa depan cuma ke-log, tidak pernah menjatuhkan seluruh
+   server. Ini defense-in-depth, bukan cuma fix utk kejadian kemarin.
+5. Migration production dijalankan DULU sebelum PR #70 di-merge (supaya
+   Railway langsung sukses begitu deploy code fix-nya jalan) — dikonfirmasi
+   `Railway: success` + `Vercel: success`, backend production dicek
+   langsung merespons normal (401 terstruktur ke endpoint yang butuh auth,
+   bukan connection error/502).
+
+**Pelajaran untuk sesi berikutnya**: urutan yang benar untuk perubahan yang
+butuh migration adalah **migrate DULU baru merge/deploy code**, bukan
+sebaliknya — atau kalau situasinya tidak memungkinkan (mis. deploy
+otomatis on-merge), pastikan SEMUA path yang bisa gagal karena schema
+belum sinkron (scheduler, cron, startup hook apa pun) dibungkus `.catch()`
+di titik fire-and-forget-nya, bukan cuma di loop internalnya.
+
+## 21. RENCANA Fase C — Email Delivery via Resend (FINAL, siap dikerjakan)
+
+Ditulis dulu sebelum coding (diminta user) — §20 baru saja mengajarkan
+mahalnya harga langsung eksekusi tanpa rencana matang. Semua keputusan di
+bawah SUDAH dikonfirmasi user (2026-07-31).
+
+### Keputusan final
+
+1. **Email pengirim**: satu domain global (bukan per-company). Nama
+   tampilan ("From") boleh beda per company — TIDAK butuh kolom baru,
+   cukup dirender dinamis dari `companies.name` yang sudah ada (mis.
+   `"PT Mesin Kasir Online <alerts@holdingdomain.com>"`), alamat email
+   pengirimnya sendiri tetap 1 (dari settings global).
+2. **Email penerima**: `users.notification_email` — field+UI sudah ada di
+   production sejak Fase A/B, tinggal diisi manual oleh admin per user.
+   Kalau kosong → di-skip dari email (in-app notification TETAP jalan).
+3. **Digest, bukan per-notifikasi**: 1 email berisi SEMUA notifikasi
+   dari 1 run scheduler untuk 1 penerima (bukan 1 email per notifikasi —
+   backfill pertama pernah generate 5165 notifikasi sekaligus, kirim satu-
+   satu jelas kena rate limit & kelihatan spam).
+4. **SEMUA trigger kirim email** — Trigger A (mid_month), Trigger B
+   (bulanan tertutup), DAN Aturan 1 (kuartal/semester/tahunan) semuanya
+   ikut masuk ke digest, tidak ada yang dikecualikan (beda dari usulan awal
+   saya yang mau exclude mid_month — user putuskan semua tetap masuk).
+5. **Template**: HTML sederhana + header logo (pakai `favicon.svg` yang
+   sudah ada — logo-nya outline putih polos, HARUS ditaruh di atas blok
+   background warna biar kelihatan; pakai warna `appBar` dari
+   `DEFAULT_PALETTE` ('blue', `#2563EB`) di `theme/palettes.ts` sebagai
+   warna brand statis untuk email — app-nya sendiri multi-palette
+   per-user, tapi email tidak punya konteks user login jadi harus 1 warna
+   tetap). Footer dokumen: source URL (watermark) + tanggal/jam generate.
+   Iterasi lanjut template ditunda ke sesi berikutnya kalau ada revisi.
+6. **Retry otomatis + log** — kalau kirim ke Resend API gagal, retry
+   otomatis (diusulkan 3× dengan backoff singkat, mis. 2s/5s/10s), SEMUA
+   percobaan (sukses/gagal, termasuk tiap retry) dicatat ke log.
+
+### Desain teknis (mirror pola Accurate integration existing)
+
+**Kredensial** — tabel baru `resend_settings` (singleton, 1 row, GLOBAL —
+beda dari `accurate_credentials` yang per-branch, sesuai keputusan #1):
+`api_key` (text, di-encrypt pakai `utils/crypto.ts` `encrypt()`/`decrypt()`
+yang SUDAH ADA, reuse persis — jangan bikin util crypto baru), `sender_email`,
+`sender_name_default`, `app_base_url` (buat watermark footer — field
+editable admin, BUKAN saya hardcode tebak domain production, karena app
+ini tidak punya konsep "base URL" tersimpan di mana pun sebelumnya),
+`is_active` (kill-switch kirim email tanpa ganggu in-app notification),
+timestamps.
+
+**UI** — section baru di halaman `Config > Integration` yang sudah ada,
+REUSE permission `config.integration:*` (bukan permission baru) — form API
+Key (masked), Sender Email, Sender Name default, App Base URL, toggle
+Aktif, tombol "Kirim Email Test" (mirror `config.integration:test` Accurate).
+
+**Alur digest** — scheduler kumpulkan SEMUA notifikasi yang baru dibuat di
+1 run (lintas Aturan 1 + Aturan 2 + semua checkpoint), group by
+`user_id` (pakai `notification_email` yang tidak null), 1 fungsi baru
+`sendDigestEmail(recipient, notifications[])` per user — dipanggil di
+AKHIR `runAnalisisAlertEvaluation()` (bukan per-company per-loop, supaya
+1 penerima yang muncul di beberapa company/period_type tetap cuma dapat
+1 email, bukan berkali-kali), fire-and-forget dengan `.catch()` WAJIB di
+titik teratas (pelajaran §20).
+
+**Retry** — 3× percobaan per email (2s/5s/10s backoff), tiap percobaan
+di-`logger.info`/`logger.error`. Kalau semua percobaan gagal, log final
+error dan LANJUT (tidak throw, tidak block company/user lain).
+
+**Dependency baru**: package `resend` (belum ada di `package.json`, perlu
+`bun add resend`).
+
+**Belum dikerjakan**: implementasi kode. Rencana ini FINAL, siap dieksekusi.
+
+## 22. Status Implementasi Fase C (2026-07-31)
+
+Kode sudah ditulis mengikuti rencana §21 persis, TAPI **belum di-commit/push**
+atas instruksi eksplisit user ("tahan dulu") — working tree lokal saja.
+Satu penyesuaian kecil dari rencana awal, dicatat di sini karena beda dari
+keputusan #1 di §21:
+
+- **Sender name dinamis per-company (keputusan #1 di §21) TIDAK dipakai.**
+  Karena desain final digest = 1 email berisi notifikasi lintas SEMUA
+  company untuk 1 penerima (keputusan #3), tidak ada 1 "company" tunggal
+  yang bisa dijadikan acuan nama tampilan "From" per email. Dipakai
+  `sender_name_default` dari `resend_settings` (global) secara konsisten
+  untuk semua digest — sederhana & tidak ambigu. `companies.name` tidak
+  disentuh untuk kebutuhan ini.
+
+**Backend** (belum commit):
+- `db/schema/schema-transaction.ts` — tabel `resend_settings` (singleton).
+- Migration `0019_handy_dazzler.sql` — sudah di-generate & di-`db:migrate`
+  ke LOCAL saja. Production Neon BELUM di-migrate (nunggu commit+deploy).
+- `features/config/resend-settings.{schema,repository,service,handler}.ts`
+  — CRUD kredensial + `sendTestEmail`, mirror pola Accurate, `api_key`
+  di-encrypt pakai `utils/crypto.ts` yang sudah ada, masking `has_api_key`
+  di response GET (persis pola Accurate).
+- `config.route.ts` — 3 route baru (`GET/PUT /config/resend/settings`,
+  `POST /config/resend/test-email`), reuse permission `config.integration:*`
+  + rate limit yang sudah ada (`credentialMutationRateLimit`,
+  `testConnectionRateLimit`).
+- `features/notifications/email.service.ts` (baru) — `sendDigestEmail()`:
+  HTML template header logo (SVG `favicon.svg` inline, background
+  `#2563EB` dari `theme/palettes.ts` blue.primary.light) + tabel list
+  notifikasi + footer watermark (app_base_url + timestamp WIB). Retry 3×
+  (2s/5s/10s), semua percobaan di-log, gagal total = log error + return
+  (tidak throw).
+- `features/analisis/scheduler.ts` — `evaluateAndNotify`/`evaluateClosedPeriod`/
+  `evaluateMonthlyMidpoint` sekarang RETURN notifikasi yang dibuat (bukan
+  cuma void), `runAnalisisAlertEvaluation()` kumpulkan semua notifikasi 1
+  run ke `allNewNotifications`, lalu `sendDigestEmailsForRun()` group by
+  `user_id` → lookup `notification_email` → 1 `sendDigestEmail()` per
+  recipient di akhir fungsi (bukan per-company-loop, sesuai keputusan #3).
+- `package.json`/`bun.lock` — tambah `resend@^6.18.1`. Dicek via `git diff`
+  cuma nambah package ini + transitive deps, TIDAK ada bump versi package
+  lain (pelajaran insiden TypeScript7 di
+  `reference_local_bun_cache_corruption`/deploy incident sebelumnya).
+
+**Frontend** (belum commit):
+- `types/resend.ts`, `api/resend.api.ts`, `hooks/useResendSettings.ts` —
+  mirror pola `useAccurate.ts`.
+- `pages/Config/Integration/index.tsx` — dipecah jadi 2 tab MUI `Tabs`
+  ("Accurate" & "Resend", mirror pola tab di `ProductsHighMargin/index.tsx`)
+  supaya form kredensial Accurate (per-branch) dan form Resend (global)
+  tidak tercampur dalam 1 halaman panjang seperti draft awal — permintaan
+  user setelah draft pertama dibuat. Tab Resend: API Key (masked, placeholder
+  beda kalau sudah tersimpan), Sender Email, Sender Name, App Base URL,
+  toggle Aktif, tombol Simpan, form + tombol "Kirim Email Test". Digate
+  `can('config.integration:view')` utk tampil, `create`/`update`/`test`
+  masing-masing utk tombol aksi — sama persis pola Accurate, tidak ada
+  permission baru.
+- i18n `id`/`en` `config.json` → key baru `integration.resend.*`.
+
+**Verifikasi yang sudah dilakukan**:
+- `bunx tsc --noEmit` bersih di backend & frontend (0 error).
+- `bun run lint` (frontend) — 0 error, warning yang muncul semua pra-existing
+  (tidak terkait perubahan ini).
+- Smoke test API manual via curl (cookie+CSRF, bukan Authorization header —
+  auth app ini JWT httpOnly cookie): `GET` settings kosong → `PUT` simpan
+  `sender_email`/`sender_name_default`/`app_base_url` → `GET` lagi konfirmasi
+  persisted → `POST test-email` tanpa api_key mengembalikan pesan error yang
+  benar ("API key atau sender email belum diisi"). Belum ada test kirim email
+  sungguhan (butuh API key Resend asli, tidak tersedia di sesi ini).
+- Frontend belum diverifikasi visual di browser (Playwright/chromium-cli
+  tidak terpasang di environment sesi ini) — hanya tsc+lint clean.
+
+**Belum dikerjakan**:
+- Verifikasi visual UI Resend section di browser sungguhan.
+- Test kirim email nyata via Resend API (perlu API key asli dari user).
+- Commit, push, PR, migrate production Neon — MENUNGGU instruksi eksplisit
+  user (belum diminta).

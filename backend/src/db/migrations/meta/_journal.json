@@ -134,6 +134,13 @@
       "when": 1785468113592,
       "tag": "0018_shallow_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785479808190,
+      "tag": "0019_handy_dazzler",
+      "breakpoints": true
     }
   ]
 }
