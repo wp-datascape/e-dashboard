@@ -3,18 +3,6 @@ import { db } from '@/config/db'
 import { notifications } from '@/db/schema'
 import type { NewNotification } from '@/db/schema'
 
-/** Ambil notifikasi terbaru per type, LINTAS user — dipakai preview "kirim contoh
- * laporan" di Config/Integration Resend tab (task016 §22), bukan buat user-facing
- * list (yang selalu scoped ke 1 user, lihat findNotificationsByUser di atas). */
-export async function findRecentNotificationsByType(type: string, limit: number) {
-  return db
-    .select({ title: notifications.title, body: notifications.body, entity_ref: notifications.entity_ref })
-    .from(notifications)
-    .where(eq(notifications.type, type))
-    .orderBy(desc(notifications.created_at))
-    .limit(limit)
-}
-
 export async function findNotificationsByUser(
   userId: number,
   unreadOnly: boolean,

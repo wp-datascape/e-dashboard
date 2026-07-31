@@ -4,13 +4,10 @@ import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import { encrypt, decrypt } from '@/utils/crypto'
 import { findResendSettings, upsertResendSettings } from './resend-settings.repository'
-import { findRecentNotificationsByType } from '@/features/notifications/notifications.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
-import { parseDigestEntityRef, type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
 import type { UpsertResendSettingsDto } from './resend-settings.schema'
 import type { ResendSetting } from '@/db/schema'
-
-const DIGEST_PREVIEW_LIMIT = 10
 
 function sampleMetric(current: { revenue: number; margin: number }, comparison: { revenue: number; margin: number }): MetricComparisonDetail {
   const revPct = comparison.revenue > 0 ? ((current.revenue - comparison.revenue) / comparison.revenue) * 100 : null
@@ -123,21 +120,25 @@ export async function sendTestEmail(to: string): Promise<{ success: boolean; mes
 
 /** Kirim CONTOH digest laporan pakai template asli (email.service.ts sendDigestEmail),
  * bukan pesan generik seperti sendTestEmail di atas — supaya admin bisa lihat hasil
- * layout/branding yang SUNGGUHAN sebelum toggle is_active dinyalakan. Isi diambil dari
- * notifikasi analisis_alert TERBARU yang sudah ada di DB (data nyata, read-only, TIDAK
- * membuat notifikasi baru) — fallback ke contoh statis kalau belum ada sama sekali. */
-export async function sendTestDigestEmail(to: string): Promise<{ success: boolean; message: string }> {
+ * layout/branding yang SUNGGUHAN sebelum toggle is_active dinyalakan.
+ *
+ * `previewItems` dihitung LANGSUNG dari data invoice terkini (LIVE, bukan baca histori
+ * tabel `notifications` yang bisa basi/incompatible — lihat previewCurrentDigestItems
+ * di scheduler.ts) oleh HANDLER (resend-settings.handler.ts), bukan di sini — supaya
+ * tidak circular import (resend-settings.service -> scheduler -> email.service ->
+ * resend-settings.service kalau di-import langsung dari sini). Kosong = tidak ada
+ * customer Kritis saat ini -> fallback ke contoh statis. */
+export async function sendTestDigestEmail(
+  to: string,
+  previewItems: DigestNotificationItem[],
+): Promise<{ success: boolean; message: string }> {
   const settings = await getDecryptedResendSettings()
   if (!settings?.api_key || !settings.sender_email) {
     return { success: false, message: 'API key atau sender email belum diisi' }
   }
 
-  const recentRows = await findRecentNotificationsByType('analisis_alert', DIGEST_PREVIEW_LIMIT)
-  const parsed = recentRows
-    .map(row => parseDigestEntityRef(row.entity_ref as Record<string, unknown> | null))
-    .filter((item): item is DigestNotificationItem => item !== null)
-  const usingSample = parsed.length === 0
-  const items = usingSample ? SAMPLE_DIGEST_ITEMS : parsed
+  const usingSample = previewItems.length === 0
+  const items = usingSample ? SAMPLE_DIGEST_ITEMS : previewItems
 
   const sent = await sendDigestEmail(to, items, { skipActiveCheck: true })
   if (!sent) {
@@ -146,7 +147,7 @@ export async function sendTestDigestEmail(to: string): Promise<{ success: boolea
   return {
     success: true,
     message: usingSample
-      ? `Contoh laporan terkirim (${items.length} item contoh — belum ada notifikasi analisis_alert dgn detail lengkap di database).`
-      : `Contoh laporan terkirim (${items.length} notifikasi terbaru dari data asli).`,
+      ? `Contoh laporan terkirim (${items.length} item contoh — saat ini tidak ada customer berstatus Kritis).`
+      : `Contoh laporan terkirim (${items.length} customer Kritis saat ini, dihitung live dari data invoice terkini).`,
   }
 }
