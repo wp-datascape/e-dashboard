@@ -8,7 +8,7 @@ import type { NewNotification } from '@/db/schema'
  * list (yang selalu scoped ke 1 user, lihat findNotificationsByUser di atas). */
 export async function findRecentNotificationsByType(type: string, limit: number) {
   return db
-    .select({ title: notifications.title, body: notifications.body })
+    .select({ title: notifications.title, body: notifications.body, entity_ref: notifications.entity_ref })
     .from(notifications)
     .where(eq(notifications.type, type))
     .orderBy(desc(notifications.created_at))

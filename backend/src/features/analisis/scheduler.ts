@@ -26,18 +26,18 @@ import {
   type CustomerPeriodAggregate,
 } from './analisis.repository'
 import {
-  getPeriodRange,
-  getPreviousPeriodKey,
-  getYoyPeriodKey,
   getLatestClosedPeriodKey,
+  resolveTriggerRanges,
   type PeriodType,
+  type TriggerRanges,
 } from './period.util'
 import { findParetoThresholds } from '@/features/settings/pareto-thresholds.repository'
 import { DEFAULT_PARETO_DROP_PERCENT } from '@/features/settings/pareto-thresholds.service'
 import { findDisabledCompanyIds } from '@/features/settings/pareto-alert-settings.repository'
 import { resolveCustomerScope, resolveAlertRecipients } from './recipients'
 import { createNotifications } from '@/features/notifications/notifications.repository'
-import { sendDigestEmail, type DigestNotificationItem } from '@/features/notifications/email.service'
+import { sendDigestEmail } from '@/features/notifications/email.service'
+import { parseDigestEntityRef, triggerLabel, type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
 import { users } from '@/db/schema'
 import type { NewNotification } from '@/db/schema'
 
@@ -103,21 +103,10 @@ interface AlertHit {
   is_pareto: boolean
   vsPrevious: { metric: 'revenue' | 'margin'; pct: number }[]
   vsYoy: { metric: 'revenue' | 'margin'; pct: number }[]
-}
-
-/** Label eksplisit per trigger — dipakai di title notifikasi/email supaya recipient
- * langsung tahu ini laporan progres (belum tutup) atau laporan akhir periode jenis
- * apa, TANPA harus menebak dari format period_key (mis. "2026-Q3"). Penting terutama
- * 1 Januari, saat bulanan+kuartal+semester+tahunan bisa tutup di hari yang sama dan
- * masuk 1 digest email yang sama (task016 §21/§22). */
-function triggerLabel(periodType: PeriodType, checkpoint: Checkpoint): string {
-  if (checkpoint === 'mid_month') return 'Progres Bulanan'
-  switch (periodType) {
-    case 'monthly': return 'Laporan Bulanan'
-    case 'quarter': return 'Laporan Kuartal'
-    case 'semester': return 'Laporan Semester'
-    case 'annual': return 'Laporan Tahunan'
-    case 'ytd': return 'Laporan YTD' // tidak dipakai scheduler (YTD cuma on-demand di Analisis), dijaga exhaustive
+  detail: {
+    previous_period: MetricComparisonDetail
+    last_year: MetricComparisonDetail
+    ytd: MetricComparisonDetail
   }
 }
 
@@ -130,18 +119,16 @@ function triggerLabel(periodType: PeriodType, checkpoint: Checkpoint): string {
  */
 async function evaluateAndNotify(params: {
   companyId: number
+  companyName: string
   periodType: PeriodType
   periodKey: string
   checkpoint: Checkpoint
-  currentRange: { start: string; end: string }
-  previousKey: string
-  previousRange: { start: string; end: string }
-  yoyKey: string
-  yoyRange: { start: string; end: string }
+  ranges: TriggerRanges
   /** Catatan tambahan di body notifikasi, mis. "progres s.d. tanggal 14, bulan belum tutup" (Trigger A). */
   bodyNote?: string
 }): Promise<NewNotification[]> {
-  const { companyId, periodType, periodKey, checkpoint, currentRange, previousKey, previousRange, yoyKey, yoyRange, bodyNote } = params
+  const { companyId, companyName, periodType, periodKey, checkpoint, ranges, bodyNote } = params
+  const { current: currentRange, previous: previousRange, yoy: yoyRange, ytd: ytdRange, ytdYoy: ytdYoyRange } = ranges
 
   const companyCustomers = await db
     .select({ id: customers.id, name: customers.customer_name })
@@ -152,10 +139,12 @@ async function evaluateAndNotify(params: {
 
   const customerIds = companyCustomers.map(c => c.id)
 
-  const [currentAgg, previousAgg, yoyAgg, thresholdRows, paretoIds] = await Promise.all([
+  const [currentAgg, previousAgg, yoyAgg, ytdAgg, ytdYoyAgg, thresholdRows, paretoIds] = await Promise.all([
     aggregateInvoicesByCustomer(customerIds, currentRange),
     aggregateInvoicesByCustomer(customerIds, previousRange),
     aggregateInvoicesByCustomer(customerIds, yoyRange),
+    aggregateInvoicesByCustomer(customerIds, ytdRange),
+    aggregateInvoicesByCustomer(customerIds, ytdYoyRange),
     findParetoThresholds([companyId]),
     findActiveParetoCustomerIds(customerIds),
   ])
@@ -184,25 +173,60 @@ async function evaluateAndNotify(params: {
   const revenueThreshold = thresholdMap.get('revenue') ?? DEFAULT_PARETO_DROP_PERCENT
   const marginThreshold = thresholdMap.get('margin') ?? DEFAULT_PARETO_DROP_PERCENT
 
-  const checkAgainst = (
+  // Hitung perbandingan LENGKAP (bukan cuma hits yang breach threshold) — dipakai
+  // baik utk keputusan trigger (revenue_alert/margin_alert) MAUPUN utk isi detail
+  // tabel PDF (semua angka current/comparison/change, apa pun statusnya, task016 §23).
+  const computeDetail = (
     current: CustomerPeriodAggregate | undefined,
     compare: CustomerPeriodAggregate | undefined,
-  ): { metric: 'revenue' | 'margin'; pct: number }[] => {
+    revThreshold: number,
+    marThreshold: number,
+  ): MetricComparisonDetail => {
+    const curRevenue = current?.revenue ?? 0
+    const curMargin = current?.margin ?? 0
+    const cmpRevenue = compare?.revenue ?? 0
+    const cmpMargin = compare?.margin ?? 0
+    const revenuePct = pctChange(curRevenue, cmpRevenue)
+    const marginPct = pctChange(curMargin, cmpMargin)
+    return {
+      current: { revenue: curRevenue, margin: curMargin },
+      comparison: { revenue: cmpRevenue, margin: cmpMargin },
+      revenue_change_value: curRevenue - cmpRevenue,
+      margin_change_value: curMargin - cmpMargin,
+      revenue_change_pct: revenuePct,
+      margin_change_pct: marginPct,
+      revenue_alert: revenuePct !== null && revenuePct <= -revThreshold,
+      margin_alert: marginPct !== null && marginPct <= -marThreshold,
+    }
+  }
+
+  const hitsFromDetail = (d: MetricComparisonDetail): { metric: 'revenue' | 'margin'; pct: number }[] => {
     const hits: { metric: 'revenue' | 'margin'; pct: number }[] = []
-    const revPct = pctChange(current?.revenue ?? 0, compare?.revenue ?? 0)
-    if (revPct !== null && revPct <= -revenueThreshold) hits.push({ metric: 'revenue', pct: revPct })
-    const marginPct = pctChange(current?.margin ?? 0, compare?.margin ?? 0)
-    if (marginPct !== null && marginPct <= -marginThreshold) hits.push({ metric: 'margin', pct: marginPct })
+    if (d.revenue_alert && d.revenue_change_pct !== null) hits.push({ metric: 'revenue', pct: d.revenue_change_pct })
+    if (d.margin_alert && d.margin_change_pct !== null) hits.push({ metric: 'margin', pct: d.margin_change_pct })
     return hits
   }
 
   const alerts: AlertHit[] = []
   for (const c of companyCustomers) {
     const current = currentAgg.get(c.id)
-    const vsPrevious = checkAgainst(current, previousAgg.get(c.id))
-    const vsYoy = checkAgainst(current, yoyAgg.get(c.id))
+    const previousDetail = computeDetail(current, previousAgg.get(c.id), revenueThreshold, marginThreshold)
+    const yoyDetail = computeDetail(current, yoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    const vsPrevious = hitsFromDetail(previousDetail)
+    const vsYoy = hitsFromDetail(yoyDetail)
     if (vsPrevious.length === 0 && vsYoy.length === 0) continue
-    alerts.push({ customer_id: c.id, customer_name: c.name, is_pareto: paretoIds.has(c.id), vsPrevious, vsYoy })
+    // YTD dihitung utk SEMUA customer yang lolos alert PoP/YoY di atas — informasi
+    // tambahan saja, threshold-nya reuse revenueThreshold/marginThreshold periodType
+    // ini juga (cuma utk pewarnaan status "Kritis" di tabel, BUKAN dasar trigger).
+    const ytdDetail = computeDetail(ytdAgg.get(c.id), ytdYoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    alerts.push({
+      customer_id: c.id,
+      customer_name: c.name,
+      is_pareto: paretoIds.has(c.id),
+      vsPrevious,
+      vsYoy,
+      detail: { previous_period: previousDetail, last_year: yoyDetail, ytd: ytdDetail },
+    })
   }
 
   if (alerts.length === 0) {
@@ -223,7 +247,9 @@ async function evaluateAndNotify(params: {
     if (alert.vsPrevious.length > 0) parts.push(`vs periode sebelumnya: ${describeHits(alert.vsPrevious)}`)
     if (alert.vsYoy.length > 0) parts.push(`vs tahun lalu: ${describeHits(alert.vsYoy)}`)
 
-    const label = triggerLabel(periodType, checkpoint)
+    // periodType di sini tidak pernah 'ytd' secara runtime (PERIOD_TYPES cuma
+    // quarter/semester/annual/monthly, lihat komentar const di atas) — cast aman.
+    const label = triggerLabel(periodType as Exclude<PeriodType, 'ytd'>, checkpoint)
     const title = alert.is_pareto
       ? `[${label} · Pareto] ${alert.customer_name} turun performa`
       : `[${label}] ${alert.customer_name} turun performa`
@@ -239,11 +265,17 @@ async function evaluateAndNotify(params: {
         body,
         entity_ref: {
           customer_id: alert.customer_id,
+          customer_name: alert.customer_name,
           company_id: companyId,
+          company_name: companyName,
           period_type: periodType,
           period_key: periodKey,
           checkpoint,
           is_pareto: alert.is_pareto,
+          // Detail lengkap PoP/YoY/YTD — dipakai susun tabel PDF digest (task016
+          // §23), disimpan di sini (bukan dihitung ulang saat kirim email) supaya
+          // konsisten dengan angka yang benar-benar memicu alert saat itu.
+          detail: alert.detail,
         },
       })
     }
@@ -257,43 +289,32 @@ async function evaluateAndNotify(params: {
 }
 
 /** Aturan 1 (kuartal/semester/tahunan) & Trigger B Aturan 2 (bulanan tertutup) — periode SUDAH tutup penuh. */
-async function evaluateClosedPeriod(companyId: number, periodType: PeriodType, periodKey: string): Promise<NewNotification[]> {
-  const previousKey = getPreviousPeriodKey(periodType, periodKey)
-  const yoyKey = getYoyPeriodKey(periodType, periodKey)
+async function evaluateClosedPeriod(companyId: number, companyName: string, periodType: PeriodType, periodKey: string): Promise<NewNotification[]> {
   return evaluateAndNotify({
     companyId,
+    companyName,
     periodType,
     periodKey,
     checkpoint: 'closed',
-    currentRange: getPeriodRange(periodType, periodKey),
-    previousKey,
-    previousRange: getPeriodRange(periodType, previousKey),
-    yoyKey,
-    yoyRange: getPeriodRange(periodType, yoyKey),
+    ranges: resolveTriggerRanges(periodType, periodKey, 'closed', MID_MONTH_CHECKPOINT_DAY),
   })
 }
 
 /** Trigger A Aturan 2 — tanggal 14, bandingkan tanggal 1-14 bulan berjalan vs 1-14 bulan pembanding. */
-async function evaluateMonthlyMidpoint(companyId: number, monthKey: string): Promise<NewNotification[]> {
-  const dayRange = (mKey: string) => ({ start: `${mKey}-01`, end: `${mKey}-${pad2(MID_MONTH_CHECKPOINT_DAY)}` })
-  const previousKey = getPreviousPeriodKey('monthly', monthKey)
-  const yoyKey = getYoyPeriodKey('monthly', monthKey)
+async function evaluateMonthlyMidpoint(companyId: number, companyName: string, monthKey: string): Promise<NewNotification[]> {
   return evaluateAndNotify({
     companyId,
+    companyName,
     periodType: 'monthly',
     periodKey: monthKey,
     checkpoint: 'mid_month',
-    currentRange: dayRange(monthKey),
-    previousKey,
-    previousRange: dayRange(previousKey),
-    yoyKey,
-    yoyRange: dayRange(yoyKey),
+    ranges: resolveTriggerRanges('monthly', monthKey, 'mid_month', MID_MONTH_CHECKPOINT_DAY),
     bodyNote: `progres s.d. tanggal ${MID_MONTH_CHECKPOINT_DAY}, periode ${monthKey} (bulan belum tutup)`,
   })
 }
 
 export async function runAnalisisAlertEvaluation(): Promise<void> {
-  const allCompanies = await db.select({ id: companies.id }).from(companies)
+  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies)
   const disabledCompanyIds = await findDisabledCompanyIds()
   // Company dgn scheduler_enabled=false (task016 §19) di-skip TOTAL — Aturan 1
   // MAUPUN Aturan 2 sama-sama tidak jalan. Toggle ini TIDAK mempengaruhi
@@ -320,7 +341,7 @@ export async function runAnalisisAlertEvaluation(): Promise<void> {
       try {
         const alreadyDone = await hasSnapshotForPeriod(company.id, periodType, periodKey, 'closed')
         if (alreadyDone) continue
-        const created = await evaluateClosedPeriod(company.id, periodType, periodKey)
+        const created = await evaluateClosedPeriod(company.id, company.name, periodType, periodKey)
         allNewNotifications.push(...created)
       } catch (err) {
         logger.error(`[analisis-scheduler] gagal evaluasi company=${company.id} period=${periodType}:${periodKey}:closed`, {
@@ -338,7 +359,7 @@ export async function runAnalisisAlertEvaluation(): Promise<void> {
       try {
         const alreadyDone = await hasSnapshotForPeriod(company.id, 'monthly', currentMonthKey, 'mid_month')
         if (alreadyDone) continue
-        const created = await evaluateMonthlyMidpoint(company.id, currentMonthKey)
+        const created = await evaluateMonthlyMidpoint(company.id, company.name, currentMonthKey)
         allNewNotifications.push(...created)
       } catch (err) {
         logger.error(`[analisis-scheduler] gagal evaluasi mid-month company=${company.id} period=monthly:${currentMonthKey}`, {
@@ -364,8 +385,10 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
 
   const byUser = new Map<number, DigestNotificationItem[]>()
   for (const n of notifications) {
+    const item = parseDigestEntityRef(n.entity_ref as Record<string, unknown> | null)
+    if (!item) continue
     const list = byUser.get(n.user_id) ?? []
-    list.push({ title: n.title, body: n.body })
+    list.push(item)
     byUser.set(n.user_id, list)
   }
 
