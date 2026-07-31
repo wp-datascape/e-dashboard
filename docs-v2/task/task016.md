@@ -931,8 +931,32 @@ keputusan #1 di §21:
 - Frontend belum diverifikasi visual di browser (Playwright/chromium-cli
   tidak terpasang di environment sesi ini) — hanya tsc+lint clean.
 
+**Update 2026-07-31 — di-deploy ke production**: PR #71 dibuat & di-merge
+ke `main` (user eksplisit minta "coba comit dulu aku ingin coba di live
+production"). Sebelum merge, title notifikasi/email ditambahkan label
+eksplisit per trigger (`triggerLabel()` di `scheduler.ts`) — "Progres
+Bulanan"/"Laporan Bulanan"/"Laporan Kuartal"/"Laporan Semester"/"Laporan
+Tahunan" (+ `· Pareto` kalau customer Pareto) — supaya recipient tidak
+bingung kalau beberapa trigger tutup bersamaan (mis. 1 Januari) masuk 1
+digest email yang sama. Ini pelajaran dari §21 keputusan #3/#4 (digest
+gabungan + semua trigger kirim email) yang butuh diferensiasi konten
+eksplisit, bukan cuma andalkan `period_key`.
+
+Setelah merge, LANGSUNG dijalankan (belajar dari insiden §20 — migrate
+SEBELUM/SEGERA setelah deploy, jangan telat):
+- `bun run db:migrate` ke Neon production — migration 0019 (`resend_settings`)
+  applied, diverifikasi via query `information_schema.tables`.
+- `bun run db:seed` ke Neon production — idempotent, sebagian besar `skip`
+  (data sudah ada), 10 permission baru ter-assign ke role admin (permission
+  yang ditambahkan di fase-fase sebelumnya tapi belum sempat di-seed ke
+  production — bukan permission baru dari Fase C ini, Fase C reuse
+  `config.integration:*` yang sudah ada).
+- Health check + smoke test `POST /api/v1/auth/login` ke Railway production
+  — 200/400 (respons valid, bukan 500/crash) → server hidup normal.
+
 **Belum dikerjakan**:
-- Verifikasi visual UI Resend section di browser sungguhan.
-- Test kirim email nyata via Resend API (perlu API key asli dari user).
-- Commit, push, PR, migrate production Neon — MENUNGGU instruksi eksplisit
-  user (belum diminta).
+- Verifikasi visual UI tab Resend di browser sungguhan (Playwright/
+  chromium-cli tidak tersedia di environment sesi ini).
+- Isi kredensial Resend asli (API key dari Resend dashboard) + aktifkan
+  `is_active` + test kirim email nyata — MENUNGGU user isi lewat UI
+  production, saya tidak punya API key asli.
