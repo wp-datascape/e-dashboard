@@ -1,6 +1,6 @@
 import { api } from './axios'
 import type { ApiResponse } from '@/types/api'
-import type { ResendSettings, UpsertResendSettingsPayload, SendTestEmailResult } from '@/types/resend'
+import type { ResendSettings, UpsertResendSettingsPayload, SendTestEmailResult, DigestTrigger } from '@/types/resend'
 
 export const resendApi = {
   getSettings: async (): Promise<ResendSettings> => {
@@ -30,9 +30,9 @@ export const resendApi = {
     }
   },
 
-  sendTestDigestEmail: async (to: string): Promise<SendTestEmailResult> => {
+  sendTestDigestEmail: async (to: string, trigger: DigestTrigger): Promise<SendTestEmailResult> => {
     try {
-      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-digest-email', { to })
+      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-digest-email', { to, trigger })
       return response.data.data
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } }

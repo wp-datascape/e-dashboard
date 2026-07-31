@@ -76,6 +76,15 @@
       "testEmailFail": "Failed to send test email.",
       "testDigestButton": "Send Sample Report",
       "testDigestFail": "Failed to send sample report.",
+      "testDigestTriggerLabel": "Simulate Trigger",
+      "trigger": {
+        "all": "All (combined)",
+        "mid_month": "Monthly Progress (day 14)",
+        "monthly": "Monthly Report",
+        "quarter": "Quarterly Report",
+        "semester": "Semester Report",
+        "annual": "Annual Report"
+      },
       "saveSuccess": "Email settings saved successfully.",
       "saveFail": "Failed to save email settings."
     }

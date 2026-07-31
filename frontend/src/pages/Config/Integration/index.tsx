@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
 import { useResendSettings, useSaveResendSettings, useSendTestEmail, useSendTestDigestEmail } from '@/hooks/useResendSettings'
+import type { DigestTrigger } from '@/types/resend'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
 import { Card } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
@@ -315,6 +316,7 @@ function ResendIntegrationTab() {
   const testEmailMutation = useSendTestEmail()
   const testDigestMutation = useSendTestDigestEmail()
   const [testDigestResult, setTestDigestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'fail'; message?: string }>({ status: 'idle' })
+  const [testDigestTrigger, setTestDigestTrigger] = useState<DigestTrigger>('all')
 
   const handleSaveResend = async () => {
     setResendStatus('saving')
@@ -351,7 +353,7 @@ function ResendIntegrationTab() {
     if (!testEmailTo.trim()) return
     setTestDigestResult({ status: 'testing' })
     try {
-      const result = await testDigestMutation.mutateAsync(testEmailTo.trim())
+      const result = await testDigestMutation.mutateAsync({ to: testEmailTo.trim(), trigger: testDigestTrigger })
       setTestDigestResult({ status: result.success ? 'success' : 'fail', message: result.message })
     } catch (err: unknown) {
       setTestDigestResult({ status: 'fail', message: getApiErrorMessage(err, t) })
@@ -461,6 +463,20 @@ function ResendIntegrationTab() {
               >
                 {t('config.integration.resend.testEmailButton')}
               </Button>
+              <TextField
+                select
+                label={t('config.integration.resend.testDigestTriggerLabel')}
+                value={testDigestTrigger}
+                onChange={(e) => setTestDigestTrigger(e.target.value as DigestTrigger)}
+                sx={{ minWidth: 220 }}
+              >
+                <MenuItem value="all">{t('config.integration.resend.trigger.all')}</MenuItem>
+                <MenuItem value="mid_month">{t('config.integration.resend.trigger.mid_month')}</MenuItem>
+                <MenuItem value="monthly">{t('config.integration.resend.trigger.monthly')}</MenuItem>
+                <MenuItem value="quarter">{t('config.integration.resend.trigger.quarter')}</MenuItem>
+                <MenuItem value="semester">{t('config.integration.resend.trigger.semester')}</MenuItem>
+                <MenuItem value="annual">{t('config.integration.resend.trigger.annual')}</MenuItem>
+              </TextField>
               <Button
                 variant="outlined"
                 onClick={handleSendTestDigest}

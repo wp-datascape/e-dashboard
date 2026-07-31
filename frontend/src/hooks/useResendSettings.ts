@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { resendApi } from '@/api/resend.api'
-import type { UpsertResendSettingsPayload } from '@/types/resend'
+import type { UpsertResendSettingsPayload, DigestTrigger } from '@/types/resend'
 
 const KEYS = {
   settings: ['resend-settings'] as const,
@@ -31,6 +31,6 @@ export function useSendTestEmail() {
 
 export function useSendTestDigestEmail() {
   return useMutation({
-    mutationFn: (to: string) => resendApi.sendTestDigestEmail(to),
+    mutationFn: ({ to, trigger }: { to: string; trigger: DigestTrigger }) => resendApi.sendTestDigestEmail(to, trigger),
   })
 }

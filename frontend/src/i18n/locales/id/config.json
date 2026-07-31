@@ -76,6 +76,15 @@
       "testEmailFail": "Gagal mengirim email test.",
       "testDigestButton": "Kirim Contoh Laporan",
       "testDigestFail": "Gagal mengirim contoh laporan.",
+      "testDigestTriggerLabel": "Simulasi Trigger",
+      "trigger": {
+        "all": "Semua (gabungan)",
+        "mid_month": "Progres Bulanan (tgl 14)",
+        "monthly": "Laporan Bulanan",
+        "quarter": "Laporan Kuartal",
+        "semester": "Laporan Semester",
+        "annual": "Laporan Tahunan"
+      },
       "saveSuccess": "Pengaturan email berhasil disimpan.",
       "saveFail": "Gagal menyimpan pengaturan email."
     }
