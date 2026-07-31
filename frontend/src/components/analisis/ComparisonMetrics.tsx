@@ -1,29 +1,41 @@
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import TrendingDownIcon from '@mui/icons-material/TrendingDown'
-import TrendingUpIcon from '@mui/icons-material/TrendingUp'
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import { StatusChip } from '@/components/ui'
-import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
+import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { AnalisisMetricComparison } from '@/types/analisis'
 
 /**
  * components/analisis/ComparisonMetrics.tsx
  *
- * Blok Rev:/GM: dipakai berulang di halaman Analisis (kolom Periode Lampau/
+ * Blok Rev:/GP: dipakai berulang di halaman Analisis (kolom Periode Lampau/
  * Periode Ini/Perubahan Nilai/Perubahan %) DAN di popup detail notifikasi
  * (NotificationDetailDialog) — supaya tabel pembanding di popup persis sama
  * bentuknya dengan halaman Analisis (task016 §18, permintaan 2026-07-31).
  * Diekstrak dari pages/Analisis/index.tsx, jangan duplikasi ulang di tempat lain.
+ *
+ * Revisi 2026-07-31 (task016 §25, permintaan user):
+ * - Nilai Rupiah pakai label "GP" (Gross Profit, angka absolut), nilai
+ *   persentase tetap pakai "GM" (Gross Margin, rasio) — 2 label BEDA
+ *   sengaja, bukan typo. `marginLabel` di MetricPair/MetricSections
+ *   sekarang khusus GP, `marginPercentLabel` terpisah khusus GM.
+ * - `showLabels` (default true) — kolom/section PERTAMA (Pembanding) tetap
+ *   tampilkan "Rev:"/"GP:", kolom sesudahnya (Periode Ini, Perubahan Nilai)
+ *   cukup angka polos rata kanan tanpa label berulang — posisi vertikal
+ *   (Rev di atas, GP di bawah) KONSISTEN di semua kolom jadi tetap terbaca
+ *   tanpa perlu label diulang tiap kolom.
+ * - Semua nilai numerik rata kanan (readability, gampang dibandingkan
+ *   besarannya secara vertikal).
+ * - Badge trend persentase (dulu StatusChip pill + ikon) diganti teks polos
+ *   berwarna — dulu terlalu menonjol dibanding kolom lain yang cuma teks.
  */
 
-// ─── Sepasang baris Rev:/GM: teks polos — dipakai di kolom Periode Lampau,
-// Periode Ini, dan Perubahan Nilai ──────────────────────────────────────────
+// ─── Sepasang baris Rev:/GP: — dipakai di kolom Periode Lampau, Periode Ini,
+// dan Perubahan Nilai. Rata kanan, label cuma tampil kalau showLabels=true
+// (kolom pertama saja secara default) ───────────────────────────────────────
 export function MetricPair({
-  revenueLabel, marginLabel, revenueText, marginText, revenueColor, marginColor,
+  revenueLabel, marginLabel, revenueText, marginText, revenueColor, marginColor, showLabels = true,
 }: {
   revenueLabel: string
   marginLabel: string
@@ -31,27 +43,31 @@ export function MetricPair({
   marginText: string
   revenueColor?: StatusChipColor
   marginColor?: StatusChipColor
+  showLabels?: boolean
 }) {
   return (
-    <Box sx={{ py: 1 }}>
+    <Box sx={{ py: 1, textAlign: 'right' }}>
       <Typography variant="body2" sx={{ fontWeight: revenueColor ? 600 : 400, color: revenueColor ? `${revenueColor}.main` : undefined }}>
-        {revenueLabel}: {revenueText}
+        {showLabels ? `${revenueLabel}: ${revenueText}` : revenueText}
       </Typography>
       <Typography variant="caption" sx={{ display: 'block', fontWeight: marginColor ? 600 : 400, color: marginColor ? `${marginColor}.main` : 'text.secondary' }}>
-        {marginLabel}: {marginText}
+        {showLabels ? `${marginLabel}: ${marginText}` : marginText}
       </Typography>
     </Box>
   )
 }
 
-// ─── Chip trend (naik/turun) khusus kolom Perubahan (%) — tetap pakai chip +
-// ikon grafik, bukan teks polos ─────────────────────────────────────────────
+// ─── Trend persentase — teks polos berwarna, rata kanan (bukan chip pill +
+// ikon lagi, sengaja dikurangi penekanan visualnya — kolom ini tidak perlu
+// lebih menonjol dari kolom Rupiah di sebelahnya) ───────────────────────────
 export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: string; pct: number | null; alert: boolean; newBusinessLabel: string }) {
-  if (pct === null) {
-    return <StatusChip size="small" label={`${label}: ${newBusinessLabel}`} icon={<AutoAwesomeIcon />} color="info" />
-  }
-  const icon = pct < 0 ? <TrendingDownIcon /> : <TrendingUpIcon />
-  return <StatusChip size="small" color={trendColor(pct, alert)} icon={icon} label={`${label}: ${formatGrowthPct(pct)}`} />
+  const color = pct === null ? 'info.main' : `${trendColor(pct, alert)}.main`
+  const text = pct === null ? `${label}: ${newBusinessLabel}` : `${label}: ${formatGrowthPct(pct)}`
+  return (
+    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500, color }}>
+      {text}
+    </Typography>
+  )
 }
 
 export function MetricPercentPair({
@@ -66,7 +82,7 @@ export function MetricPercentPair({
   newBusinessLabel: string
 }) {
   return (
-    <Stack spacing={0.5} sx={{ py: 1 }}>
+    <Stack spacing={0.5} sx={{ py: 1, alignItems: 'flex-end', textAlign: 'right' }}>
       <TrendChip label={revenueLabel} pct={revenuePct} alert={revenueAlert} newBusinessLabel={newBusinessLabel} />
       <TrendChip label={marginLabel} pct={marginPct} alert={marginAlert} newBusinessLabel={newBusinessLabel} />
     </Stack>
@@ -79,7 +95,7 @@ export function MetricPercentPair({
 // identik, bukan reimplementasi terpisah. ──────────────────────────────────
 export function ComparisonSections({
   comparisonSectionLabel, periodSectionLabel, changeValueSectionLabel, changePercentSectionLabel,
-  current, comparison, revenueLabel, marginLabel, newBusinessLabel,
+  current, comparison, revenueLabel, marginLabel, marginPercentLabel, newBusinessLabel,
 }: {
   comparisonSectionLabel: string
   periodSectionLabel: string
@@ -88,7 +104,10 @@ export function ComparisonSections({
   current: { revenue: number; margin: number }
   comparison: AnalisisMetricComparison
   revenueLabel: string
+  /** Label margin utk nilai Rupiah — "GP" (Gross Profit). */
   marginLabel: string
+  /** Label margin utk nilai persentase — "GM" (Gross Margin), beda dari marginLabel. */
+  marginPercentLabel: string
   newBusinessLabel: string
 }) {
   return (
@@ -104,7 +123,7 @@ export function ComparisonSections({
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {periodSectionLabel}
         </Typography>
-        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatIDR(current.revenue)} marginText={formatIDR(current.margin)} />
+        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatIDR(current.revenue)} marginText={formatIDR(current.margin)} showLabels={false} />
       </Box>
 
       <Box>
@@ -118,6 +137,7 @@ export function ComparisonSections({
           marginText={formatIDRSigned(comparison.margin_change_value)}
           revenueColor={trendColor(comparison.revenue_change_pct, comparison.revenue_alert)}
           marginColor={trendColor(comparison.margin_change_pct, comparison.margin_alert)}
+          showLabels={false}
         />
       </Box>
 
@@ -127,7 +147,7 @@ export function ComparisonSections({
         </Typography>
         <MetricPercentPair
           revenueLabel={revenueLabel}
-          marginLabel={marginLabel}
+          marginLabel={marginPercentLabel}
           revenuePct={comparison.revenue_change_pct}
           marginPct={comparison.margin_change_pct}
           revenueAlert={comparison.revenue_alert}

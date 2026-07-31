@@ -150,7 +150,8 @@ export default function AnalisisPage() {
     row.comparison.revenue_alert || row.comparison.margin_alert
 
   const revLabel = t('analisis.metricRevenue')
-  const gmLabel = t('analisis.metricMargin')
+  const gmLabel = t('analisis.metricMargin') // dipakai KHUSUS nilai persentase (rasio)
+  const gpLabel = t('analisis.metricGP') // dipakai KHUSUS nilai Rupiah (angka absolut)
   const newBusinessLabel = t('analisis.newBusiness')
 
   const renderReportCard = (rawRow: Record<string, unknown>) => {
@@ -181,7 +182,8 @@ export default function AnalisisPage() {
             current={row.current}
             comparison={row.comparison}
             revenueLabel={revLabel}
-            marginLabel={gmLabel}
+            marginLabel={gpLabel}
+            marginPercentLabel={gmLabel}
             newBusinessLabel={newBusinessLabel}
           />
         </Stack>
@@ -224,8 +226,10 @@ export default function AnalisisPage() {
       headerName: t('analisis.comparisonLabel'),
       width: 170,
       sortable: false,
+      align: 'right',
+      headerAlign: 'right',
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gmLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
       ),
     },
     {
@@ -233,11 +237,13 @@ export default function AnalisisPage() {
       headerName: t('analisis.periodLabel'),
       width: 170,
       sortable: true,
+      align: 'right',
+      headerAlign: 'right',
       // Klik pertama langsung descending (besar ke kecil) — default MUI DataGrid
       // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gmLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} showLabels={false} />
       ),
     },
     {
@@ -245,14 +251,17 @@ export default function AnalisisPage() {
       headerName: t('analisis.changeValue'),
       width: 170,
       sortable: false,
+      align: 'right',
+      headerAlign: 'right',
       renderCell: ({ row }) => (
         <MetricPair
           revenueLabel={revLabel}
-          marginLabel={gmLabel}
+          marginLabel={gpLabel}
           revenueText={formatIDRSigned(row.comparison.revenue_change_value)}
           marginText={formatIDRSigned(row.comparison.margin_change_value)}
           revenueColor={trendColor(row.comparison.revenue_change_pct, row.comparison.revenue_alert)}
           marginColor={trendColor(row.comparison.margin_change_pct, row.comparison.margin_alert)}
+          showLabels={false}
         />
       ),
     },
@@ -261,6 +270,8 @@ export default function AnalisisPage() {
       headerName: t('analisis.changePercent'),
       width: 160,
       sortable: false,
+      align: 'right',
+      headerAlign: 'right',
       renderCell: ({ row }) => (
         <MetricPercentPair
           revenueLabel={revLabel}
