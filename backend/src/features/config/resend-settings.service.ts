@@ -38,9 +38,7 @@ const SAMPLE_DIGEST_ITEMS: DigestNotificationItem[] = [
     period_key: '2026-Q2',
     checkpoint: 'closed',
     detail: {
-      previous_period: sampleMetric({ revenue: 20_600_000, margin: 3_600_000 }, { revenue: 25_200_000, margin: 4_400_000 }),
       last_year: sampleMetric({ revenue: 20_600_000, margin: 3_600_000 }, { revenue: 26_400_000, margin: 4_600_000 }),
-      ytd: sampleMetric({ revenue: 41_200_000, margin: 7_200_000 }, { revenue: 52_800_000, margin: 9_200_000 }),
     },
   },
 ]

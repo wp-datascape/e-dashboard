@@ -101,12 +101,9 @@ interface AlertHit {
   customer_id: number
   customer_name: string
   is_pareto: boolean
-  vsPrevious: { metric: 'revenue' | 'margin'; pct: number }[]
   vsYoy: { metric: 'revenue' | 'margin'; pct: number }[]
   detail: {
-    previous_period: MetricComparisonDetail
     last_year: MetricComparisonDetail
-    ytd: MetricComparisonDetail
   }
 }
 
@@ -125,7 +122,7 @@ async function computeCompanyAlerts(
   periodType: PeriodType,
   ranges: TriggerRanges,
 ): Promise<AlertHit[]> {
-  const { current: currentRange, previous: previousRange, yoy: yoyRange, ytd: ytdRange, ytdYoy: ytdYoyRange } = ranges
+  const { current: currentRange, yoy: yoyRange } = ranges
 
   const companyCustomers = await db
     .select({ id: customers.id, name: customers.customer_name })
@@ -136,12 +133,9 @@ async function computeCompanyAlerts(
 
   const customerIds = companyCustomers.map(c => c.id)
 
-  const [currentAgg, previousAgg, yoyAgg, ytdAgg, ytdYoyAgg, thresholdRows, paretoIds] = await Promise.all([
+  const [currentAgg, yoyAgg, thresholdRows, paretoIds] = await Promise.all([
     aggregateInvoicesByCustomer(customerIds, currentRange),
-    aggregateInvoicesByCustomer(customerIds, previousRange),
     aggregateInvoicesByCustomer(customerIds, yoyRange),
-    aggregateInvoicesByCustomer(customerIds, ytdRange),
-    aggregateInvoicesByCustomer(customerIds, ytdYoyRange),
     findParetoThresholds([companyId]),
     findActiveParetoCustomerIds(customerIds),
   ])
@@ -188,19 +182,15 @@ async function computeCompanyAlerts(
   const alerts: AlertHit[] = []
   for (const c of companyCustomers) {
     const current = currentAgg.get(c.id)
-    const previousDetail = computeDetail(current, previousAgg.get(c.id), revenueThreshold, marginThreshold)
     const yoyDetail = computeDetail(current, yoyAgg.get(c.id), revenueThreshold, marginThreshold)
-    const vsPrevious = hitsFromDetail(previousDetail)
     const vsYoy = hitsFromDetail(yoyDetail)
-    if (vsPrevious.length === 0 && vsYoy.length === 0) continue
-    const ytdDetail = computeDetail(ytdAgg.get(c.id), ytdYoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    if (vsYoy.length === 0) continue
     alerts.push({
       customer_id: c.id,
       customer_name: c.name,
       is_pareto: paretoIds.has(c.id),
-      vsPrevious,
       vsYoy,
-      detail: { previous_period: previousDetail, last_year: yoyDetail, ytd: ytdDetail },
+      detail: { last_year: yoyDetail },
     })
   }
   return alerts
@@ -224,7 +214,7 @@ async function evaluateAndNotify(params: {
   bodyNote?: string
 }): Promise<NewNotification[]> {
   const { companyId, companyName, periodType, periodKey, checkpoint, ranges, bodyNote } = params
-  const { current: currentRange, previous: previousRange, yoy: yoyRange, ytd: ytdRange, ytdYoy: ytdYoyRange } = ranges
+  const { current: currentRange, yoy: yoyRange } = ranges
 
   const companyCustomers = await db
     .select({ id: customers.id, name: customers.customer_name })
@@ -235,12 +225,9 @@ async function evaluateAndNotify(params: {
 
   const customerIds = companyCustomers.map(c => c.id)
 
-  const [currentAgg, previousAgg, yoyAgg, ytdAgg, ytdYoyAgg, thresholdRows, paretoIds] = await Promise.all([
+  const [currentAgg, yoyAgg, thresholdRows, paretoIds] = await Promise.all([
     aggregateInvoicesByCustomer(customerIds, currentRange),
-    aggregateInvoicesByCustomer(customerIds, previousRange),
     aggregateInvoicesByCustomer(customerIds, yoyRange),
-    aggregateInvoicesByCustomer(customerIds, ytdRange),
-    aggregateInvoicesByCustomer(customerIds, ytdYoyRange),
     findParetoThresholds([companyId]),
     findActiveParetoCustomerIds(customerIds),
   ])
@@ -306,22 +293,15 @@ async function evaluateAndNotify(params: {
   const alerts: AlertHit[] = []
   for (const c of companyCustomers) {
     const current = currentAgg.get(c.id)
-    const previousDetail = computeDetail(current, previousAgg.get(c.id), revenueThreshold, marginThreshold)
     const yoyDetail = computeDetail(current, yoyAgg.get(c.id), revenueThreshold, marginThreshold)
-    const vsPrevious = hitsFromDetail(previousDetail)
     const vsYoy = hitsFromDetail(yoyDetail)
-    if (vsPrevious.length === 0 && vsYoy.length === 0) continue
-    // YTD dihitung utk SEMUA customer yang lolos alert PoP/YoY di atas — informasi
-    // tambahan saja, threshold-nya reuse revenueThreshold/marginThreshold periodType
-    // ini juga (cuma utk pewarnaan status "Kritis" di tabel, BUKAN dasar trigger).
-    const ytdDetail = computeDetail(ytdAgg.get(c.id), ytdYoyAgg.get(c.id), revenueThreshold, marginThreshold)
+    if (vsYoy.length === 0) continue
     alerts.push({
       customer_id: c.id,
       customer_name: c.name,
       is_pareto: paretoIds.has(c.id),
-      vsPrevious,
       vsYoy,
-      detail: { previous_period: previousDetail, last_year: yoyDetail, ytd: ytdDetail },
+      detail: { last_year: yoyDetail },
     })
   }
 
@@ -339,9 +319,8 @@ async function evaluateAndNotify(params: {
     const describeHits = (hits: { metric: 'revenue' | 'margin'; pct: number }[]): string =>
       hits.map(h => `${h.metric === 'revenue' ? 'Revenue' : 'Margin'} ${h.pct.toFixed(1)}%`).join(', ')
 
-    const parts: string[] = []
-    if (alert.vsPrevious.length > 0) parts.push(`vs periode sebelumnya: ${describeHits(alert.vsPrevious)}`)
-    if (alert.vsYoy.length > 0) parts.push(`vs tahun lalu: ${describeHits(alert.vsYoy)}`)
+    // Basis SELALU YoY (task016 §28) — vsPrevious/PoP dihapus total dari trigger.
+    const bodyMetrics = `vs tahun lalu: ${describeHits(alert.vsYoy)}`
 
     // periodType di sini tidak pernah 'ytd' secara runtime (PERIOD_TYPES cuma
     // quarter/semester/annual/monthly, lihat komentar const di atas) — cast aman.
@@ -350,8 +329,8 @@ async function evaluateAndNotify(params: {
       ? `[${label} · Pareto] ${alert.customer_name} turun performa`
       : `[${label}] ${alert.customer_name} turun performa`
     const body = bodyNote
-      ? `${parts.join(' | ')} — ${bodyNote}`
-      : `${parts.join(' | ')} — periode ${periodKey}.`
+      ? `${bodyMetrics} — ${bodyNote}`
+      : `${bodyMetrics} — periode ${periodKey}.`
 
     for (const recipient of recipients) {
       notificationsToInsert.push({
@@ -368,9 +347,9 @@ async function evaluateAndNotify(params: {
           period_key: periodKey,
           checkpoint,
           is_pareto: alert.is_pareto,
-          // Detail lengkap PoP/YoY/YTD — dipakai susun tabel PDF digest (task016
-          // §23), disimpan di sini (bukan dihitung ulang saat kirim email) supaya
-          // konsisten dengan angka yang benar-benar memicu alert saat itu.
+          // Detail YoY — dipakai susun tabel PDF digest (task016 §23, disederhanakan
+          // jadi YoY-only §28), disimpan di sini (bukan dihitung ulang saat kirim
+          // email) supaya konsisten dengan angka yang benar-benar memicu alert saat itu.
           detail: alert.detail,
         },
       })

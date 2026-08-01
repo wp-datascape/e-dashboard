@@ -7,7 +7,12 @@
 
 export type DigestPeriodType = 'monthly' | 'quarter' | 'semester' | 'annual'
 export type DigestCheckpoint = 'closed' | 'mid_month'
-export type DigestBasis = 'previous_period' | 'last_year' | 'ytd'
+// SELALU 'last_year' — basis PoP ('previous_period') & YTD dihapus total dari
+// trigger alert (task016 §28, revisi 2026-08-01, permintaan user: "belum YOY
+// saja"). Union 1 anggota (bukan literal string biasa) SENGAJA dipertahankan
+// biar kalau nanti ada basis baru lagi, tinggal extend di sini + BASIS_LABEL
+// (pdf.service.ts), tidak perlu ubah semua call site satu-satu.
+export type DigestBasis = 'last_year'
 
 /** Label eksplisit per trigger — dipakai di title notifikasi/email DAN header
  * batch di PDF digest, supaya recipient langsung tahu ini laporan progres
@@ -38,11 +43,7 @@ export interface MetricComparisonDetail {
 }
 
 export interface AnalisisAlertDetail {
-  previous_period: MetricComparisonDetail
   last_year: MetricComparisonDetail
-  /** SELALU dihitung & ditampilkan sebagai info tambahan, TIDAK PERNAH jadi
-   * basis threshold/trigger alert (scheduler cuma cek previous_period/last_year). */
-  ytd: MetricComparisonDetail
 }
 
 export interface DigestNotificationItem {
