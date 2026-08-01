@@ -37,7 +37,8 @@ import { findDisabledCompanyIds } from '@/features/settings/pareto-alert-setting
 import { resolveCustomerScope, resolveAlertRecipients } from './recipients'
 import { createNotifications } from '@/features/notifications/notifications.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
-import { parseDigestEntityRef, triggerLabel, type DigestNotificationItem, type DigestPeriodType, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { parseDigestEntityRef, type DigestNotificationItem, type DigestPeriodType, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { triggerLabel, resolveLocale } from '@/features/notifications/i18n'
 import { generateAnalisis } from './analisis.service'
 import type { AnalisisQuery } from './analisis.schema'
 import { users } from '@/db/schema'
@@ -471,7 +472,7 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
 
   const userIds = [...byUser.keys()]
   const recipientRows = await db
-    .select({ id: users.id, notification_email: users.notification_email })
+    .select({ id: users.id, notification_email: users.notification_email, preferences: users.preferences })
     .from(users)
     .where(inArray(users.id, userIds))
 
@@ -480,7 +481,11 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
     const items = byUser.get(row.id)
     if (!items || items.length === 0) continue
     try {
-      await sendDigestEmail(row.notification_email, items)
+      // Bahasa email ikut preferensi recipient masing-masing (users.preferences.
+      // language, task016 §30) — BUKAN bahasa admin yang setup Resend/jalankan
+      // scheduler. Fallback 'id' kalau belum pernah diset (default app).
+      const locale = resolveLocale(row.preferences?.language)
+      await sendDigestEmail(row.notification_email, items, { locale })
     } catch (err) {
       logger.error(`[analisis-scheduler] gagal kirim digest email user_id=${row.id}`, {
         error: err instanceof Error ? err.message : String(err),

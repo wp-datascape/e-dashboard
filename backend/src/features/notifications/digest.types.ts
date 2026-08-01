@@ -3,6 +3,10 @@
  * Dipakai scheduler.ts (producer, mengisi entity_ref notifikasi), pdf.service.ts
  * (konsumen, susun tabel PDF), email.service.ts (konsumen, kirim), dan
  * resend-settings.service.ts (konsumen, preview "Kirim Contoh Laporan").
+ *
+ * Label trigger yang bisa tampil ke user (title notifikasi/email/PDF) pindah ke
+ * ./i18n.ts (task016 §30, permintaan bahasa email/PDF ikut preferensi user) —
+ * file ini murni bentuk data, tidak ada string yang ditampilkan.
  */
 
 // 'ytd' ditambahkan task016 §29 — KHUSUS jalur laporan MANUAL (checkpoint
@@ -21,24 +25,6 @@ export type DigestCheckpoint = 'closed' | 'mid_month' | 'manual'
 // biar kalau nanti ada basis baru lagi, tinggal extend di sini + BASIS_LABEL
 // (pdf.service.ts), tidak perlu ubah semua call site satu-satu.
 export type DigestBasis = 'last_year'
-
-/** Label eksplisit per trigger — dipakai di title notifikasi/email DAN header
- * batch di PDF digest, supaya recipient langsung tahu ini laporan progres
- * (belum tutup) atau laporan akhir periode jenis apa, TANPA harus menebak dari
- * format period_key (mis. "2026-Q3"). Penting terutama 1 Januari, saat
- * bulanan+kuartal+semester+tahunan bisa tutup di hari yang sama dan masuk 1
- * digest email yang sama (task016 §21-23). */
-export function triggerLabel(periodType: DigestPeriodType, checkpoint: DigestCheckpoint): string {
-  if (checkpoint === 'manual') return 'Laporan Manual'
-  if (checkpoint === 'mid_month') return 'Progres Bulanan'
-  switch (periodType) {
-    case 'monthly': return 'Laporan Bulanan'
-    case 'quarter': return 'Laporan Kuartal'
-    case 'semester': return 'Laporan Semester'
-    case 'annual': return 'Laporan Tahunan'
-    case 'ytd': return 'Laporan YTD' // tidak dipakai scheduler trigger asli, cuma checkpoint 'manual'
-  }
-}
 
 export interface MetricComparisonDetail {
   current: { revenue: number; margin: number }

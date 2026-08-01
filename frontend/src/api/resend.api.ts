@@ -20,9 +20,9 @@ export const resendApi = {
     }
   },
 
-  sendTestEmail: async (to: string): Promise<SendTestEmailResult> => {
+  sendTestEmail: async (to: string, locale?: string): Promise<SendTestEmailResult> => {
     try {
-      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-email', { to })
+      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-email', { to, locale })
       return response.data.data
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } }
@@ -31,9 +31,9 @@ export const resendApi = {
     }
   },
 
-  sendTestDigestEmail: async (to: string, periodType: AnalisisPeriodType, endDate: string): Promise<SendTestEmailResult> => {
+  sendTestDigestEmail: async (to: string, periodType: AnalisisPeriodType, endDate: string, locale?: string): Promise<SendTestEmailResult> => {
     try {
-      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-digest-email', { to, period_type: periodType, end_date: endDate })
+      const response = await api.post<ApiResponse<SendTestEmailResult>>('/config/resend/test-digest-email', { to, period_type: periodType, end_date: endDate, locale })
       return response.data.data
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } }

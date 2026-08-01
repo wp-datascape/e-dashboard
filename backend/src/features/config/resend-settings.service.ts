@@ -6,6 +6,7 @@ import { encrypt, decrypt } from '@/utils/crypto'
 import { findResendSettings, upsertResendSettings } from './resend-settings.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
 import { type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { getDict, resolveLocale, type Locale } from '@/features/notifications/i18n'
 import type { UpsertResendSettingsDto } from './resend-settings.schema'
 import type { ResendSetting } from '@/db/schema'
 
@@ -91,12 +92,13 @@ export async function saveResendSettings(dto: UpsertResendSettingsDto, ctx: Cont
   return getResendSettingsForUI()
 }
 
-export async function sendTestEmail(to: string): Promise<{ success: boolean; message: string }> {
+export async function sendTestEmail(to: string, locale?: Locale): Promise<{ success: boolean; message: string }> {
   const settings = await getDecryptedResendSettings()
   if (!settings?.api_key || !settings.sender_email) {
     return { success: false, message: 'API key atau sender email belum diisi' }
   }
 
+  const dict = getDict(resolveLocale(locale))
   try {
     const resend = new Resend(settings.api_key)
     const from = settings.sender_name_default
@@ -105,8 +107,8 @@ export async function sendTestEmail(to: string): Promise<{ success: boolean; mes
     const { error } = await resend.emails.send({
       from,
       to,
-      subject: 'Test Email — Executive Dashboard',
-      html: '<p>Ini email test dari konfigurasi Resend Executive Dashboard. Kalau Anda menerima ini, konfigurasi sudah benar.</p>',
+      subject: dict.email.testSubject,
+      html: `<p>${dict.email.testBody}</p>`,
     })
     if (error) return { success: false, message: error.message }
     return { success: true, message: 'Email test berhasil dikirim' }
@@ -130,6 +132,7 @@ export async function sendTestEmail(to: string): Promise<{ success: boolean; mes
 export async function sendTestDigestEmail(
   to: string,
   previewItems: DigestNotificationItem[],
+  locale?: Locale,
 ): Promise<{ success: boolean; message: string }> {
   const settings = await getDecryptedResendSettings()
   if (!settings?.api_key || !settings.sender_email) {
@@ -139,7 +142,7 @@ export async function sendTestDigestEmail(
   const usingSample = previewItems.length === 0
   const items = usingSample ? SAMPLE_DIGEST_ITEMS : previewItems
 
-  const sent = await sendDigestEmail(to, items, { skipActiveCheck: true })
+  const sent = await sendDigestEmail(to, items, { skipActiveCheck: true, locale: resolveLocale(locale) })
   if (!sent) {
     return { success: false, message: 'Gagal mengirim laporan — cek log server untuk detail error dari Resend.' }
   }
