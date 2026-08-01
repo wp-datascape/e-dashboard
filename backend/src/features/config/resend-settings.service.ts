@@ -92,7 +92,7 @@ export async function saveResendSettings(dto: UpsertResendSettingsDto, ctx: Cont
   return getResendSettingsForUI()
 }
 
-export async function sendTestEmail(to: string, locale?: Locale): Promise<{ success: boolean; message: string }> {
+export async function sendTestEmail(to: string, locale?: string): Promise<{ success: boolean; message: string }> {
   const settings = await getDecryptedResendSettings()
   if (!settings?.api_key || !settings.sender_email) {
     return { success: false, message: 'API key atau sender email belum diisi' }
@@ -132,7 +132,7 @@ export async function sendTestEmail(to: string, locale?: Locale): Promise<{ succ
 export async function sendTestDigestEmail(
   to: string,
   previewItems: DigestNotificationItem[],
-  locale?: Locale,
+  locale?: string,
 ): Promise<{ success: boolean; message: string }> {
   const settings = await getDecryptedResendSettings()
   if (!settings?.api_key || !settings.sender_email) {

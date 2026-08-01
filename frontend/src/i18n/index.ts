@@ -52,6 +52,16 @@ void i18n
       lookupLocalStorage: 'exec-dashboard-lang',
       caches: ['localStorage'],
     },
+    // Browser lapor kode region penuh (mis. 'en-US', bukan 'en') — tanpa 2
+    // opsi ini, i18next TIDAK menganggap 'en-US' termasuk 'en' yang didukung
+    // (supportedLngs cek exact match), jadi langsung fallback ke 'id' PENUH,
+    // bahasa Inggris browser diabaikan total. Sama-sama diperlukan supaya
+    // resources yang dimuat maupun i18n.language yang dilaporkan konsisten
+    // ternormalisasi ke 'id'/'en' saja (dipakai juga sebagai locale email/PDF
+    // digest, task016 §30 — nilai region asing bikin request ke backend gagal
+    // divalidasi kalau tidak dinormalisasi di sini).
+    load: 'languageOnly',
+    nonExplicitSupportedLngs: true,
   })
 
 export default i18n

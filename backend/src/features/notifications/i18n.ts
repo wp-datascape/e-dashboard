@@ -17,8 +17,11 @@ import type { DigestPeriodType, DigestCheckpoint } from './digest.types'
 
 export type Locale = 'id' | 'en'
 
+// Prefix-match (bukan exact 'en') — jaga-jaga kalau ada nilai region penuh
+// lolos sampai sini (mis. 'en-US'), walau frontend sudah dinormalisasi via
+// nonExplicitSupportedLngs (i18n/index.ts) SEBELUM dikirim ke sini.
 export function resolveLocale(raw: string | null | undefined): Locale {
-  return raw === 'en' ? 'en' : 'id'
+  return raw?.toLowerCase().startsWith('en') ? 'en' : 'id'
 }
 
 interface NotificationDict {
@@ -52,7 +55,9 @@ interface NotificationDict {
   email: {
     subject: (count: number) => string
     bodyTitle: string
-    bodyParagraph: (count: number) => string
+    bodyIntro: string
+    reportCriticalCount: (count: number) => string
+    bodyClosing: string
     footerSource: string
     footerGeneratedAt: string
     testSubject: string
@@ -101,10 +106,9 @@ const DICT: Record<Locale, NotificationDict> = {
     email: {
       subject: (count) => `[Executive Dashboard] ${count} Alert Analisis Customer`,
       bodyTitle: 'Peringatan Performa Customer',
-      bodyParagraph: (count) =>
-        `Email ini dikirim otomatis oleh sistem Executive Dashboard sebagai peringatan atas penurunan performa ` +
-        `(revenue dan/atau margin) pada ${count} customer, dibandingkan periode yang sama tahun lalu. Rincian ` +
-        `lengkap per customer tersedia pada lampiran PDF pada email ini.`,
+      bodyIntro: 'Sistem Executive Dashboard mendeteksi penurunan performa (revenue dan/atau margin) pada customer berikut, dibandingkan periode yang sama tahun lalu:',
+      reportCriticalCount: (count) => `${count} customer berstatus Kritis pada laporan ini.`,
+      bodyClosing: 'Rincian lengkap per customer — termasuk angka Revenue dan Gross Profit — tersedia pada lampiran PDF laporan ini.',
       footerSource: 'Sumber',
       footerGeneratedAt: 'Dibuat otomatis',
       testSubject: 'Test Email — Executive Dashboard',
@@ -151,10 +155,9 @@ const DICT: Record<Locale, NotificationDict> = {
     email: {
       subject: (count) => `[Executive Dashboard] ${count} Customer Analysis Alert${count === 1 ? '' : 's'}`,
       bodyTitle: 'Customer Performance Alert',
-      bodyParagraph: (count) =>
-        `This email was sent automatically by the Executive Dashboard system as an alert for performance decline ` +
-        `(revenue and/or margin) on ${count} customer${count === 1 ? '' : 's'}, compared to the same period last year. ` +
-        `Full details per customer are available in the attached PDF.`,
+      bodyIntro: 'The Executive Dashboard system detected a performance decline (revenue and/or margin) for the following customers, compared to the same period last year:',
+      reportCriticalCount: (count) => `${count} customer${count === 1 ? '' : 's'} flagged Critical in this report.`,
+      bodyClosing: 'Full details per customer — including Revenue and Gross Profit figures — are available in the attached PDF report.',
       footerSource: 'Source',
       footerGeneratedAt: 'Automatically generated',
       testSubject: 'Test Email — Executive Dashboard',
