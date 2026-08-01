@@ -37,7 +37,9 @@ import { findDisabledCompanyIds } from '@/features/settings/pareto-alert-setting
 import { resolveCustomerScope, resolveAlertRecipients } from './recipients'
 import { createNotifications } from '@/features/notifications/notifications.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
-import { parseDigestEntityRef, triggerLabel, type DigestNotificationItem, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { parseDigestEntityRef, triggerLabel, type DigestNotificationItem, type DigestPeriodType, type MetricComparisonDetail } from '@/features/notifications/digest.types'
+import { generateAnalisis } from './analisis.service'
+import type { AnalisisQuery } from './analisis.schema'
 import { users } from '@/db/schema'
 import type { NewNotification } from '@/db/schema'
 
@@ -487,82 +489,72 @@ async function sendDigestEmailsForRun(notifications: NewNotification[]): Promise
   }
 }
 
-export interface DigestPreviewFilter {
-  /** undefined = semua period type (default, gabungan penuh seperti scheduler asli). */
-  periodType?: PeriodType
-  /** undefined = semua checkpoint. 'mid_month' eksplisit BYPASS gerbang tanggal 14
-   * (task016 §24) — buat simulasi/test, admin boleh lihat hasilnya kapan saja,
-   * beda dari jalur scheduler asli yang emang baru jalan mulai tgl 14. */
-  checkpoint?: Checkpoint
-}
-
 /**
- * Preview SEMUA customer yang statusnya Kritis SEKARANG, lintas company &
- * period type — dipakai tombol "Kirim Contoh Laporan" (task016 §23-24).
- * READ-ONLY total (reuse computeCompanyAlerts, tanpa insert snapshot/
- * notifikasi, tanpa cek hasSnapshotForPeriod) — beda dari
- * runAnalisisAlertEvaluation yang PUNYA efek samping & dedup harian. Preview
- * ini SELALU hitung ulang dari data invoice terkini, jadi tidak pernah stale
- * meski scheduler asli belum jalan lagi hari ini.
+ * Hitung SEMUA customer Kritis utk laporan MANUAL (task016 §29) — pengganti
+ * total simulasi trigger lama (`previewCurrentDigestItems`). Tombol "Kirim
+ * Laporan Manual" dipakai kalau admin butuh laporan DI LUAR siklus trigger
+ * scheduler — user pilih sendiri period_type + tanggal akhir BEBAS (bukan
+ * cuma "periode yang lagi ditutup scheduler hari ini").
  *
- * `filter` opsional — kosongkan utk gabungan semua trigger (perilaku lama),
- * atau isi buat simulasi 1 trigger spesifik saja (mis. cuma "Progres Bulanan"
- * atau cuma "Laporan Kuartal"), supaya admin bisa cek satu-satu.
+ * Reuse `generateAnalisis()` (analisis.service.ts) APA ADANYA — logic end_date
+ * yang SAMA PERSIS dipakai halaman Analisis (task016 §26: start = awal periode
+ * yang mengandung end_date, SELALU YoY digeser -1 tahun) — supaya angka
+ * laporan manual ini 100% konsisten dgn yang user lihat sendiri di halaman
+ * Analisis kalau filter tanggal yang sama. company_id='all' + scopeIds
+ * undefined (bypass) karena ini aksi admin sistem, bukan atas nama scope 1
+ * user spesifik — permission `config.integration:test` sudah admin-only.
  */
-export async function previewCurrentDigestItems(filter?: DigestPreviewFilter): Promise<DigestNotificationItem[]> {
-  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies)
-  const today = new Date()
-  const currentMonthKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
+export async function computeManualDigestItems(
+  periodType: DigestPeriodType,
+  endDate: string,
+): Promise<DigestNotificationItem[]> {
   const items: DigestNotificationItem[] = []
-
-  const pushAlerts = (company: { id: number; name: string }, periodType: PeriodType, periodKey: string, checkpoint: Checkpoint, alerts: AlertHit[]) => {
-    for (const alert of alerts) {
+  const perPage = 200
+  let page = 1
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { rows, total } = await generateAnalisis(
+      {
+        company_id: 'all',
+        period_type: periodType,
+        end_date: endDate,
+        comparison: 'last_year',
+        only_pareto: false,
+        exclude_intercompany: false,
+        sort_by: 'default',
+        sort_dir: 'desc',
+        page,
+        per_page: perPage,
+      } as AnalisisQuery,
+      undefined,
+    )
+    for (const row of rows) {
+      if (!row.comparison.revenue_alert && !row.comparison.margin_alert) continue
       items.push({
-        customer_name: alert.customer_name,
-        company_name: company.name,
-        is_pareto: alert.is_pareto,
-        period_type: periodType as Exclude<PeriodType, 'ytd'>,
-        period_key: periodKey,
-        checkpoint,
-        detail: alert.detail,
+        customer_name: row.customer_name,
+        company_name: row.company_name ?? '-',
+        is_pareto: row.is_pareto,
+        period_type: periodType,
+        period_key: row.period_key,
+        checkpoint: 'manual',
+        end_date: endDate,
+        detail: {
+          last_year: {
+            current: { revenue: row.current.revenue, margin: row.current.margin },
+            comparison: { revenue: row.comparison.revenue, margin: row.comparison.margin },
+            revenue_change_value: row.comparison.revenue_change_value,
+            margin_change_value: row.comparison.margin_change_value,
+            revenue_change_pct: row.comparison.revenue_change_pct,
+            margin_change_pct: row.comparison.margin_change_pct,
+            revenue_alert: row.comparison.revenue_alert,
+            margin_alert: row.comparison.margin_alert,
+          },
+        },
       })
     }
+    if (page * perPage >= total) break
+    page++
   }
-
-  if (!filter?.checkpoint || filter.checkpoint === 'closed') {
-    for (const periodType of [...PERIOD_TYPES, 'monthly' as PeriodType]) {
-      if (filter?.periodType && filter.periodType !== periodType) continue
-      const periodKey = getLatestClosedPeriodKey(periodType)
-      const ranges = resolveTriggerRanges(periodType, periodKey, 'closed', MID_MONTH_CHECKPOINT_DAY)
-      for (const company of allCompanies) {
-        try {
-          const alerts = await computeCompanyAlerts(company.id, periodType, ranges)
-          pushAlerts(company, periodType, periodKey, 'closed', alerts)
-        } catch (err) {
-          logger.error(`[analisis-scheduler] preview gagal company=${company.id} period=${periodType}:${periodKey}:closed`, {
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-      }
-    }
-  }
-
-  const wantsMidMonth = !filter?.checkpoint || filter.checkpoint === 'mid_month'
-  const midMonthGateOpen = filter?.checkpoint === 'mid_month' || today.getDate() >= MID_MONTH_CHECKPOINT_DAY
-  if (wantsMidMonth && midMonthGateOpen && (!filter?.periodType || filter.periodType === 'monthly')) {
-    const ranges = resolveTriggerRanges('monthly', currentMonthKey, 'mid_month', MID_MONTH_CHECKPOINT_DAY)
-    for (const company of allCompanies) {
-      try {
-        const alerts = await computeCompanyAlerts(company.id, 'monthly', ranges)
-        pushAlerts(company, 'monthly', currentMonthKey, 'mid_month', alerts)
-      } catch (err) {
-        logger.error(`[analisis-scheduler] preview mid-month gagal company=${company.id}`, {
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-  }
-
   return items
 }
 

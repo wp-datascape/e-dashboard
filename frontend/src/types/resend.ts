@@ -22,4 +22,3 @@ export interface SendTestEmailResult {
   message: string
 }
 
-export type DigestTrigger = 'all' | 'mid_month' | 'monthly' | 'quarter' | 'semester' | 'annual'

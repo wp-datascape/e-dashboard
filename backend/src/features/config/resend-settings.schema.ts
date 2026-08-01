@@ -14,12 +14,14 @@ export const sendTestEmailSchema = z.object({
   to: z.string().email(),
 })
 
-// Filter trigger utk preview "Kirim Contoh Laporan" (task016 §24) — 'all' =
-// gabung semua (default lama), atau simulasi 1 trigger spesifik saja supaya
-// admin bisa cek satu per satu, bukan selalu gabungan besar.
+// "Kirim Laporan Manual" (task016 §29, revisi 2026-08-01 — GANTI TOTAL dari
+// simulasi trigger lama) — admin pilih sendiri period_type + tanggal akhir
+// BEBAS (tidak terikat siklus trigger scheduler), datanya real dari DB via
+// generateAnalisis() yang sama persis dipakai halaman Analisis.
 export const sendTestDigestEmailSchema = z.object({
   to: z.string().email(),
-  trigger: z.enum(['all', 'mid_month', 'monthly', 'quarter', 'semester', 'annual']).optional().default('all'),
+  period_type: z.enum(['monthly', 'quarter', 'semester', 'ytd', 'annual']),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
 export type UpsertResendSettingsDto = z.infer<typeof upsertResendSettingsSchema>
