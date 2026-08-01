@@ -10,8 +10,11 @@ export const upsertResendSettingsSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
+// locale optional — dikirim frontend dari bahasa UI aktif (i18n.language,
+// task016 §30), fallback 'id' di service kalau tidak dikirim.
 export const sendTestEmailSchema = z.object({
   to: z.string().email(),
+  locale: z.enum(['id', 'en']).optional(),
 })
 
 // "Kirim Laporan Manual" (task016 §29, revisi 2026-08-01 — GANTI TOTAL dari
@@ -22,6 +25,7 @@ export const sendTestDigestEmailSchema = z.object({
   to: z.string().email(),
   period_type: z.enum(['monthly', 'quarter', 'semester', 'ytd', 'annual']),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  locale: z.enum(['id', 'en']).optional(),
 })
 
 export type UpsertResendSettingsDto = z.infer<typeof upsertResendSettingsSchema>

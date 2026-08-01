@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { resendApi } from '@/api/resend.api'
 import type { UpsertResendSettingsPayload } from '@/types/resend'
 import type { AnalisisPeriodType } from '@/types/analisis'
@@ -25,14 +26,16 @@ export function useSaveResendSettings() {
 }
 
 export function useSendTestEmail() {
+  const { i18n } = useTranslation()
   return useMutation({
-    mutationFn: (to: string) => resendApi.sendTestEmail(to),
+    mutationFn: (to: string) => resendApi.sendTestEmail(to, i18n.language),
   })
 }
 
 export function useSendTestDigestEmail() {
+  const { i18n } = useTranslation()
   return useMutation({
     mutationFn: ({ to, periodType, endDate }: { to: string; periodType: AnalisisPeriodType; endDate: string }) =>
-      resendApi.sendTestDigestEmail(to, periodType, endDate),
+      resendApi.sendTestDigestEmail(to, periodType, endDate, i18n.language),
   })
 }

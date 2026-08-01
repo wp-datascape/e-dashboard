@@ -11,60 +11,52 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { resolveTriggerRanges, getPeriodRange, shiftDateByYears } from '@/features/analisis/period.util'
-import { triggerLabel, type DigestNotificationItem, type MetricComparisonDetail, type DigestBasis } from './digest.types'
+import type { DigestNotificationItem, MetricComparisonDetail, DigestBasis } from './digest.types'
+import { getDict, triggerLabel, type Locale } from './i18n'
 
 const BRAND_COLOR: [number, number, number] = [37, 99, 235] // theme/palettes.ts blue.primary.light
 const PAGE_W = 210 // A4 portrait, mm
 const MARGIN = 14
 const MID_MONTH_DAY = 14 // sinkron dgn scheduler.ts MID_MONTH_CHECKPOINT_DAY
 
-const MONTH_NAMES_ID = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-]
-
-function formatDateRange(start: string, end: string): string {
+function formatDateRange(start: string, end: string, monthNames: string[]): string {
   const [sy, sm, sd] = start.split('-').map(Number)
   const [, em, ed] = end.split('-').map(Number)
-  if (sm === em) return `${sd}–${ed} ${MONTH_NAMES_ID[sm - 1]} ${sy}`
-  return `${sd} ${MONTH_NAMES_ID[sm - 1]} – ${ed} ${MONTH_NAMES_ID[em - 1]} ${sy}`
+  if (sm === em) return `${sd}–${ed} ${monthNames[sm - 1]} ${sy}`
+  return `${sd} ${monthNames[sm - 1]} – ${ed} ${monthNames[em - 1]} ${sy}`
 }
 
-function fmtIDR(val: number): string {
+function fmtIDR(val: number, dict: ReturnType<typeof getDict>): string {
   const abs = Math.abs(val)
   const sign = val < 0 ? '-' : ''
-  if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(1)}M`
-  if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(1)}jt`
-  return `${sign}Rp ${abs.toLocaleString('id-ID')}`
+  if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(1)}${dict.pdf.unitBillion}`
+  if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(1)}${dict.pdf.unitMillion}`
+  return `${sign}Rp ${abs.toLocaleString(dict.dateLocale)}`
 }
 
-function fmtIDRSigned(val: number): string {
-  if (val === 0) return fmtIDR(0)
-  return val > 0 ? `+${fmtIDR(val)}` : fmtIDR(val)
+function fmtIDRSigned(val: number, dict: ReturnType<typeof getDict>): string {
+  if (val === 0) return fmtIDR(0, dict)
+  return val > 0 ? `+${fmtIDR(val, dict)}` : fmtIDR(val, dict)
 }
 
-function fmtPct(pct: number | null): string {
-  if (pct === null) return 'Baru'
+function fmtPct(pct: number | null, dict: ReturnType<typeof getDict>): string {
+  if (pct === null) return dict.pdf.newBusiness
   const capped = pct > 999 ? 999 : pct < -999 ? -999 : pct
   const suffix = pct > 999 || pct < -999 ? '+' : ''
   return `${capped > 0 ? '+' : ''}${capped.toFixed(1)}%${suffix}`
 }
 
-const BASIS_LABEL: Record<DigestBasis, string> = {
-  last_year: 'Year-over-Year (YoY)',
-}
-
-function drawBrandHeader(doc: jsPDF): void {
+function drawBrandHeader(doc: jsPDF, dict: ReturnType<typeof getDict>): void {
   doc.setFillColor(...BRAND_COLOR)
   doc.rect(0, 0, PAGE_W, 12, 'F')
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(255, 255, 255)
-  doc.text('Executive Dashboard', MARGIN, 8)
+  doc.text(dict.pdf.brandName, MARGIN, 8)
   doc.setTextColor(0, 0, 0)
 }
 
-function drawFooters(doc: jsPDF, appBaseUrl: string | null, generatedAt: string): void {
+function drawFooters(doc: jsPDF, appBaseUrl: string | null, generatedAt: string, dict: ReturnType<typeof getDict>): void {
   const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
@@ -75,8 +67,8 @@ function drawFooters(doc: jsPDF, appBaseUrl: string | null, generatedAt: string)
     doc.setDrawColor(200, 200, 200)
     doc.line(MARGIN, footerY - 3, PAGE_W - MARGIN, footerY - 3)
     doc.text(appBaseUrl ?? '', MARGIN, footerY)
-    doc.text(`Digenerate pada: ${generatedAt}`, PAGE_W / 2, footerY, { align: 'center' })
-    doc.text(`Halaman ${i} / ${totalPages}`, PAGE_W - MARGIN, footerY, { align: 'right' })
+    doc.text(`${dict.pdf.generatedOn}: ${generatedAt}`, PAGE_W / 2, footerY, { align: 'center' })
+    doc.text(`${dict.pdf.page} ${i} / ${totalPages}`, PAGE_W - MARGIN, footerY, { align: 'right' })
     doc.setTextColor(0, 0, 0)
   }
 }
@@ -96,15 +88,15 @@ function metricPercentCell(rev: string, mar: string): string {
   return `Rev: ${rev}\nGM: ${mar}`
 }
 
-function detailRow(item: DigestNotificationItem, d: MetricComparisonDetail): (string | number)[] {
-  const status = d.revenue_alert || d.margin_alert ? 'Kritis' : 'Normal'
+function detailRow(item: DigestNotificationItem, d: MetricComparisonDetail, dict: ReturnType<typeof getDict>): (string | number)[] {
+  const status = d.revenue_alert || d.margin_alert ? dict.pdf.statusCritical : dict.pdf.statusNormal
   return [
     item.company_name,
-    item.customer_name + (item.is_pareto ? ' (Pareto)' : ''),
-    metricCell(fmtIDR(d.comparison.revenue), fmtIDR(d.comparison.margin), true),
-    metricCell(fmtIDR(d.current.revenue), fmtIDR(d.current.margin), false),
-    metricCell(fmtIDRSigned(d.revenue_change_value), fmtIDRSigned(d.margin_change_value), false),
-    metricPercentCell(fmtPct(d.revenue_change_pct), fmtPct(d.margin_change_pct)),
+    item.customer_name + (item.is_pareto ? ` (${dict.pdf.pareto})` : ''),
+    metricCell(fmtIDR(d.comparison.revenue, dict), fmtIDR(d.comparison.margin, dict), true),
+    metricCell(fmtIDR(d.current.revenue, dict), fmtIDR(d.current.margin, dict), false),
+    metricCell(fmtIDRSigned(d.revenue_change_value, dict), fmtIDRSigned(d.margin_change_value, dict), false),
+    metricPercentCell(fmtPct(d.revenue_change_pct, dict), fmtPct(d.margin_change_pct, dict)),
     status,
   ]
 }
@@ -122,11 +114,12 @@ function groupKey(item: DigestNotificationItem): string {
  * (PoP/YoY/YTD), format identik dgn contoh yang diminta user (task016 §23) —
  * cuma isi rentang tanggalnya beda sesuai jenis trigger.
  */
-export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: string | null): Buffer {
+export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: string | null, locale: Locale = 'id'): Buffer {
+  const dict = getDict(locale)
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  drawBrandHeader(doc)
+  drawBrandHeader(doc, dict)
 
-  const generatedAt = new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Jakarta' })
+  const generatedAt = new Date().toLocaleString(dict.dateLocale, { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Jakarta' })
 
   const batches = new Map<string, DigestNotificationItem[]>()
   for (const item of items) {
@@ -140,7 +133,7 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
   let firstBatch = true
   for (const batchItems of batches.values()) {
     const [sample] = batchItems
-    const label = triggerLabel(sample.period_type, sample.checkpoint)
+    const label = triggerLabel(sample.period_type, sample.checkpoint, locale)
 
     // Laporan MANUAL (task016 §29) — end date BEBAS (dipilih user via date
     // picker), tidak deterministik dari period_type+period_key+checkpoint saja
@@ -193,21 +186,21 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
       if (cursorY > 260) { doc.addPage(); cursorY = 20 }
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
-      doc.text(BASIS_LABEL[section.basis], MARGIN, cursorY)
+      doc.text(dict.pdf.sectionYoY, MARGIN, cursorY)
       cursorY += 4.5
 
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(90, 90, 90)
-      const caption = `Pembanding: ${formatDateRange(section.comparison.start, section.comparison.end)} • Periode: ${formatDateRange(section.current.start, section.current.end)}`
+      const caption = `${dict.pdf.comparisonCaption}: ${formatDateRange(section.comparison.start, section.comparison.end, dict.monthNames)} • ${dict.pdf.periodCaption}: ${formatDateRange(section.current.start, section.current.end, dict.monthNames)}`
       doc.text(caption, MARGIN, cursorY)
       doc.setTextColor(0, 0, 0)
       cursorY += 3
 
       autoTable(doc, {
         startY: cursorY,
-        head: [['Perusahaan', 'Customer', 'Pembanding', 'Periode', 'Perubahan Nilai', 'Perubahan (%)', 'Status']],
-        body: criticalItems.map(item => detailRow(item, item.detail[section.basis])),
+        head: [[dict.pdf.company, dict.pdf.customer, dict.pdf.comparison, dict.pdf.period, dict.pdf.changeValue, dict.pdf.changePercent, dict.pdf.status]],
+        body: criticalItems.map(item => detailRow(item, item.detail[section.basis], dict)),
         headStyles: { fillColor: BRAND_COLOR, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7.5, cellPadding: 2 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
@@ -218,7 +211,7 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
         },
         margin: { left: MARGIN, right: MARGIN, top: 16 },
         didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 6 && data.cell.raw === 'Kritis') {
+          if (data.section === 'body' && data.column.index === 6 && data.cell.raw === dict.pdf.statusCritical) {
             data.cell.styles.textColor = [220, 38, 38]
             data.cell.styles.fontStyle = 'bold'
           }
@@ -229,7 +222,7 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
     }
   }
 
-  drawFooters(doc, appBaseUrl, generatedAt)
+  drawFooters(doc, appBaseUrl, generatedAt, dict)
 
   const arrayBuffer = doc.output('arraybuffer')
   return Buffer.from(arrayBuffer)

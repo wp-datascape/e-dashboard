@@ -18,7 +18,7 @@ export async function handleSaveResendSettings(c: Context) {
 
 export async function handleSendTestEmail(c: Context) {
   const body = await validateBody(c, sendTestEmailSchema)
-  const result = await sendTestEmail(body.to)
+  const result = await sendTestEmail(body.to, body.locale)
   return success(c, result)
 }
 
@@ -28,6 +28,6 @@ export async function handleSendTestDigestEmail(c: Context) {
   // resend-settings.service.ts — supaya tidak circular import (lihat komentar
   // sendTestDigestEmail di resend-settings.service.ts).
   const previewItems = await computeManualDigestItems(body.period_type, body.end_date)
-  const result = await sendTestDigestEmail(body.to, previewItems)
+  const result = await sendTestDigestEmail(body.to, previewItems, body.locale)
   return success(c, result)
 }

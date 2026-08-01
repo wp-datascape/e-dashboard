@@ -20,6 +20,7 @@ import { logger } from '@/utils/logger'
 import { getDecryptedResendSettings } from '@/features/config/resend-settings.service'
 import { buildDigestPdf } from './pdf.service'
 import type { DigestNotificationItem } from './digest.types'
+import { getDict, type Locale } from './i18n'
 
 export type { DigestNotificationItem } from './digest.types'
 
@@ -49,9 +50,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Badan email cuma paragraf penjelasan singkat — detail lengkap ada di PDF terlampir. */
-function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | null): string {
+function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | null, locale: Locale): string {
+  const dict = getDict(locale)
   const customerCount = new Set(items.map(i => `${i.company_name}:${i.customer_name}`)).size
-  const generatedAt = new Date().toLocaleString('id-ID', {
+  const generatedAt = new Date().toLocaleString(dict.dateLocale, {
     dateStyle: 'full',
     timeStyle: 'short',
     timeZone: 'Asia/Jakarta',
@@ -63,20 +65,17 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
     <div style="max-width:600px;margin:0 auto;background:#F3F4F6;">
       <div style="background:${BRAND_COLOR};padding:28px 24px;text-align:center;">
         ${LOGO_SVG}
-        <div style="color:#FFFFFF;font-weight:700;font-size:16px;margin-top:10px;">Executive Dashboard</div>
+        <div style="color:#FFFFFF;font-weight:700;font-size:16px;margin-top:10px;">${dict.pdf.brandName}</div>
       </div>
       <div style="padding:24px;background:#FFFFFF;">
-        <h2 style="margin:0 0 12px;color:#111827;font-size:18px;">Peringatan Performa Customer</h2>
+        <h2 style="margin:0 0 12px;color:#111827;font-size:18px;">${dict.email.bodyTitle}</h2>
         <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">
-          Email ini dikirim otomatis oleh sistem Executive Dashboard sebagai peringatan atas penurunan performa
-          (revenue dan/atau margin) pada ${customerCount} customer, dibandingkan periode sebelumnya maupun tahun
-          lalu. Rincian lengkap per customer — termasuk perbandingan Previous Period, Year-over-Year, dan
-          Year-to-Date — tersedia pada lampiran PDF pada email ini.
+          ${dict.email.bodyParagraph(customerCount)}
         </p>
       </div>
       <div style="padding:16px 24px;background:#F9FAFB;color:#9CA3AF;font-size:11px;text-align:center;border-top:1px solid #E5E7EB;">
-        ${appBaseUrl ? `<div>Sumber: <a href="${escapeHtml(appBaseUrl)}" style="color:${BRAND_COLOR};">${escapeHtml(appBaseUrl)}</a></div>` : ''}
-        <div style="margin-top:4px;">Dibuat otomatis ${escapeHtml(generatedAt)} WIB</div>
+        ${appBaseUrl ? `<div>${dict.email.footerSource}: <a href="${escapeHtml(appBaseUrl)}" style="color:${BRAND_COLOR};">${escapeHtml(appBaseUrl)}</a></div>` : ''}
+        <div style="margin-top:4px;">${dict.email.footerGeneratedAt} ${escapeHtml(generatedAt)} WIB</div>
       </div>
     </div>
   </body>
@@ -97,7 +96,7 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
 export async function sendDigestEmail(
   to: string,
   items: DigestNotificationItem[],
-  opts?: { skipActiveCheck?: boolean },
+  opts?: { skipActiveCheck?: boolean; locale?: Locale },
 ): Promise<boolean> {
   if (items.length === 0) return false
 
@@ -107,13 +106,15 @@ export async function sendDigestEmail(
     return false
   }
 
+  const locale = opts?.locale ?? 'id'
+  const dict = getDict(locale)
   const resend = new Resend(settings.api_key)
   const from = settings.sender_name_default
     ? `${settings.sender_name_default} <${settings.sender_email}>`
     : settings.sender_email
-  const subject = `[Executive Dashboard] ${items.length} Alert Analisis Customer`
-  const html = buildDigestHtml(items, settings.app_base_url)
-  const pdfBuffer = buildDigestPdf(items, settings.app_base_url)
+  const subject = dict.email.subject(items.length)
+  const html = buildDigestHtml(items, settings.app_base_url, locale)
+  const pdfBuffer = buildDigestPdf(items, settings.app_base_url, locale)
   const today = new Date().toISOString().split('T')[0]
 
   const maxAttempts = RETRY_DELAYS_MS.length + 1
