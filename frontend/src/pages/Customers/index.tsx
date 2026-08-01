@@ -103,7 +103,7 @@ export default function Customers() {
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
         <MonthYearPicker
-          size="small" label={t('common.filters.month')}
+          size="small" label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
           sx={{ width: { xs: '100%', sm: 150 } }}

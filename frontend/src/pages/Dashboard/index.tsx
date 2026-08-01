@@ -121,7 +121,7 @@ export default function Dashboard() {
         <ScopeFilterFields filter={scopeFilter} />
         <MonthYearPicker
           size="small"
-          label={t('common.filters.month')}
+          label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
           sx={{ width: { xs: '100%', sm: 160 } }}
