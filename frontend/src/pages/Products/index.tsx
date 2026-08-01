@@ -215,21 +215,21 @@ export default function Products() {
           <ScopeFilterFields filter={scopeFilter} />
 
           <DatePicker
-            size="small" label={t('common.filters.month')} type="month"
+            size="small" label={t('common.filters.period')} type="month"
             value={periodMonth}
             onChange={(e) => setPeriodMonth(e.target.value)}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           />
 
           <TextField
-            select size="small" label={t('common.filters.activeWindow')}
+            select size="small" label={t('common.filters.range')}
             value={activeWindow}
             onChange={(e) => setActiveWindow(Number(e.target.value))}
             sx={{ minWidth: { xs: '100%', sm: 130 } }}
           >
-            <MenuItem value={3}>{t('common.filters.window3Months')}</MenuItem>
-            <MenuItem value={6}>{t('common.filters.window6Months')}</MenuItem>
-            <MenuItem value={12}>{t('common.filters.window12Months')}</MenuItem>
+            <MenuItem value={3}>{t('common.filters.range3Months')}</MenuItem>
+            <MenuItem value={6}>{t('common.filters.range6Months')}</MenuItem>
+            <MenuItem value={12}>{t('common.filters.range12Months')}</MenuItem>
           </TextField>
 
           <FormControlLabel

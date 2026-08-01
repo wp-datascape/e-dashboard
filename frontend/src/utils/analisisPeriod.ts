@@ -68,6 +68,34 @@ export function getElapsedRangeEnd(periodType: AnalisisPeriodType, today: Date =
   return `${prevYear}-${pad2(prevMonth)}-${pad2(lastDayOfMonth(prevYear, prevMonth))}`
 }
 
+/** Geser tanggal (YYYY-MM-DD) mundur/maju N tahun — mirror `period.util.ts`
+ * backend `shiftDateByYears`. Dipakai hitung caption "Pembanding" (task016
+ * §26 — filter Pembanding dihapus, SELALU YoY, digeser -1 tahun persis dari
+ * tanggal "Tanggal" yang dipilih user). */
+export function shiftDateByYears(dateStr: string, deltaYears: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const targetYear = y + deltaYears
+  const maxDay = lastDayOfMonth(targetYear, m)
+  return `${targetYear}-${pad2(m)}-${pad2(Math.min(d, maxDay))}`
+}
+
+const PERIOD_STEP_MONTHS: Record<AnalisisPeriodType, number> = {
+  monthly: 1, ytd: 1, quarter: 3, semester: 6, annual: 12,
+}
+
+/** Geser tanggal filter "Tanggal" mundur/maju 1 satuan periodType (1 bulan
+ * utk Bulanan/YTD, 3 bulan Kuartal, 6 bulan Semester, 12 bulan Tahunan) —
+ * dipakai tombol chevron prev/next (task016 §26, ganti navigasi period_key
+ * lama yang sekarang sudah tidak dipakai halaman Analisis). */
+export function shiftEndDate(periodType: AnalisisPeriodType, dateStr: string, direction: 1 | -1): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const totalMonths = y * 12 + (m - 1) + direction * PERIOD_STEP_MONTHS[periodType]
+  const targetYear = Math.floor(totalMonths / 12)
+  const targetMonth = (totalMonths % 12) + 1
+  const maxDay = lastDayOfMonth(targetYear, targetMonth)
+  return `${targetYear}-${pad2(targetMonth)}-${pad2(Math.min(d, maxDay))}`
+}
+
 export function getPreviousPeriodKey(periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return String(Number(periodKey) - 1)
   if (periodType === 'monthly' || periodType === 'ytd') {

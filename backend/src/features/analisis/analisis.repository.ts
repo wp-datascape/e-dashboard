@@ -1,7 +1,13 @@
 import { and, eq, inArray, isNull, gte, lte, ilike, count, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { invoices, pareto_customers, customers, companies, channel_divisions } from '@/db/schema'
-import { loadDivisionFallbackIds, buildExcludeIntercompanyCondition } from '@/utils/scope'
+import {
+  loadDivisionFallbackIds,
+  flattenFallbackByBranch,
+  buildExcludeIntercompanyCondition,
+  buildBranchCondition,
+  buildDivisionCondition,
+} from '@/utils/scope'
 
 export interface CustomerPeriodAggregate {
   customer_id: number
@@ -94,25 +100,33 @@ export async function findAnalisisCustomers(
   page: number,
   perPage: number,
   customerId?: number,
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+  branchIdFilter?: number,
+  divisionFilter?: number,
 ): Promise<{ rows: AnalisisCustomerRow[]; total: number }> {
   if (scopeIds && scopeIds.length === 0) return { rows: [], total: 0 }
 
-  // Subquery: channel_name dari invoice terbaru per customer — dipakai resolve
-  // division efektif utk exclude-intercompany, pola sama persis dgn
-  // `latestSalespersonSq` di customers.repository.ts.
+  // Subquery: channel_name + branch_id dari invoice terbaru per customer —
+  // dipakai resolve division efektif utk exclude-intercompany DAN scope
+  // Cabang/Divisi (task016 §27), pola sama persis dgn `latestSalespersonSq`
+  // di customers.repository.ts.
   const latestChannelSq = db
     .selectDistinctOn([invoices.customer_id], {
       customer_id: invoices.customer_id,
       channel_name: invoices.channel_name,
+      branch_id: invoices.branch_id,
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
     .orderBy(invoices.customer_id, sql`${invoices.invoice_date} DESC`)
     .as('latest_channel')
 
-  const intercompanyIdByCompany = excludeIntercompany
-    ? await loadDivisionFallbackIds('intercompany')
-    : undefined
+  const [intercompanyIdByCompany, otherIdByCompany] = await Promise.all([
+    excludeIntercompany ? loadDivisionFallbackIds('intercompany') : Promise.resolve(undefined),
+    (branchScope || divisionScope) ? loadDivisionFallbackIds('other') : Promise.resolve(undefined),
+  ])
+  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany ?? new Map())
 
   const excludeIntercompanyCond = buildExcludeIntercompanyCondition(
     customers.company_id,
@@ -121,11 +135,27 @@ export async function findAnalisisCustomers(
     excludeIntercompany,
   )
 
+  // Scope Cabang/Divisi (enforcement RBAC) — WAJIB dipasang meski undefined
+  // (bypass superadmin) sesuai pola resolveBranchScope/resolveDivisionScope
+  // di middleware/auth.ts. Filter Cabang/Divisi (pilihan user di UI, opsional)
+  // dipasang TERPISAH — dua hal beda meski nyasar ke kolom yang sama, lihat
+  // customers.repository.ts.
+  const branchScopeCond = buildBranchCondition(customers.company_id, latestChannelSq.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(latestChannelSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+  const branchFilterCond = branchIdFilter ? eq(latestChannelSq.branch_id, branchIdFilter) : undefined
+  const divisionFilterCond = divisionFilter
+    ? eq(sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`, divisionFilter)
+    : undefined
+
   const baseConditions = [eq(customers.is_placeholder, false)]
   if (scopeIds) baseConditions.push(inArray(customers.company_id, scopeIds))
   if (search) baseConditions.push(ilike(customers.customer_name, `%${search}%`))
   if (customerId) baseConditions.push(eq(customers.id, customerId))
   if (excludeIntercompanyCond) baseConditions.push(excludeIntercompanyCond)
+  if (branchScopeCond) baseConditions.push(branchScopeCond)
+  if (divisionScopeCond) baseConditions.push(divisionScopeCond)
+  if (branchFilterCond) baseConditions.push(branchFilterCond)
+  if (divisionFilterCond) baseConditions.push(divisionFilterCond)
 
   const activeParetoJoin = and(
     eq(pareto_customers.customer_id, customers.id),

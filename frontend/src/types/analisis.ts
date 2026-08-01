@@ -51,6 +51,15 @@ export interface AnalisisParams {
   period_type: AnalisisPeriodType
   period_key?: string
   comparison?: AnalisisComparisonBasis
+  // Tanggal akhir eksplisit dari date picker "Tanggal" (task016 §26, revisi
+  // 2026-08-01) — kalau diisi, start SELALU awal periode yang mengandung
+  // tanggal ini, end SELALU tanggal ini persis (bukan akhir periode natural),
+  // pembanding SELALU YoY digeser -1 tahun. Format 'YYYY-MM-DD'.
+  end_date?: string
+  // Filter Cabang & Divisi (task016 §27) — mirror ScopeFilterFields yang
+  // sudah dipakai Customers/Products/Transactions dkk.
+  branch_id?: number
+  division?: number
   // Filter langsung by customer_id — dipakai popup detail notifikasi (lihat
   // NotificationDetailDialog) buat ambil baris comparison PERSIS customer
   // yang disebut di entity_ref, tanpa perlu search by name.

@@ -1,6 +1,8 @@
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { StatusChip } from '@/components/ui'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
@@ -25,10 +27,12 @@ import type { AnalisisMetricComparison } from '@/types/analisis'
  *   cukup angka polos rata kanan tanpa label berulang — posisi vertikal
  *   (Rev di atas, GP di bawah) KONSISTEN di semua kolom jadi tetap terbaca
  *   tanpa perlu label diulang tiap kolom.
- * - Semua nilai numerik rata kanan (readability, gampang dibandingkan
- *   besarannya secara vertikal).
- * - Badge trend persentase (dulu StatusChip pill + ikon) diganti teks polos
- *   berwarna — dulu terlalu menonjol dibanding kolom lain yang cuma teks.
+ * - Nilai numerik: rata kiri (revisi 2026-07-31, sempat dicoba rata kanan
+ *   lalu dibalik lagi atas permintaan user).
+ * - Badge trend persentase tetap pakai StatusChip pill (bentuk sama dgn chip
+ *   "Kritis"/"Normal" kolom Status) — sempat dicoba teks polos tanpa pill
+ *   lalu dikembalikan atas permintaan user. Isi teksnya pakai panah unicode
+ *   ▲/▼ (bukan ikon MUI) + tooltip nampilin angka persis tanpa pembulatan/cap.
  */
 
 // ─── Sepasang baris Rev:/GP: — dipakai di kolom Periode Lampau, Periode Ini,
@@ -46,7 +50,7 @@ export function MetricPair({
   showLabels?: boolean
 }) {
   return (
-    <Box sx={{ py: 1, textAlign: 'right' }}>
+    <Box sx={{ py: 1 }}>
       <Typography variant="body2" sx={{ fontWeight: revenueColor ? 600 : 400, color: revenueColor ? `${revenueColor}.main` : undefined }}>
         {showLabels ? `${revenueLabel}: ${revenueText}` : revenueText}
       </Typography>
@@ -57,16 +61,27 @@ export function MetricPair({
   )
 }
 
-// ─── Trend persentase — teks polos berwarna + panah unicode kecil (▲/▼,
-// bukan ikon MUI lagi — permintaan user 2026-07-31 biar lebih simple) ──────
+// ─── Trend persentase — chip pill (StatusChip, konsisten sama bentuk dgn chip
+// "Kritis"/"Normal" di kolom Status), isi teks pakai panah unicode kecil
+// (▲/▼, bukan ikon MUI — permintaan user 2026-07-31 biar lebih simple).
+// Tooltip nampilin angka PERSIS (2 desimal, tanpa cap 999%) — formatGrowthPct
+// yang dipakai di teks utama sengaja MEMBULATKAN & MEN-CAP nilai ekstrem
+// (mis. "999%+") biar tidak menyesatkan tampilan, tapi angka aslinya tetap
+// harus bisa dicek — permintaan user, tooltip tetap dipertahankan. ─────────
 export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: string; pct: number | null; alert: boolean; newBusinessLabel: string }) {
-  const color = pct === null ? 'info.main' : `${trendColor(pct, alert)}.main`
+  const color = pct === null ? 'info' : trendColor(pct, alert)
   const arrow = pct === null ? '' : pct < 0 ? '▼ ' : '▲ '
   const text = pct === null ? `${label}: ${newBusinessLabel}` : `${arrow}${label}: ${formatGrowthPct(pct)}`
-  return (
-    <Typography variant="caption" sx={{ display: 'block', fontWeight: 500, color }}>
-      {text}
-    </Typography>
+  const exactText = pct === null ? null : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`
+
+  const content = <StatusChip size="small" color={color} label={text} />
+  // StatusChip bukan forwardRef component — bungkus <span> biar Tooltip
+  // (butuh ref utk positioning) tidak nge-warn "function components cannot
+  // be given refs" di console.
+  return exactText === null ? content : (
+    <Tooltip title={exactText} arrow placement="top">
+      <span>{content}</span>
+    </Tooltip>
   )
 }
 
@@ -82,7 +97,7 @@ export function MetricPercentPair({
   newBusinessLabel: string
 }) {
   return (
-    <Stack spacing={0.5} sx={{ py: 1, alignItems: 'flex-end', textAlign: 'right' }}>
+    <Stack spacing={0.5} sx={{ py: 1 }}>
       <TrendChip label={revenueLabel} pct={revenuePct} alert={revenueAlert} newBusinessLabel={newBusinessLabel} />
       <TrendChip label={marginLabel} pct={marginPct} alert={marginAlert} newBusinessLabel={newBusinessLabel} />
     </Stack>

@@ -208,6 +208,18 @@ export function resolveTriggerRanges(
  * in-progress" (task016 §24) supaya current+comparison range bisa dipotong
  * (truncate) apple-to-apple, BUKAN buat filter default (default tetap periode
  * yang sudah tutup, lihat getLatestClosedPeriodKey). */
+/** Geser tanggal (YYYY-MM-DD) mundur/maju N tahun — dipakai basis YoY di
+ * halaman Analisis (task016 §26): comparisonRange = currentRange digeser -1
+ * tahun persis, start MAUPUN end. Fallback ke tanggal terakhir bulan itu
+ * kalau hasil geseran tidak valid (edge case 29 Feb tahun kabisat -> tahun
+ * biasa, tidak ada 29 Feb). */
+export function shiftDateByYears(dateStr: string, deltaYears: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const targetYear = y + deltaYears
+  const maxDay = lastDayOfMonth(targetYear, m)
+  return `${targetYear}-${pad2(m)}-${pad2(Math.min(d, maxDay))}`
+}
+
 export function getCurrentPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
   const year = today.getFullYear()
   const month = today.getMonth() + 1
