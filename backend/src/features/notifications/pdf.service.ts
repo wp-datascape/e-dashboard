@@ -51,9 +51,7 @@ function fmtPct(pct: number | null): string {
 }
 
 const BASIS_LABEL: Record<DigestBasis, string> = {
-  previous_period: 'Previous Period (PoP)',
   last_year: 'Year-over-Year (YoY)',
-  ytd: 'Year-to-Date (YTD)',
 }
 
 function drawBrandHeader(doc: jsPDF): void {
@@ -155,10 +153,11 @@ export function buildDigestPdf(items: DigestNotificationItem[], appBaseUrl: stri
     doc.text(label, MARGIN, cursorY)
     cursorY += 6
 
+    // Basis SELALU YoY (task016 §28, sebelumnya PoP+YoY+YTD) — union 1 anggota
+    // dipertahankan (lihat digest.types.ts) biar gampang extend kalau nanti
+    // basis lain ditambahkan lagi.
     const sections: { basis: DigestBasis; current: { start: string; end: string }; comparison: { start: string; end: string } }[] = [
-      { basis: 'previous_period', current: ranges.current, comparison: ranges.previous },
       { basis: 'last_year', current: ranges.current, comparison: ranges.yoy },
-      { basis: 'ytd', current: ranges.ytd, comparison: ranges.ytdYoy },
     ]
 
     for (const section of sections) {
