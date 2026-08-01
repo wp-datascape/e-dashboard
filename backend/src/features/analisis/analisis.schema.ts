@@ -11,6 +11,23 @@ export const analisisQuerySchema = z.object({
   // mis. Q2 vs Q1). Cuma SATU basis ditampilkan per request (bukan simultan
   // qoq+yoy seperti mode 'both' yang lama).
   comparison: z.enum(['last_year', 'previous_period']).optional().default('last_year'),
+  // Tanggal akhir eksplisit dari date picker "Tanggal" di halaman Analisis
+  // (task016 §26, revisi 2026-08-01: Pembanding dropdown dihapus dari UI
+  // Analisis, SELALU YoY, user pilih tanggal persis — bukan bulan) — kalau
+  // diisi, currentRange.end DAN comparisonRange.end (basis YoY) dipotong ke
+  // tanggal ini (bukan akhir periode natural), start tetap awal periode yang
+  // MENGANDUNG tanggal ini. Optional supaya caller lama (mis.
+  // NotificationDetailDialog) yang belum kirim end_date tetap jalan seperti
+  // biasa (pakai period_key + akhir periode natural).
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Filter Cabang & Divisi (task016 §27) — mirror pola ScopeFilterFields yang
+  // sudah dipakai Customers/Products/Transactions dkk. BEDA dari
+  // branchScope/divisionScope hasil resolveBranchScope/resolveDivisionScope
+  // (itu ENFORCEMENT akses RBAC, dihitung server dari token user) — branch_id/
+  // division di sini FILTER LAPORAN opsional yang user pilih eksplisit di UI,
+  // dua-duanya selalu dipasang BERSAMAAN di repository (lihat customers.repository.ts).
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: z.coerce.number().int().positive().optional(),
   // Menampilkan SEMUA customer (bukan cuma yang di-flag Pareto) — yang di-flag
   // ditandai `is_pareto` + diprioritaskan tampil duluan (mirror pola High Margin
   // di halaman Product Ledger), lihat task016 §12.

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
@@ -18,24 +18,27 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
-import { Card, StatusChip } from '@/components/ui'
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
+import { Card, StatusChip, DatePicker } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
-import { useCompanies } from '@/hooks/useCompanies'
+import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { useAnalisis } from '@/hooks/useAnalisis'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import {
-  getCurrentPeriodKey, getLatestClosedPeriodKey, getPreviousPeriodKey, getNextPeriodKey,
-  getYoyPeriodKey, formatPeriodLabel, getPeriodDateRange, formatDateRange, getElapsedRangeEnd,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
 import { MetricPair, MetricPercentPair, ComparisonSections } from '@/components/analisis/ComparisonMetrics'
 import { trendColor } from '@/utils/analisisComparison'
-import type { AnalisisPeriodType, AnalisisComparisonBasis, AnalisisRow } from '@/types/analisis'
+import type { AnalisisPeriodType, AnalisisRow } from '@/types/analisis'
 
 // Urutan terpendek -> terpanjang (UI/UX review 2026-07-31).
 const PERIOD_TYPES: AnalisisPeriodType[] = ['monthly', 'quarter', 'semester', 'ytd', 'annual']
-const COMPARISON_BASES: AnalisisComparisonBasis[] = ['last_year', 'previous_period']
+
+function todayISODate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // ─── Badge Pareto — mirror pola "highMarginBadge" di Product Ledger: chip kecil
 // di sebelah nama, customer yang di-flag tetap tampil dalam list lengkap ──────
@@ -53,29 +56,60 @@ function ParetoBadge() {
 
 export default function AnalisisPage() {
   const { t } = useTranslation()
-  const { data: companies = [] } = useCompanies()
 
   // Baca filter awal dari query string (SEKALI, saat mount) — dipakai tombol
   // "Lihat di Analisis" di popup detail notifikasi biar halaman ini kebuka
   // dengan data yang PERSIS sama dengan yang disebut di pesan notifikasi
-  // (company/periode/pembanding/search), bukan halaman generik kosong.
+  // (company/periode/search), bukan halaman generik kosong. Kalau deep-link
+  // bawa period_key (histori dari notifikasi lama), endDate awal dihitung dari
+  // akhir NATURAL periode itu — bukan hari ini.
   const [searchParams] = useSearchParams()
   const initialPeriodType = (PERIOD_TYPES as string[]).includes(searchParams.get('period_type') ?? '')
     ? (searchParams.get('period_type') as AnalisisPeriodType)
     : 'quarter'
-  const initialComparison: AnalisisComparisonBasis =
-    searchParams.get('comparison') === 'previous_period' ? 'previous_period' : 'last_year'
+  const initialEndDate = (() => {
+    const explicit = searchParams.get('end_date')
+    if (explicit) return explicit
+    const deepLinkPeriodKey = searchParams.get('period_key')
+    if (deepLinkPeriodKey) {
+      try {
+        return getPeriodDateRange(initialPeriodType, deepLinkPeriodKey).end
+      } catch {
+        // period_key tidak valid utk periodType ini — abaikan, fallback hari ini.
+      }
+    }
+    return todayISODate()
+  })()
 
-  const [companyId, setCompanyId] = useState<number | 'all'>(() => {
+  // Filter Cabang & Divisi (task016 §27) — SSOT yang sama dipakai Customers/
+  // Products/Transactions dkk (docs-v2/task/task001.md Task H), bukan implementasi
+  // scope-aware terpisah lagi. Opsi branch/division SUDAH difilter sesuai hak
+  // akses user (lihat useScopedCompanyFilter), jadi tidak perlu enforcement
+  // tambahan di sisi frontend.
+  const scopeFilter = useScopedCompanyFilter()
+  const { companyId, setCompanyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
+
+  // Deep-link company_id dari popup notifikasi (SEKALI saat mount) — hook
+  // useScopedCompanyFilter tidak terima initial value langsung, jadi di-apply
+  // via effect one-time, bukan reactive sync (sesuai catatan hook: hindari
+  // setState sinkron REAKTIF di effect, tapi inisialisasi sekali dari URL beda
+  // kasus — tidak ada dependency lain yang bisa berubah lagi setelah mount).
+  useEffect(() => {
     const v = searchParams.get('company_id')
-    return v ? Number(v) : 'all'
-  })
+    if (v) setCompanyId(Number(v))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [periodType, setPeriodType] = useState<AnalisisPeriodType>(initialPeriodType)
-  const [periodKey, setPeriodKey] = useState<string>(() => searchParams.get('period_key') || getLatestClosedPeriodKey(initialPeriodType))
-  const [comparison, setComparison] = useState<AnalisisComparisonBasis>(initialComparison)
+  // "Tanggal" — filter tunggal pengganti period_key+Pembanding (task016 §26,
+  // revisi 2026-08-01): user pilih TANGGAL PERSIS (bukan bulan), start range
+  // selalu awal periode yang mengandung tanggal itu, end selalu tanggal itu
+  // sendiri. Pembanding SELALU YoY (dropdown-nya dihapus), digeser -1 tahun
+  // persis dari currentRange — lihat perhitungan currentRange/comparisonRange
+  // di bawah, MIRROR 1-ke-1 logic backend analisis.service.ts.
+  const [endDate, setEndDate] = useState<string>(initialEndDate)
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [onlyPareto, setOnlyPareto] = useState(false)
-  const [excludeIntercompany, setExcludeIntercompany] = useState(false)
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 25 })
 
@@ -84,57 +118,22 @@ export default function AnalisisPage() {
   const sortBy = sortModel[0]?.field === 'current' ? 'revenue' : 'default'
   const sortDir = sortModel[0]?.sort ?? 'desc'
 
-  const handlePeriodTypeChange = (nextType: AnalisisPeriodType) => {
-    setPeriodType(nextType)
-    setPeriodKey(getLatestClosedPeriodKey(nextType))
-    // YTD tidak punya "periode sebelumnya" yang apple-to-apple (lihat catatan
-    // di bawah) — reset ke satu-satunya opsi yang valid biar tidak nyangkut
-    // di pilihan yang sudah tidak berlaku.
-    if (nextType === 'ytd') setComparison('last_year')
-  }
+  const todayStr = todayISODate()
+  const isViewingInProgress = endDate === todayStr
 
-  const currentInProgressKey = getCurrentPeriodKey(periodType)
-  const isViewingInProgress = periodKey === currentInProgressKey
-  // Key periode pembanding — ikut filter "Pembanding" yang dipilih user
-  // (UI/UX review 2026-07-31). Label kolom/caption SELALU "Pembanding"/
-  // "Periode" statis (bukan "Tahun Lalu"/"Periode Sebelumnya" dinamis) —
-  // basis yang dipilih tetap kelihatan lewat dropdown filternya sendiri.
-  // YTD SENGAJA dikecualikan dari 'previous_period': range YTD selalu mulai
-  // 1 Jan tahun berjalan, jadi "mundur 1 bulan" menghasilkan rentang beda
-  // panjang bulan (Jan-Jul vs Jan-Jun) — tidak apple-to-apple. Satu-satunya
-  // pembanding adil untuk YTD adalah YTD tahun lalu di bulan akhir yang SAMA.
-  const isPreviousPeriodMode = comparison === 'previous_period' && periodType !== 'ytd'
-  const comparisonKey = isPreviousPeriodMode
-    ? getPreviousPeriodKey(periodType, periodKey)
-    : getYoyPeriodKey(periodType, periodKey)
-
-  // Periode MASIH BERJALAN — potong caption tanggal biar SAMA dengan angka yang
-  // benar-benar dihitung backend (backend juga potong currentRange/comparisonRange
-  // untuk kasus ini, lihat analisis.service.ts), bukan tampilkan rentang penuh yang
-  // menyesatkan (task016 §24, laporan Q3 yang baru jalan 1 bulan tidak boleh
-  // dibandingkan dengan Q3 tahun lalu yang datanya sudah penuh 3 bulan).
-  let currentRange = getPeriodDateRange(periodType, periodKey)
-  let comparisonRange = getPeriodDateRange(periodType, comparisonKey)
-  if (isViewingInProgress) {
-    const elapsedEnd = getElapsedRangeEnd(periodType)
-    const truncatedCurrentEnd = elapsedEnd < currentRange.start ? currentRange.start : (elapsedEnd < currentRange.end ? elapsedEnd : currentRange.end)
-    currentRange = { start: currentRange.start, end: truncatedCurrentEnd }
-    if (!isPreviousPeriodMode) {
-      const [, cMonth, cDay] = truncatedCurrentEnd.split('-')
-      const truncatedComparisonEnd = `${comparisonRange.end.slice(0, 4)}-${cMonth}-${cDay}`
-      if (truncatedComparisonEnd >= comparisonRange.start && truncatedComparisonEnd < comparisonRange.end) {
-        comparisonRange = { start: comparisonRange.start, end: truncatedComparisonEnd }
-      }
-    }
-  }
+  const periodKey = getCurrentPeriodKey(periodType, new Date(endDate))
+  const periodStart = getPeriodDateRange(periodType, periodKey).start
+  const currentRange = { start: periodStart, end: endDate }
+  const comparisonRange = { start: shiftDateByYears(periodStart, -1), end: shiftDateByYears(endDate, -1) }
   const currentRangeText = formatDateRange(currentRange)
   const comparisonRangeText = formatDateRange(comparisonRange)
 
   const { data, isLoading } = useAnalisis({
     company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    division: division || undefined,
     period_type: periodType,
-    period_key: periodKey,
-    comparison,
+    end_date: endDate,
     search: search || undefined,
     only_pareto: onlyPareto,
     exclude_intercompany: excludeIntercompany,
@@ -298,29 +297,14 @@ export default function AnalisisPage() {
 
       <Card sx={{ p: 2.5, mb: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 }, flex: { sm: '1 1 200px' } }}>
-            <InputLabel>{t('analisis.company')}</InputLabel>
-            <Select
-              value={companyId}
-              label={t('analisis.company')}
-              onChange={(e) => {
-                setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                setPaginationModel((p) => ({ ...p, page: 0 }))
-              }}
-            >
-              <MenuItem value="all">{t('analisis.allCompanies')}</MenuItem>
-              {companies.map((c) => (
-                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <ScopeFilterFields filter={scopeFilter} sx={{ flex: { sm: '1 1 160px' } }} />
 
           <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 }, flex: { sm: '1 1 160px' } }}>
             <InputLabel>{t('analisis.periodLabel')}</InputLabel>
             <Select
               value={periodType}
               label={t('analisis.periodLabel')}
-              onChange={(e) => handlePeriodTypeChange(e.target.value as AnalisisPeriodType)}
+              onChange={(e) => setPeriodType(e.target.value as AnalisisPeriodType)}
             >
               {PERIOD_TYPES.map((p) => (
                 <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
@@ -328,32 +312,19 @@ export default function AnalisisPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}>
-            <InputLabel>{t('analisis.comparisonLabel')}</InputLabel>
-            <Select
-              value={comparison}
-              label={t('analisis.comparisonLabel')}
-              onChange={(e) => setComparison(e.target.value as AnalisisComparisonBasis)}
-            >
-              {COMPARISON_BASES
-                // YTD cuma punya 1 pembanding yang valid (apple-to-apple) — lihat catatan di comparisonKey.
-                .filter((c) => periodType !== 'ytd' || c === 'last_year')
-                .map((c) => (
-                  <MenuItem key={c} value={c}>{t(`analisis.comparisonOption.${c}`)}</MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-
-          {(periodType === 'monthly' || periodType === 'ytd') && (
-            <MonthYearPicker
-              size="small"
-              label={t('analisis.periodDataLabel')}
-              value={periodKey}
-              onChange={setPeriodKey}
-              maxDate={currentInProgressKey}
-              sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}
-            />
-          )}
+          <DatePicker
+            size="small"
+            label={t('analisis.periodDataLabel')}
+            value={endDate}
+            onChange={(e) => {
+              // Tidak boleh pilih tanggal di masa depan — clamp ke hari ini
+              // (komponen DatePicker atomic tidak expose slotProps/max native).
+              const picked = e.target.value
+              setEndDate(picked && picked > todayStr ? todayStr : picked)
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}
+          />
 
           <TextField
             size="small"
@@ -392,7 +363,7 @@ export default function AnalisisPage() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
-          <IconButton size="small" sx={{ flexShrink: 0 }} onClick={() => setPeriodKey(getPreviousPeriodKey(periodType, periodKey))}>
+          <IconButton size="small" sx={{ flexShrink: 0 }} onClick={() => setEndDate(shiftEndDate(periodType, endDate, -1))}>
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
           <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -414,8 +385,11 @@ export default function AnalisisPage() {
           <IconButton
             sx={{ flexShrink: 0 }}
             size="small"
-            disabled={periodKey === currentInProgressKey}
-            onClick={() => setPeriodKey(getNextPeriodKey(periodType, periodKey))}
+            disabled={isViewingInProgress}
+            onClick={() => {
+              const next = shiftEndDate(periodType, endDate, 1)
+              setEndDate(next > todayStr ? todayStr : next)
+            }}
           >
             <ChevronRightIcon fontSize="small" />
           </IconButton>

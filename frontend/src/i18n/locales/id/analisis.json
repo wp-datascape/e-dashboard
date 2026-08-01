@@ -10,7 +10,7 @@
   "changeValue": "Perubahan Nilai",
   "changePercent": "Perubahan (%)",
   "periodLabel": "Periode",
-  "periodDataLabel": "Periode Data",
+  "periodDataLabel": "Tanggal",
   "comparisonLabel": "Pembanding",
   "comparisonOption": {
     "last_year": "Tahun Lalu",

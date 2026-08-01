@@ -10,7 +10,7 @@
   "changeValue": "Change Value",
   "changePercent": "Change (%)",
   "periodLabel": "Period",
-  "periodDataLabel": "Data Period",
+  "periodDataLabel": "Date",
   "comparisonLabel": "Compare To",
   "comparisonOption": {
     "last_year": "Last Year",
