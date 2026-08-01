@@ -24,9 +24,9 @@ import { useTranslation } from 'react-i18next'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useBranches, useCredentials, useSaveCredentials, useTestConnection } from '@/hooks/useAccurate'
 import { useResendSettings, useSaveResendSettings, useSendTestEmail, useSendTestDigestEmail } from '@/hooks/useResendSettings'
-import type { DigestTrigger } from '@/types/resend'
+import type { AnalisisPeriodType } from '@/types/analisis'
 import type { AccurateCredentialsPayload } from '@/types/accurate'
-import { Card } from '@/components/ui'
+import { Card, DatePicker } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
 import { getApiErrorMessage } from '@/utils/apiError'
 
@@ -316,7 +316,16 @@ function ResendIntegrationTab() {
   const testEmailMutation = useSendTestEmail()
   const testDigestMutation = useSendTestDigestEmail()
   const [testDigestResult, setTestDigestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'fail'; message?: string }>({ status: 'idle' })
-  const [testDigestTrigger, setTestDigestTrigger] = useState<DigestTrigger>('all')
+  // "Kirim Laporan Manual" (task016 §29) — GANTI TOTAL dari dropdown simulasi
+  // trigger lama. Admin pilih sendiri period_type + tanggal akhir BEBAS (tidak
+  // terikat siklus trigger scheduler), start selalu awal periode yang
+  // mengandung tanggal itu, apple-to-apple — MIRROR PERSIS logic filter
+  // "Tanggal" di halaman Analisis (task016 §26).
+  const [manualPeriodType, setManualPeriodType] = useState<AnalisisPeriodType>('quarter')
+  const [manualEndDate, setManualEndDate] = useState<string>(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
 
   const handleSaveResend = async () => {
     setResendStatus('saving')
@@ -350,10 +359,10 @@ function ResendIntegrationTab() {
   }
 
   const handleSendTestDigest = async () => {
-    if (!testEmailTo.trim()) return
+    if (!testEmailTo.trim() || !manualEndDate) return
     setTestDigestResult({ status: 'testing' })
     try {
-      const result = await testDigestMutation.mutateAsync({ to: testEmailTo.trim(), trigger: testDigestTrigger })
+      const result = await testDigestMutation.mutateAsync({ to: testEmailTo.trim(), periodType: manualPeriodType, endDate: manualEndDate })
       setTestDigestResult({ status: result.success ? 'success' : 'fail', message: result.message })
     } catch (err: unknown) {
       setTestDigestResult({ status: 'fail', message: getApiErrorMessage(err, t) })
@@ -465,22 +474,27 @@ function ResendIntegrationTab() {
               </Button>
               <TextField
                 select
-                label={t('config.integration.resend.testDigestTriggerLabel')}
-                value={testDigestTrigger}
-                onChange={(e) => setTestDigestTrigger(e.target.value as DigestTrigger)}
-                sx={{ minWidth: 220 }}
+                label={t('config.integration.resend.manualPeriodTypeLabel')}
+                value={manualPeriodType}
+                onChange={(e) => setManualPeriodType(e.target.value as AnalisisPeriodType)}
+                sx={{ minWidth: 160 }}
               >
-                <MenuItem value="all">{t('config.integration.resend.trigger.all')}</MenuItem>
-                <MenuItem value="mid_month">{t('config.integration.resend.trigger.mid_month')}</MenuItem>
-                <MenuItem value="monthly">{t('config.integration.resend.trigger.monthly')}</MenuItem>
-                <MenuItem value="quarter">{t('config.integration.resend.trigger.quarter')}</MenuItem>
-                <MenuItem value="semester">{t('config.integration.resend.trigger.semester')}</MenuItem>
-                <MenuItem value="annual">{t('config.integration.resend.trigger.annual')}</MenuItem>
+                <MenuItem value="monthly">{t('paretoThreshold.period.monthly')}</MenuItem>
+                <MenuItem value="quarter">{t('paretoThreshold.period.quarter')}</MenuItem>
+                <MenuItem value="semester">{t('paretoThreshold.period.semester')}</MenuItem>
+                <MenuItem value="ytd">{t('paretoThreshold.period.ytd')}</MenuItem>
+                <MenuItem value="annual">{t('paretoThreshold.period.annual')}</MenuItem>
               </TextField>
+              <DatePicker
+                label={t('config.integration.resend.manualEndDateLabel')}
+                value={manualEndDate}
+                onChange={(e) => setManualEndDate(e.target.value)}
+                sx={{ minWidth: 170 }}
+              />
               <Button
                 variant="outlined"
                 onClick={handleSendTestDigest}
-                disabled={!testEmailTo.trim() || testDigestResult.status === 'testing'}
+                disabled={!testEmailTo.trim() || !manualEndDate || testDigestResult.status === 'testing'}
                 startIcon={testDigestResult.status === 'testing' ? <CircularProgress size={16} /> : undefined}
               >
                 {t('config.integration.resend.testDigestButton')}

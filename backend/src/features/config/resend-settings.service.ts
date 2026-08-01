@@ -116,16 +116,17 @@ export async function sendTestEmail(to: string): Promise<{ success: boolean; mes
   }
 }
 
-/** Kirim CONTOH digest laporan pakai template asli (email.service.ts sendDigestEmail),
- * bukan pesan generik seperti sendTestEmail di atas — supaya admin bisa lihat hasil
- * layout/branding yang SUNGGUHAN sebelum toggle is_active dinyalakan.
+/** Kirim laporan MANUAL (task016 §29) pakai template digest asli (email.service.ts
+ * sendDigestEmail) — dipakai kalau admin butuh laporan DI LUAR siklus trigger
+ * scheduler otomatis, bebas pilih period_type + tanggal akhir sendiri.
  *
- * `previewItems` dihitung LANGSUNG dari data invoice terkini (LIVE, bukan baca histori
- * tabel `notifications` yang bisa basi/incompatible — lihat previewCurrentDigestItems
- * di scheduler.ts) oleh HANDLER (resend-settings.handler.ts), bukan di sini — supaya
- * tidak circular import (resend-settings.service -> scheduler -> email.service ->
- * resend-settings.service kalau di-import langsung dari sini). Kosong = tidak ada
- * customer Kritis saat ini -> fallback ke contoh statis. */
+ * `previewItems` dihitung LANGSUNG dari data invoice terkini (LIVE, real dari DB,
+ * reuse generateAnalisis() yang sama dgn halaman Analisis — lihat
+ * computeManualDigestItems di scheduler.ts) oleh HANDLER (resend-settings.handler.ts),
+ * bukan di sini — supaya tidak circular import (resend-settings.service -> scheduler
+ * -> email.service -> resend-settings.service kalau di-import langsung dari sini).
+ * Kosong = tidak ada customer Kritis di periode+tanggal yang dipilih -> fallback ke
+ * contoh statis (supaya admin tetap bisa lihat layout/branding PDF). */
 export async function sendTestDigestEmail(
   to: string,
   previewItems: DigestNotificationItem[],
@@ -140,12 +141,12 @@ export async function sendTestDigestEmail(
 
   const sent = await sendDigestEmail(to, items, { skipActiveCheck: true })
   if (!sent) {
-    return { success: false, message: 'Gagal mengirim contoh laporan — cek log server untuk detail error dari Resend.' }
+    return { success: false, message: 'Gagal mengirim laporan — cek log server untuk detail error dari Resend.' }
   }
   return {
     success: true,
     message: usingSample
-      ? `Contoh laporan terkirim (${items.length} item contoh — saat ini tidak ada customer berstatus Kritis).`
-      : `Contoh laporan terkirim (${items.length} customer Kritis saat ini, dihitung live dari data invoice terkini).`,
+      ? `Laporan terkirim (${items.length} item contoh — tidak ada customer berstatus Kritis di periode & tanggal yang dipilih).`
+      : `Laporan terkirim (${items.length} customer Kritis, dihitung live dari data invoice periode & tanggal yang dipilih).`,
   }
 }

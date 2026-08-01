@@ -74,17 +74,10 @@
       "testEmailButton": "Kirim Email Test",
       "testEmailSuccess": "Email test berhasil dikirim.",
       "testEmailFail": "Gagal mengirim email test.",
-      "testDigestButton": "Kirim Contoh Laporan",
-      "testDigestFail": "Gagal mengirim contoh laporan.",
-      "testDigestTriggerLabel": "Simulasi Trigger",
-      "trigger": {
-        "all": "Semua (gabungan)",
-        "mid_month": "Progres Bulanan (tgl 14)",
-        "monthly": "Laporan Bulanan",
-        "quarter": "Laporan Kuartal",
-        "semester": "Laporan Semester",
-        "annual": "Laporan Tahunan"
-      },
+      "testDigestButton": "Kirim Laporan Manual",
+      "testDigestFail": "Gagal mengirim laporan.",
+      "manualPeriodTypeLabel": "Tipe Periode",
+      "manualEndDateLabel": "Tanggal",
       "saveSuccess": "Pengaturan email berhasil disimpan.",
       "saveFail": "Gagal menyimpan pengaturan email."
     }

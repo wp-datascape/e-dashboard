@@ -5,8 +5,16 @@
  * resend-settings.service.ts (konsumen, preview "Kirim Contoh Laporan").
  */
 
-export type DigestPeriodType = 'monthly' | 'quarter' | 'semester' | 'annual'
-export type DigestCheckpoint = 'closed' | 'mid_month'
+// 'ytd' ditambahkan task016 §29 — KHUSUS jalur laporan MANUAL (checkpoint
+// 'manual'), scheduler trigger asli TETAP tidak pernah pakai 'ytd' (YTD selalu
+// on-demand-only, lihat catatan period.util.ts).
+export type DigestPeriodType = 'monthly' | 'quarter' | 'semester' | 'annual' | 'ytd'
+// 'manual' — laporan yang di-generate LANGSUNG dari tombol "Kirim Laporan
+// Manual" (task016 §29), BUKAN dari siklus trigger scheduler otomatis. User
+// pilih period_type + tanggal akhir bebas (apa saja, tidak terikat siklus
+// trigger), datanya real dari DB via generateAnalisis() yang sama persis
+// dipakai halaman Analisis (end_date logic, task016 §26).
+export type DigestCheckpoint = 'closed' | 'mid_month' | 'manual'
 // SELALU 'last_year' — basis PoP ('previous_period') & YTD dihapus total dari
 // trigger alert (task016 §28, revisi 2026-08-01, permintaan user: "belum YOY
 // saja"). Union 1 anggota (bukan literal string biasa) SENGAJA dipertahankan
@@ -21,12 +29,14 @@ export type DigestBasis = 'last_year'
  * bulanan+kuartal+semester+tahunan bisa tutup di hari yang sama dan masuk 1
  * digest email yang sama (task016 §21-23). */
 export function triggerLabel(periodType: DigestPeriodType, checkpoint: DigestCheckpoint): string {
+  if (checkpoint === 'manual') return 'Laporan Manual'
   if (checkpoint === 'mid_month') return 'Progres Bulanan'
   switch (periodType) {
     case 'monthly': return 'Laporan Bulanan'
     case 'quarter': return 'Laporan Kuartal'
     case 'semester': return 'Laporan Semester'
     case 'annual': return 'Laporan Tahunan'
+    case 'ytd': return 'Laporan YTD' // tidak dipakai scheduler trigger asli, cuma checkpoint 'manual'
   }
 }
 
@@ -53,6 +63,12 @@ export interface DigestNotificationItem {
   period_type: DigestPeriodType
   period_key: string
   checkpoint: DigestCheckpoint
+  /** Tanggal akhir eksplisit (YYYY-MM-DD) — HANYA diisi utk checkpoint 'manual'
+   * (task016 §29). Trigger scheduler asli (closed/mid_month) TIDAK isi ini,
+   * range-nya deterministik dari period_type+period_key+checkpoint saja (lihat
+   * resolveTriggerRanges). Laporan manual butuh ini karena end date-nya BEBAS,
+   * tidak bisa direkonstruksi ulang cuma dari period_key. */
+  end_date?: string
   detail: AnalisisAlertDetail
 }
 
