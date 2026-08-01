@@ -20,7 +20,8 @@ import { logger } from '@/utils/logger'
 import { getDecryptedResendSettings } from '@/features/config/resend-settings.service'
 import { buildDigestPdf } from './pdf.service'
 import type { DigestNotificationItem } from './digest.types'
-import { getDict, type Locale } from './i18n'
+import { getDict, triggerLabel, type Locale } from './i18n'
+import { groupDigestBatches, formatDateRange } from './digest-batch.util'
 
 export type { DigestNotificationItem } from './digest.types'
 
@@ -49,15 +50,39 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-/** Badan email cuma paragraf penjelasan singkat — detail lengkap ada di PDF terlampir. */
+/** Kop formal per batch (task016 §31) — 1 blok per jenis laporan yang masuk
+ * digest ini (biasanya cuma 1, tapi 1 Januari bisa >1 saat bulanan+kuartal+
+ * semester+tahunan tutup bersamaan), masing-masing menyebut EKSPLISIT jenis
+ * laporan + rentang tanggal periode & pembanding — bukan cuma paragraf umum
+ * yang tidak menyebut periode sama sekali seperti sebelumnya. */
+function buildBatchBlock(batch: ReturnType<typeof groupDigestBatches>[number], locale: Locale): string {
+  const dict = getDict(locale)
+  const label = triggerLabel(batch.periodType, batch.checkpoint, locale)
+  return `
+      <div style="border-left:3px solid ${BRAND_COLOR};background:#F8FAFC;padding:14px 18px;margin:16px 0;">
+        <div style="font-weight:700;font-size:15px;color:#111827;">${escapeHtml(label)}</div>
+        <table style="margin-top:8px;font-size:13px;color:#374151;border-collapse:collapse;">
+          <tr>
+            <td style="padding:2px 8px 2px 0;color:#6B7280;white-space:nowrap;">${dict.pdf.periodCaption}:</td>
+            <td style="padding:2px 0;font-weight:600;">${escapeHtml(formatDateRange(batch.current.start, batch.current.end, dict.monthNames))}</td>
+          </tr>
+          <tr>
+            <td style="padding:2px 8px 2px 0;color:#6B7280;white-space:nowrap;">${dict.pdf.comparisonCaption}:</td>
+            <td style="padding:2px 0;">${escapeHtml(formatDateRange(batch.comparison.start, batch.comparison.end, dict.monthNames))}</td>
+          </tr>
+        </table>
+        <div style="margin-top:8px;font-size:13px;color:#B91C1C;font-weight:600;">${dict.email.reportCriticalCount(batch.items.length)}</div>
+      </div>`
+}
+
 function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | null, locale: Locale): string {
   const dict = getDict(locale)
-  const customerCount = new Set(items.map(i => `${i.company_name}:${i.customer_name}`)).size
   const generatedAt = new Date().toLocaleString(dict.dateLocale, {
     dateStyle: 'full',
     timeStyle: 'short',
     timeZone: 'Asia/Jakarta',
   })
+  const batchBlocks = groupDigestBatches(items).map(batch => buildBatchBlock(batch, locale)).join('')
 
   return `<!doctype html>
 <html>
@@ -69,9 +94,9 @@ function buildDigestHtml(items: DigestNotificationItem[], appBaseUrl: string | n
       </div>
       <div style="padding:24px;background:#FFFFFF;">
         <h2 style="margin:0 0 12px;color:#111827;font-size:18px;">${dict.email.bodyTitle}</h2>
-        <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">
-          ${dict.email.bodyParagraph(customerCount)}
-        </p>
+        <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">${dict.email.bodyIntro}</p>
+        ${batchBlocks}
+        <p style="margin:16px 0 0;color:#374151;font-size:14px;line-height:1.6;">${dict.email.bodyClosing}</p>
       </div>
       <div style="padding:16px 24px;background:#F9FAFB;color:#9CA3AF;font-size:11px;text-align:center;border-top:1px solid #E5E7EB;">
         ${appBaseUrl ? `<div>${dict.email.footerSource}: <a href="${escapeHtml(appBaseUrl)}" style="color:${BRAND_COLOR};">${escapeHtml(appBaseUrl)}</a></div>` : ''}
