@@ -4,8 +4,6 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
-import TextField from '@mui/material/TextField'
-import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import LinearProgress from '@mui/material/LinearProgress'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
@@ -14,6 +12,7 @@ import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { RangeFilter } from '@/components/filters/RangeFilter'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type {
   HighMarginCategoryRow,
@@ -413,16 +412,7 @@ export default function ProductsHighMargin() {
             sx={{ width: { xs: '100%', sm: 150 } }}
           />
 
-          <TextField
-            select size="small" label={t('common.filters.range')}
-            value={activeWindow}
-            onChange={(e) => setActiveWindow(Number(e.target.value))}
-            sx={{ width: { xs: '100%', sm: 130 } }}
-          >
-            <MenuItem value={3}>{t('common.filters.range3Months')}</MenuItem>
-            <MenuItem value={6}>{t('common.filters.range6Months')}</MenuItem>
-            <MenuItem value={12}>{t('common.filters.range12Months')}</MenuItem>
-          </TextField>
+          <RangeFilter value={activeWindow} onChange={setActiveWindow} />
 
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>
