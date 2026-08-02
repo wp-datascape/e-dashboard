@@ -3,13 +3,12 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
-import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { Card, DatePicker } from '@/components/ui'
+import { DatePicker } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useActivityLogs } from '@/hooks/useActivityLogs'
@@ -148,47 +147,6 @@ export default function ActivityLog() {
     return col
   })
 
-  const renderActivityCard = (row: Record<string, unknown>) => {
-    const activity = row as unknown as ActivityLog
-    return (
-      <Card key={activity.id} sx={{ mb: 2, p: 2.5 }}>
-        <Stack spacing={2.5}>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('activityLog.timestamp')}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {fmtDate(activity.created_at)}
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
-                {t('activityLog.method')}
-              </Typography>
-              <StatusChip label={activity.method} color={getMethodColor(activity.method)} />
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('activityLog.user')}
-              </Typography>
-              <Typography variant="body2">{activity.user?.name ?? '—'}</Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('activityLog.path')}
-              </Typography>
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{activity.path}</Typography>
-            </Box>
-          </Stack>
-        </Stack>
-      </Card>
-    )
-  }
-
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ mb: 3 }}>
@@ -236,7 +194,10 @@ export default function ActivityLog() {
         rows={rows}
         columns={columnsWithClick}
         onRowClick={(row) => handleView((row as unknown as ActivityLog).id)}
-        renderCard={renderActivityCard}
+        // Field pertama = judul card mobile — 'user' (siapa) lebih informatif
+        // sebagai identitas baris daripada 'created_at' (kolom pertama tabel
+        // desktop, cuma timestamp mentah).
+        mobileFields={['user', 'method', 'module', 'created_at', 'path', 'status_code', 'duration_ms']}
         loading={isLoading}
         error={error as Error | null}
         title={t('activityLog.table')}

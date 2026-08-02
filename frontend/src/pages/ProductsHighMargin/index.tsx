@@ -320,6 +320,9 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         height={500}
         getRowHeight="auto"
         onRowClick={(row) => openHistory(row as unknown as UpsellTargetRow, null)}
+        // Nama customer sebagai judul card mobile, bukan customer_code (kolom
+        // pertama di tabel desktop) — customer_code jarang terisi di database.
+        mobileFields={['customer_name', 'customer_code', 'business_unit', 'avg_monthly_revenue', 'categories_bought', 'missing_high_margin_categories', 'last_invoice_date']}
       />
 
       {/* Customer purchase history dialog */}

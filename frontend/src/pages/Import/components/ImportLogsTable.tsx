@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import Stack from '@mui/material/Stack'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import WarningIcon from '@mui/icons-material/Warning'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
-import { Card } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useImportLogs } from '@/hooks/useImport'
@@ -141,114 +139,15 @@ export function ImportLogsTable() {
     },
   ]
 
-  const renderImportCard = (row: Record<string, unknown>) => {
-    const log = row as unknown as ImportLog
-    const statusColor = log.status === 'success' ? 'success' : log.status === 'partial' ? 'warning' : 'error'
-    return (
-      <Card key={log.id} sx={{ mb: 2, p: 2.5 }}>
-        <Stack spacing={2.5}>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colDate')}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {formatDate(log.created_at)}
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colStatus')}
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <StatusIcon status={log.status} />
-                <StatusChip label={t(`import.status.${log.status}`)} color={statusColor} />
-              </Box>
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colCompany')}
-              </Typography>
-              <Typography variant="body2">{log.company?.name ?? '—'}</Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colSource')}
-              </Typography>
-              <StatusChip
-                label={log.source === 'file' ? t('import.logs.sourceFileShort') : t('import.logs.sourceAccurateShort')}
-                color={log.source === 'file' ? 'primary' : 'info'}
-              />
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colPeriod')}
-              </Typography>
-              <Typography variant="body2">{log.period_month}</Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colTotal')}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {log.total_invoices.toLocaleString('id-ID')}
-              </Typography>
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colSuccess')}
-              </Typography>
-              <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
-                {log.success_invoices.toLocaleString('id-ID')}
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('import.logs.colErrors')}
-              </Typography>
-              {log.error_rows > 0 ? (
-                <Typography
-                  variant="body2"
-                  color="error.main"
-                  sx={{ fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
-                  onClick={() => setSelectedLog(log)}
-                >
-                  {log.error_rows}
-                </Typography>
-              ) : (
-                <Typography variant="body2" color="text.disabled">0</Typography>
-              )}
-            </Box>
-          </Stack>
-
-          {log.filename && (
-            <Typography variant="caption" color="text.secondary">
-              {t('import.logs.colFile')}: {log.filename}
-            </Typography>
-          )}
-          <Typography variant="caption" color="text.disabled">
-            {t('import.logs.colBy')}: {log.imported_by?.name ?? '—'}
-          </Typography>
-        </Stack>
-      </Card>
-    )
-  }
-
   return (
     <>
       <ResponsiveListView
         rows={logs}
         columns={columns}
-        renderCard={renderImportCard}
+        // Field pertama = judul card mobile — 'company' lebih informatif
+        // sebagai identitas baris daripada 'created_at' (kolom pertama tabel
+        // desktop, cuma timestamp mentah).
+        mobileFields={['company', 'status', 'created_at', 'source', 'period_month', 'total_invoices', 'success_invoices', 'error_rows', 'filename', 'imported_by']}
         loading={isLoading}
         error={error as Error | null}
         title={t('import.logs.title')}

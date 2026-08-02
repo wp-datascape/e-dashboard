@@ -1,11 +1,15 @@
 // frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx
-import { type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -21,13 +25,26 @@ import { getApiErrorMessage } from '@/utils/apiError';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/** Accordion expand/collapse yang dipusatkan di ResponsiveListView (lihat
+ * `expandedId` di bawah) — dipakai AutoCard maupun `renderCard` custom supaya
+ * SEMUA card mobile (default atau custom) pakai logic exclusive-accordion yang
+ * sama, bukan tiap halaman bikin `useState` sendiri (dulu sempat kejadian:
+ * AutoCard multi-open, satu custom renderCard bikin sendiri exclusive-open —
+ * 2 perilaku beda untuk 1 pola UI yang sama). */
+export interface CardExpandState {
+  expanded: boolean;
+  onToggle: () => void;
+}
+
 export interface ResponsiveListViewProps {
   /** Row data */
   rows: GridRowsProp;
   /** Column definitions (same format as DataGrid) */
   columns: GridColDef[];
-  /** Optional custom card renderer for mobile view */
-  renderCard?: (row: Record<string, unknown>, index: number) => ReactNode;
+  /** Optional custom card renderer for mobile view. `expandState` (accordion
+   * exclusive terpusat) opsional dipakai kalau card custom ini juga berbentuk
+   * accordion — lihat `CardExpandState`. */
+  renderCard?: (row: Record<string, unknown>, index: number, expandState: CardExpandState) => ReactNode;
   /** Row click handler (desktop DataGrid onRowClick + auto-generated cards) */
   onRowClick?: (row: Record<string, unknown>) => void;
   /** Loading state */
@@ -89,15 +106,28 @@ function AutoCard({
   columns,
   mobileFields,
   onRowClick,
+  expandState,
 }: {
   row: Record<string, unknown>;
   columns: GridColDef[];
   mobileFields: string[];
   onRowClick?: (row: Record<string, unknown>) => void;
+  expandState: CardExpandState;
 }) {
-  const fields = columns.filter(
-    (col) => col.field && mobileFields.includes(col.field),
-  );
+  const { t } = useTranslation();
+  // Kolapsis by default — cuma field pertama (biasanya nama/judul) yang selalu
+  // terlihat, field lain (revenue, GP, tanggal, dst.) baru muncul saat di-expand.
+  // Permintaan user: card mobile yang selalu tampil semua field (versi lama)
+  // kepanjangan & bikin nama utama ketimpa/terpotong. Field pertama TIDAK
+  // diulang di body — sudah terwakili di header accordion.
+  // WAJIB map dari `mobileFields` (urutan yang caller tentukan), BUKAN
+  // columns.filter() — filter mempertahankan urutan deklarasi `columns`
+  // aslinya, mengabaikan urutan yang diminta caller lewat `mobileFields`,
+  // jadi field pertama yang caller inginkan (mis. nama customer) tidak
+  // benar-benar jadi judul kalau kolomnya dideklarasikan belakangan.
+  const [titleField, ...restFields] = mobileFields
+    .map((field) => columns.find((col) => col.field === field))
+    .filter((col): col is GridColDef => Boolean(col));
   const actionsCol = columns.find((col) => col.field === '_actions');
 
   const makeCellParams = (col: GridColDef) =>
@@ -112,22 +142,64 @@ function AutoCard({
       formattedValue: formatColumnValue(row, col),
     }) as unknown as GridRenderCellParams<Record<string, unknown>, Record<string, unknown>>;
 
+  if (!titleField) return null;
+
   return (
-    <Card
+    <Accordion
+      expanded={expandState.expanded}
+      onChange={expandState.onToggle}
+      disableGutters
+      square={false}
       sx={{
         mb: 1.5,
-        cursor: onRowClick ? 'pointer' : 'default',
-        '&:hover': onRowClick ? { borderColor: 'primary.light' } : undefined,
+        borderRadius: 1,
+        border: '1px solid',
+        borderColor: 'divider',
+        boxShadow: 'none',
+        overflow: 'hidden',
+        '&:before': { display: 'none' },
       }}
-      onClick={() => onRowClick?.(row)}
     >
-      <Box sx={{ p: 2 }}>
+      {/* Box relative WAJIB membungkus AccordionSummary — root MUI-nya render
+          sebagai elemen <button> asli. Kalau actionsCol (IconButton/ActionMenu,
+          juga <button>) ditaruh SEBAGAI ANAK AccordionSummary, hasilnya
+          <button> bersarang di <button> — HTML invalid, React warning
+          hydration, dan browser diam-diam merestrukturisasi DOM (klik action
+          jadi tidak reliable). Actions HARUS jadi sibling yang diposisikan
+          absolute di atasnya, bukan anak. */}
+      <Box sx={{ position: 'relative' }}>
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          sx={{
+            '& .MuiAccordionSummary-content': {
+              minWidth: 0,
+              overflow: 'hidden',
+              alignItems: 'center',
+              // Sisakan ruang di kanan biar teks judul tidak ketiban actions
+              // yang di-absolute-position di atasnya.
+              pr: actionsCol?.renderCell ? 5 : 0,
+            },
+          }}
+        >
+          {titleField.renderCell ? (
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>{titleField.renderCell(makeCellParams(titleField))}</Box>
+          ) : (
+            <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {formatColumnValue(row, titleField)}
+            </Typography>
+          )}
+        </AccordionSummary>
         {actionsCol?.renderCell && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+          <Box
+            onClick={(e) => e.stopPropagation()}
+            sx={{ position: 'absolute', top: '50%', right: 40, transform: 'translateY(-50%)' }}
+          >
             {actionsCol.renderCell(makeCellParams(actionsCol))}
           </Box>
         )}
-        {fields.map((col, idx) => (
+      </Box>
+      <AccordionDetails sx={{ pt: 0 }}>
+        {restFields.map((col, idx) => (
           // minWidth:0 WAJIB di container field — default flex item punya min-width:auto
           // (ikut lebar konten, TIDAK bisa menyusut di bawah itu), jadi teks panjang tanpa
           // spasi (mis. entity_key/URL/ID teknis) mendorong Box ini lebih lebar dari Card,
@@ -158,8 +230,25 @@ function AutoCard({
             </Box>
           </Box>
         ))}
-      </Box>
-    </Card>
+        {onRowClick && (
+          <Box
+            onClick={(e) => { e.stopPropagation(); onRowClick(row); }}
+            sx={{
+              mt: restFields.length > 0 ? 1.5 : 0,
+              pt: restFields.length > 0 ? 1.5 : 0,
+              borderTop: restFields.length > 0 ? '1px solid' : 'none',
+              borderColor: 'divider',
+              color: 'primary.main',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+            }}
+          >
+            {t('common.viewDetailOf', { title: formatColumnValue(row, titleField) })}
+          </Box>
+        )}
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
@@ -194,6 +283,15 @@ export function ResponsiveListView({
   // tanpa scroll horizontal yang canggung. Sama dengan breakpoint yang sudah
   // dipakai DashboardLayout untuk switch sidebar temporary/permanent.
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Accordion exclusive terpusat (satu sumber untuk AutoCard maupun renderCard
+  // custom) — buka card lain otomatis nutup yang sebelumnya, bukan tiap
+  // pemakai bikin `useState` sendiri (lihat `CardExpandState`).
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const makeExpandState = (rowId: string): CardExpandState => ({
+    expanded: expandedId === rowId,
+    onToggle: () => setExpandedId((cur) => (cur === rowId ? null : rowId)),
+  });
 
   const effectiveMobileFields =
     mobileFields ?? columns.filter((c) => c.headerName).map((c) => c.field);
@@ -241,19 +339,21 @@ export function ResponsiveListView({
             {t('common.titleWithItemCount', { title, count: rows.length })}
           </Typography>
         )}
-        {rows.map((row, idx) =>
-          renderCard ? (
-            renderCard(row as Record<string, unknown>, idx)
+        {rows.map((row, idx) => {
+          const rowId = String((row as Record<string, unknown>).id ?? idx);
+          return renderCard ? (
+            renderCard(row as Record<string, unknown>, idx, makeExpandState(rowId))
           ) : (
             <AutoCard
-              key={String((row as Record<string, unknown>).id ?? idx)}
+              key={rowId}
               row={row as Record<string, unknown>}
               columns={columns}
               mobileFields={effectiveMobileFields}
               onRowClick={onRowClick}
+              expandState={makeExpandState(rowId)}
             />
-          ),
-        )}
+          );
+        })}
       </Box>
     );
   }

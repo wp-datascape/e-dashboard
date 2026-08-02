@@ -51,30 +51,6 @@ export default function NotificationsPage() {
     setDetailNotification(n)
   }
 
-  const renderCard = (rawRow: Record<string, unknown>) => {
-    const n = rawRow as unknown as NotificationRow
-    return (
-      <Card
-        key={n.id}
-        onClick={() => handleRowClick(rawRow)}
-        sx={{
-          mb: 2,
-          p: 2.5,
-          cursor: 'pointer',
-          borderLeft: '3px solid',
-          borderLeftColor: n.is_read ? 'transparent' : 'primary.main',
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-          <Typography variant="body2" sx={{ fontWeight: n.is_read ? 400 : 600 }}>{n.title}</Typography>
-          {!n.is_read && <StatusChip size="small" label={t('notifications.unread')} color="primary" />}
-        </Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{n.body}</Typography>
-        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>{fmtDate(n.created_at)}</Typography>
-      </Card>
-    )
-  }
-
   const columns: GridColDef<NotificationRow>[] = [
     {
       field: 'title',
@@ -82,9 +58,15 @@ export default function NotificationsPage() {
       flex: 1.2,
       minWidth: 220,
       sortable: false,
+      // Judul + badge unread selalu terlihat (jadi header card mobile via
+      // mobileFields) + preview body — badge dipindah kesini (bukan ke kolom
+      // is_read) supaya kelihatan tanpa expand card dulu.
       renderCell: ({ row }) => (
-        <Box sx={{ py: 0.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: row.is_read ? 400 : 600 }}>{row.title}</Typography>
+        <Box sx={{ py: 0.5, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: row.is_read ? 400 : 600 }}>{row.title}</Typography>
+            {!row.is_read && <StatusChip size="small" label={t('notifications.unread')} color="primary" />}
+          </Box>
           <Typography variant="caption" color="text.secondary">{row.body}</Typography>
         </Box>
       ),
@@ -141,7 +123,7 @@ export default function NotificationsPage() {
         <ResponsiveListView
           rows={rows}
           columns={columns}
-          renderCard={renderCard}
+          mobileFields={['title', 'is_read', 'created_at']}
           onRowClick={handleRowClick}
           loading={isLoading}
           getRowHeight="auto"

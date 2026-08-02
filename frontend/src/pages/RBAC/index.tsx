@@ -22,7 +22,6 @@ import {
 import type { Role, Permission, CreateRolePayload } from '@/types/rbac';
 
 // Components
-import { RoleCard } from './components/RoleCard';
 import { AddRoleDialog } from './components/AddRoleDialog';
 import { DeleteRoleDialog } from './components/DeleteRoleDialog';
 import { SetPermissionDialog } from './components/SetPermissionDialog';
@@ -131,8 +130,8 @@ export default function RBAC() {
       ),
     },
     {
-      field: 'actions',
-      headerName: t('common.actions'),
+      field: '_actions',
+      headerName: '',
       width: 110,
       sortable: false,
       align: 'center',
@@ -188,16 +187,6 @@ export default function RBAC() {
         title={t('rbac.roles')}
         pageSize={10}
         height={450}
-        renderCard={(row, _idx) => (
-          <RoleCard
-            key={_idx}
-            role={row as unknown as Role}
-            onPermissions={openPermDialog}
-            onDelete={openDeleteDialog}
-            canManagePermissions={can('access.permission:view') || can('access.permission:update')}
-            canDelete={can('access.role:delete')}
-          />
-        )}
         mobileFields={['name', 'description', 'permissions']}
       />
 

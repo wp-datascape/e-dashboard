@@ -1,14 +1,20 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
-import Chip from '@mui/material/Chip'
 import Skeleton from '@mui/material/Skeleton'
+import Divider from '@mui/material/Divider'
+import Accordion from '@mui/material/Accordion'
+import AccordionSummary from '@mui/material/AccordionSummary'
+import AccordionDetails from '@mui/material/AccordionDetails'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { useTranslation } from 'react-i18next'
 import { useHmCustomers } from '@/hooks/useProducts'
 import { formatIDR } from '@/utils/format'
+import { getDivisionColor } from '@/utils/divisionColor'
+import { StatusChip } from '@/components/ui'
 import type { HmCustomerRow, HmDivisionBreakdown } from '@/types/products'
 import type { GridColDef } from '@mui/x-data-grid'
-import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { ResponsiveListView, type CardExpandState } from '@/components/tables/ResponsiveListView'
 
 export interface HmTarget {
   type: 'category' | 'product'
@@ -76,9 +82,10 @@ export function HmCustomerBreakdown({
       headerName: t('productsHighMargin.buyers.colDivision'),
       width: 130,
       sortable: false,
-      renderCell: ({ row }) => (
-        <Chip size="small" label={row.division_label ?? t('productsHighMargin.buyers.otherDivision')} variant="outlined" />
-      ),
+      renderCell: ({ row }) => {
+        const label = row.division_label ?? t('productsHighMargin.buyers.otherDivision')
+        return <StatusChip label={label} color={getDivisionColor(label)} />
+      },
     },
     {
       field: 'total_revenue',
@@ -111,6 +118,70 @@ export function HmCustomerBreakdown({
     },
   ]
 
+  // Mode mobile "Customer Pembeli" — accordion, bukan card AutoCard biasa
+  // (mempersingkat list panjang: cuma header nama+divisi yg selalu terlihat,
+  // detail revenue/GP/faktur/tanggal baru muncul saat di-klik). Exclusive-open
+  // (buka 1 otomatis nutup yang lain) dipusatkan lewat `expandState` dari
+  // ResponsiveListView, BUKAN state lokal — supaya perilakunya identik dengan
+  // AutoCard default di halaman lain (lihat CardExpandState).
+  const renderCustomerAccordion = (row: Record<string, unknown>, _idx: number, expandState: CardExpandState) => {
+    const r = row as unknown as HmCustomerRow
+    return (
+      <Accordion
+        key={r.id}
+        expanded={expandState.expanded}
+        onChange={expandState.onToggle}
+        disableGutters
+        square={false}
+        sx={{
+          mb: 1,
+          borderRadius: 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: 'none',
+          overflow: 'hidden',
+          '&:before': { display: 'none' },
+        }}
+      >
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          sx={{ '& .MuiAccordionSummary-content': { minWidth: 0, overflow: 'hidden' } }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: 1 }}>
+            {r.customer_name}
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 0 }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
+              {t('productsHighMargin.buyers.colDivision')}
+            </Typography>
+            <StatusChip
+              label={r.division_label ?? t('productsHighMargin.buyers.otherDivision')}
+              color={getDivisionColor(r.division_label)}
+            />
+          </Box>
+          {[
+            { label: t('products.drawer.colRevenue'), value: formatIDR(r.total_revenue) },
+            { label: t('products.drawer.colGp'), value: formatIDR(r.total_gp) },
+            { label: t('products.drawer.colInvoice'), value: String(r.invoice_count) },
+            { label: t('productsHighMargin.buyers.colLastPurchase'), value: r.last_invoice_date },
+          ].map((f) => (
+            <Box key={f.label}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
+                {f.label}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {f.value}
+              </Typography>
+            </Box>
+          ))}
+        </AccordionDetails>
+      </Accordion>
+    )
+  }
+
   if (!target) return null
 
   return (
@@ -127,15 +198,24 @@ export function HmCustomerBreakdown({
             {t('productsHighMargin.buyers.noBreakdown')}
           </Typography>
         ) : (
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(auto-fill, minmax(150px, 1fr))' },
+              gap: 1,
+            }}
+          >
             {breakdown.map((b) => (
               <Box
                 key={b.division_id ?? 'other'}
-                sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, minWidth: 150 }}
+                sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}
               >
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  {b.division_label ?? t('productsHighMargin.buyers.otherDivision')}
-                </Typography>
+                <Box sx={{ mb: 0.5 }}>
+                  <StatusChip
+                    label={b.division_label ?? t('productsHighMargin.buyers.otherDivision')}
+                    color={getDivisionColor(b.division_label)}
+                  />
+                </Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   {formatIDR(b.total_revenue)}
                   {grandTotalRevenue > 0 && (
@@ -149,7 +229,7 @@ export function HmCustomerBreakdown({
                 </Typography>
               </Box>
             ))}
-          </Stack>
+          </Box>
         )}
       </Box>
 
@@ -168,6 +248,7 @@ export function HmCustomerBreakdown({
         <ResponsiveListView
           rows={data?.data ?? []}
           columns={columns}
+          renderCard={renderCustomerAccordion}
           rowCount={data?.meta.total ?? 0}
           loading={false}
           error={null}

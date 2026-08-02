@@ -28,7 +28,7 @@ import { formatIDR, formatIDRSigned } from '@/utils/format'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
-import { MetricPair, MetricPercentPair, ComparisonSections } from '@/components/analisis/ComparisonMetrics'
+import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
 import { trendColor } from '@/utils/analisisComparison'
 import type { AnalisisPeriodType, AnalisisRow } from '@/types/analisis'
 
@@ -152,43 +152,6 @@ export default function AnalisisPage() {
   const gmLabel = t('analisis.metricMargin') // dipakai KHUSUS nilai persentase (rasio)
   const gpLabel = t('analisis.metricGP') // dipakai KHUSUS nilai Rupiah (angka absolut)
   const newBusinessLabel = t('analisis.newBusiness')
-
-  const renderReportCard = (rawRow: Record<string, unknown>) => {
-    const row = rawRow as unknown as AnalisisRow
-    const alert = hasAnyAlert(row)
-    return (
-      <Card key={row.customer_id} sx={{ mb: 2, p: 2.5 }}>
-        <Stack spacing={2}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{row.customer_name}</Typography>
-                {row.is_pareto && <ParetoBadge />}
-              </Stack>
-              <Typography variant="caption" color="text.secondary" noWrap>{row.company_name ?? '-'}</Typography>
-            </Box>
-            <StatusChip
-              label={alert ? t('analisis.critical') : t('analisis.normal')}
-              color={alert ? 'error' : 'success'}
-            />
-          </Stack>
-
-          <ComparisonSections
-            comparisonSectionLabel={t('analisis.comparisonLabel')}
-            periodSectionLabel={t('analisis.periodLabel')}
-            changeValueSectionLabel={t('analisis.changeValue')}
-            changePercentSectionLabel={t('analisis.changePercent')}
-            current={row.current}
-            comparison={row.comparison}
-            revenueLabel={revLabel}
-            marginLabel={gpLabel}
-            marginPercentLabel={gmLabel}
-            newBusinessLabel={newBusinessLabel}
-          />
-        </Stack>
-      </Card>
-    )
-  }
 
   const columns: GridColDef<AnalisisRow>[] = [
     {
@@ -400,7 +363,7 @@ export default function AnalisisPage() {
         <ResponsiveListView
           rows={rows}
           columns={columns}
-          renderCard={renderReportCard}
+          mobileFields={['customer_name', 'company_name', 'periode_lampau', 'current', 'changeValue', 'changePercent', '_status']}
           loading={isLoading}
           getRowHeight="auto"
           rowCount={data?.meta.total ?? 0}

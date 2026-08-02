@@ -2,18 +2,14 @@ import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Switch from '@mui/material/Switch'
-import Table from '@mui/material/Table'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableRow from '@mui/material/TableRow'
-import TableCell from '@mui/material/TableCell'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Stack from '@mui/material/Stack'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
+import type { GridColDef } from '@mui/x-data-grid'
 import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
 import { Card, StatusChip } from '@/components/ui'
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCan } from '@/hooks/useCan'
 
 // page_key -> i18n key (reuse label yang sama dengan Sidebar, SSOT di locale nav.*)
@@ -155,6 +151,30 @@ export default function FeaturesPage() {
   }, {})
   const orderedGroups = GROUP_KEY_ORDER.filter((g) => g in grouped).map((g) => [g, grouped[g]] as const)
 
+  // Kolom shared untuk ResponsiveListView (desktop DataGrid otomatis / mobile
+  // accordion otomatis) — ganti pola lama Table+Stack<Card> yang ditulis
+  // manual berdampingan per grup, sama seperti Threshold/index.tsx.
+  const columns: GridColDef[] = [
+    { field: 'label', headerName: t('config.pageSettings.colPage'), flex: 1.2, minWidth: 160 },
+    {
+      field: 'page_key', headerName: t('config.pageSettings.colKey'), flex: 1, minWidth: 140,
+      renderCell: ({ value }) => <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{value as string}</Typography>,
+    },
+    {
+      field: 'ready', headerName: t('config.pageSettings.colStatus'), width: 120, sortable: false,
+      renderCell: ({ row }) => <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} />,
+    },
+    {
+      field: '_actions', headerName: '', width: 80, sortable: false, align: 'center', headerAlign: 'center',
+      renderCell: ({ row }) => {
+        const isBusy = isPending && busyKey === row.page_key
+        return isBusy
+          ? <CircularProgress size={20} />
+          : <Switch checked={row.ready} onChange={() => handleToggle(row.page_key, row.ready)} size="small" color="primary" disabled={!can('config.features:update')} />
+      },
+    },
+  ]
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.configFeatures')}</Typography>
@@ -163,64 +183,24 @@ export default function FeaturesPage() {
       <Card sx={{ p: 3 }}>
         {orderedGroups.map(([groupKey, pages]) => {
           const sortedPages = [...pages].sort((a, b) => (ITEM_ORDER[a.page_key] ?? 99) - (ITEM_ORDER[b.page_key] ?? 99))
+          const rows = sortedPages.map((item) => {
+            const labelKey = PAGE_LABEL_KEYS[item.page_key]
+            return { ...item, id: item.page_key, label: labelKey ? t(labelKey) : item.page_key }
+          })
           return (
-          <Box key={groupKey} sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
-              {t(groupKey)}
-            </Typography>
+            <Box key={groupKey} sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
+                {t(groupKey)}
+              </Typography>
 
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600, width: '40%' }}>{t('config.pageSettings.colPage')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, width: '25%' }}>{t('config.pageSettings.colKey')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, width: '20%' }}>{t('config.pageSettings.colStatus')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, width: '15%' }}>{t('config.pageSettings.colToggle')}</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {sortedPages.map((item) => {
-                    const labelKey = PAGE_LABEL_KEYS[item.page_key]
-                    const label = labelKey ? t(labelKey) : item.page_key
-                    const isBusy = isPending && busyKey === item.page_key
-                    return (
-                      <TableRow key={item.page_key} hover>
-                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography></TableCell>
-                        <TableCell><Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{item.page_key}</Typography></TableCell>
-                        <TableCell>
-                          <StatusChip label={item.ready ? t('common.active') : t('common.inactive')} color={item.ready ? 'success' : 'default'} />
-                        </TableCell>
-                        <TableCell>
-                          {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <ResponsiveListView
+                rows={rows}
+                columns={columns}
+                mobileFields={['label', 'page_key', 'ready']}
+                height={Math.min(400, 70 + sortedPages.length * 60)}
+                pageSizeOptions={[10]}
+              />
             </Box>
-
-            <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
-              {sortedPages.map((item) => {
-                const labelKey = PAGE_LABEL_KEYS[item.page_key]
-                const label = labelKey ? t(labelKey) : item.page_key
-                const isBusy = isPending && busyKey === item.page_key
-                return (
-                  <Card key={item.page_key} sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <StatusChip label={item.ready ? t('common.active') : t('common.inactive')} color={item.ready ? 'success' : 'default'} />
-                        {isBusy ? <CircularProgress size={20} /> : <Switch checked={item.ready} onChange={() => handleToggle(item.page_key, item.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
-                      </Box>
-                    </Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{item.page_key}</Typography>
-                  </Card>
-                )
-              })}
-            </Stack>
-          </Box>
           )
         })}
       </Card>
