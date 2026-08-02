@@ -229,7 +229,6 @@ export default function Products() {
               <Switch
                 checked={highMarginOnly}
                 onChange={(e) => { setHighMarginOnly(e.target.checked); setPaginationModel((p) => ({ ...p, page: 0 })) }}
-                color="warning"
                 size="small"
               />
             }
