@@ -24,7 +24,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
+    // 100dvh (dynamic viewport height), BUKAN 100vh — di browser mobile, 100vh
+    // dihitung dari viewport TERBESAR (address bar disembunyikan), padahal
+    // defaultnya address bar kelihatan. Begitu address bar collapse/expand
+    // saat scroll, layout height:100vh ikut reflow mengejar nilai yang
+    // berubah-ubah — kelihatan seperti "zoom out/in"/layar bergeser. dvh
+    // selalu ikut viewport AKTUAL saat itu, tidak reflow saat address bar
+    // berubah. Shell utama ini paling kritis karena membungkus semua halaman.
+    <Box sx={{ display: 'flex', height: '100dvh', overflow: 'hidden', bgcolor: 'background.default' }}>
       {/* ── App Bar ───────────────────────────────────── */}
       <DashboardAppBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
 
