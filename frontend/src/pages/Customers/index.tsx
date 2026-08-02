@@ -133,6 +133,10 @@ export default function Customers() {
         pageSizeOptions={[25, 50, 100]}
         onRowClick={(row) => handleRowClick(row as unknown as CustomerRow)}
         height={600}
+        // Nama customer sebagai judul card mobile, bukan customer_code (kolom
+        // pertama di tabel desktop) — customer_code jarang terisi di database,
+        // jadi kalau jadi judul, judul cardnya sering kosong/tidak informatif.
+        mobileFields={['name', 'customer_code', 'company', 'division', 'status', 'category_count', 'avg_monthly_revenue', 'lifetime_value', 'last_invoice_date', 'total_invoices']}
       />
 
       <CustomerDetailDialog

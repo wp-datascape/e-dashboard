@@ -3,13 +3,12 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
-import Stack from '@mui/material/Stack'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { Card, DatePicker } from '@/components/ui'
+import { DatePicker } from '@/components/ui'
 import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useAuditLogs, useAuditActions } from '@/hooks/useAuditLogs'
@@ -150,70 +149,6 @@ export default function AuditLog() {
     return col
   })
 
-  // Custom mobile card renderer for audit logs
-  const renderAuditCard = (row: Record<string, unknown>) => {
-    const audit = row as unknown as AuditLog
-    return (
-      <Card key={audit.id} sx={{ mb: 2, p: 2.5 }}>
-        <Stack spacing={2.5}>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('auditLog.timestamp')}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {fmtDate(audit.created_at)}
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
-                {t('auditLog.action')}
-              </Typography>
-              <StatusChip
-                label={t(`auditLog.actions.${audit.action}`, { defaultValue: audit.action })}
-                color={getActionColor(audit.action)}
-              />
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('auditLog.actor')}
-              </Typography>
-              <Typography variant="body2">{audit.actor?.name ?? '—'}</Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {t('auditLog.entity')}
-              </Typography>
-              <Typography variant="body2">{audit.entity_key}</Typography>
-            </Box>
-          </Stack>
-
-          <Stack direction="row" spacing={2}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block',mb: 0.5 }}>
-              {t('auditLog.dialog.table')}
-            </Typography>
-            <Typography variant="body2">{audit.entity}</Typography>
-          </Box>
-            {audit.ip_address && (
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  {t('auditLog.ipAddress')}
-                </Typography>
-                <Typography variant="body2" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                  {audit.ip_address}
-                </Typography>
-              </Box>
-            )}
-          </Stack>
-        </Stack>
-      </Card>
-    )
-  }
-
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
@@ -264,7 +199,10 @@ export default function AuditLog() {
         rows={rows}
         columns={columnsWithClick}
         onRowClick={(row) => handleView((row as unknown as AuditLog).id)}
-        renderCard={renderAuditCard}
+        // Field pertama = judul card mobile — 'actor' (siapa) lebih informatif
+        // sebagai identitas baris daripada 'created_at' (kolom pertama tabel
+        // desktop, cuma timestamp mentah).
+        mobileFields={['actor', 'action', 'entity', 'entity_key', 'created_at', 'ip_address']}
         loading={isLoading}
         error={error as Error | null}
         title={t('auditLog.table')}

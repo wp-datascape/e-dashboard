@@ -1,7 +1,9 @@
 # Task 017 — High Margin Product per Divisi (KPI Produk Fokus)
 
-> Status: draft, ditulis sebelum eksekusi sesuai konvensi proyek. Belum ada kode
-> yang ditulis untuk task ini.
+> Status: **SELESAI** — dikerjakan & di-deploy production 2026-08-02 (PR #90,
+> merge ke `main`, Vercel+Railway sukses). Lihat §6 untuk perubahan dari desain
+> awal di dokumen ini (terutama: view flat per-produk jadi DEFAULT, bukan cuma
+> toggle sekunder — lihat [[high-margin-products]] §10 untuk detail final).
 
 ## 1. Latar Belakang
 
@@ -189,4 +191,38 @@ diminta berubah, cuma opsi 1 bulan ditambahkan + komponennya di-satukan).
 - Fix RBAC `GET /customers/:id` (branch/division isolation gap, ditemukan di sesi
   yang sama) — task TERPISAH, tracking-nya lihat [[project_rbac_scope_audit_task015]]
   bagian lanjutan, dieksekusi independen dari task ini (scope-nya beda: itu security
-  fix kecil mirror pola existing, ini feature design baru).
+  fix kecil mirror pola existing, ini feature design baru). Digabung 1 PR (#90)
+  dengan task017 murni karena keduanya dikerjakan berurutan di working tree yang
+  sama tanpa commit perantara, bukan karena scope-nya sama.
+
+## 6. Status Akhir & Perubahan dari Desain Awal (2026-08-02)
+
+Implementasi §3 selesai persis seperti desain (junction table, backend
+division-aware, dialog drill-down Capaian per Divisi + Customer Pembeli). Dua
+perubahan signifikan terjadi SETELAH desain awal ini ditulis, dipicu feedback
+user langsung selama eksekusi — dicatat di sini karena dokumen §3c di atas
+sudah tidak menggambarkan UI final:
+
+1. **View flat per-produk jadi DEFAULT, tab Kategori DIHAPUS (bukan toggle).**
+   §3c awalnya cuma menyebut "toggle Kategori/Produk". Setelah toggle itu
+   dibangun (Produk default, Kategori sekunder), user menegaskan ulang lebih
+   keras: *"product high margin adalah produk, bukan kategory!"* — root cause:
+   SEMUA flag `high_margin_products` yang ada di data production selalu level
+   produk (`product_id` terisi), 0 yang level-kategori, jadi tab Kategori
+   (agregat per kategori) tidak pernah punya nilai tambah nyata, cuma
+   menyamarkan identitas aslinya (produk). Toggle & `HighMarginCategoryTab`
+   dihapus total dari `ProductsHighMargin/index.tsx` — halaman utama SEKARANG
+   cuma render `HighMarginProductTab` (endpoint baru `GET /metrics/
+   high-margin-penetration/products`, `fetchHmProductDetail()` di
+   `high-margin-penetration.repository.ts`, reuse `hmCatsCte()`). Detail
+   lengkap & konsekuensinya ke `CategoryProductsDialog` (jadi cuma dipakai tab
+   Upsell Targets lagi) ada di [[high-margin-products]] §10.
+2. **Chip "Divisi Fokus" digabung jadi 1 chip**, bukan 1 chip per divisi
+   ditumpuk (`row.assign_to.map(d => d.label).join(' + ')`) — permintaan user,
+   N chip kecil ditumpuk susah dibaca di kolom sempit tabel.
+
+Konsekuensi lain yang tidak diminta tapi berlaku otomatis: dialog drill-down
+kategori (`CategoryProductsDialog`) sempat didesain 2-tabel-ditumpuk (produk +
+customer breakdown sekaligus terlihat) — ditegur user sebagai "keputusan desain
+SANGAT BURUK", diperbaiki jadi 1 view yang saling gantian sebelum toggle
+Kategori akhirnya dihapus. Lihat [[feedback_no_stacked_tables_in_dialog]].

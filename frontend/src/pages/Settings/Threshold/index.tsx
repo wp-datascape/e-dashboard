@@ -8,11 +8,6 @@ import Alert from '@mui/material/Alert'
 import Stack from '@mui/material/Stack'
 import Divider from '@mui/material/Divider'
 import Chip from '@mui/material/Chip'
-import Table from '@mui/material/Table'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableRow from '@mui/material/TableRow'
-import TableCell from '@mui/material/TableCell'
 import Switch from '@mui/material/Switch'
 import InputAdornment from '@mui/material/InputAdornment'
 import Tooltip from '@mui/material/Tooltip'
@@ -22,9 +17,11 @@ import CloseIcon from '@mui/icons-material/Close'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
+import type { GridColDef } from '@mui/x-data-grid'
 import { useConfig, useUpdateConfig } from '@/hooks/usePageSettings'
 import type { ConfigItem } from '@/types/page'
 import { Card } from '@/components/ui'
+import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCan } from '@/hooks/useCan'
 import { ParetoThresholdSection } from './components/ParetoThresholdSection'
 
@@ -154,18 +151,18 @@ function BooleanConfigRow({ item, label, desc }: { item: ConfigItem; label?: str
   const handleToggle = () => mutate({ key: item.key, value: checked ? 'false' : 'true' })
   const note = desc ?? item.description
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
-      <Box sx={{ flex: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: { xs: 1, sm: 2 }, py: 1.5 }}>
+      <Box sx={{ flex: 2, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{label ?? item.key}</Typography>
         {note && <Typography variant="caption" color="text.secondary">{note}</Typography>}
       </Box>
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ flex: { sm: 1 }, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Chip label={checked ? 'true' : 'false'} size="small" color={checked ? 'success' : 'default'} variant="outlined" />
         {isPending
           ? <CircularProgress size={20} />
           : <Switch checked={checked} onChange={handleToggle} size="small" disabled={!can('settings.threshold:update')} />}
       </Box>
-      <Box sx={{ width: 40 }} />
+      <Box sx={{ width: { sm: 40 } }} />
     </Box>
   )
 }
@@ -181,12 +178,12 @@ function ConfigRow({ item, label, desc }: { item: ConfigItem; label?: string; de
   if (item.value === 'true' || item.value === 'false') return <BooleanConfigRow item={item} label={label} desc={desc} />
   const note = desc ?? item.description
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5 }}>
-      <Box sx={{ flex: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: { xs: 1, sm: 2 }, py: 1.5 }}>
+      <Box sx={{ flex: 2, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{label ?? item.key}</Typography>
         {note && <Typography variant="caption" color="text.secondary">{note}</Typography>}
       </Box>
-      <Box sx={{ flex: 1 }}>
+      <Box sx={{ flex: { sm: 1 }, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
         {editing
           ? <TextField size="small" type="number" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus fullWidth slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('config.buThreshold.monthsUnit')}</InputAdornment> } }} />
           : <Chip label={t('config.buThreshold.monthsChip', { value: item.value })} size="small" variant="outlined" />}
@@ -226,6 +223,36 @@ export default function ThresholdSettings() {
   )
   const handleSave = (key: string, value: string) => mutate({ key, value })
 
+  // Baris + kolom untuk ResponsiveListView (desktop DataGrid otomatis / mobile
+  // accordion otomatis dari AutoCard) — GANTI pola lama (Table desktop +
+  // Stack<Card> mobile ditulis manual berdampingan, gampang divergen kalau
+  // salah satu lupa di-update, lihat halaman lain sesi ini yang kena masalah
+  // sama). `id` WAJIB diisi manual (ConfigItem tidak punya field id bawaan).
+  const buRows = buDormantItems.map((item) => {
+    const buCode = item.key.replace(DORMANT_PREFIX, '')
+    return { ...item, id: item.key, label: BU_LABELS[buCode] ?? buCode, note: BU_DESC[buCode] ?? item.description ?? '' }
+  })
+  const buColumns: GridColDef[] = [
+    { field: 'label', headerName: t('config.buThreshold.colBu'), flex: 1, minWidth: 140 },
+    {
+      field: 'threshold', headerName: t('config.buThreshold.colThreshold'), width: 170, sortable: false,
+      renderCell: ({ row }) => <EditableMonthCell item={row as ConfigItem} onSave={handleSave} />,
+    },
+    { field: 'note', headerName: t('config.buThreshold.colNote'), flex: 1.5, minWidth: 200 },
+  ]
+
+  const kpiRows = kpiTargetItems.map((item) => ({
+    ...item, id: item.key, label: KPI_TARGET_LABELS[item.key] ?? item.key, note: KPI_TARGET_DESC[item.key] ?? item.description ?? '',
+  }))
+  const kpiColumns: GridColDef[] = [
+    { field: 'label', headerName: t('config.kpiTarget.colKpi'), flex: 1, minWidth: 160 },
+    {
+      field: 'threshold', headerName: t('config.kpiTarget.colTarget'), width: 140, sortable: false,
+      renderCell: ({ row }) => <EditablePctCell item={row as ConfigItem} />,
+    },
+    { field: 'note', headerName: t('config.buThreshold.colNote'), flex: 1.5, minWidth: 200 },
+  ]
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('nav.settingsThreshold')}</Typography>
@@ -246,48 +273,7 @@ export default function ThresholdSettings() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('config.buThreshold.subtitle')}</Typography>
 
             {buDormantItems.length > 0 ? (
-              <>
-                <Box sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 700, width: '35%' }}>{t('config.buThreshold.colBu')}</TableCell>
-                        <TableCell sx={{ fontWeight: 700, width: '30%' }}>{t('config.buThreshold.colThreshold')}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>{t('config.buThreshold.colNote')}</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {buDormantItems.map((item) => {
-                        const buCode = item.key.replace(DORMANT_PREFIX, '')
-                        return (
-                          <TableRow key={item.key} hover>
-                            <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{BU_LABELS[buCode] ?? buCode}</Typography></TableCell>
-                            <TableCell><EditableMonthCell item={item} onSave={handleSave} /></TableCell>
-                            <TableCell><Typography variant="caption" color="text.secondary">{BU_DESC[buCode] ?? item.description}</Typography></TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </Box>
-
-                <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
-                  {buDormantItems.map((item) => {
-                    const buCode = item.key.replace(DORMANT_PREFIX, '')
-                    return (
-                      <Card key={item.key} sx={{ p: 2 }}>
-                        <Stack spacing={1.5}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{BU_LABELS[buCode] ?? buCode}</Typography>
-                            <EditableMonthCell item={item} onSave={handleSave} />
-                          </Box>
-                          {(BU_DESC[buCode] ?? item.description) && <Typography variant="caption" color="text.secondary">{BU_DESC[buCode] ?? item.description}</Typography>}
-                        </Stack>
-                      </Card>
-                    )
-                  })}
-                </Stack>
-              </>
+              <ResponsiveListView rows={buRows} columns={buColumns} mobileFields={['label', 'threshold', 'note']} height={280} pageSizeOptions={[10]} />
             ) : (
               <Typography variant="body2" color="text.secondary">{t('config.buThreshold.empty')}</Typography>
             )}
@@ -304,40 +290,7 @@ export default function ThresholdSettings() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t('config.kpiTarget.sectionSubtitle')}
               </Typography>
-              <Box sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700, width: '40%' }}>{t('config.kpiTarget.colKpi')}</TableCell>
-                      <TableCell sx={{ fontWeight: 700, width: '25%' }}>{t('config.kpiTarget.colTarget')}</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>{t('config.buThreshold.colNote')}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {kpiTargetItems.map((item) => (
-                      <TableRow key={item.key} hover>
-                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography></TableCell>
-                        <TableCell><EditablePctCell item={item} /></TableCell>
-                        <TableCell><Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-
-              <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
-                {kpiTargetItems.map((item) => (
-                  <Card key={item.key} sx={{ p: 2 }}>
-                    <Stack spacing={1.5}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{KPI_TARGET_LABELS[item.key] ?? item.key}</Typography>
-                        <EditablePctCell item={item} />
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">{KPI_TARGET_DESC[item.key] ?? item.description}</Typography>
-                    </Stack>
-                  </Card>
-                ))}
-              </Stack>
+              <ResponsiveListView rows={kpiRows} columns={kpiColumns} mobileFields={['label', 'threshold', 'note']} height={280} pageSizeOptions={[10]} />
             </Card>
           )}
 

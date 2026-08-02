@@ -68,8 +68,8 @@ export function PermissionManagement({
       ),
     },
     {
-      field: 'actions',
-      headerName: t('common.actions'),
+      field: '_actions',
+      headerName: '',
       width: 100,
       sortable: false,
       align: 'center',
@@ -124,53 +124,6 @@ export function PermissionManagement({
         title={t('rbac.permissions')}
         pageSize={15}
         height={500}
-        renderCard={(row, _idx) => {
-          const permission = row as unknown as Permission;
-          return (
-            <Box
-              key={_idx}
-              sx={{
-                p: 2,
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                backgroundColor: 'background.paper',
-              }}
-            >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontFamily: mono }}>
-                    {permission.name}
-                  </Typography>
-                  <StatusChip
-                    label={permission.category || t('rbac.uncategorized')}
-                    color="info"
-                    sx={{ mt: 0.5 }}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                  <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={() => onEditClick(permission)}
-                  >
-                    <EditIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => onDeleteClick(permission)}
-                  >
-                    <DeleteIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                {permission.description || '—'}
-              </Typography>
-            </Box>
-          );
-        }}
         mobileFields={['name', 'category', 'description']}
       />
     </Box>

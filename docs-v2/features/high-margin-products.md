@@ -1,7 +1,7 @@
 # high-margin-products.md — Fitur Product High Margin (Dynamic)
 
-> Status: **DONE** — Implementasi selesai 2026-06-26. Filter default "All Companies" + company scoping ditambah sesi 34. Drill-down produk (klik baris kategori tab Penetrasi) + fix resolusi level-kategori vs level-produk ditambah 2026-07-26 (task007/task008, lihat §9).
-> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-07-26 (task008)
+> Status: **DONE** — Implementasi selesai 2026-06-26. Filter default "All Companies" + company scoping ditambah sesi 34. Drill-down produk (klik baris kategori tab Penetrasi) + fix resolusi level-kategori vs level-produk ditambah 2026-07-26 (task007/task008, lihat §9). High Margin per Divisi (junction table, KPI produk fokus) + halaman utama jadi view flat per-produk (tab Kategori dihapus) ditambah 2026-08-02 (task017, lihat §10 — **BACA INI, mengoreksi §9.2 & tabel pemakai `CategoryProductsDialog` yang sudah usang**).
+> Dibuat: 2026-06-26 | Sesi: 17 | Updated: 2026-08-02 (task017)
 
 ---
 
@@ -304,6 +304,13 @@ Sebelum diperbaiki, beberapa query (baris kategori di tabel utama tab Penetrasi,
 | Tab "Target Upsell", chip "Belum Beli High Margin" | `false` (tidak diubah, di luar scope) |
 | Halaman `/products` — drill-down kategori umum | `false` (tidak terkait high margin) |
 
+> **Update task017 (2026-08-02):** baris tabel "Tab Penetrasi Kategori (klik baris
+> kategori) → `onlyHighMargin: true`" di bawah ini SUDAH TIDAK BERLAKU — tab itu
+> dihapus total, lihat §10. `CategoryProductsDialog` sekarang cuma dipanggil
+> tanpa `highMarginOnly` (Upsell Targets, Products biasa) — parameter itu masih
+> ada di kode (tidak dihapus, dianggap belum tentu selamanya tidak terpakai) tapi
+> TIDAK ADA caller aktif yang mengirim `true` lagi.
+
 - Kolom `is_high_margin` (boolean) ditambah ke tiap baris hasil query (pakai CTE `hm_products` yang sama, terlepas dari `onlyHighMargin` aktif atau tidak) — badge "High Margin" muncul per produk di tabel drill-down, berguna khususnya di mode `onlyHighMargin=false` yang menampilkan produk campuran (HM & bukan).
 - Response `fetchCategoryProducts` sekarang `{ rows, summary }` — `summary` dihitung query **terpisah** (CTE sama, tanpa `GROUP BY` per produk) supaya tetap balikin 0 (bukan hilang/undefined) kalau hasil per-produk kosong. Diteruskan sampai ke frontend lewat `PaginationMeta.summary` (generik, opsional — `backend/src/utils/response.ts`, `frontend/src/types/api.ts`).
 
@@ -312,3 +319,163 @@ Sebelum diperbaiki, beberapa query (baris kategori di tabel utama tab Penetrasi,
 ### 9.3 Verifikasi
 
 Cross-check manual lewat query SQL langsung ke DB: kategori "RECEIPT PRINTER THERMAL KASSEN" (10 produk, cuma 1 — `KASSEN BTP 3050 UE` — ditandai HM di level produk). Angka versi lama (semua 10 produk) vs versi fix (cuma 1 produk) beda signifikan (mis. revenue Rp1.8M → Rp115.6jt), mengonfirmasi bug & fix-nya. `bunx tsc --noEmit` backend+frontend bersih, `bun test` backend 73 pass/0 fail.
+
+---
+
+## 10. High Margin per Divisi + Halaman Utama Jadi View Flat Produk (task017, 2026-08-02)
+
+> Baca juga: `docs-v2/task/task017.md` §6, `docs-v2/task/task018.md` (fix RBAC
+> tidak terkait, digabung 1 PR karena dikerjakan berurutan).
+
+### 10.1 Junction Table `high_margin_product_divisions`
+
+Kebutuhan bisnis: 1 flag `high_margin_products` (§2.2) bisa jadi "produk fokus
+KPI" untuk BANYAK divisi sekaligus (mis. Produk A fokus Divisi Distribution
+**dan** Project bersamaan), independen dari filter divisi transaksi biasa.
+
+```sql
+CREATE TABLE high_margin_product_divisions (
+  id                     serial PRIMARY KEY,
+  high_margin_product_id integer NOT NULL REFERENCES high_margin_products(id) ON DELETE CASCADE,
+  division_id            integer NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
+  UNIQUE (high_margin_product_id, division_id)
+);
+```
+
+Keputusan kunci (final, jangan ditanya ulang ke user):
+- Junction table, BUKAN kolom `division_id` di `high_margin_products` — 1 flag
+  (dengan note/effective_date-nya) bisa assign ke banyak divisi tanpa duplikasi
+  baris.
+- Data lama TIDAK di-backfill — begitu live, semua mapping existing otomatis 0
+  divisi ter-assign, admin wajib re-assign manual satu per satu. Tidak ada
+  badge peringatan di UI (keputusan sadar, bukan lupa).
+- Assign minimal 1 divisi wajib saat create/edit (tidak ada state "company-wide
+  tanpa divisi spesifik").
+- Divisi `key='intercompany'` DI-EXCLUDE dari pilihan assignment — bukan target
+  KPI penjualan.
+- Filter "All Division" (tanpa filter spesifik) TETAP grand total company-wide,
+  TIDAK dikurangi tag divisi — ditampilkan DUA-duanya (total di baris utama +
+  breakdown per-divisi di dialog drill-down), bukan pilih salah satu.
+
+**Backend:** `hmCatsCte()` (`high-margin-penetration.repository.ts`) dan
+`categoryProductsCte()` (`category-products.repository.ts`) jadi
+division-aware — kalau ada filter divisi aktif, flag HM harus ADA di-tag ke
+divisi itu di `high_margin_product_divisions` supaya dihitung, bukan cuma flag
+company-wide. Kolom "Assign To"/"Divisi Fokus" (chip nama divisi) RBAC-scoped
+di service layer (`filterAssignToByScope`) — divisi di luar scope viewer TIDAK
+PERNAH dikirim ke frontend sama sekali (bukan cuma disembunyikan di UI).
+
+### 10.2 Drill-down "Customer Pembeli" + "Capaian per Divisi" (fitur baru total)
+
+Endpoint baru `GET /metrics/high-margin-penetration/buyers`
+(`hm-customers.repository.ts` → `fetchHmCustomers()` + `fetchHmDivisionBreakdown()`,
+dipanggil paralel oleh `getHmCustomers()` service) — target bisa `type=category`
+atau `type=product`. Frontend: `HmCustomerBreakdown.tsx` (embeddable, tanpa
+Dialog wrapper sendiri) menampilkan kartu breakdown per divisi (revenue + %
+dari grand total + customer count) di atas tabel customer pembeli (kolom Divisi
+WAJIB per baris — divisi resolve PER-TRANSAKSI dari `channel_divisions`/
+`customer.division_override_id`, 1 customer bisa muncul >1 baris kalau beli
+lewat >1 divisi berbeda).
+
+Dua caller berbeda meng-embed komponen ini:
+- `ProductBreakdownDialog.tsx` (baru, §10.3) — drill-down LANGSUNG dari baris
+  produk di view flat (default), `target={{type:'product', id}}`.
+- `CategoryProductsDialog.tsx` — drill-down dari dalam dialog kategori (dipakai
+  Upsell Targets, lihat §10.4), lewat state `breakdownTarget` yang GANTI tampilan
+  tabel produk (bukan ditumpuk — lihat catatan desain di §10.4).
+
+### 10.3 Halaman Utama `/products/high-margin` Jadi View Flat Produk (BUKAN toggle)
+
+**Perubahan paling signifikan dari desain awal task017** (§3c task017.md cuma
+sebut "toggle Kategori/Produk"): setelah toggle itu sempat dibangun (Produk
+default, Kategori sekunder), user menegaskan lebih keras — *"product high
+margin adalah produk, bukan kategory!"*. Root cause: SEMUA flag
+`high_margin_products` di data production selalu level-produk (`product_id`
+terisi), 0 yang level-kategori (lihat §9.1 — level-kategori tetap didukung
+skema, tapi tidak dipakai realitanya) — tab agregat-per-kategori jadi
+menyamarkan identitas asli data (produk), bukan memberi nilai tambah.
+
+**Hasil akhir:** toggle Kategori/Produk DIHAPUS, `HighMarginCategoryTab`
+dihapus dari `ProductsHighMargin/index.tsx`. Tab pertama halaman ("Penetrasi
+Produk", key i18n tetap `tabCategories` — cuma teksnya diganti) SEKARANG cuma
+render `HighMarginProductTab`:
+
+- Endpoint baru `GET /metrics/high-margin-penetration/products` →
+  `fetchHmProductDetail()` (`high-margin-penetration.repository.ts`) — 1 baris
+  = 1 produk (bukan kategori), CTE `hm_effective_products` (union
+  `hm_product_level` + semua produk dalam kategori yang di-`hm_cat_level`) jadi
+  basis grouping, bukan `product_category_id`. `category_name` dikirim balik
+  cuma sebagai field, TIDAK dirender jadi kolom di tabel (permintaan user:
+  "tidak membutuhkan data kategori").
+- Klik baris produk → `ProductBreakdownDialog.tsx` (baru) → langsung
+  drill-down `HmCustomerBreakdown` (§10.2) untuk produk itu, TANPA lewat
+  langkah tabel-produk-dalam-kategori seperti alur `CategoryProductsDialog`
+  (row-nya sudah level produk, tidak perlu langkah antara).
+- Badge ringkasan atas halaman ("X Produk High Margin") sekarang dihitung dari
+  endpoint produk ini, bukan lagi dari endpoint kategori.
+- Chip kolom "Divisi Fokus" digabung jadi **1 chip per baris**
+  (`row.assign_to.map(d => d.label).join(' + ')`, mis. `"Distribution +
+  Project"`) — BUKAN 1 chip per divisi ditumpuk seperti sebelumnya, permintaan
+  user (chip banyak numpuk susah dibaca di kolom sempit). Berlaku di
+  `HighMarginProductTab`; kolom yang sama di `CategoryProductsDialog` masih
+  pola lama (1 chip per divisi) karena kolom itu sekarang tidak pernah
+  ter-render lagi (lihat §10.4).
+
+**Konsekuensi ke endpoint/kode lama:** `GET /metrics/high-margin-penetration/
+detail` (`fetchHmDetail`, agregat per kategori), hook `useHighMarginDetail`,
+type `HighMarginCategoryRow` — TIDAK dihapus (masih dipakai backend/tipe
+terdefinisi), tapi TIDAK ADA lagi pemanggil di frontend. Kalau butuh
+menghapusnya beneran nanti, cek dulu tidak ada regresi ke pemakai lain.
+
+### 10.4 `CategoryProductsDialog` — Redesain 1-View-per-Waktu + Dampak Penghapusan Tab Kategori
+
+Selama development sempat didesain SALAH — tabel produk + breakdown customer
+(§10.2) ditumpuk sekaligus terlihat dalam 1 dialog scrollable. Ditegur user:
+*"tidak masuk akal ada 2 tabel dalam 1 dialog, itu keputusan desain yang SANGAT
+BURUK"* (lihat `[[feedback_no_stacked_tables_in_dialog]]`). Diperbaiki jadi pola
+**1 tabel terlihat setiap saat**: state `breakdownTarget` (bukan boolean show/
+hide — objek `{type, id, name}` atau `null`) MENGGANTI render tabel produk jadi
+`HmCustomerBreakdown`, bukan menambah di bawahnya. Tombol "← Kembali ke Produk"
+mengembalikan ke tabel produk. Link "Lihat Capaian & Customer Kategori Ini" di
+atas tabel produk membuka breakdown level-kategori (opsional, tidak otomatis
+tampil).
+
+Bug infinite-render-loop juga sempat muncul di redesain ini: pola
+"adjust state during render" (resmi React, dipakai juga `HighMarginDialog.tsx`
+`syncedKey`) untuk reset `selectedProduct`/`breakdownTarget` saat `category`
+prop berubah, tapi perbandingan `category?.category_id` (bisa `undefined`)
+langsung ke state `number | null` bikin `undefined !== null` SELALU true →
+tidak pernah konvergen saat dialog ditutup (`category === null`). Fix:
+normalisasi `const currentCategoryId = category?.category_id ?? null` dulu
+sebelum dibandingkan.
+
+**Setelah §10.3 (tab Kategori dihapus dari halaman utama):**
+`CategoryProductsDialog` dengan prop `highMarginOnly` — yang mengaktifkan kolom
+Assign To, link breakdown kategori, dan klik-baris-produk-untuk-drill-down —
+kehilangan SATU-SATUNYA caller yang mengirim `highMarginOnly={true}` (dulu
+`HighMarginCategoryTab`, sudah dihapus). Dua caller yang tersisa (`Upsell
+Targets` chip "Belum Beli High Margin", halaman `/products` biasa) TIDAK
+mengirim `highMarginOnly`, jadi ketiga fitur itu (Assign To, breakdown link,
+row-click drill-down) sekarang **dormant/unreachable di UI** — kode tidak
+dihapus (komponen di-share, kemungkinan dipakai caller baru nanti), tapi jangan
+kaget kalau ditemukan tidak pernah ter-trigger saat baca kode ini di masa
+depan. Fitur breakdown yang user pakai sekarang murni lewat `ProductBreakdownDialog`
+(§10.3), bukan lewat `CategoryProductsDialog` lagi.
+
+### 10.5 Fix Tidak Terkait yang Digabung 1 PR — RBAC Isolasi Customer (task018)
+
+`docs-v2/task/task018.md` — dikerjakan di working tree yang sama sebelum
+task017 (user minta duluan: "isolasi data customer nya bro"), digabung 1 PR
+(#90) karena tidak ada commit perantara buat pisah bersih. Scope beda total:
+fix RBAC branch/division di `GET /customers` (list) dan `GET /customers/:id`
+(detail) — 2 celah baru ditemukan di file yang sama yang [[task015]] sudah
+audit level company tapi belum level branch/division. Lihat
+`[[project_rbac_scope_audit_task015]]` untuk histori audit RBAC lengkap.
+
+### 10.6 Rollout
+
+PR #90, merge ke `main` 2026-08-02, Vercel (frontend) + Railway (backend)
+sukses deploy. Migration `0020_odd_baron_strucker.sql`
+(`high_margin_product_divisions`) perlu dijalankan manual ke Neon production
+(lihat `[[reference_neon_production_db]]`) — belum otomatis via pipeline
+deploy, sama seperti migration lain di proyek ini.
