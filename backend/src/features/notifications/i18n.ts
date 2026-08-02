@@ -63,6 +63,12 @@ interface NotificationDict {
     testSubject: string
     testBody: string
   }
+  notification: {
+    titleAction: string
+    vsLastYear: string
+    periodSuffix: (periodKey: string) => string
+    midMonthNote: (day: number, periodKey: string) => string
+  }
 }
 
 const DICT: Record<Locale, NotificationDict> = {
@@ -114,6 +120,12 @@ const DICT: Record<Locale, NotificationDict> = {
       testSubject: 'Test Email — Executive Dashboard',
       testBody: 'Ini email test dari konfigurasi Resend Executive Dashboard. Kalau Anda menerima ini, konfigurasi sudah benar.',
     },
+    notification: {
+      titleAction: 'turun performa',
+      vsLastYear: 'vs tahun lalu',
+      periodSuffix: (periodKey) => `periode ${periodKey}.`,
+      midMonthNote: (day, periodKey) => `progres s.d. tanggal ${day}, periode ${periodKey} (bulan belum tutup)`,
+    },
   },
   en: {
     dateLocale: 'en-US',
@@ -162,6 +174,12 @@ const DICT: Record<Locale, NotificationDict> = {
       footerGeneratedAt: 'Automatically generated',
       testSubject: 'Test Email — Executive Dashboard',
       testBody: 'This is a test email from the Executive Dashboard Resend configuration. If you receive this, the configuration is correct.',
+    },
+    notification: {
+      titleAction: 'underperforming',
+      vsLastYear: 'vs last year',
+      periodSuffix: (periodKey) => `period ${periodKey}.`,
+      midMonthNote: (day, periodKey) => `progress through day ${day}, period ${periodKey} (month not yet closed)`,
     },
   },
 }
