@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -22,6 +22,12 @@ metricsRoutes.get('/product-performance',   requirePermission('product:view'), h
 metricsRoutes.get('/product-categories',    requirePermission('product:view'), handleGetProductCategoryOptions)
 metricsRoutes.get('/category-products',                 requirePermission('product:view'), handleGetCategoryProducts)
 metricsRoutes.get('/high-margin-penetration/detail',    requirePermission('high.margin:view'), handleGetHmDetail)
+// task017 lanjutan — view flat per-produk (default baru), lihat catatan di
+// fetchHmProductDetail(). Permission sama dgn /detail (kategori, sekunder).
+metricsRoutes.get('/high-margin-penetration/products',  requirePermission('high.margin:view'), handleGetHmProductDetail)
 metricsRoutes.get('/high-margin-penetration/customers', requirePermission('high.margin:view'), handleGetUpsellTargets)
+// task017 — drill-down "Customer Pembeli" (produk/kategori HM), permission sama
+// dgn tab Category Penetration/Upsell Targets di atas.
+metricsRoutes.get('/high-margin-penetration/buyers',    requirePermission('high.margin:view'), handleGetHmCustomers)
 metricsRoutes.get('/customer-products',                  requirePermission('high.margin:view'), handleGetCustomerProducts)
 metricsRoutes.get('/avg-category',                        requirePermission('product.trend:view'), handleGetAvgCategory)

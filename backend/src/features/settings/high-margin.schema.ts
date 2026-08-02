@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+// task017 — division_ids WAJIB minimal 1 (tidak ada state "company-wide, tidak
+// spesifik divisi manapun"), divalidasi bukan Intercompany di service layer
+// (butuh lookup DB, tidak bisa murni di schema) — lihat assertNoIntercompanyDivision.
 export const createHighMarginSchema = z.object({
   company_id: z.number().int().positive(),
   product_id: z.number().int().positive().optional(),
@@ -7,6 +10,7 @@ export const createHighMarginSchema = z.object({
   effective_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
   effective_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
   note: z.string().max(500).optional(),
+  division_ids: z.array(z.number().int().positive()).min(1, 'Pilih minimal 1 divisi'),
 }).refine(
   (d) => d.product_id !== undefined || d.product_category_id !== undefined,
   { message: 'Harus mengisi product_id atau product_category_id' },
@@ -18,6 +22,7 @@ export const createHighMarginSchema = z.object({
 export const updateHighMarginSchema = z.object({
   effective_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').nullable(),
   note: z.string().max(500).optional(),
+  division_ids: z.array(z.number().int().positive()).min(1, 'Pilih minimal 1 divisi'),
 })
 
 export const listHighMarginQuerySchema = z.object({

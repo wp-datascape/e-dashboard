@@ -79,6 +79,7 @@ export interface CategoryProductRow {
   gp_margin_percent: number
   invoice_count: number
   customer_count: number
+  assign_to: AssignToDivision[]
 }
 
 export interface CategoryProductsParams {
@@ -96,6 +97,13 @@ export interface CategoryProductsParams {
   per_page?: number
 }
 
+// task017 — divisi yang di-assign fokus KPI, sudah RBAC-scoped di backend
+// (divisi di luar akses viewer tidak pernah ikut terkirim).
+export interface AssignToDivision {
+  id: number
+  label: string
+}
+
 // ─── 3.2 High Margin Push List ────────────────────────────────────────────────
 export interface HighMarginCategoryRow {
   id: number
@@ -108,6 +116,7 @@ export interface HighMarginCategoryRow {
   total_revenue: number
   total_gp: number
   gp_margin_percent: number
+  assign_to: AssignToDivision[]
 }
 
 export interface HighMarginDetailParams {
@@ -121,9 +130,63 @@ export interface HighMarginDetailParams {
   per_page?: number
 }
 
+// task017 lanjutan — view flat per-produk (VIEW DEFAULT baru, high margin
+// adalah flag per-produk, bukan per-kategori — lihat komentar backend di
+// fetchHmProductDetail()). category_id/category_name cuma konteks tampilan.
+export interface HighMarginProductRow {
+  id: number
+  product_id: number
+  product_name: string
+  category_id: number
+  category_name: string
+  is_high_margin: boolean
+  customer_count: number
+  total_active_customers: number
+  penetration_rate: number
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+  assign_to: AssignToDivision[]
+}
+
 export interface CategoryRef {
   id: number
   name: string
+}
+
+// ─── task017: Drill-down "Customer Pembeli" + "Capaian per Divisi" ────────────
+export interface HmCustomersParams {
+  company_id?: number | 'all'
+  target_type: 'category' | 'product'
+  target_id: number
+  branch_id?: number
+  division?: number
+  exclude_intercompany?: boolean
+  period_month?: string
+  active_window?: number
+  page?: number
+  per_page?: number
+}
+
+export interface HmCustomerRow {
+  id: string
+  customer_id: number
+  customer_code: string | null
+  customer_name: string
+  division_id: number | null
+  division_label: string | null
+  total_revenue: number
+  total_gp: number
+  invoice_count: number
+  last_invoice_date: string
+}
+
+export interface HmDivisionBreakdown {
+  division_id: number | null
+  division_label: string | null
+  total_revenue: number
+  total_gp: number
+  customer_count: number
 }
 
 export interface UpsellTargetRow {

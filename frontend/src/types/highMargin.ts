@@ -12,6 +12,9 @@ export interface HighMarginMapping {
   created_by: number | null
   created_at: string
   updated_at: string
+  // task017 — divisi fokus KPI yang di-assign ke mapping ini (wajib >=1, exclude Intercompany)
+  division_ids: number[]
+  division_names: string[]
 }
 
 export interface CreateHighMarginPayload {
@@ -21,11 +24,13 @@ export interface CreateHighMarginPayload {
   effective_from: string
   effective_until?: string
   note?: string
+  division_ids: number[]
 }
 
 export interface UpdateHighMarginPayload {
   effective_until: string | null
   note?: string
+  division_ids: number[]
 }
 
 export interface HighMarginListParams {

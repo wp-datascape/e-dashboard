@@ -2,8 +2,8 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -111,6 +111,20 @@ export async function handleGetHmDetail(c: Context) {
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getHmPenetrationDetail(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+export async function handleGetHmProductDetail(c: Context) {
+  const query = validateQuery(c, hmDetailQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const { data, total } = await getHmProductPenetrationDetail(query, scope)
+  return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+export async function handleGetHmCustomers(c: Context) {
+  const query = validateQuery(c, hmCustomersQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const { data, total, breakdown } = await getHmCustomers(query, scope)
+  return paginated(c, data, { page: query.page, per_page: query.per_page, total, breakdown })
 }
 
 export async function handleGetCustomerProducts(c: Context) {

@@ -5,17 +5,18 @@ import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Stack from '@mui/material/Stack'
+import Chip from '@mui/material/Chip'
 import LinearProgress from '@mui/material/LinearProgress'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
-import { useHighMarginDetail, useUpsellTargets } from '@/hooks/useProducts'
+import { useHighMarginProductDetail, useUpsellTargets } from '@/hooks/useProducts'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { RangeFilter } from '@/components/filters/RangeFilter'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type {
-  HighMarginCategoryRow,
+  HighMarginProductRow,
   HighMarginDetailParams,
   UpsellTargetRow,
   UpsellTargetParams,
@@ -27,7 +28,8 @@ import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { formatIDR } from '@/utils/format'
 import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
-import type { CategoryDrawerInfo } from '@/pages/Products/components/CategoryProductsDialog'
+import { ProductBreakdownDialog } from './components/ProductBreakdownDialog'
+import type { ProductBreakdownTarget } from './components/ProductBreakdownDialog'
 
 function todayMonth(): string {
   const now = new Date()
@@ -64,11 +66,12 @@ interface FilterState {
   excludeIntercompany: boolean
 }
 
-// ─── Tab 1: Category Penetration ─────────────────────────────────────────────
-function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
+// ─── Tab 1a: Product Penetration (DEFAULT — high margin adalah flag per-produk,
+// bukan per-kategori, lihat catatan backend di fetchHmProductDetail()) ────────
+function HighMarginProductTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
-  const [selectedCategory, setSelectedCategory] = useState<CategoryDrawerInfo | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<ProductBreakdownTarget | null>(null)
 
   const params: HighMarginDetailParams = {
     company_id:    filter.companyId,
@@ -81,14 +84,14 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
     per_page: pagination.pageSize,
   }
 
-  const { data, isLoading, error } = useHighMarginDetail(params)
+  const { data, isLoading, error } = useHighMarginProductDetail(params)
 
-  const columns: GridColDef<HighMarginCategoryRow>[] = [
+  const columns: GridColDef<HighMarginProductRow>[] = [
     {
-      field: 'category_name',
-      headerName: t('products.categoryName'),
+      field: 'product_name',
+      headerName: t('products.drawer.colProductName'),
       flex: 1,
-      minWidth: 150,
+      minWidth: 180,
       sortable: false,
     },
     {
@@ -136,6 +139,21 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
         <StatusChip label={`${row.gp_margin_percent.toFixed(1)}%`} color="success" />
       ),
     },
+    {
+      field: 'assign_to',
+      headerName: t('productsHighMargin.assignTo'),
+      flex: 1.2,
+      minWidth: 150,
+      sortable: false,
+      // 1 chip saja gabungan semua divisi ("Distribution + Project"), BUKAN
+      // 1 chip per divisi ditumpuk — permintaan user, chip banyak numpuk susah
+      // dibaca di kolom sempit.
+      renderCell: ({ row }) => (
+        row.assign_to.length > 0
+          ? <Chip size="small" label={row.assign_to.map((d) => d.label).join(' + ')} variant="outlined" />
+          : null
+      ),
+    },
   ]
 
   return (
@@ -152,30 +170,20 @@ function HighMarginCategoryTab({ filter }: { filter: FilterState }) {
         pageSizeOptions={[25, 50, 100]}
         height={500}
         onRowClick={(row) => {
-          const r = row as unknown as HighMarginCategoryRow
-          // Task008 — SENGAJA tidak kirim total_revenue/total_gp/gp_margin_percent/
-          // customer_count dari row ini (itu angka KATEGORI utuh, semua produk).
-          // Kartu summary di dialog nunggu agregat produk yang sudah difilter
-          // (meta.summary dari backend, lihat highMarginOnly di CategoryProductsDialog)
-          // supaya tidak sempat nampilin angka yang salah sebelum data asli kepilih.
-          setSelectedCategory({
-            category_id: r.category_id,
-            category_name: r.category_name,
-            is_high_margin: true,
-          })
+          const r = row as unknown as HighMarginProductRow
+          setSelectedProduct({ product_id: r.product_id, product_name: r.product_name })
         }}
       />
 
-      <CategoryProductsDialog
-        category={selectedCategory}
+      <ProductBreakdownDialog
+        product={selectedProduct}
         companyId={filter.companyId}
         branchId={filter.branchId === 'all' ? undefined : filter.branchId}
         division={filter.division || undefined}
         periodMonth={filter.periodMonth}
         activeWindow={filter.activeWindow}
         excludeIntercompany={filter.excludeIntercompany}
-        highMarginOnly
-        onClose={() => setSelectedCategory(null)}
+        onClose={() => setSelectedProduct(null)}
       />
     </>
   )
@@ -359,9 +367,9 @@ export default function ProductsHighMargin() {
 
   const filter: FilterState = { companyId, branchId, division, periodMonth, activeWindow, excludeIntercompany }
 
-  // Ambil seluruh kategori HM (bukan hanya 1 halaman grid) untuk hitung summary
+  // Ambil seluruh produk HM (bukan hanya 1 halaman grid) untuk hitung summary
   // per_page dibatasi maksimal 100 oleh backend (metrics.schema.ts)
-  const { data: summaryData } = useHighMarginDetail({
+  const { data: summaryData } = useHighMarginProductDetail({
     company_id:    filter.companyId,
     branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     division:      filter.division || undefined,
@@ -371,7 +379,7 @@ export default function ProductsHighMargin() {
     page: 1,
     per_page: 100,
   })
-  const categoryCount = summaryData?.meta.total ?? 0
+  const productCount = summaryData?.meta.total ?? 0
   const avgPenetration = summaryData?.data.length
     ? summaryData.data.reduce((sum, r) => sum + r.penetration_rate, 0) / summaryData.data.length
     : 0
@@ -419,9 +427,9 @@ export default function ProductsHighMargin() {
       </Box>
 
       {/* Summary chips */}
-      {categoryCount > 0 && (
+      {productCount > 0 && (
         <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-          <StatusChip label={t('productsHighMargin.summaryCategories', { count: categoryCount })} color="warning" />
+          <StatusChip label={t('productsHighMargin.summaryProducts', { count: productCount })} color="warning" />
           <StatusChip label={t('productsHighMargin.summaryAvgPenetration', { pct: avgPenetration.toFixed(1) })} color="info" />
         </Stack>
       )}
@@ -436,7 +444,7 @@ export default function ProductsHighMargin() {
         <Tab label={t('productsHighMargin.tabUpsellTargets')} />
       </Tabs>
 
-      {activeTab === 0 && <HighMarginCategoryTab filter={filter} />}
+      {activeTab === 0 && <HighMarginProductTab filter={filter} />}
       {activeTab === 1 && <UpsellTargetsTab filter={filter} />}
     </Box>
   )

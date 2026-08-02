@@ -1,10 +1,13 @@
 import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions } from '@/db/schema'
 import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { loadThresholds, resolveDormantMonths, resolveDormantCategory } from '@/features/config/threshold'
 import {
   buildBranchCondition,
   buildDivisionCondition,
+  buildBranchConditionRaw,
+  buildDivisionConditionRaw,
   buildExcludeIntercompanyCondition,
   loadDivisionFallbackIds,
   flattenFallbackByBranch,
@@ -26,6 +29,11 @@ export async function findCustomers(
   const cid = company_id === 'all' ? 0 : company_id
   const dormantMonths = await resolveDormantMonths(cid, dormant)
 
+  // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
+  // dari urutan lama yang baru dihitung dekat akhir function.
+  const otherIdByCompanyEarly = await loadDivisionFallbackIds('other')
+  const otherIdByBranchEarly = flattenFallbackByBranch(branchScope, otherIdByCompanyEarly)
+
   // Subquery: live first/last invoice date + revenue aggregates per customer, semua
   // dari tabel invoices LANGSUNG (tanpa join invoice_items). Revenue HARUS dihitung di
   // sini, bukan inline di query utama — query utama join ke invoice_items (buat
@@ -33,14 +41,25 @@ export async function findCustomers(
   // total_revenue inline kena duplikasi (laporan user: dialog detail customer tampil
   // 352jt padahal revenue asli cuma 259jt, root cause sama persis di list ini).
   // Alias beda dari customers.first/last_invoice_date agar tidak ambigu di GROUP BY.
+  //
+  // JOIN channel_divisions + scope guard (branchScopeCond/divisionScopeCond) DITAMBAH
+  // di dalam tiap CASE WHEN — sebelumnya subquery ini agregasi SEMUA invoice customer
+  // tanpa peduli branch/division, jadi lifetime_value/avg_monthly_revenue/tanggal live
+  // bisa kebawa dari branch/divisi di luar scope viewer (celah RBAC, ditemukan
+  // 2026-08-02 — gate visibility list sudah benar via latestSalespersonSq, tapi ANGKA
+  // yang ditampilkan begitu customer lolos gate ternyata tetap unscoped, lihat task018).
+  const liveDatesSqBranchCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
+  const liveDatesSqDivisionCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranchEarly)
+  const liveDatesScopeGuard = sql`(${liveDatesSqBranchCond ?? sql`true`}) AND (${liveDatesSqDivisionCond ?? sql`true`})`
+
   const liveDatesSq = db
     .select({
       customer_id: invoices.customer_id,
-      live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_last'),
-      live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`.as('live_first'),
+      live_last:  sql<string | null>`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${liveDatesScopeGuard} THEN ${invoices.invoice_date} END)`.as('live_last'),
+      live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${liveDatesScopeGuard} THEN ${invoices.invoice_date} END)`.as('live_first'),
       // WAJIB dibatasi invoice_date <= refDate — sebelumnya cuma filter deleted_at,
       // jadi lifetime_value/avg_monthly_revenue SELALU all-time (mengabaikan as_of_date).
-      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.total_revenue}::numeric END), 0)`.as('lifetime_value'),
+      lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${liveDatesScopeGuard} THEN ${invoices.total_revenue}::numeric END), 0)`.as('lifetime_value'),
       // Dibatasi 12 bulan kalender terakhir (sama persis window monthly_revenue_trend
       // di findCustomerDetail) — pembagi FIXED 12 (bukan COUNT bulan aktif) supaya
       // nilainya persis rata-rata dari 12 bar grafik tren, termasuk bulan kosong = 0.
@@ -49,20 +68,35 @@ export async function findCustomers(
           SUM(CASE WHEN ${invoices.deleted_at} IS NULL
                 AND ${invoices.invoice_date} <= ${refDate}
                 AND ${invoices.invoice_date} >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+                AND ${liveDatesScopeGuard}
               THEN ${invoices.total_revenue}::numeric END) / 12.0,
           0
         )
       `.as('avg_monthly_revenue'),
     })
     .from(invoices)
+    .leftJoin(
+      channel_divisions,
+      and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
+    )
     .groupBy(invoices.customer_id)
     .as('live_dates')
 
+  // cdInv (alias) — channel_divisions kedua, di-JOIN via invoices.channel_name (channel
+  // INVOICE yang sedang dihitung), BEDA dari channel_divisions biasa di bawah yang
+  // di-JOIN via latestSalespersonSq.channel_name (channel invoice TERBARU customer,
+  // dipakai kolom "division" utk display) — 2 hal berbeda, tidak bisa reuse 1 join yang
+  // sama, makanya perlu alias supaya bisa JOIN channel_divisions 2x independen.
+  const cdInv = alias(channel_divisions, 'cd_inv')
+  const outerBranchCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
+  const outerDivisionCond = buildDivisionCondition(invoices.branch_id, cdInv.division_id, divisionScope, otherIdByBranchEarly)
+  const outerScopeGuard = sql`(${outerBranchCond ?? sql`true`}) AND (${outerDivisionCond ?? sql`true`})`
+
   const invCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.id} END)
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)
   `
   const catCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoice_items.product_category_id} END)
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)
   `
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
@@ -120,16 +154,12 @@ export async function findCustomers(
   // customer (latestSalespersonSq), konsisten dengan cara business_unit/division di atas
   // sudah di-derive (satu division per customer dari invoice terakhir, bukan EXISTS
   // lintas semua invoice miliknya)
-  // Fallback division_id 'other'/'intercompany' per company (task012 v2 — COALESCE
-  // dulu literal string tunggal, sekarang beda id per company, lihat utils/scope.ts)
-  const [otherIdByCompany, intercompanyIdByCompany] = await Promise.all([
-    loadDivisionFallbackIds('other'),
-    loadDivisionFallbackIds('intercompany'),
-  ])
-  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
+  // Fallback division_id 'other' sudah dihitung di atas (otherIdByBranchEarly, dipakai
+  // liveDatesSq/invCountExpr/catCountExpr) — reuse di sini, tinggal load 'intercompany'.
+  const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
 
   const branchScopeCond = buildBranchCondition(customers.company_id, latestSalespersonSq.branch_id, branchScope)
-  const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+  const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranchEarly)
   // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
   // branchScopeCond (enforcement akses) meski keduanya nyasar ke kolom yang sama
   const branchFilterCond = branch_id ? eq(latestSalespersonSq.branch_id, branch_id) : undefined
@@ -198,6 +228,10 @@ export async function findCustomers(
         ),
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
+      // cdInv — lihat komentar di definisi outerScopeGuard di atas, JOIN kedua
+      // channel_divisions via channel invoice yang SEDANG dihitung (bukan channel
+      // invoice terbaru customer), khusus dipakai invCountExpr/catCountExpr.
+      .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
       .where(whereWithDivision)
       .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue)
       .orderBy(orderByExpr)
@@ -225,18 +259,61 @@ export async function findCustomers(
   }
 }
 
-export async function findCustomerDetail(customerId: number, asOfDate?: string) {
+export async function findCustomerDetail(
+  customerId: number,
+  asOfDate?: string,
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = asOfDate ? sql`${asOfDate}::date` : sql`CURRENT_DATE`
 
-  // Ambil channel_name + company_id dari invoice terbaru (dibatasi refDate, konsisten
-  // dengan sisa function ini) → lookup division
+  // task018 — endpoint ini SEBELUMNYA tidak pernah cek branch/division sama sekali
+  // (cuma company-scope, task015), jadi SEMUA query di bawah agregasi invoice
+  // customer TANPA peduli branch/division-nya viewer. scopeGuard dipasang di setiap
+  // CASE WHEN/WHERE yang menyentuh invoices, mirror pola findInvoices/findInvoiceDetail.
+  const otherIdByCompany = await loadDivisionFallbackIds('other')
+  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
+  const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+  const scopeGuard = sql`(${branchScopeCond ?? sql`true`}) AND (${divisionScopeCond ?? sql`true`})`
+
+  // Cek dulu APAKAH customer ini punya invoice sama sekali (unscoped) — membedakan
+  // "customer memang belum pernah transaksi" (tetap tampil kosong, perilaku lama)
+  // VS "customer punya invoice tapi semuanya di luar scope viewer" (di-treat sebagai
+  // tidak ditemukan di bawah, lihat cek anyInv/latestInv).
+  const [anyInv] = await db
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate)))
+    .limit(1)
+
+  // Ambil channel_name + company_id dari invoice terbaru YANG TERLIHAT viewer
+  // (scope-guarded) — dipakai sekaligus sumber label divisi/channel yang ditampilkan
+  // (konsisten dgn window scope viewer, bukan true-latest yang bisa dari branch di
+  // luar aksesnya) DAN gate akses (cek di bawah).
   const [latestInv] = await db
     .select({ channel_name: invoices.channel_name, company_id: invoices.company_id })
     .from(invoices)
-    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate)))
+    .leftJoin(
+      channel_divisions,
+      and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
+    )
+    .where(and(
+      eq(invoices.customer_id, customerId),
+      isNull(invoices.deleted_at),
+      lte(invoices.invoice_date, refDate),
+      scopeGuard,
+    ))
     .orderBy(desc(invoices.invoice_date))
     .limit(1)
+
+  // Customer punya invoice (anyInv truthy), tapi TIDAK SATU PUN dalam scope viewer
+  // (latestInv kosong) → treat sebagai tidak ditemukan (404 di service layer), BUKAN
+  // tampil kosong — celah RBAC (task018): sebelumnya endpoint ini tidak pernah cek
+  // branch/division sama sekali, user scope 1 cabang bisa buka detail customer yang
+  // transaksinya di cabang lain.
+  if (anyInv && !latestInv) return null
 
   const [divRow] = latestInv?.channel_name
     ? await db
@@ -253,8 +330,8 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
   const divisionKey = await resolveDormantCategory(divRow?.division_id ?? null)
   const dormantMonths = dormant[divisionKey]
 
-  const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`
-  const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoices.invoice_date} END)`
+  const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoices.invoice_date} END)`
+  const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoices.invoice_date} END)`
 
   const [row] = await db
     .select({
@@ -267,11 +344,15 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
       first_invoice_date: liveFirstInv.mapWith(String),
       last_invoice_date: liveLastInv.mapWith(String),
       status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv),
-      category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} THEN ${invoice_items.product_category_id} END)`,
+      category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoice_items.product_category_id} END)`,
     })
     .from(customers)
     .leftJoin(companies, eq(customers.company_id, companies.id))
     .leftJoin(invoices, eq(invoices.customer_id, customers.id))
+    .leftJoin(
+      channel_divisions,
+      and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
+    )
     .leftJoin(
       invoice_items,
       and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
@@ -285,8 +366,15 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
     .selectDistinct({ name: product_categories.name })
     .from(invoice_items)
     .innerJoin(invoices, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
+    .leftJoin(
+      channel_divisions,
+      and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
+    )
     .innerJoin(product_categories, eq(invoice_items.product_category_id, product_categories.id))
-    .where(and(eq(invoices.customer_id, customerId), lte(invoices.invoice_date, refDate)))
+    .where(and(eq(invoices.customer_id, customerId), lte(invoices.invoice_date, refDate), scopeGuard))
+
+  const trendBranchCondRaw = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
+  const trendDivisionCondRaw = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope, otherIdByBranch)
 
   const trendRows = await db.execute<{ month: string; revenue: string; gp: string }>(sql`
     WITH months AS (
@@ -299,14 +387,17 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
     ),
     actuals AS (
       SELECT
-        TO_CHAR(${invoices.invoice_date}::date, 'YYYY-MM') AS month,
-        COALESCE(SUM(${invoices.total_revenue}::numeric), 0) AS revenue,
-        COALESCE(SUM(${invoices.total_gp}::numeric), 0) AS gp
-      FROM ${invoices}
-      WHERE ${invoices.customer_id} = ${customerId}
-        AND ${invoices.deleted_at} IS NULL
-        AND ${invoices.invoice_date}::date >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
-        AND ${invoices.invoice_date}::date <= ${refDate}::date
+        TO_CHAR(i.invoice_date::date, 'YYYY-MM') AS month,
+        COALESCE(SUM(i.total_revenue::numeric), 0) AS revenue,
+        COALESCE(SUM(i.total_gp::numeric), 0) AS gp
+      FROM invoices i
+      LEFT JOIN channel_divisions cd ON cd.channel_name = i.channel_name AND cd.company_id = i.company_id
+      WHERE i.customer_id = ${customerId}
+        AND i.deleted_at IS NULL
+        AND i.invoice_date::date >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+        AND i.invoice_date::date <= ${refDate}::date
+        AND ${trendBranchCondRaw}
+        AND ${trendDivisionCondRaw}
       GROUP BY 1
     )
     SELECT m.month, COALESCE(a.revenue, 0)::text AS revenue, COALESCE(a.gp, 0)::text AS gp
@@ -323,7 +414,11 @@ export async function findCustomerDetail(customerId: number, asOfDate?: string) 
       total_gp: invoices.total_gp,
     })
     .from(invoices)
-    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate)))
+    .leftJoin(
+      channel_divisions,
+      and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
+    )
+    .where(and(eq(invoices.customer_id, customerId), isNull(invoices.deleted_at), lte(invoices.invoice_date, refDate), scopeGuard))
     .orderBy(desc(invoices.invoice_date))
     .limit(5)
 

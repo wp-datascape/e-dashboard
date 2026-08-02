@@ -10,6 +10,7 @@ import type {
   CategoryProductRow,
   CategoryProductsParams,
   HighMarginCategoryRow,
+  HighMarginProductRow,
   HighMarginDetailParams,
   UpsellTargetRow,
   UpsellTargetParams,
@@ -17,6 +18,8 @@ import type {
   CustomerProductsParams,
   ProductTrendData,
   ProductTrendParams,
+  HmCustomerRow,
+  HmCustomersParams,
 } from '@/types/products'
 
 export const productsApi = {
@@ -70,6 +73,28 @@ export const productsApi = {
   ): Promise<PaginatedResponse<HighMarginCategoryRow>> => {
     const res = await api.get<PaginatedResponse<HighMarginCategoryRow>>(
       '/metrics/high-margin-penetration/detail',
+      { params }
+    )
+    return res.data
+  },
+
+  // task017 lanjutan — High Margin detail flat per-produk (VIEW DEFAULT)
+  getHighMarginProductDetail: async (
+    params: HighMarginDetailParams
+  ): Promise<PaginatedResponse<HighMarginProductRow>> => {
+    const res = await api.get<PaginatedResponse<HighMarginProductRow>>(
+      '/metrics/high-margin-penetration/products',
+      { params }
+    )
+    return res.data
+  },
+
+  // task017 — drill-down "Customer Pembeli" + "Capaian per Divisi"
+  getHmCustomers: async (
+    params: HmCustomersParams
+  ): Promise<PaginatedResponse<HmCustomerRow>> => {
+    const res = await api.get<PaginatedResponse<HmCustomerRow>>(
+      '/metrics/high-margin-penetration/buyers',
       { params }
     )
     return res.data

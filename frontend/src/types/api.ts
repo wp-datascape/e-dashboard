@@ -30,6 +30,10 @@ export interface PaginationMeta {
   // Agregat opsional di luar data per-baris (mis. total keseluruhan produk yang
   // difilter) - lihat backend/src/utils/response.ts PaginationMeta.summary.
   summary?: Record<string, unknown>;
+  // Breakdown opsional TIDAK terpaginasi (task017 — "Capaian per Divisi" di
+  // dialog drill-down Customer Pembeli) - lihat backend/src/utils/response.ts
+  // PaginationMeta.breakdown.
+  breakdown?: unknown[];
 }
 
 export interface PaginatedResponse<T> {

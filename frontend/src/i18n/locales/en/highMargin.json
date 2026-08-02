@@ -21,5 +21,8 @@
   "ongoing": "Ongoing",
   "filterPeriod": "Filter Period",
   "activeOnly": "Active only",
-  "deactivate": "Deactivate"
+  "deactivate": "Deactivate",
+  "assignedDivisions": "Focus Divisions",
+  "assignedDivisionsPlaceholder": "Select divisions...",
+  "assignedDivisionsHint": "Select at least 1 division. Intercompany is not available (not a KPI target)."
 }

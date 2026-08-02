@@ -118,6 +118,7 @@ const mockHighMarginDetail: HighMarginCategoryRow[] = [
     total_revenue: 420_000_000,
     total_gp: 168_000_000,
     gp_margin_percent: 40.0,
+    assign_to: [],
   },
   {
     id: 2,
@@ -130,6 +131,7 @@ const mockHighMarginDetail: HighMarginCategoryRow[] = [
     total_revenue: 980_000_000,
     total_gp: 313_600_000,
     gp_margin_percent: 32.0,
+    assign_to: [],
   },
   {
     id: 6,
@@ -142,6 +144,7 @@ const mockHighMarginDetail: HighMarginCategoryRow[] = [
     total_revenue: 420_000_000,
     total_gp: 168_000_000,
     gp_margin_percent: 40.0,
+    assign_to: [],
   },
 ]
 

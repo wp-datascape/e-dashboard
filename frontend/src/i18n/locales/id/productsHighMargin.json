@@ -1,19 +1,34 @@
 {
   "title": "Daftar Dorong High Margin",
-  "subtitle": "Tingkat penetrasi per kategori high margin dan target upsell",
-  "tabCategories": "Penetrasi Kategori",
+  "subtitle": "Tingkat penetrasi produk high margin dan target upsell",
+  "tabCategories": "Penetrasi Produk",
   "tabUpsellTargets": "Target Upsell",
   "penetrationRate": "Tingkat Penetrasi",
   "customersBuying": "Pelanggan Membeli",
   "categoriesBought": "Kategori Dibeli",
   "missingHighMargin": "Belum Beli High Margin",
-  "summaryCategories": "{{count}} Kategori High Margin",
+  "summaryProducts": "{{count}} Produk High Margin",
   "summaryAvgPenetration": "Rata-rata Penetrasi {{pct}}%",
+  "assignTo": "Divisi Fokus",
   "drawer": {
     "subtitle": "Riwayat pembelian • window {{window}} bulan",
     "avgRevenueMonth": "Avg. Revenue/Bulan",
     "lastTransaction": "Terakhir Transaksi",
     "productListFiltered": "Produk: {{category}}",
     "productListAll": "Semua Produk yang Dibeli"
+  },
+  "buyers": {
+    "divisionBreakdown": "Capaian per Divisi",
+    "noBreakdown": "Belum ada transaksi pada periode ini.",
+    "customerCount": "{{count}} customer",
+    "listTitle": "Customer Pembeli ({{count}})",
+    "colCustomer": "Customer",
+    "colDivision": "Divisi",
+    "colLastPurchase": "Terakhir Beli",
+    "otherDivision": "Lainnya",
+    "contextCategory": "Menampilkan kategori: {{name}}",
+    "contextProduct": "Menampilkan produk: {{name}}",
+    "backToProducts": "Kembali ke Produk",
+    "viewCategoryBreakdown": "Lihat Capaian & Customer Kategori Ini"
   }
 }

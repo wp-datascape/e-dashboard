@@ -82,6 +82,37 @@ export const high_margin_products = pgTable('high_margin_products', {
 export type HighMarginProduct = typeof high_margin_products.$inferSelect
 export type NewHighMarginProduct = typeof high_margin_products.$inferInsert
 
+// ─── high_margin_product_divisions ─────────────────────────────────────────────
+
+/**
+ * Junction table (task017) — 1 flag high_margin_products bisa di-assign ke BANYAK
+ * divisi sekaligus (mis. produk fokus Divisi A DAN B bersamaan), dipakai buat
+ * filter "capaian produk fokus per divisi" di hmCatsCte() (metrics/repository/
+ * high-margin-penetration.repository.ts). high_margin_products SENGAJA tidak
+ * ditambah kolom division_id langsung — biar edit note/tanggal efektif cukup 1x,
+ * berlaku ke semua divisi yang di-assign (bukan duplikasi baris per divisi).
+ *
+ * Divisi 'intercompany' TIDAK PERNAH masuk sini (dicegah di layer aplikasi,
+ * high-margin.schema.ts) — bukan divisi penjualan yang punya target KPI produk
+ * fokus. Data lama (mapping HM sebelum fitur ini ada) SENGAJA tidak di-backfill —
+ * admin wajib re-assign manual, lihat docs-v2/task/task017.md §2.
+ */
+export const high_margin_product_divisions = pgTable(
+  'high_margin_product_divisions',
+  {
+    id: serial('id').primaryKey(),
+    high_margin_product_id: integer('high_margin_product_id').notNull().references(() => high_margin_products.id, { onDelete: 'cascade' }),
+    division_id: integer('division_id').notNull().references(() => divisions.id, { onDelete: 'cascade' }),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueProductDivision: uniqueIndex('uq_hm_product_division').on(table.high_margin_product_id, table.division_id),
+  }),
+)
+
+export type HighMarginProductDivision = typeof high_margin_product_divisions.$inferSelect
+export type NewHighMarginProductDivision = typeof high_margin_product_divisions.$inferInsert
+
 // ─── item_classification_rules ────────────────────────────────────────────────
 
 /**

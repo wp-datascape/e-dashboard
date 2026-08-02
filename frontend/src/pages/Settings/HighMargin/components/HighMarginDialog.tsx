@@ -9,7 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { useActiveDivisions } from '@/hooks/useDivisions'
 import type { HighMarginMapping, CreateHighMarginPayload, UpdateHighMarginPayload, ProductOption } from '@/types/highMargin'
+import type { DivisionOption } from '@/types/divisions'
 import { getApiErrorMessage } from '@/utils/apiError'
 
 interface Props {
@@ -35,6 +37,12 @@ export function HighMarginDialog({
   const [effectiveFrom, setEffectiveFrom] = useState('')
   const [effectiveUntil, setEffectiveUntil] = useState('')
   const [note, setNote] = useState('')
+  const [divisionIds, setDivisionIds] = useState<number[]>([])
+
+  // task017 — divisi target KPI, wajib >=1, exclude Intercompany (bukan divisi
+  // penjualan yang punya target KPI produk fokus).
+  const { data: divisionOptions = [] } = useActiveDivisions(companyId)
+  const assignableDivisions = divisionOptions.filter((d) => d.key !== 'intercompany')
 
   // Populate form saat dialog dibuka — pola "adjust state during render" (bukan
   // useEffect), sama seperti DivisionMappingDialog.tsx. syncedKey direset ke null
@@ -49,16 +57,19 @@ export function HighMarginDialog({
       if (mode === 'edit' && selected) {
         setEffectiveUntil(selected.effective_until ?? '')
         setNote(selected.note ?? '')
+        setDivisionIds(selected.division_ids)
       } else {
         setTargetOption(null)
         setEffectiveFrom('')
         setEffectiveUntil('')
         setNote('')
+        setDivisionIds([])
       }
     }
   }
 
   const handleSubmit = () => {
+    if (divisionIds.length === 0) return
     if (mode === 'create') {
       if (!targetOption || !effectiveFrom) return
       const payload: CreateHighMarginPayload = {
@@ -66,6 +77,7 @@ export function HighMarginDialog({
         effective_from: effectiveFrom,
         effective_until: effectiveUntil || undefined,
         note: note || undefined,
+        division_ids: divisionIds,
         ...(targetOption.type === 'product'
           ? { product_id: targetOption.id }
           : { product_category_id: targetOption.id }),
@@ -75,6 +87,7 @@ export function HighMarginDialog({
       onUpdate(selected.id, {
         effective_until: effectiveUntil || null,
         note: note || undefined,
+        division_ids: divisionIds,
       })
     }
   }
@@ -158,6 +171,26 @@ export function HighMarginDialog({
           helperText={t('highMargin.effectiveUntilHint')}
         />
 
+        <Autocomplete<DivisionOption, true, false, false>
+          multiple
+          options={assignableDivisions}
+          value={assignableDivisions.filter((d) => divisionIds.includes(d.id))}
+          onChange={(_, vals) => setDivisionIds(vals.map((v) => v.id))}
+          getOptionLabel={(opt) => opt.label}
+          isOptionEqualToValue={(opt, val) => opt.id === val.id}
+          disabled={!companyId}
+          slotProps={{ chip: { size: 'small' } }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              label={t('highMargin.assignedDivisions')}
+              placeholder={divisionIds.length === 0 ? t('highMargin.assignedDivisionsPlaceholder') : undefined}
+              helperText={t('highMargin.assignedDivisionsHint')}
+            />
+          )}
+        />
+
         <TextField
           size="small"
           label={t('highMargin.note')}
@@ -172,7 +205,7 @@ export function HighMarginDialog({
           <Button variant="outlined" onClick={onClose} disabled={isPending}>
             {t('common.cancel')}
           </Button>
-          <Button variant="contained" onClick={handleSubmit} loading={isPending}>
+          <Button variant="contained" onClick={handleSubmit} loading={isPending} disabled={divisionIds.length === 0}>
             {t('common.save')}
           </Button>
         </Box>
