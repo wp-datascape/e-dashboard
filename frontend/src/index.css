@@ -89,8 +89,30 @@
   }
 }
 
+html {
+  /* Hilangkan flash abu-abu/biru bawaan WebKit saat elemen di-tap (Card
+     onClick, accordion header, dll) - MUI sudah kasih feedback sendiri lewat
+     ripple/hover state, highlight bawaan browser ini bikin kerasa "halaman
+     web", bukan app native. */
+  -webkit-tap-highlight-color: transparent;
+  /* "manipulation" = tetap izinkan pan & pinch-zoom (aksesibilitas WCAG,
+     JANGAN dimatikan via user-scalable=no), tapi matikan double-tap-to-zoom
+     & delay 300ms sebelum tap terdaftar - double-tap cepat di card/tombol
+     (mis. buka lalu tutup accordion) sebelumnya bisa disalahartikan browser
+     sebagai gesture zoom, ini salah satu penyebab "layar seperti zoom in/out". */
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
+  /* Cegah pull-to-refresh/rubber-band bounce browser di ujung scroll -
+     PWA standalone browser masih bisa trigger refresh-halaman-penuh dari
+     gesture ini kalau tidak di-contain, kerasa jarring/tidak natif. */
+  overscroll-behavior-y: contain;
+  /* touch-action TIDAK inherit dari html ke body (bukan CSS property yang
+     inherited) - harus di-set ulang eksplisit di sini juga supaya benar-benar
+     berlaku ke seluruh konten (lihat komentar di rule html di atas). */
+  touch-action: manipulation;
 }
 
 h1,

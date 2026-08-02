@@ -164,6 +164,19 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
       MuiLinearProgress: {
         styleOverrides: { root: { borderRadius: 999 } },
       },
+      // body1 (dipakai MUI sebagai basis font input) di-set 0.875rem (14px) di
+      // TYPOGRAPHY atas untuk densitas desktop - tapi di bawah 16px, Safari/WebKit
+      // iOS otomatis ZOOM saat input di-fokus (perilaku native OS, bukan bug app)
+      // supaya teks tetap kebaca, lalu screen "lompat" balik saat blur - persis
+      // kesan "layar bergeser kayak zoom out/in" di PWA mobile. Override KHUSUS
+      // viewport mobile (breakpoint 'md' down, 899.95px - sama dengan breakpoint
+      // isMobile yang dipakai DashboardLayout/ResponsiveListView) ke 16px persis,
+      // supaya WebKit tidak pernah merasa perlu zoom. Desktop tetap 14px asli.
+      MuiInputBase: {
+        styleOverrides: {
+          input: { '@media (max-width:899.95px)': { fontSize: '16px' } },
+        },
+      },
     },
   })
 }

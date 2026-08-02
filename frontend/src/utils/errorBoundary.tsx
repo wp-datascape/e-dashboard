@@ -17,7 +17,7 @@ const Wrapper = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: '100vh',
+  minHeight: '100dvh',
   padding: theme.spacing(3),
   backgroundColor: theme.palette.background.default,
 }))

@@ -203,7 +203,7 @@ export function SetPermissionDialog({
       </Box>
 
       {/* Accordion List */}
-      <Box sx={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100vh - 220px)' : '60vh' }}>
+      <Box sx={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100dvh - 220px)' : '60vh' }}>
         <List disablePadding>
           {filteredGroups.map((group, idx) => {
             const isOpen = expandedGroups.has(group);
