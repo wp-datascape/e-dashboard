@@ -38,7 +38,7 @@ import { resolveCustomerScope, resolveAlertRecipients } from './recipients'
 import { createNotifications } from '@/features/notifications/notifications.repository'
 import { sendDigestEmail } from '@/features/notifications/email.service'
 import { parseDigestEntityRef, type DigestNotificationItem, type DigestPeriodType, type MetricComparisonDetail } from '@/features/notifications/digest.types'
-import { triggerLabel, resolveLocale } from '@/features/notifications/i18n'
+import { triggerLabel, resolveLocale, getDict } from '@/features/notifications/i18n'
 import { generateAnalisis } from './analisis.service'
 import type { AnalisisQuery } from './analisis.schema'
 import { users } from '@/db/schema'
@@ -213,10 +213,8 @@ async function evaluateAndNotify(params: {
   periodKey: string
   checkpoint: Checkpoint
   ranges: TriggerRanges
-  /** Catatan tambahan di body notifikasi, mis. "progres s.d. tanggal 14, bulan belum tutup" (Trigger A). */
-  bodyNote?: string
 }): Promise<NewNotification[]> {
-  const { companyId, companyName, periodType, periodKey, checkpoint, ranges, bodyNote } = params
+  const { companyId, companyName, periodType, periodKey, checkpoint, ranges } = params
   const { current: currentRange, yoy: yoyRange } = ranges
 
   const companyCustomers = await db
@@ -322,20 +320,27 @@ async function evaluateAndNotify(params: {
     const describeHits = (hits: { metric: 'revenue' | 'margin'; pct: number }[]): string =>
       hits.map(h => `${h.metric === 'revenue' ? 'Revenue' : 'Margin'} ${h.pct.toFixed(1)}%`).join(', ')
 
-    // Basis SELALU YoY (task016 §28) — vsPrevious/PoP dihapus total dari trigger.
-    const bodyMetrics = `vs tahun lalu: ${describeHits(alert.vsYoy)}`
-
     // periodType di sini tidak pernah 'ytd' secara runtime (PERIOD_TYPES cuma
     // quarter/semester/annual/monthly, lihat komentar const di atas) — cast aman.
-    const label = triggerLabel(periodType as Exclude<PeriodType, 'ytd'>, checkpoint)
-    const title = alert.is_pareto
-      ? `[${label} · Pareto] ${alert.customer_name} turun performa`
-      : `[${label}] ${alert.customer_name} turun performa`
-    const body = bodyNote
-      ? `${bodyMetrics} — ${bodyNote}`
-      : `${bodyMetrics} — periode ${periodKey}.`
+    const castPeriodType = periodType as Exclude<PeriodType, 'ytd'>
 
     for (const recipient of recipients) {
+      // Bahasa title/body ikut preferensi recipient masing-masing (task016 §32,
+      // sama seperti email/PDF digest — bukan hardcode Indonesia lagi) — dibangun
+      // PER RECIPIENT di dalam loop ini (bukan sekali di luar) karena tiap
+      // recipient bisa punya locale berbeda.
+      const locale = resolveLocale(recipient.preferences?.language)
+      const dict = getDict(locale)
+      const label = triggerLabel(castPeriodType, checkpoint, locale)
+      const title = alert.is_pareto
+        ? `[${label} · Pareto] ${alert.customer_name} ${dict.notification.titleAction}`
+        : `[${label}] ${alert.customer_name} ${dict.notification.titleAction}`
+      // Basis SELALU YoY (task016 §28) — vsPrevious/PoP dihapus total dari trigger.
+      const bodyMetrics = `${dict.notification.vsLastYear}: ${describeHits(alert.vsYoy)}`
+      const body = checkpoint === 'mid_month'
+        ? `${bodyMetrics} — ${dict.notification.midMonthNote(MID_MONTH_CHECKPOINT_DAY, periodKey)}`
+        : `${bodyMetrics} — ${dict.notification.periodSuffix(periodKey)}`
+
       notificationsToInsert.push({
         user_id: recipient.id,
         type: 'analisis_alert',
@@ -387,7 +392,6 @@ async function evaluateMonthlyMidpoint(companyId: number, companyName: string, m
     periodKey: monthKey,
     checkpoint: 'mid_month',
     ranges: resolveTriggerRanges('monthly', monthKey, 'mid_month', MID_MONTH_CHECKPOINT_DAY),
-    bodyNote: `progres s.d. tanggal ${MID_MONTH_CHECKPOINT_DAY}, periode ${monthKey} (bulan belum tutup)`,
   })
 }
 

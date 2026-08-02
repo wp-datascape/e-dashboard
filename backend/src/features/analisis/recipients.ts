@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '@/config/db'
 import { users, roles, userRoles, invoices, channel_divisions, customers } from '@/db/schema'
+import type { UserPreferences } from '@/db/schema/schema-auth'
 import { findConfigByKey } from '@/features/config/config.repository'
 import {
   getUserCompanyIds,
@@ -58,6 +59,9 @@ export async function resolveCustomerScope(customerId: number, companyId: number
 export interface AlertRecipient {
   id: number
   notification_email: string | null
+  // Dipakai resolve bahasa notifikasi in-app (task016 §32) — locale ikut
+  // recipient masing-masing, BUKAN admin yang setup Resend/jalankan scheduler.
+  preferences: UserPreferences
 }
 
 /**
@@ -73,6 +77,7 @@ export async function resolveAlertRecipients(scope: CustomerScope): Promise<Aler
     .select({
       id: users.id,
       notification_email: users.notification_email,
+      preferences: users.preferences,
       is_superadmin: sql<boolean>`bool_or(${roles.name} = 'superadmin')`,
     })
     .from(users)
@@ -94,7 +99,7 @@ export async function resolveAlertRecipients(scope: CustomerScope): Promise<Aler
   const result: AlertRecipient[] = []
   for (const candidate of candidates) {
     if (candidate.is_superadmin) {
-      result.push({ id: candidate.id, notification_email: candidate.notification_email })
+      result.push({ id: candidate.id, notification_email: candidate.notification_email, preferences: candidate.preferences })
       continue
     }
 
@@ -113,7 +118,7 @@ export async function resolveAlertRecipients(scope: CustomerScope): Promise<Aler
       }
     }
 
-    result.push({ id: candidate.id, notification_email: candidate.notification_email })
+    result.push({ id: candidate.id, notification_email: candidate.notification_email, preferences: candidate.preferences })
   }
 
   return result
