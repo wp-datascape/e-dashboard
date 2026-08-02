@@ -2,13 +2,13 @@ import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
-import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices } from '@/hooks/useTransactions'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { RangeFilter } from '@/components/filters/RangeFilter'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -92,17 +92,7 @@ export default function Transactions() {
           sx={{ width: { xs: '100%', sm: 150 } }}
         />
 
-        <TextField
-          select size="small" label={t('common.filters.range')}
-          value={activeWindow}
-          onChange={(e) => setActiveWindow(Number(e.target.value))}
-          sx={{ width: { xs: '100%', sm: 130 } }}
-        >
-          <MenuItem value={1}>{t('common.filters.range1Month')}</MenuItem>
-          <MenuItem value={3}>{t('common.filters.range3Months')}</MenuItem>
-          <MenuItem value={6}>{t('common.filters.range6Months')}</MenuItem>
-          <MenuItem value={12}>{t('common.filters.range12Months')}</MenuItem>
-        </TextField>
+        <RangeFilter value={activeWindow} onChange={setActiveWindow} />
 
         <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
