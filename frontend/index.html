@@ -2,7 +2,12 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- maximum-scale=1+user-scalable=no matikan pinch-zoom - permintaan eksplisit user
+         supaya PWA terkesan native (2026-08-03), SADAR ini trade-off aksesibilitas
+         (WCAG 1.4.4/1.4.10 biasanya minta zoom tetap bisa dipakai low-vision user).
+         Sengaja TIDAK dimatikan di iterasi awal fix native-feel karena alasan itu -
+         baru dimatikan sekarang setelah user dikasih tahu trade-off-nya & tetap minta. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
     <!-- App Info -->
     <title>Executive Dashboard</title>
