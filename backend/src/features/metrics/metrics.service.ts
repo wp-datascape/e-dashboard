@@ -1,11 +1,23 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, resolveDormantCategory, resolveDormantMonths } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
-import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery } from './metrics.schema'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
 import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
+
+// "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
+// sama sekali (bukan cuma angkanya, chip-nya juga) — beda dari data transaksi
+// lain yang sudah otomatis ter-scope di level SQL (WHERE branchCond/
+// divisionScopeCond), field ini murni metadata config (high_margin_product_
+// divisions) yang tidak lewat filter itu, jadi difilter di sini secara eksplisit.
+function filterAssignToByScope(assignTo: AssignToDivision[], divisionScope: Map<number, number[]> | undefined): AssignToDivision[] {
+  if (!divisionScope) return assignTo // superadmin/bypass — tampilkan semua
+  const allowed = new Set([...divisionScope.values()].flat())
+  return assignTo.filter((d) => allowed.has(d.id))
+}
 
 function todayDate(): string {
   const now = new Date()
@@ -406,7 +418,11 @@ export async function getCategoryProducts(
     })
 
     const total = rows[0]?.total_count ?? 0
-    const data  = rows.map(({ total_count, ...row }) => ({ id: row.product_id, ...row }))
+    const data  = rows.map(({ total_count, assign_to, ...row }) => ({
+      id: row.product_id,
+      ...row,
+      assign_to: filterAssignToByScope(assign_to, scope.divisionScope),
+    }))
 
     return { data, total, summary: { ...summary } }
   } catch (err) {
@@ -438,11 +454,97 @@ export async function getHmPenetrationDetail(
     })
 
     const total = rows[0]?.total_count ?? 0
-    const data  = rows.map(({ total_count, ...row }) => ({ id: row.category_id, is_high_margin: true, ...row }))
+    const data  = rows.map(({ total_count, assign_to, ...row }) => ({
+      id: row.category_id,
+      is_high_margin: true,
+      ...row,
+      assign_to: filterAssignToByScope(assign_to, scope.divisionScope),
+    }))
     return { data, total }
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil penetrasi high margin', 500)
+  }
+}
+
+/** task017 lanjutan — view flat per-produk (1 baris = 1 produk high margin),
+ * VIEW DEFAULT baru menggantikan asumsi lama "baris = kategori" (flag di DB
+ * SELALU per-produk, lihat catatan di fetchHmProductDetail()). */
+export async function getHmProductPenetrationDetail(
+  params: HmDetailQuery,
+  scope: MetricsScope = {},
+): Promise<{ data: object[]; total: number }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const rows = await fetchHmProductDetail({
+      cid,
+      companyScopeIds: scope.companyScopeIds,
+      branchScope:     scope.branchScope,
+      divisionScope:   scope.divisionScope,
+      division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
+      branchFilter:    params.branch_id,
+      periodEnd, activeWindow: params.active_window,
+      page: params.page, perPage: params.per_page,
+    })
+
+    const total = rows[0]?.total_count ?? 0
+    const data  = rows.map(({ total_count, assign_to, ...row }) => ({
+      id: row.product_id,
+      is_high_margin: true,
+      ...row,
+      assign_to: filterAssignToByScope(assign_to, scope.divisionScope),
+    }))
+    return { data, total }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil penetrasi high margin per produk', 500)
+  }
+}
+
+/** Drill-down "Customer Pembeli" + "Capaian per Divisi" (task017) — 1 dialog,
+ * 2 query paralel: list customer terpaginasi + breakdown per divisi (TIDAK
+ * terpaginasi, supaya angkanya selalu lengkap walau customer di halaman ini
+ * sedikit). */
+export async function getHmCustomers(
+  params: HmCustomersQuery,
+  scope: MetricsScope = {},
+): Promise<{ data: object[]; total: number; breakdown: object[] }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    const repoParams = {
+      cid,
+      companyScopeIds: scope.companyScopeIds,
+      branchScope:     scope.branchScope,
+      divisionScope:   scope.divisionScope,
+      targetType:  params.target_type,
+      targetId:    params.target_id,
+      division:     params.division,
+      branchFilter: params.branch_id,
+      excludeIntercompany: params.exclude_intercompany,
+      periodEnd, activeWindow: params.active_window,
+      page: params.page, perPage: params.per_page,
+    }
+
+    const [rows, breakdown] = await Promise.all([
+      fetchHmCustomers(repoParams),
+      fetchHmDivisionBreakdown(repoParams),
+    ])
+
+    const total = rows[0]?.total_count ?? 0
+    const data  = rows.map(({ total_count, ...row }) => ({ id: `${row.customer_id}-${row.division_id ?? 'na'}`, ...row }))
+    return { data, total, breakdown }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil customer pembeli', 500)
   }
 }
 

@@ -16,6 +16,8 @@ import StarIcon from '@mui/icons-material/Star'
 import CategoryIcon from '@mui/icons-material/Category'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef } from '@mui/x-data-grid'
+import Stack from '@mui/material/Stack'
+import Chip from '@mui/material/Chip'
 import { Card, Button, ActionMenu, StatusChip } from '@/components/ui'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -133,6 +135,20 @@ export default function HighMarginSettings() {
           label={row.product_id ? t('highMargin.targetProduct') : t('highMargin.targetCategory')}
           color={row.product_id ? 'warning' : 'default'}
         />
+      ),
+    },
+    {
+      field: 'division_names',
+      headerName: t('highMargin.assignedDivisions'),
+      flex: 2,
+      minWidth: 160,
+      sortable: false,
+      renderCell: ({ row }) => (
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', py: 0.5 }}>
+          {row.division_names.map((name) => (
+            <Chip key={name} size="small" label={name} variant="outlined" />
+          ))}
+        </Stack>
       ),
     },
     {

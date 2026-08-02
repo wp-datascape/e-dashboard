@@ -22,6 +22,9 @@ export async function handleGetCustomers(c: Context) {
 export async function handleGetCustomerDetail(c: Context) {
   const { id } = validateParam(c, customerIdParamSchema)
   const query = validateQuery(c, customerDetailQuerySchema)
-  const detail = await getCustomerDetail(id, query.as_of_date, c)
+  const scopeIds = resolveCompanyScope(c, 'all')
+  const branchScope = resolveBranchScope(c, scopeIds)
+  const divisionScope = resolveDivisionScope(c, branchScope)
+  const detail = await getCustomerDetail(id, query.as_of_date, scopeIds, branchScope, divisionScope)
   return success(c, detail)
 }

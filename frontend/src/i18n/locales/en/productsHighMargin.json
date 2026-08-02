@@ -1,19 +1,34 @@
 {
   "title": "High Margin Push List",
-  "subtitle": "Penetration rate per high-margin category and upsell targets",
-  "tabCategories": "Category Penetration",
+  "subtitle": "Penetration rate for high-margin products and upsell targets",
+  "tabCategories": "Product Penetration",
   "tabUpsellTargets": "Upsell Targets",
   "penetrationRate": "Penetration Rate",
   "customersBuying": "Customers Buying",
   "categoriesBought": "Categories Bought",
   "missingHighMargin": "Missing High Margin",
-  "summaryCategories": "{{count}} High Margin Categories",
+  "summaryProducts": "{{count}} High Margin Products",
   "summaryAvgPenetration": "Avg Penetration {{pct}}%",
+  "assignTo": "Focus Divisions",
   "drawer": {
     "subtitle": "Purchase history • {{window}} month window",
     "avgRevenueMonth": "Avg. Revenue/Month",
     "lastTransaction": "Last Transaction",
     "productListFiltered": "Products: {{category}}",
     "productListAll": "All Products Purchased"
+  },
+  "buyers": {
+    "divisionBreakdown": "Achievement by Division",
+    "noBreakdown": "No transactions in this period yet.",
+    "customerCount": "{{count}} customers",
+    "listTitle": "Buying Customers ({{count}})",
+    "colCustomer": "Customer",
+    "colDivision": "Division",
+    "colLastPurchase": "Last Purchase",
+    "otherDivision": "Other",
+    "contextCategory": "Showing category: {{name}}",
+    "contextProduct": "Showing product: {{name}}",
+    "backToProducts": "Back to Products",
+    "viewCategoryBreakdown": "View This Category's Achievement & Customers"
   }
 }

@@ -1,16 +1,23 @@
+import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Stack from '@mui/material/Stack'
+import Chip from '@mui/material/Chip'
 import Skeleton from '@mui/material/Skeleton'
 import MuiTooltip from '@mui/material/Tooltip'
 import IconButton from '@mui/material/IconButton'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { Dialog, StatusChip } from '@/components/ui'
+import { Button } from '@/components/ui/Button'
 import { useTranslation } from 'react-i18next'
 import { useCategoryProducts } from '@/hooks/useProducts'
 import { formatIDR } from '@/utils/format'
 import type { GridColDef } from '@mui/x-data-grid'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { HmCustomerBreakdown } from '@/pages/ProductsHighMargin/components/HmCustomerBreakdown'
+import type { HmTarget } from '@/pages/ProductsHighMargin/components/HmCustomerBreakdown'
 import type { CategoryProductRow } from '@/types/products'
 
 export interface CategoryDrawerInfo {
@@ -60,6 +67,27 @@ export function CategoryProductsDialog({
   onClose,
 }: Props) {
   const { t } = useTranslation()
+
+  // task017 — dialog ini punya 2 "view" yang SALING GANTI (bukan ditumpuk
+  // sebagai 2 tabel dalam 1 layar, itu keputusan desain buruk — dikoreksi
+  // setelah user komplain): 'products' (default, tabel produk kategori ini)
+  // dan 'breakdown' (Capaian per Divisi + Customer Pembeli, utk kategori ATAU
+  // 1 produk spesifik yang diklik). Direset tiap category_id berubah.
+  //
+  // "Adjust state during render" (pola resmi React utk reset state saat prop
+  // berubah, lihat https://react.dev/learn/you-might-not-need-an-effect) —
+  // BUKAN useEffect (useEffect+setState di sini kena lint error "cascading
+  // renders"). Percobaan pertama pola ini bikin infinite loop karena bandingin
+  // category?.category_id (bisa undefined) mentah-mentah ke state number|null
+  // (undefined !== null SELALU true) — sekarang dinormalisasi ke null dulu.
+  const [breakdownTarget, setBreakdownTarget] = useState<HmTarget & { name: string } | null>(null)
+  const [syncedCategoryId, setSyncedCategoryId] = useState<number | null>(null)
+  const currentCategoryId = category?.category_id ?? null
+  if (currentCategoryId !== syncedCategoryId) {
+    setSyncedCategoryId(currentCategoryId)
+    if (breakdownTarget !== null) setBreakdownTarget(null)
+  }
+
   const { data, isLoading } = useCategoryProducts(
     category
       ? {
@@ -146,6 +174,23 @@ export function CategoryProductsDialog({
       type: 'number',
       sortable: false,
     },
+    // task017 — kolom "Assign To" cuma relevan di konteks HM (highMarginOnly),
+    // pemakai lain dialog ini (Target Upsell, halaman Products biasa) sengaja
+    // tidak ikut tampilkan (mirror pola onlyHighMargin di komentar Props di atas).
+    ...(highMarginOnly ? [{
+      field: 'assign_to',
+      headerName: t('productsHighMargin.assignTo'),
+      flex: 1,
+      minWidth: 140,
+      sortable: false,
+      renderCell: ({ row }: { row: CategoryProductRow }) => (
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', py: 0.5 }}>
+          {row.assign_to.map((d) => (
+            <Chip key={d.id} size="small" label={d.label} variant="outlined" />
+          ))}
+        </Stack>
+      ),
+    } as GridColDef<CategoryProductRow>] : []),
   ]
 
   return (
@@ -171,8 +216,9 @@ export function CategoryProductsDialog({
       }
       showCloseButton
     >
-      {/* Summary stats */}
-      {stats && (stats.total_revenue !== undefined) && (
+      {/* Summary stats — cuma tampil di view produk, biar tidak dobel dgn kartu
+          ringkasan di dalam HmCustomerBreakdown pas view breakdown aktif. */}
+      {!breakdownTarget && stats && (stats.total_revenue !== undefined) && (
         <Box
           sx={{
             display: 'grid',
@@ -215,28 +261,77 @@ export function CategoryProductsDialog({
         </Box>
       )}
 
-      {/* Product list */}
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {t('products.drawer.listTitle', { count: data?.meta.total ?? '…' })}
-      </Typography>
-
-      {isLoading ? (
-        <Stack spacing={1}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} variant="rectangular" height={40} sx={{ borderRadius: 1 }} />
-          ))}
-        </Stack>
+      {/* task017 — HANYA 1 tabel yang tampil sekaligus: produk (default) ATAU
+          breakdown+customer (setelah klik baris produk / link kategori). */}
+      {breakdownTarget ? (
+        <Box>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<ArrowBackIcon fontSize="small" />}
+            onClick={() => setBreakdownTarget(null)}
+            sx={{ mb: 1.5 }}
+          >
+            {t('productsHighMargin.buyers.backToProducts')}
+          </Button>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+            {breakdownTarget.type === 'product'
+              ? t('productsHighMargin.buyers.contextProduct', { name: breakdownTarget.name })
+              : t('productsHighMargin.buyers.contextCategory', { name: breakdownTarget.name })}
+          </Typography>
+          <HmCustomerBreakdown
+            target={breakdownTarget}
+            companyId={companyId}
+            branchId={branchId}
+            division={division}
+            periodMonth={periodMonth}
+            activeWindow={activeWindow}
+            excludeIntercompany={excludeIntercompany}
+          />
+        </Box>
       ) : (
-        <ResponsiveListView
-          rows={data?.data ?? []}
-          columns={columns}
-          rowCount={data?.meta.total ?? 0}
-          loading={false}
-          error={null}
-          paginationMode="client"
-          height={420}
-          pageSizeOptions={[25, 50, 100]}
-        />
+        <>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {t('products.drawer.listTitle', { count: data?.meta.total ?? '…' })}
+            </Typography>
+            {highMarginOnly && category && (
+              <Button
+                size="small"
+                variant="text"
+                endIcon={<ChevronRightIcon fontSize="small" />}
+                onClick={() => setBreakdownTarget({ type: 'category', id: category.category_id, name: category.category_name })}
+              >
+                {t('productsHighMargin.buyers.viewCategoryBreakdown')}
+              </Button>
+            )}
+          </Box>
+
+          {isLoading ? (
+            <Stack spacing={1}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} variant="rectangular" height={40} sx={{ borderRadius: 1 }} />
+              ))}
+            </Stack>
+          ) : (
+            <ResponsiveListView
+              rows={data?.data ?? []}
+              columns={columns}
+              rowCount={data?.meta.total ?? 0}
+              loading={false}
+              error={null}
+              paginationMode="client"
+              height={420}
+              pageSizeOptions={[25, 50, 100]}
+              // task017 — klik baris produk GANTI tampilan ke breakdown produk itu
+              // (bukan nambah tabel kedua di bawahnya) — cuma aktif di konteks HM.
+              onRowClick={highMarginOnly ? (row) => {
+                const r = row as unknown as CategoryProductRow
+                setBreakdownTarget({ type: 'product', id: r.product_id, name: r.product_name })
+              } : undefined}
+            />
+          )}
+        </>
       )}
     </Dialog>
   )

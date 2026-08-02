@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import type { AssignToDivision } from './high-margin-penetration.repository'
 
 export interface CategoryProductsRepoParams {
   cid: number
@@ -34,6 +35,9 @@ export interface CategoryProductDbRow {
   invoice_count: number
   customer_count: number
   total_count: number
+  // "Assign To" (task017) — MENTAH, belum di-filter scope viewer, lihat catatan
+  // hm_product_assign_to di categoryProductsCte(). Filter RBAC di service layer.
+  assign_to: AssignToDivision[]
 }
 
 export interface CategoryProductsSummary {
@@ -73,6 +77,17 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
     ? sql`ii.product_id IN (SELECT product_id FROM hm_products)`
     : sql`TRUE`
 
+  // divisionTagCond (task017) — mirror hmCatsCte di high-margin-penetration.
+  // repository.ts: kalau ada filter divisi aktif, flag HM (baik per-produk maupun
+  // per-kategori) HARUS ADA di-tag ke divisi itu di high_margin_product_divisions
+  // supaya dihitung — bukan cuma flag company-wide. is_high_margin (dipakai
+  // SEMUA caller, bukan cuma onlyHighMargin) ikut division-aware juga, supaya
+  // konsisten dgn angka kategori di hmCatsCte (mirror task007/008: baris kategori
+  // & drill-down produknya harus selalu sinkron).
+  const divisionTagCond = division != null
+    ? sql`AND EXISTS (SELECT 1 FROM high_margin_product_divisions hmd WHERE hmd.high_margin_product_id = hmp.id AND hmd.division_id = ${division}::int)`
+    : sql``
+
   return sql`
     WITH hm_products AS (
       SELECT pr.id AS product_id
@@ -85,6 +100,7 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
               AND ${companyCondHmp}
               AND hmp.effective_from <= ${p.periodEnd}::date
               AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
+              ${divisionTagCond}
           )
           OR EXISTS (
             SELECT 1 FROM high_margin_products hmp
@@ -92,6 +108,7 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
               AND ${companyCondHmp}
               AND hmp.effective_from <= ${p.periodEnd}::date
               AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
+              ${divisionTagCond}
           )
         )
     ),
@@ -120,6 +137,30 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+    ),
+    -- "Assign To" (task017) — union divisi dari flag yang berlaku ke produk ini
+    -- (langsung per-produk ATAU warisan dari flag category-level), MENTAH/belum
+    -- di-filter scope viewer (sama seperti hm_cat_assign_to di high-margin-
+    -- penetration.repository.ts — filter RBAC di service layer). jsonb_agg
+    -- (BUKAN json_agg) — dipakai di GROUP BY outer query, tipe json tidak
+    -- punya operator kesetaraan.
+    hm_product_assign_to AS (
+      SELECT
+        product_id,
+        jsonb_agg(jsonb_build_object('id', division_id, 'label', label) ORDER BY label) AS divisions
+      FROM (
+        SELECT DISTINCT pr.id AS product_id, hmd.division_id, d.label
+        FROM products pr
+        JOIN high_margin_products hmp
+          ON (hmp.product_id = pr.id OR hmp.product_category_id = pr.product_category_id)
+          AND ${companyCondHmp}
+          AND hmp.effective_from <= ${p.periodEnd}::date
+          AND (hmp.effective_until IS NULL OR hmp.effective_until >= ${p.periodEnd}::date)
+        JOIN high_margin_product_divisions hmd ON hmd.high_margin_product_id = hmp.id
+        JOIN divisions d ON d.id = hmd.division_id
+        WHERE pr.product_category_id = ${p.categoryId}::int
+      ) dedup
+      GROUP BY product_id
     )
   `
 }
@@ -142,10 +183,12 @@ export async function fetchCategoryProducts(
         ROUND(SUM(items.gp) / NULLIF(SUM(items.revenue), 0) * 100, 1) AS gp_margin_percent,
         COUNT(DISTINCT items.invoice_id)::int                    AS invoice_count,
         COUNT(DISTINCT items.customer_id)::int                   AS customer_count,
+        COALESCE(hpat.divisions, '[]')                            AS assign_to,
         COUNT(*) OVER ()::int                                    AS total_count
       FROM items
       JOIN products pr ON pr.id = items.product_id
-      GROUP BY pr.id, pr.product_name
+      LEFT JOIN hm_product_assign_to hpat ON hpat.product_id = pr.id
+      GROUP BY pr.id, pr.product_name, hpat.divisions
       ORDER BY total_revenue DESC
       LIMIT  ${p.perPage}
       OFFSET ${offset}
@@ -173,6 +216,7 @@ export async function fetchCategoryProducts(
       gp_margin_percent: Number(row.gp_margin_percent ?? 0),
       invoice_count:     Number(row.invoice_count    ?? 0),
       customer_count:    Number(row.customer_count   ?? 0),
+      assign_to:          ((row.assign_to as AssignToDivision[]) ?? []),
       total_count:       Number(row.total_count      ?? 0),
     }
   })

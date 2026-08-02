@@ -30,6 +30,10 @@ export interface PaginationMeta {
   // kirim ringkasan yang beda dari sekadar SUM per-halaman. Opsional & generic
   // supaya utility ini tidak terikat ke satu domain tertentu.
   summary?: Record<string, unknown>
+  // Breakdown opsional TIDAK terpaginasi di luar data per-baris (task017 —
+  // "Capaian per Divisi" di dialog drill-down Customer Pembeli, array bukan
+  // object tunggal seperti summary, makanya field terpisah).
+  breakdown?: unknown[]
 }
 
 export interface SuccessResponse<T> {

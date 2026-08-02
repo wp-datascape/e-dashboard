@@ -3,15 +3,28 @@ import { AppError, ErrorCode } from '@/utils/error'
 import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
 import { resolveCompanyScope } from '@/middleware/auth'
+import { loadDivisionFallbackIds } from '@/utils/scope'
 import {
   createHighMargin,
   findHighMarginById,
   findHighMargins,
   updateHighMargin,
+  setHighMarginDivisions,
   closeHighMargin,
   deleteHighMargin,
 } from './high-margin.repository'
 import type { CreateHighMarginDto, UpdateHighMarginDto, ListHighMarginQuery } from './high-margin.schema'
+
+// task017 — divisi 'intercompany' TIDAK BOLEH jadi target produk fokus KPI (bukan
+// divisi penjualan, biasanya malah di-exclude dari laporan revenue lewat toggle
+// terpisah). Dicek di service layer (butuh lookup DB), bukan schema Zod murni.
+async function assertNoIntercompanyDivision(companyId: number, divisionIds: number[]) {
+  const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
+  const intercompanyId = intercompanyIdByCompany.get(companyId)
+  if (intercompanyId != null && divisionIds.includes(intercompanyId)) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 'Divisi Intercompany tidak bisa dijadikan target produk fokus', 400)
+  }
+}
 
 export async function listHighMargins(query: ListHighMarginQuery, scopeIds?: number[]) {
   return findHighMargins({
@@ -21,6 +34,7 @@ export async function listHighMargins(query: ListHighMarginQuery, scopeIds?: num
 }
 
 export async function addHighMargin(dto: CreateHighMarginDto, userId: number, ctx: Context) {
+  await assertNoIntercompanyDivision(dto.company_id, dto.division_ids)
   try {
     const mapping = await createHighMargin({
       company_id: dto.company_id,
@@ -30,7 +44,7 @@ export async function addHighMargin(dto: CreateHighMarginDto, userId: number, ct
       effective_until: dto.effective_until ?? null,
       note: dto.note ?? null,
       created_by: userId,
-    })
+    }, dto.division_ids)
 
     await logAudit(ctx, {
       action: 'high_margin.create',
@@ -52,11 +66,13 @@ export async function editHighMargin(id: number, dto: UpdateHighMarginDto, ctx: 
   const existing = await findHighMarginById(id)
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, `High margin mapping #${id} tidak ditemukan`, 404)
   resolveCompanyScope(ctx, existing.company_id) // task015 §2c — throw 403 kalau mapping ini di luar akses company user
+  await assertNoIntercompanyDivision(existing.company_id, dto.division_ids)
 
   const updated = await updateHighMargin(id, {
     effective_until: dto.effective_until ?? undefined,
     note: dto.note,
   })
+  await setHighMarginDivisions(id, dto.division_ids)
 
   await logAudit(ctx, {
     action: 'high_margin.update',

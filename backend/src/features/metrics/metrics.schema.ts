@@ -243,6 +243,29 @@ export const categoryProductsQuerySchema = z.object({
 
 export type CategoryProductsQuery = z.infer<typeof categoryProductsQuerySchema>
 
+// task017 — drill-down "Customer Pembeli" di dialog ProductsHighMargin, mirror
+// categoryProductsQuerySchema tapi target bisa kategori ATAU produk.
+export const hmCustomersQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  target_type: z.enum(['category', 'product']),
+  target_id: z.coerce.number().int().positive(),
+  branch_id: z.coerce.number().int().positive().optional(),
+  division: divisionEnum,
+  exclude_intercompany: excludeIntercompanyField,
+  period_month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'period_month harus format YYYY-MM')
+    .optional()
+    .default(currentMonth),
+  active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  page:     z.coerce.number().int().positive().optional().default(1),
+  per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
+})
+export type HmCustomersQuery = z.infer<typeof hmCustomersQuerySchema>
+
 export const hmDetailQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])

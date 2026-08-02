@@ -21,5 +21,8 @@
   "ongoing": "Masih Aktif",
   "filterPeriod": "Filter Periode",
   "activeOnly": "Aktif saja",
-  "deactivate": "Nonaktifkan"
+  "deactivate": "Nonaktifkan",
+  "assignedDivisions": "Divisi Fokus",
+  "assignedDivisionsPlaceholder": "Pilih divisi...",
+  "assignedDivisionsHint": "Wajib pilih minimal 1 divisi. Intercompany tidak tersedia (bukan target KPI)."
 }

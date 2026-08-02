@@ -9,6 +9,7 @@ import type {
   UpsellTargetParams,
   CustomerProductsParams,
   ProductTrendParams,
+  HmCustomersParams,
 } from '@/types/products'
 
 export const PRODUCTS_KEYS = {
@@ -22,6 +23,10 @@ export const PRODUCTS_KEYS = {
     ['products', 'category-products', params] as const,
   highMarginDetail: (params: HighMarginDetailParams) =>
     ['products', 'high-margin-detail', params] as const,
+  highMarginProductDetail: (params: HighMarginDetailParams) =>
+    ['products', 'high-margin-product-detail', params] as const,
+  hmCustomers: (params: HmCustomersParams) =>
+    ['products', 'hm-customers', params] as const,
   upsellTargets: (params: UpsellTargetParams) =>
     ['products', 'upsell-targets', params] as const,
   productTrend: (params: ProductTrendParams) =>
@@ -61,6 +66,21 @@ export function useHighMarginDetail(params: HighMarginDetailParams) {
   return useQuery({
     queryKey: PRODUCTS_KEYS.highMarginDetail(params),
     queryFn: () => productsApi.getHighMarginDetail(params),
+  })
+}
+
+export function useHighMarginProductDetail(params: HighMarginDetailParams) {
+  return useQuery({
+    queryKey: PRODUCTS_KEYS.highMarginProductDetail(params),
+    queryFn: () => productsApi.getHighMarginProductDetail(params),
+  })
+}
+
+export function useHmCustomers(params: HmCustomersParams | null) {
+  return useQuery({
+    queryKey: params ? PRODUCTS_KEYS.hmCustomers(params) : ['products', 'hm-customers', null],
+    queryFn: () => productsApi.getHmCustomers(params!),
+    enabled: !!params,
   })
 }
 
