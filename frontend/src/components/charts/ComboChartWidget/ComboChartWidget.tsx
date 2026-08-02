@@ -2,6 +2,7 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -121,7 +122,33 @@ export const ComboChartWidget = ({
   onBarClick,
 }: ComboChartWidgetProps) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const warnColor = concentrationColor ?? theme.palette.warning.main;
+  // Combo chart (bar + sampai 3 garis + 2 sumbu-Y) padat di layar sempit -
+  // legend recharts (sampai 4 entri: bar + line + line2 + line3) tidak muat
+  // sejajar di ~360px lebar plot, ke-wrap tiap entri jadi baris sendiri kalau
+  // ukuran defaultnya dipakai. Kecilkan icon+font legend supaya lebih ringkas.
+  // Laporan user: chart M3 "cukup sulit terbaca" di mobile. Height TETAP
+  // ukuran asli (bukan ditambah) - sempat dicoba +70px extra biar legend lega,
+  // tapi bar jadi kelihatan terlalu tinggi/tidak proporsional dibanding chart
+  // bar biasa (mis. M4/BarChartWidget yang tidak nambah tinggi di mobile).
+  const effectiveHeight = height;
+  const legendIconSize = isMobile ? 6 : 14;
+  const legendFontSize = isMobile ? 10 : 12;
+  // 3 garis bertumpuk di plot area yang sempit - stroke tebal (3px) + dot besar
+  // (6-8px) saling menutupi di mobile. Kecilkan keduanya khusus mobile supaya
+  // tiap garis lebih gampang dibedakan, desktop tetap ukuran asli.
+  const lineStrokeWidth = isMobile ? 1.5 : 3;
+  const dotSize = isMobile ? 1 : 6;
+  const activeDotSize = isMobile ? 1 : 8;
+  // Default recharts: tooltip ngikutin posisi jari/kursor - di mobile, kalau
+  // tap dekat tepi bawah/atas chart, tooltip bisa muncul mepet ke tepi layar
+  // dan browser suka auto-scroll buat "membantu" nampilkannya penuh (bug
+  // scroll vertikal, laporan user). Kunci posisi Y ke tengah chart (X tetap
+  // ngikutin jari secara horizontal biar masih relevan ke bar yang di-tap) -
+  // dengan Y yang selalu sama, tooltip tidak pernah mepet tepi atas/bawah,
+  // jadi browser tidak pernah perlu auto-scroll.
+  const tooltipPosition = isMobile ? { y: effectiveHeight / 2 - 40 } : undefined;
 
   // Hitung domain right axis dari field yang benar-benar di-plot (bukan semua field data)
   const rightDomain = (() => {
@@ -171,8 +198,12 @@ export const ComboChartWidget = ({
 
       {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
           (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
-      <ResponsiveContainer width="100%" height={height} debounce={200}>
-        <ComposedChart data={data} margin={{ top: 16, right: 28, left: -20, bottom: 0 }}>
+      <ResponsiveContainer width="100%" height={effectiveHeight} debounce={200}>
+        {/* right:28 (lama) nyisain gap kosong lebar di kanan chart - sumbu kanan
+            sendiri sudah reserve ruang buat label ("14.8jt" dst), 28px ekstra di
+            atas itu berlebihan. right:4 (samakan dgn BarChartWidget/M4 yang tidak
+            ada keluhan sama) - laporan user: gap kanan chart M3 kebesaran. */}
+        <ComposedChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid
             strokeDasharray="3 3"
             stroke={theme.palette.divider}
@@ -199,6 +230,11 @@ export const ComboChartWidget = ({
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => (formatLine ? formatLine(v) : v)}
+            // recharts auto-hitung width sumbu ini dari label terlebar, tapi hasilnya
+            // lebih lebar dari kebutuhan teks asli (~22px padding ekstra terukur,
+            // laporan user "gap kanan masih banyak"). Paksa width ketat di mobile -
+            // cukup buat label 6 karakter ("12.0jt" dkk) + tick margin kecil.
+            width={isMobile ? 36 : undefined}
           />
           {line3Key && (
             <YAxis yAxisId="pct" domain={[0, 100]} hide />
@@ -207,11 +243,13 @@ export const ComboChartWidget = ({
             <Tooltip
               content={(props) => renderTooltip(props as TooltipContentProps<number, string>)}
               isAnimationActive={false}
+              position={tooltipPosition}
               wrapperStyle={{ backgroundColor: theme.palette.background.paper, zIndex: 10 }}
             />
           ) : (
             <Tooltip
               isAnimationActive={false}
+              position={tooltipPosition}
               wrapperStyle={{ zIndex: 10 }}
               contentStyle={{
                 backgroundColor: theme.palette.background.paper,
@@ -222,7 +260,7 @@ export const ComboChartWidget = ({
               formatter={tooltipFormatter}
             />
           )}
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: legendFontSize }} iconSize={legendIconSize} />
 
           <Bar
             yAxisId="left"
@@ -272,12 +310,12 @@ export const ComboChartWidget = ({
             dataKey={lineKey}
             name={lineLabel}
             stroke={lineColor}
-            strokeWidth={3}
+            strokeWidth={lineStrokeWidth}
             strokeOpacity={1}
             strokeLinecap="round"
             strokeLinejoin="round"
-            dot={renderCircleDot(lineColor, 6)}
-            activeDot={renderCircleDot(lineColor, 8)}
+            dot={renderCircleDot(lineColor, dotSize)}
+            activeDot={renderCircleDot(lineColor, activeDotSize)}
             type="monotone"
           />
 
@@ -287,13 +325,13 @@ export const ComboChartWidget = ({
               dataKey={line2Key}
               name={line2Label ?? line2Key}
               stroke={line2Color ?? theme.palette.success.main}
-              strokeWidth={3}
+              strokeWidth={lineStrokeWidth}
               strokeOpacity={1}
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray="8 5"
-              dot={renderSquareDot(line2Color ?? theme.palette.success.main, 6)}
-              activeDot={renderSquareDot(line2Color ?? theme.palette.success.main, 8)}
+              dot={renderSquareDot(line2Color ?? theme.palette.success.main, dotSize)}
+              activeDot={renderSquareDot(line2Color ?? theme.palette.success.main, activeDotSize)}
               type="monotone"
             />
           )}
@@ -304,13 +342,13 @@ export const ComboChartWidget = ({
               dataKey={line3Key}
               name={line3Label ?? line3Key}
               stroke={line3Color}
-              strokeWidth={3}
+              strokeWidth={lineStrokeWidth}
               strokeOpacity={1}
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray="1 4"
-              dot={renderDiamondDot(line3Color ?? theme.palette.info.main, 6)}
-              activeDot={renderDiamondDot(line3Color ?? theme.palette.info.main, 8)}
+              dot={renderDiamondDot(line3Color ?? theme.palette.info.main, dotSize)}
+              activeDot={renderDiamondDot(line3Color ?? theme.palette.info.main, activeDotSize)}
               type="monotone"
             />
           )}
