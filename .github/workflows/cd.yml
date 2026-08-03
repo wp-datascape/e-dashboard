@@ -48,7 +48,7 @@ jobs:
           context: frontend
           push: true
           build-args: |
-            VITE_API_URL=${{ env.BACKEND_URL }}/api/v1
+            VITE_API_URL=/api/v1
           tags: |
             ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}
             ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}-${{ github.sha }}
@@ -136,7 +136,7 @@ jobs:
           context: frontend
           push: true
           build-args: |
-            VITE_API_URL=${{ env.BACKEND_URL }}/api/v1
+            VITE_API_URL=/api/v1
           tags: |
             ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}
             ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}-${{ github.sha }}
