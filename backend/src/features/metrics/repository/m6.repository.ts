@@ -31,7 +31,7 @@ export async function fetchRorBreakdown(
         AND ${companyCondI}
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}

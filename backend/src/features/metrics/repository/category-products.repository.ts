@@ -132,7 +132,7 @@ function categoryProductsCte(p: CategoryProductsRepoParams) {
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_category_id = ${p.categoryId}::int
         AND ${onlyHmCond}
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

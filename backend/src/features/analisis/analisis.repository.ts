@@ -119,7 +119,11 @@ export async function findAnalisisCustomers(
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
-    .orderBy(invoices.customer_id, sql`${invoices.invoice_date} DESC`)
+    // Tie-break invoice.id DESC — tanpa ini, customer dengan 2+ invoice di
+    // TANGGAL SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
+    // (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT
+    // (customer 13516/13533, 2 invoice tanggal sama, channel beda).
+    .orderBy(invoices.customer_id, sql`${invoices.invoice_date} DESC`, sql`${invoices.id} DESC`)
     .as('latest_channel')
 
   const [intercompanyIdByCompany, otherIdByCompany] = await Promise.all([
@@ -143,8 +147,12 @@ export async function findAnalisisCustomers(
   const branchScopeCond = buildBranchCondition(customers.company_id, latestChannelSq.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(latestChannelSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
   const branchFilterCond = branchIdFilter ? eq(latestChannelSq.branch_id, branchIdFilter) : undefined
+  // COALESCE ke division_id "other" milik company customer ini — tanpa ini, customer
+  // yang latest channel name-nya tidak match rule apa pun (division_id NULL) tidak
+  // akan pernah muncul waktu filter divisi "Lainnya" dipilih (bug ditemukan lewat
+  // audit KNT).
   const divisionFilterCond = divisionFilter
-    ? eq(sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`, divisionFilter)
+    ? eq(sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, divisionFilter)
     : undefined
 
   const baseConditions = [eq(customers.is_placeholder, false)]

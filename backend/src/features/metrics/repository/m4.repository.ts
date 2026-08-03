@@ -29,7 +29,7 @@ export async function fetchGpBreakdown(
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
