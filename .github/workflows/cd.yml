@@ -1,0 +1,187 @@
+name: CD
+
+# Build+push image ke GHCR jalan di GitHub Actions runner (BUKAN di VPS) — VPS cuma
+# `docker compose pull` + restart. Alasan: VPS ini sekaligus menjalankan mail server +
+# database produksi + panel, build (typecheck+bundle+obfuscate) sebaiknya tidak membebani
+# server yang sama. Detail keputusan: docs-v2/task/task019.md.
+
+on:
+  push:
+    branches: [main, dev]
+
+jobs:
+  deploy-prod:
+    name: Deploy Production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      ENV_NAME: prod
+      FRONTEND_URL: https://dashboard.semanggi.id
+      BACKEND_URL: https://api.semanggi.id
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v7
+
+      - name: Login ke GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-backend:${{ env.ENV_NAME }}
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-backend:${{ env.ENV_NAME }}-${{ github.sha }}
+
+      - name: Build & push image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ env.BACKEND_URL }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}-${{ github.sha }}
+
+      - name: Kirim docker-compose.prod.yml ke VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: /home/deploy/e-dashboard-prod/
+          strip_components: 0
+
+      - name: Deploy di VPS (pull + restart)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GITHUB_TOKEN,GITHUB_ACTOR,DB_PASSWORD,JWT_SECRET,CSRF_SECRET,CREDENTIALS_ENCRYPTION_KEY
+          script: |
+            set -e
+            cd /home/deploy/e-dashboard-prod
+            mv docker-compose.prod.yml docker-compose.yml
+            cat > .env <<ENVEOF
+            DB_PASSWORD=${DB_PASSWORD}
+            JWT_SECRET=${JWT_SECRET}
+            CSRF_SECRET=${CSRF_SECRET}
+            CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}
+            ENVEOF
+            chmod 600 .env
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          CSRF_SECRET: ${{ secrets.PROD_CSRF_SECRET }}
+          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.PROD_CREDENTIALS_ENCRYPTION_KEY }}
+
+      - name: Verifikasi health check backend
+        run: |
+          sleep 5
+          curl -sf ${{ env.BACKEND_URL }}/health || (echo "Health check gagal" && exit 1)
+
+  deploy-dev:
+    name: Deploy Dev
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      contents: read
+      packages: write
+    env:
+      ENV_NAME: dev
+      FRONTEND_URL: https://dev-dashboard.semanggi.id
+      BACKEND_URL: https://dev-api.semanggi.id
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v7
+
+      - name: Login ke GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-backend:${{ env.ENV_NAME }}
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-backend:${{ env.ENV_NAME }}-${{ github.sha }}
+
+      - name: Build & push image frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ env.BACKEND_URL }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}
+            ghcr.io/${{ github.repository_owner }}/e-dashboard-frontend:${{ env.ENV_NAME }}-${{ github.sha }}
+
+      - name: Kirim docker-compose.dev.yml ke VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: docker-compose.dev.yml
+          target: /home/deploy/e-dashboard-dev/
+          strip_components: 0
+
+      - name: Deploy di VPS (pull + restart)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GITHUB_TOKEN,GITHUB_ACTOR,DB_PASSWORD,JWT_SECRET,CSRF_SECRET,CREDENTIALS_ENCRYPTION_KEY
+          script: |
+            set -e
+            cd /home/deploy/e-dashboard-dev
+            mv docker-compose.dev.yml docker-compose.yml
+            cat > .env <<ENVEOF
+            DB_PASSWORD=${DB_PASSWORD}
+            JWT_SECRET=${JWT_SECRET}
+            CSRF_SECRET=${CSRF_SECRET}
+            CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}
+            ENVEOF
+            chmod 600 .env
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          DB_PASSWORD: ${{ secrets.DEV_DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.DEV_JWT_SECRET }}
+          CSRF_SECRET: ${{ secrets.DEV_CSRF_SECRET }}
+          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.DEV_CREDENTIALS_ENCRYPTION_KEY }}
+
+      - name: Verifikasi health check backend
+        run: |
+          sleep 5
+          curl -sf ${{ env.BACKEND_URL }}/health || (echo "Health check gagal" && exit 1)

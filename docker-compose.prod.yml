@@ -1,0 +1,56 @@
+# Deploy target: VPS aaPanel. Image di-pull dari GHCR (dibuild di GitHub Actions runner,
+# BUKAN di server ini) — lihat docs-v2/task/task019.md. Env sensitif (JWT_SECRET dst) datang
+# dari file .env di direktori yang sama (tidak commit ke git, dikirim CD lewat SSH).
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: e-dashboard-prod-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: e_dashboard
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dashboard']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Port publish backend (3001->3000) DITARUH DI SINI, bukan di service backend —
+    # backend pakai network_mode: service:postgres di bawah (berbagi network namespace
+    # supaya backend/src/config/db.ts anggap Postgres sebagai "localhost", lolos cek
+    # SSL-detection yang cuma kenal localhost/127.0.0.1, tanpa ubah kode sama sekali).
+    # Docker melarang `ports:` dipakai bareng `network_mode: service:x` di container
+    # yang SAMA — jadi harus di container yang di-share (postgres), meski port yang
+    # dipublish itu sebenarnya milik backend.
+    ports:
+      - '127.0.0.1:3001:3000'
+
+  backend:
+    image: ghcr.io/wp-datascape/e-dashboard-backend:prod
+    container_name: e-dashboard-prod-backend
+    restart: unless-stopped
+    network_mode: 'service:postgres'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://dashboard:${DB_PASSWORD}@localhost:5432/e_dashboard
+      JWT_SECRET: ${JWT_SECRET}
+      CSRF_SECRET: ${CSRF_SECRET}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY}
+      CORS_ORIGIN: https://dashboard.semanggi.id
+
+  frontend:
+    image: ghcr.io/wp-datascape/e-dashboard-frontend:prod
+    container_name: e-dashboard-prod-frontend
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8081:80'
+
+volumes:
+  postgres_data_prod:
