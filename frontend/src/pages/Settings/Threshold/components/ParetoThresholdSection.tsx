@@ -11,13 +11,16 @@ import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
 import EditIcon from '@mui/icons-material/Edit'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import { useTranslation } from 'react-i18next'
-import type { GridColDef } from '@mui/x-data-grid'
 import { Card } from '@/components/ui'
-import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useParetoThresholds, useUpsertParetoThreshold } from '@/hooks/useParetoThresholds'
 import { useParetoAlertSettings, useUpsertParetoAlertSetting } from '@/hooks/useParetoAlertSettings'
@@ -136,26 +139,6 @@ export function ParetoThresholdSection() {
   const findRow = (periodType: ParetoPeriodType, metric: ParetoMetric) =>
     rows.find(r => r.period_type === periodType && r.metric === metric)
 
-  const periodRows = PERIOD_TYPES.map((periodType) => ({ id: periodType, periodType }))
-  const periodColumns: GridColDef[] = [
-    {
-      field: 'periodType', headerName: t('paretoThreshold.periodColumn'), flex: 1, minWidth: 130,
-      renderCell: ({ value }) => t(`paretoThreshold.period.${value as ParetoPeriodType}`),
-    },
-    ...METRICS.map((metric): GridColDef => ({
-      field: metric, headerName: t(`paretoThreshold.metric.${metric}`), flex: 1, minWidth: 160, sortable: false,
-      renderCell: ({ row }) => (
-        <ThresholdCell
-          companyId={companyId as number}
-          periodType={row.periodType}
-          metric={metric}
-          row={findRow(row.periodType, metric)}
-          canUpdate={can('settings.threshold:update')}
-        />
-      ),
-    })),
-  ]
-
   return (
     <Card sx={{ p: 3 }}>
       <Typography variant="subtitle2" gutterBottom sx={{ mb: 0.5 }}>
@@ -185,13 +168,36 @@ export function ParetoThresholdSection() {
       {companyId === '' ? (
         <Typography variant="body2" color="text.secondary">{t('paretoThreshold.selectCompanyHint')}</Typography>
       ) : (
-        <ResponsiveListView
-          rows={periodRows}
-          columns={periodColumns}
-          mobileFields={['periodType', ...METRICS]}
-          height={280}
-          pageSizeOptions={[10]}
-        />
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t('paretoThreshold.periodColumn')}</TableCell>
+                {METRICS.map((m) => (
+                  <TableCell key={m}>{t(`paretoThreshold.metric.${m}`)}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {PERIOD_TYPES.map((periodType) => (
+                <TableRow key={periodType}>
+                  <TableCell>{t(`paretoThreshold.period.${periodType}`)}</TableCell>
+                  {METRICS.map((metric) => (
+                    <TableCell key={metric}>
+                      <ThresholdCell
+                        companyId={companyId}
+                        periodType={periodType}
+                        metric={metric}
+                        row={findRow(periodType, metric)}
+                        canUpdate={can('settings.threshold:update')}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
       )}
     </Card>
   )
