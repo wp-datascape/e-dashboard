@@ -272,12 +272,10 @@ export default function ThresholdSettings() {
                 rows={buRows}
                 columns={buColumns}
                 getRowId={(row) => row.id}
-                renderMobileCard={(row) => (
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
                   <Stack spacing={1.5}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>
-                      <EditableMonthCell item={row} onSave={handleSave} />
-                    </Box>
+                    <EditableMonthCell item={row} onSave={handleSave} />
                     {row.note && <Typography variant="caption" color="text.secondary">{row.note}</Typography>}
                   </Stack>
                 )}
@@ -302,12 +300,10 @@ export default function ThresholdSettings() {
                 rows={kpiRows}
                 columns={kpiColumns}
                 getRowId={(row) => row.id}
-                renderMobileCard={(row) => (
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
                   <Stack spacing={1.5}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>
-                      <EditablePctCell item={row} />
-                    </Box>
+                    <EditablePctCell item={row} />
                     <Typography variant="caption" color="text.secondary">{row.note}</Typography>
                   </Stack>
                 )}

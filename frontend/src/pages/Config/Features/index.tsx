@@ -193,19 +193,20 @@ export default function FeaturesPage() {
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.id}
-                renderMobileCard={(row) => (
-                  <>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} />
-                        {isPending && busyKey === row.page_key
-                          ? <CircularProgress size={20} />
-                          : <Switch checked={row.ready} onChange={() => handleToggle(row.page_key, row.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
-                      </Box>
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('config.pageSettings.colKey')}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: mono }}>{row.page_key}</Typography>
                     </Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{row.page_key}</Typography>
-                  </>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} />
+                      {isPending && busyKey === row.page_key
+                        ? <CircularProgress size={20} />
+                        : <Switch checked={row.ready} onChange={() => handleToggle(row.page_key, row.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
+                    </Box>
+                  </Box>
                 )}
               />
             </Box>
