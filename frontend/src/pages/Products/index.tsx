@@ -15,7 +15,7 @@ import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { RangeFilter } from '@/components/filters/RangeFilter'
-import { DatePicker } from '@/components/ui/DatePicker'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
@@ -215,10 +215,10 @@ export default function Products() {
 
           <ScopeFilterFields filter={scopeFilter} />
 
-          <DatePicker
-            size="small" label={t('common.filters.period')} type="month"
+          <MonthYearPicker
+            size="small" label={t('common.filters.period')}
             value={periodMonth}
-            onChange={(e) => setPeriodMonth(e.target.value)}
+            onChange={setPeriodMonth}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           />
 
