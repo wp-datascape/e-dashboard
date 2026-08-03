@@ -314,9 +314,6 @@ function isDataRow(row: unknown[], invoiceColIdx: number): boolean {
     fullText.includes('Halaman')
   ) return false
 
-  // Invoice number harus diawali SI. atau INV-
-  if (!invVal.startsWith('SI.') && !invVal.startsWith('INV-')) return false
-
   return true
 }
 

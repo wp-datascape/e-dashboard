@@ -1,11 +1,10 @@
-import { type ChangeEvent } from 'react'
 import Grid from '@mui/material/Grid'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import { useTranslation } from 'react-i18next'
-import { DatePicker } from '@/components/ui/DatePicker'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { Company } from '@/types/users'
 
 interface CompanyPeriodFieldsProps {
@@ -43,13 +42,11 @@ export function CompanyPeriodFields({
         </FormControl>
       </Grid>
       <Grid size={{ xs: 12, sm: 6 }}>
-        <DatePicker
+        <MonthYearPicker
           label={t('import.form.period')}
-          type="month"
           size="small"
           value={periodMonth}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => onPeriod(e.target.value)}
-          placeholder="YYYY-MM"
+          onChange={onPeriod}
           disabled={disabled}
           sx={{ minWidth: 160 }}
           helperText={t('import.form.periodHint')}

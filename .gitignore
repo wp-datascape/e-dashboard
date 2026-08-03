@@ -21,3 +21,6 @@ Thumbs.db
 # Upload temp
 backend/uploads/
 .codebase-memory/
+
+# Database backups (data production, jangan pernah ikut commit)
+backups/

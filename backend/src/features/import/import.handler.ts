@@ -23,9 +23,9 @@ export async function handleImportFile(c: Context) {
       return error(c, ErrorCode.VALIDATION_ERROR, 'File is required', 400)
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return error(c, ErrorCode.FILE_TOO_LARGE, 'File too large (max 10MB)', 413)
+    // Validate file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      return error(c, ErrorCode.FILE_TOO_LARGE, 'File too large (max 50MB)', 413)
     }
 
     // Validate MIME type
@@ -77,7 +77,7 @@ export async function handleImportFileStream(c: Context) {
   const periodMonth = formData.get('period_month') as string
 
   if (!file) return error(c, ErrorCode.VALIDATION_ERROR, 'File is required', 400)
-  if (file.size > 10 * 1024 * 1024) return error(c, ErrorCode.FILE_TOO_LARGE, 'File too large (max 10MB)', 413)
+  if (file.size > 50 * 1024 * 1024) return error(c, ErrorCode.FILE_TOO_LARGE, 'File too large (max 50MB)', 413)
 
   const validMimes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
   if (!validMimes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {

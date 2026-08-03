@@ -19,7 +19,7 @@ import type { GridColDef } from '@mui/x-data-grid'
 import Stack from '@mui/material/Stack'
 import Chip from '@mui/material/Chip'
 import { Card, Button, ActionMenu, StatusChip } from '@/components/ui'
-import { DatePicker } from '@/components/ui/DatePicker'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCompanies } from '@/hooks/useCompanies'
 import {
@@ -244,12 +244,11 @@ export default function HighMarginSettings() {
             </Select>
           </FormControl>
 
-          <DatePicker
+          <MonthYearPicker
             size="small"
             label={t('highMargin.filterPeriod')}
-            type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={setPeriod}
             sx={{ width: { xs: '100%', sm: 180 }, flex: { sm: '0 0 auto' } }}
           />
 
