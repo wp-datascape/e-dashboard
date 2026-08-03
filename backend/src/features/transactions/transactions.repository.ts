@@ -47,7 +47,13 @@ export async function findInvoices(
   const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
 
   // Division filter (business_unit param, sekarang numeric division_id — task012 v2)
-  const divisionCond = business_unit ? eq(channel_divisions.division_id, business_unit) : undefined
+  // COALESCE ke division_id "other" milik company invoice ini — tanpa ini, invoice
+  // yang channel_name-nya tidak match rule apa pun (division_id NULL) tidak akan
+  // pernah muncul waktu filter divisi "Lainnya" dipilih, padahal seharusnya masuk
+  // situ (data-model.md §Channel Division Filter, bug ditemukan lewat audit KNT).
+  const divisionCond = business_unit
+    ? eq(sql`COALESCE(${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${invoices.company_id} AND key = 'other'))`, business_unit)
+    : undefined
   const branchFilterCond = branch_id ? eq(invoices.branch_id, branch_id) : undefined
   const branchScopeCond = buildBranchCondition(invoices.company_id, invoices.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(invoices.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)

@@ -129,7 +129,10 @@ export async function getCustomerSegments(
         AND ${companyCondI}
         AND ${branchCond}
         AND ${divisionScopeCond}
-      ORDER BY i.customer_id, i.invoice_date DESC
+      -- Tie-break i.id DESC — tanpa ini, customer dengan 2+ invoice di TANGGAL
+      -- SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
+      -- (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT.
+      ORDER BY i.customer_id, i.invoice_date DESC, i.id DESC
     )
     SELECT
       COUNT(*) FILTER (
@@ -154,7 +157,7 @@ export async function getCustomerSegments(
     FROM cust_dates cd
     LEFT JOIN latest_channel lc ON lc.customer_id = cd.customer_id
     LEFT JOIN customers ov ON ov.id = cd.customer_id
-    WHERE (${division}::int IS NULL OR lc.division_id = ${division}::int)
+    WHERE (${division}::int IS NULL OR COALESCE(lc.division_id, (SELECT id FROM divisions WHERE company_id = lc.company_id AND key = 'other')) = ${division}::int)
       AND (${p.branchFilter}::int IS NULL OR lc.branch_id = ${p.branchFilter}::int)
       AND ${excludeIntercompanyCond}
   `)
@@ -283,7 +286,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
             AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
@@ -319,7 +322,7 @@ export function cteNewCustomers(p: SegmentParams) {
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
-            AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
@@ -373,7 +376,7 @@ export function cteActiveCustomers(p: SegmentParams) {
             AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
@@ -424,7 +427,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND ${companyCondIx}
             AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}
@@ -440,7 +443,7 @@ export function cteExistingCustomers(p: SegmentParams) {
             AND ${companyCondIx2}
             AND ix2.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
             AND ix2.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR cd2.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd2.division_id, (SELECT id FROM divisions WHERE company_id = ix2.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix2.branch_id = ${p.branchFilter}::int)
             AND ${branchCond2}
             AND ${divisionScopeCond2}
@@ -476,7 +479,7 @@ export function cteDormantCustomers(p: SegmentParams) {
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
             AND ix.invoice_date > ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
-            AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}
             AND ${divisionScopeCond}

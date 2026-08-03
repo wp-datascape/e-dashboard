@@ -35,7 +35,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -153,7 +153,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       WHERE i.deleted_at IS NULL
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

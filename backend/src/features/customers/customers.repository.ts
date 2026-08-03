@@ -122,8 +122,14 @@ export async function findCustomers(
   const whereClause = conditions.length ? and(...conditions) : undefined
 
   // Division filter (business_unit param, sekarang numeric division_id — task012 v2):
-  // diapply setelah JOIN channel_divisions
-  const divisionCond = business_unit ? eq(channel_divisions.division_id, business_unit) : undefined
+  // diapply setelah JOIN channel_divisions (channel_divisions di-JOIN via
+  // customers.company_id — lihat divisionJoin di bawah). COALESCE ke division_id
+  // "other" milik company customer ini — tanpa ini, customer yang latest channel
+  // name-nya tidak match rule apa pun (division_id NULL) tidak akan pernah muncul
+  // waktu filter divisi "Lainnya" dipilih (bug ditemukan lewat audit KNT).
+  const divisionCond = business_unit
+    ? eq(sql`COALESCE(${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, business_unit)
+    : undefined
 
   // Sort
   const isAsc = sort_dir === 'asc'
@@ -147,7 +153,11 @@ export async function findCustomers(
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
-    .orderBy(invoices.customer_id, desc(invoices.invoice_date))
+    // Tie-break invoice.id DESC — tanpa ini, customer dengan 2+ invoice di
+    // TANGGAL SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
+    // (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT
+    // (customer 13516/13533, 2 invoice tanggal sama, channel beda).
+    .orderBy(invoices.customer_id, desc(invoices.invoice_date), desc(invoices.id))
     .as('latest_sp')
 
   // Branch/division scope (docs-v2/task/task001.md) — di-derive dari invoice TERBARU
@@ -305,7 +315,8 @@ export async function findCustomerDetail(
       lte(invoices.invoice_date, refDate),
       scopeGuard,
     ))
-    .orderBy(desc(invoices.invoice_date))
+    // Tie-break invoice.id DESC — sama seperti latestSalespersonSq di atas.
+    .orderBy(desc(invoices.invoice_date), desc(invoices.id))
     .limit(1)
 
   // Customer punya invoice (anyInv truthy), tapi TIDAK SATU PUN dalam scope viewer

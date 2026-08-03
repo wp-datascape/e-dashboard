@@ -18,7 +18,7 @@ const CS_INV_CTE = (p: SegmentParams) => sql`
       AND i.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.filterDate}::date
       AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
-      AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+      AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
       AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
       AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
@@ -94,7 +94,7 @@ export async function fetchCrossSellingTrend(p: SegmentParams): Promise<CrossSel
         AND i.invoice_date >  ${p.filterDate}::date - INTERVAL '12 months'
         AND i.invoice_date <= ${p.filterDate}::date
         AND ${buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
         AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}

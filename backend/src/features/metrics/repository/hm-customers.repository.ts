@@ -87,14 +87,14 @@ function hmCustomerItemsCte(p: HmCustomerRepoParams) {
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
-      LEFT JOIN divisions d ON d.id = COALESCE(c.division_override_id, cd.division_id)
+      LEFT JOIN divisions d ON d.id = COALESCE(c.division_override_id, cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other'))
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
         AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ${targetCond}
-        AND (${division}::int IS NULL OR COALESCE(c.division_override_id, cd.division_id) = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(c.division_override_id, cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}

@@ -76,7 +76,7 @@ export async function fetchCustomerProducts(
       AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
       AND i.invoice_date <= ${p.periodEnd}::date
       AND ii.product_category_id IS NOT NULL
-      AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+      AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
       AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
       AND ${branchCond}
       AND ${divisionScopeCond}

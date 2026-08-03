@@ -75,7 +75,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -108,7 +108,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
-        AND (${division}::int IS NULL OR cd.division_id = ${division}::int)
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
@@ -402,7 +402,7 @@ export async function fetchRevenueBreakdown(
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
@@ -433,7 +433,7 @@ export async function fetchRevenueBreakdown(
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
@@ -544,7 +544,7 @@ export async function fetchExpansionBreakdown(
         AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
@@ -561,7 +561,7 @@ export async function fetchExpansionBreakdown(
         AND i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month'
         AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
         AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR cd.division_id = ${p.division}::int)
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
