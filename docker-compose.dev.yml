@@ -27,6 +27,9 @@ services:
     # dipublish itu sebenarnya milik backend.
     ports:
       - '127.0.0.1:3002:3000'
+      # Postgres publish ke 127.0.0.1 saja (bukan publik) — buat akses admin manual
+      # via SSH tunnel (Navicat/psql dari lokal), lihat docs-v2/task/task019.md.
+      - '127.0.0.1:5433:5432'
 
   backend:
     image: ghcr.io/wp-datascape/e-dashboard-backend:dev
