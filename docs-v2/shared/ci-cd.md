@@ -1,6 +1,10 @@
 # CI/CD — GitHub Actions
 
-> Status: CI Stage 1-2 sudah jalan (2026-07-07). CD (deploy ke VPS) belum dibangun — lihat `docs-v2/task/task002.md` Task F untuk rencana lengkap dan progres detail. Dokumen ini fokus ke **cara pakai** apa yang sudah ada, bukan riwayat pembangunannya.
+> Status: CI Stage 1-2 sudah jalan (2026-07-07). **CD (deploy ke VPS) sudah dibangun dan live
+> sejak 2026-08-03** (`.github/workflows/cd.yml`, task019) — lihat `docs-v2/shared/deployment.md`
+> §0 untuk detail deploy (domain, GHCR, database, backup) dan `docs-v2/task/task002.md` Task F
+> untuk riwayat keputusan desainnya. Dokumen ini fokus ke **cara pakai** apa yang sudah ada,
+> bukan riwayat pembangunannya.
 
 ---
 
@@ -77,7 +81,6 @@ Kalau nanti ada step yang BENAR-BENAR butuh rahasia asli (misal Stage 3: kirim n
 
 ## 7. Yang Belum Dibangun
 
-Lihat `docs-v2/task/task002.md` Task F untuk detail rencana dan keputusan teknis:
 - **Stage 3** — notifikasi Telegram otomatis saat CI gagal di `main`
 - **Stage 4** (opsional) — branch protection rule, `main` tidak bisa di-merge kalau CI merah
-- **Stage 5-8** — CD (Continuous Deployment) ke VPS/server lokal via Docker + `docker-compose.yml`, menggantikan auto-deploy Railway/Vercel yang akan hilang setelah migrasi infrastruktur
+- ~~Stage 5-8 — CD ke VPS~~ **✅ Sudah selesai (2026-08-03)** — lihat `docs-v2/shared/deployment.md` §0 dan `docs-v2/task/task019.md`. Railway/Vercel auto-deploy TIDAK dimatikan, masih jalan paralel sampai ada keputusan cutover terpisah.

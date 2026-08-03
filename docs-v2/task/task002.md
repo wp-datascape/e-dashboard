@@ -1,6 +1,7 @@
 # Task 002 — Security Hardening Standar Produksi
 
-> Status: 📝 Planning — semua keputusan desain sudah diambil termasuk target infra CD (VPS Ubuntu+Docker, migrasi kemungkinan Agustus 2026), kecuali detail teknis kecil di §3 Task C3 dan Task F6. Belum mulai implementasi.
+> Status: Task A-E selesai. **Task F (CI/CD) selesai penuh termasuk CD ke VPS (Stage 1-8),
+> live sejak 2026-08-03** — lihat `docs-v2/task/task019.md` dan `docs-v2/shared/deployment.md` §0.
 > Dibuat: 2026-07-06
 > Baca juga: `CRITICAL_RULES.md` (§ Security Rules), `shared/deployment.md`, `features/audit.md`
 
@@ -271,9 +272,21 @@ Setelah task001 (isolasi data Company/Branch/Division + isolasi data superadmin)
 - [x] F5a. **OS & containerization — sudah dijawab (2026-07-06):** server **belum tersedia** (masih rencana, belum ada mesinnya), kemungkinan besar **Ubuntu Server**, dan akan pakai **Docker** untuk containerization. `backend/Dockerfile` **sudah ada** (dibuat untuk Railway) — kemungkinan besar bisa di-reuse langsung atau dengan penyesuaian kecil untuk VPS, bukan mulai dari nol.
 - [x] F5b. **Frontend ikut migrasi — sudah dijawab (2026-07-06):** frontend **pasti ikut pindah** ke server yang sama (bukan tetap di Vercel), dengan **container terpisah dari backend** (masing-masing punya container dan port sendiri — bukan digabung 1 container). Konsekuensi teknis: butuh `frontend/Dockerfile` **baru** (belum ada — Vercel yang build otomatis selama ini, tidak pernah butuh Dockerfile), kemungkinan besar nginx (atau setara) untuk serve hasil `vite build` sebagai static file. Karena 2 container beda port, nanti butuh **reverse proxy** (nginx/Caddy/Traefik) di depan keduanya supaya frontend+backend bisa diakses dari 1 domain tanpa expose port mentah ke publik — detail ini masuk pembahasan `docker-compose.yml` di Stage 7.
 - [x] F5c. **Akses SSH & timeline — sudah dijawab (2026-07-06):** user sendiri yang pegang akses SSH ke server nanti (bukan tim/pihak lain — jadi setup credential/secret untuk deploy tinggal dari 1 sumber). Timeline migrasi: **kemungkinan Agustus 2026** ("bulan depan" dari 2026-07-06) — belum pasti/final, tapi cukup dekat untuk jadi acuan prioritas (Task F bagian CD sebaiknya tidak ditunda terlalu lama).
-- [ ] F6. **Stage 6 — Deploy mechanism**: karena target sudah pasti Docker dan SSH dipegang user sendiri, opsi **(b) GitHub-hosted runner push image lewat SSH** (`appleboy/ssh-action` atau setara) jadi paling praktis — tinggal simpan private key user sebagai GitHub Secret, tidak perlu install self-hosted runner di server (opsi a) atau setup registry terpisah (opsi c). Keputusan final tetap menyusul saat mulai coding Stage 6, ini baru kecondongan berdasarkan info yang sudah ada.
-- [ ] F7. **Stage 7 — Container orchestration di server**: karena pakai Docker, ini jadi `docker-compose.yml` (bukan `pm2`/`systemd` manual) — restart policy (`restart: unless-stopped`) menggantikan kebutuhan process manager terpisah
-- [ ] F8. **Stage 8 — Health check & rollback**: cek endpoint health setelah deploy, mekanisme rollback kalau image baru ternyata rusak (minimal: tag image versi sebelumnya tetap tersimpan di registry untuk di-restore manual lewat `docker compose` ganti tag)
+- [x] F6. **Stage 6 — Deploy mechanism ✅ Selesai (2026-08-03)**: keputusan awal (SSH murni,
+  tanpa registry) **direvisi saat eksekusi** — VPS ternyata sekaligus jalankan mail server +
+  database produksi, jadi build (typecheck+bundle+obfuscate) sebaiknya tidak membebani server
+  yang sama. Dipakai **GHCR** (opsi c yang sebelumnya di-skip): GitHub Actions runner build+push
+  image ke `ghcr.io/wp-datascape/e-dashboard-{backend,frontend}:{prod,dev}` pakai `GITHUB_TOKEN`
+  bawaan (bukan PAT terpisah), VPS cuma `docker compose pull` + restart lewat SSH
+  (`appleboy/ssh-action`, user `deploy` non-root). Detail: `docs-v2/task/task019.md`.
+- [x] F7. **Stage 7 — Container orchestration di server ✅ Selesai (2026-08-03)**:
+  `docker-compose.prod.yml`/`docker-compose.dev.yml` (root repo), `restart: unless-stopped`.
+  Database Postgres di-docker-kan juga di VPS (bukan Neon), data baru/kosong per environment.
+- [x] F8. **Stage 8 — Health check & rollback ✅ Selesai (2026-08-03)**: curl `/health` di akhir
+  tiap job CD (gagal → job merah, container lama tetap jalan karena `docker compose up -d`
+  tidak stop container lama sebelum image baru siap). Rollback: image lama masih ada di GHCR
+  (tag `<env>-<sha>` per commit), tinggal ganti tag di compose + restart manual kalau perlu.
+  Backup database: `scripts/vps-backup-db.sh`, cron harian 02:00 WIB di VPS, retensi 7 hari.
 
 ---
 
