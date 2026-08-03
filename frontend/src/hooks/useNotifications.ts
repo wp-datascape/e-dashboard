@@ -9,6 +9,11 @@ export function useNotifications(params: ListNotificationsParams) {
   return useQuery({
     queryKey: [KEY, params],
     queryFn: () => notificationsApi.list(params),
+    // Default global refetchOnWindowFocus:false (queryClient.ts) bikin dropdown
+    // bell nampilin data basi kalau notifikasi baru masuk di background (lewat
+    // scheduler) sementara tab ini sudah kebuka lama — override true khusus di
+    // sini supaya balik ke tab langsung dapat data terbaru tanpa reload manual.
+    refetchOnWindowFocus: true,
   })
 }
 

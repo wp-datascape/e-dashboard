@@ -128,7 +128,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
   const handleFile = (f: File | null) => {
     if (isDisabled || !f) return
     if (!f.name.match(/\.(csv|xlsx|xls)$/i)) { setFormError(t('import.form.errorFormat')); return }
-    if (f.size > 10 * 1024 * 1024) { setFormError(t('import.form.errorSize')); return }
+    if (f.size > 50 * 1024 * 1024) { setFormError(t('import.form.errorSize')); return }
     setFile(f)
     setFormError(null)
   }
