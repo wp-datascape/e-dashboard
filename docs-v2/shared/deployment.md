@@ -1,6 +1,102 @@
-# Deployment — Backend (Railway) + Frontend (Vercel)
+# Deployment — VPS (Docker) + riwayat Railway/Vercel
 
-> Status: ✅ **Sudah live di production** (sesi 31). Backend deploy ternyata di **Railway**, bukan Render seperti rencana awal dokumen ini — checklist §3 di bawah ditulis untuk Render, tapi Docker approach-nya (§2, §2a) sama persis berlaku untuk Railway (keduanya sama-sama tidak punya runtime Bun native di platform-nya). Domain backend aktual: `https://e-dashboard-production.up.railway.app` (dipakai `frontend/vercel.json` untuk proxy `/api/*`, lihat §5a).
+> **Update 2026-08-03 (task019): deployment utama pindah ke VPS aaPanel milik perusahaan**,
+> lihat §0 di bawah untuk detail lengkap (domain, CD, database, backup). Railway/Vercel
+> (§1-§6 asli, dibiarkan apa adanya di bawah §0) **masih live berjalan paralel** — belum
+> dimatikan, keputusan cutover final belum diambil. Jangan bingung kalau ada 2 backend/2
+> frontend hidup bersamaan, itu memang disengaja untuk sekarang.
+
+---
+
+## 0. VPS aaPanel (deployment utama sejak 2026-08-03)
+
+### Domain & arsitektur
+
+| Environment | Frontend | Backend | Database |
+|---|---|---|---|
+| Production | `dashboard.semanggi.id` | `api.semanggi.id` | Postgres Docker di VPS (bukan Neon) |
+| Dev/staging | `dev-dashboard.semanggi.id` | `dev-api.semanggi.id` | Postgres Docker di VPS, terpisah dari prod |
+
+VPS: `38.147.122.238` (Jagoan Hosting, aaPanel, Ubuntu 22.04). Reverse proxy + SSL Let's
+Encrypt per domain diatur lewat menu **Website** aaPanel (bukan Settings > Domain binding —
+itu khusus panel aaPanel sendiri, mekanismenya beda dan auto-managed, jangan disamakan).
+
+### CD (GitHub Actions → GHCR → VPS)
+
+`.github/workflows/cd.yml` — 2 job terpisah:
+- **deploy-dev**: trigger push ke branch `dev`
+- **deploy-prod**: trigger push ke branch `main`
+
+Alur tiap job: build image (backend + frontend, `docker/build-push-action`) → push ke GHCR
+(`ghcr.io/wp-datascape/e-dashboard-backend:<env>` dan `-frontend:<env>`) → SSH ke VPS
+(`appleboy/ssh-action`, user `deploy` non-root) → `docker compose pull && docker compose up
+-d` → curl `/health` untuk verifikasi.
+
+**Kenapa build di GitHub Actions, bukan di VPS**: VPS ini sekaligus menjalankan mail server +
+panel produksi — build (typecheck+bundle+obfuscate) sebaiknya tidak membebani server yang
+sama. GHCR juga memberi rollback gampang (tag image lama masih ada, tinggal ganti tag) tanpa
+perlu build ulang dari source.
+
+**Frontend build-time env**: Vite bake `VITE_API_URL` ke bundle statis saat build (bukan
+runtime) — **wajib** menyertakan prefix `/api/v1` (`VITE_API_URL=https://api.semanggi.id/api/v1`),
+karena `frontend/src/api/axios.ts` tidak menambahkan prefix itu sendiri. Image prod dan dev
+harus dibuild TERPISAH karena beda `VITE_API_URL`, tidak bisa reuse 1 image untuk 2 environment.
+
+### Database — Postgres Docker (bukan Neon)
+
+`docker-compose.prod.yml`/`docker-compose.dev.yml` (root repo) — Postgres jalan sebagai
+container terpisah per environment, data baru/kosong (bukan migrasi dari Neon yang lama).
+
+**Trik penting**: service `backend` pakai `network_mode: 'service:postgres'` (berbagi network
+namespace dengan container postgres) supaya `backend/src/config/db.ts` — yang cuma anggap
+hostname `localhost`/`127.0.0.1` tidak butuh SSL — melihat Postgres sebagai `localhost`.
+Tanpa ini, `ssl:'require'` dipaksa untuk hostname docker service (`postgres`) padahal image
+`postgres:15-alpine` vanilla tidak listen SSL, koneksi selalu gagal. Efek samping: karena
+Docker melarang `ports:` dipakai bareng `network_mode: service:x` di container yang sama,
+publish port backend (3001/3002) DAN Postgres (5432/5433, untuk akses admin manual via SSH
+tunnel/Navicat) semuanya dideklarasikan di service `postgres`, bukan di service `backend`.
+
+Migration + seed **manual dari lokal** lewat SSH tunnel ke container (image production sengaja
+tidak menyertakan `drizzle-kit`/script apa pun demi obfuscation — lihat §2a):
+```bash
+ssh -L 15432:127.0.0.1:5432 root@38.147.122.238   # tunnel (ganti port sesuai env)
+cd backend
+DATABASE_URL="postgresql://dashboard:<password>@localhost:15432/e_dashboard" bun run db:migrate
+DATABASE_URL="postgresql://dashboard:<password>@localhost:15432/e_dashboard" bun run db:seed
+```
+Password ada di `/home/deploy/e-dashboard-<env>/.env` di VPS (`DB_PASSWORD`).
+
+### Backup database
+
+`scripts/vps-backup-db.sh` — `pg_dump` via `docker exec` (tidak butuh port/tunnel), gzip,
+retensi 7 hari. Sudah dijadwalkan cron user `deploy` di VPS, jalan tiap hari 02:00 WIB, hasil
+di `/home/deploy/db-backups/`. **Catatan**: perubahan pada skrip ini di repo TIDAK otomatis
+ke-deploy ke server (bukan bagian dari CD) — kalau diedit, copy manual ulang lewat `scp`.
+
+### Akses admin manual (Navicat/psql)
+
+Port Postgres publish ke `127.0.0.1` saja di VPS (prod 5432, dev 5433) — akses dari luar
+wajib lewat SSH tunnel. Setup Navicat: tab **SSH** isi host VPS + user SSH admin (BUKAN
+user `deploy` yang cuma untuk CI/CD) + private key; tab **General** isi `127.0.0.1` + port
+sesuai environment + user `dashboard` + password dari `.env` di atas + database `e_dashboard`.
+
+### Rencana lengkap & keputusan desain
+
+Lihat `docs-v2/task/task019.md` untuk detail keputusan (kenapa GHCR, kenapa bukan Traefik,
+kenapa `network_mode` bukan ubah kode, dll) dan `docs-v2/task/task002.md` §Task F untuk
+rencana awal CD yang jadi basis eksekusi ini.
+
+---
+
+# Riwayat: Deployment Backend (Railway) + Frontend (Vercel)
+
+> Status: ✅ **Sudah live di production** (sesi 31), **masih berjalan paralel** dengan VPS
+> di atas — lihat catatan update 2026-08-03. Backend deploy ternyata di **Railway**, bukan
+> Render seperti rencana awal dokumen ini — checklist §3 di bawah ditulis untuk Render, tapi
+> Docker approach-nya (§2, §2a) sama persis berlaku untuk Railway (keduanya sama-sama tidak
+> punya runtime Bun native di platform-nya). Domain backend aktual:
+> `https://e-dashboard-production.up.railway.app` (dipakai `frontend/vercel.json` untuk
+> proxy `/api/*`, lihat §5a).
 > Arsitektur: split deployment, backend dan frontend di domain berbeda (cross-site).
 
 ---
