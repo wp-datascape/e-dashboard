@@ -6,10 +6,9 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
-import type { GridColDef } from '@mui/x-data-grid'
 import { usePageSettings, useUpdatePageSetting } from '@/hooks/usePageSettings'
 import { Card, StatusChip } from '@/components/ui'
-import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { CardResponsive, type CardResponsiveColumn } from '@/components/tables/CardResponsive'
 import { useCan } from '@/hooks/useCan'
 
 // page_key -> i18n key (reuse label yang sama dengan Sidebar, SSOT di locale nav.*)
@@ -151,22 +150,19 @@ export default function FeaturesPage() {
   }, {})
   const orderedGroups = GROUP_KEY_ORDER.filter((g) => g in grouped).map((g) => [g, grouped[g]] as const)
 
-  // Kolom shared untuk ResponsiveListView (desktop DataGrid otomatis / mobile
-  // accordion otomatis) — ganti pola lama Table+Stack<Card> yang ditulis
-  // manual berdampingan per grup, sama seperti Threshold/index.tsx.
-  const columns: GridColDef[] = [
-    { field: 'label', headerName: t('config.pageSettings.colPage'), flex: 1.2, minWidth: 160 },
+  type Row = (typeof items)[number] & { id: string; label: string }
+
+  // Kolom untuk CardResponsive (Table biasa desktop + Stack<Card> mobile, tanpa
+  // DataGrid/pagination) — dipakai sejak halaman ini dibuat, sengaja TIDAK ikut
+  // migrasi ke ResponsiveListView (DataGrid berlebihan untuk list kecil per
+  // grup begini, bikin tiap grup jadi kotak sempit dengan scroll sendiri).
+  const columns: CardResponsiveColumn<Row>[] = [
+    { key: 'label', header: t('config.pageSettings.colPage'), width: '40%', render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography> },
+    { key: 'page_key', header: t('config.pageSettings.colKey'), width: '25%', render: (row) => <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{row.page_key}</Typography> },
+    { key: 'ready', header: t('config.pageSettings.colStatus'), width: '20%', render: (row) => <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} /> },
     {
-      field: 'page_key', headerName: t('config.pageSettings.colKey'), flex: 1, minWidth: 140,
-      renderCell: ({ value }) => <Typography variant="caption" color="text.secondary" sx={{ fontFamily: mono }}>{value as string}</Typography>,
-    },
-    {
-      field: 'ready', headerName: t('config.pageSettings.colStatus'), width: 120, sortable: false,
-      renderCell: ({ row }) => <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} />,
-    },
-    {
-      field: '_actions', headerName: '', width: 80, sortable: false, align: 'center', headerAlign: 'center',
-      renderCell: ({ row }) => {
+      key: '_actions', header: t('config.pageSettings.colToggle'), width: '15%',
+      render: (row) => {
         const isBusy = isPending && busyKey === row.page_key
         return isBusy
           ? <CircularProgress size={20} />
@@ -193,12 +189,25 @@ export default function FeaturesPage() {
                 {t(groupKey)}
               </Typography>
 
-              <ResponsiveListView
+              <CardResponsive
                 rows={rows}
                 columns={columns}
-                mobileFields={['label', 'page_key', 'ready']}
-                height={Math.min(400, 70 + sortedPages.length * 60)}
-                pageSizeOptions={[10]}
+                getRowId={(row) => row.id}
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('config.pageSettings.colKey')}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: mono }}>{row.page_key}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <StatusChip label={row.ready ? t('common.active') : t('common.inactive')} color={row.ready ? 'success' : 'default'} />
+                      {isPending && busyKey === row.page_key
+                        ? <CircularProgress size={20} />
+                        : <Switch checked={row.ready} onChange={() => handleToggle(row.page_key, row.ready)} size="small" color="primary" disabled={!can('config.features:update')} />}
+                    </Box>
+                  </Box>
+                )}
               />
             </Box>
           )

@@ -17,11 +17,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import type { GridColDef } from '@mui/x-data-grid'
 import { useConfig, useUpdateConfig } from '@/hooks/usePageSettings'
 import type { ConfigItem } from '@/types/page'
 import { Card } from '@/components/ui'
-import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { CardResponsive, type CardResponsiveColumn } from '@/components/tables/CardResponsive'
 import { useCan } from '@/hooks/useCan'
 import { ParetoThresholdSection } from './components/ParetoThresholdSection'
 
@@ -223,34 +222,30 @@ export default function ThresholdSettings() {
   )
   const handleSave = (key: string, value: string) => mutate({ key, value })
 
-  // Baris + kolom untuk ResponsiveListView (desktop DataGrid otomatis / mobile
-  // accordion otomatis dari AutoCard) — GANTI pola lama (Table desktop +
-  // Stack<Card> mobile ditulis manual berdampingan, gampang divergen kalau
-  // salah satu lupa di-update, lihat halaman lain sesi ini yang kena masalah
-  // sama). `id` WAJIB diisi manual (ConfigItem tidak punya field id bawaan).
-  const buRows = buDormantItems.map((item) => {
+  // Baris + kolom untuk CardResponsive (Table biasa desktop + Stack<Card> mobile,
+  // tanpa DataGrid/pagination) — pola asli halaman ini sejak dibuat, dipulihkan
+  // setelah sempat salah dimigrasi ke ResponsiveListView (DataGrid berlebihan
+  // untuk list kecil begini, bikin kotak sempit ber-scroll sendiri di desktop).
+  // `id` WAJIB diisi manual (ConfigItem tidak punya field id bawaan).
+  type ThresholdRow = ConfigItem & { id: string; label: string; note: string }
+
+  const buRows: ThresholdRow[] = buDormantItems.map((item) => {
     const buCode = item.key.replace(DORMANT_PREFIX, '')
     return { ...item, id: item.key, label: BU_LABELS[buCode] ?? buCode, note: BU_DESC[buCode] ?? item.description ?? '' }
   })
-  const buColumns: GridColDef[] = [
-    { field: 'label', headerName: t('config.buThreshold.colBu'), flex: 1, minWidth: 140 },
-    {
-      field: 'threshold', headerName: t('config.buThreshold.colThreshold'), width: 170, sortable: false,
-      renderCell: ({ row }) => <EditableMonthCell item={row as ConfigItem} onSave={handleSave} />,
-    },
-    { field: 'note', headerName: t('config.buThreshold.colNote'), flex: 1.5, minWidth: 200 },
+  const buColumns: CardResponsiveColumn<ThresholdRow>[] = [
+    { key: 'label', header: t('config.buThreshold.colBu'), width: '35%', render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography> },
+    { key: 'threshold', header: t('config.buThreshold.colThreshold'), width: '30%', render: (row) => <EditableMonthCell item={row} onSave={handleSave} /> },
+    { key: 'note', header: t('config.buThreshold.colNote'), render: (row) => <Typography variant="caption" color="text.secondary">{row.note}</Typography> },
   ]
 
-  const kpiRows = kpiTargetItems.map((item) => ({
+  const kpiRows: ThresholdRow[] = kpiTargetItems.map((item) => ({
     ...item, id: item.key, label: KPI_TARGET_LABELS[item.key] ?? item.key, note: KPI_TARGET_DESC[item.key] ?? item.description ?? '',
   }))
-  const kpiColumns: GridColDef[] = [
-    { field: 'label', headerName: t('config.kpiTarget.colKpi'), flex: 1, minWidth: 160 },
-    {
-      field: 'threshold', headerName: t('config.kpiTarget.colTarget'), width: 140, sortable: false,
-      renderCell: ({ row }) => <EditablePctCell item={row as ConfigItem} />,
-    },
-    { field: 'note', headerName: t('config.buThreshold.colNote'), flex: 1.5, minWidth: 200 },
+  const kpiColumns: CardResponsiveColumn<ThresholdRow>[] = [
+    { key: 'label', header: t('config.kpiTarget.colKpi'), width: '40%', render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography> },
+    { key: 'threshold', header: t('config.kpiTarget.colTarget'), width: '25%', render: (row) => <EditablePctCell item={row} /> },
+    { key: 'note', header: t('config.buThreshold.colNote'), render: (row) => <Typography variant="caption" color="text.secondary">{row.note}</Typography> },
   ]
 
   return (
@@ -273,7 +268,18 @@ export default function ThresholdSettings() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('config.buThreshold.subtitle')}</Typography>
 
             {buDormantItems.length > 0 ? (
-              <ResponsiveListView rows={buRows} columns={buColumns} mobileFields={['label', 'threshold', 'note']} height={280} pageSizeOptions={[10]} />
+              <CardResponsive
+                rows={buRows}
+                columns={buColumns}
+                getRowId={(row) => row.id}
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
+                  <Stack spacing={1.5}>
+                    <EditableMonthCell item={row} onSave={handleSave} />
+                    {row.note && <Typography variant="caption" color="text.secondary">{row.note}</Typography>}
+                  </Stack>
+                )}
+              />
             ) : (
               <Typography variant="body2" color="text.secondary">{t('config.buThreshold.empty')}</Typography>
             )}
@@ -290,7 +296,18 @@ export default function ThresholdSettings() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t('config.kpiTarget.sectionSubtitle')}
               </Typography>
-              <ResponsiveListView rows={kpiRows} columns={kpiColumns} mobileFields={['label', 'threshold', 'note']} height={280} pageSizeOptions={[10]} />
+              <CardResponsive
+                rows={kpiRows}
+                columns={kpiColumns}
+                getRowId={(row) => row.id}
+                renderMobileTitle={(row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.label}</Typography>}
+                renderMobileDetails={(row) => (
+                  <Stack spacing={1.5}>
+                    <EditablePctCell item={row} />
+                    <Typography variant="caption" color="text.secondary">{row.note}</Typography>
+                  </Stack>
+                )}
+              />
             </Card>
           )}
 

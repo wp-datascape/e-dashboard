@@ -24,7 +24,7 @@ export function useActiveDivisions(companyId: number | 'all') {
   return useQuery({
     queryKey: [VALUES_KEY, companyId],
     queryFn: () => divisionsApi.listValues(companyId),
-    enabled: companyId !== undefined,
+    enabled: !!companyId,
   })
 }
 
