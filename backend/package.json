@@ -15,7 +15,7 @@
     "db:reset": "bun run scripts/db-reset.ts && bun run db:migrate && bun run db:seed"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.8",
+    "@hono/node-server": "^2.0.12",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "0.45.2",
