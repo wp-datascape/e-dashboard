@@ -29,9 +29,9 @@ export async function listItemTypesService(scopeIds?: number[]) {
   }
 }
 
-export async function listActiveItemTypesService(companyId: number | 'all') {
+export async function listActiveItemTypesService(companyId: number | 'all', scopeIds?: number[]) {
   try {
-    return await findActiveItemTypes(companyId)
+    return await findActiveItemTypes(companyId, scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar item type', 500)

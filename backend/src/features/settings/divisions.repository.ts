@@ -21,9 +21,18 @@ export async function findDivisions(scopeIds?: number[]) {
  * (lihat divisions.route.ts) - siapa pun yang sudah login boleh baca daftar ini
  * buat keperluan filter, beda dari GET / (CRUD admin, permission settings.division:view).
  */
-export async function findActiveDivisions(companyId: number | 'all') {
+// scopeIds opsional (hasil resolveCompanyScope di handler) -- celah RBAC ditemukan
+// lewat audit lanjutan 2026-08-06, sama pola dgn findUnmappedChannelNames di
+// channel-divisions.repository.ts: sebelumnya companyId='all' scan SEMUA company
+// tanpa scopeIds sama sekali. 2 caller internal (channel-divisions.service.ts,
+// isValidDivision) SENGAJA tidak kirim scopeIds -- companyId di situ sudah
+// spesifik & tervalidasi dari body request yang lolos resolveCompanyScope di
+// handler-nya masing-masing, bukan dari user-facing list endpoint.
+export async function findActiveDivisions(companyId: number | 'all', scopeIds?: number[]) {
+  if (scopeIds && scopeIds.length === 0) return []
   const conditions = [eq(divisions.is_active, true)]
   if (companyId !== 'all') conditions.push(eq(divisions.company_id, companyId))
+  else if (scopeIds) conditions.push(inArray(divisions.company_id, scopeIds))
 
   return db
     .select({

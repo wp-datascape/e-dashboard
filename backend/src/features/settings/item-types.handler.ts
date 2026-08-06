@@ -25,7 +25,12 @@ export async function handleListItemTypes(c: Context) {
 
 export async function handleListItemTypeValues(c: Context) {
   const query = validateQuery(c, listItemTypesQuerySchema)
-  const result = await listActiveItemTypesService(query.company_id)
+  // Celah RBAC (audit lanjutan 2026-08-06): sebelumnya company_id dari query
+  // dipakai mentah tanpa resolveCompanyScope() -- endpoint ini juga tanpa
+  // requirePermission (siapa pun login bisa akses), jadi user company A bisa
+  // lihat daftar item type company B lewat ?company_id=<company B>.
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listActiveItemTypesService(query.company_id, scopeIds)
   return success(c, result)
 }
 

@@ -25,9 +25,14 @@ export async function findItemTypes(scopeIds?: number[]) {
  * baca daftar ini buat keperluan filter, beda dari GET / (CRUD admin, permission
  * config.classification:view) yang balikin semua termasuk yang nonaktif.
  */
-export async function findActiveItemTypes(companyId: number | 'all') {
+// scopeIds opsional (hasil resolveCompanyScope di handler) -- celah RBAC ditemukan
+// lewat audit lanjutan 2026-08-06 (endpoint ini bahkan TANPA requirePermission
+// sama sekali, siapa pun login bisa akses -- lihat item-types.route.ts).
+export async function findActiveItemTypes(companyId: number | 'all', scopeIds?: number[]) {
+  if (scopeIds && scopeIds.length === 0) return []
   const conditions = [eq(item_types.is_active, true)]
   if (companyId !== 'all') conditions.push(eq(item_types.company_id, companyId))
+  else if (scopeIds) conditions.push(inArray(item_types.company_id, scopeIds))
 
   return db
     .select({ id: item_types.id, company_id: item_types.company_id, key: item_types.key, label: item_types.label })
