@@ -13,6 +13,26 @@ mengoreksi: **Analisis jadi grup menu dengan submenu terpisah per metrik**
 Product Portfolio (Products/High Margin/Product Trend = 3 menu terpisah 1
 grup). Retention (M6) dikerjakan duluan sebagai pilot sebelum grup lain.
 
+### 0b. Koreksi kedua — "Analisis" bukan grup sendiri, gabung ke Customer Workbench (2026-08-07)
+
+Audit UI/UX (lihat sesi 2026-08-07) menemukan: grup "Analisis" terpisah dari
+"Customer Workbench" bikin M1–M10 tampak terpencar-pencar di sidebar — user
+harus buka 2 grup menu berbeda buat lihat 2 sudut pandang (tren vs rincian
+per-customer) dari metrik YANG SAMA (mis. M6 Repeat Order: tren di Expansion/
+Customer Workbench, rincian per-customer di Analisis Retention/grup lain).
+
+Fix: `analisis-revenue` dan `analisis-retention` dipindah dari grup
+"Transaction & Revenue" (dengan `groupLabelKey` sendiri) ke dalam Customer
+Workbench, ditaruh PERSIS setelah `expansion` — karena Expansion sudah
+mem-bundle M3/M4/M5/M6/M7 (metrik yang dipecah Analisis Revenue/Retention).
+Grup "Analisis" sebagai konsep menu terpisah DIHAPUS (bukan cuma dipindah
+posisi) — `nav.groups.analisis` juga dibuang dari `nav.json` (id/en), tidak
+dipakai lagi di mana pun.
+
+Kalau grup Analisis lain ditambah nanti (Kategori/High Margin/Dormant, lihat
+§0a rencana awal) — taruh dengan pola yang sama: sejajar dengan trend page
+metrik terkait di Customer Workbench, BUKAN bikin grup "Analisis" baru lagi.
+
 Ditambah requirement baru saat implementasi: **baris ringkasan Total** di
 atas tabel (Total Periode Lampau vs Total Periode Ini vs Perubahan) — SUM
 dari SELURUH customer yang lolos filter (bukan cuma halaman yang tampil),

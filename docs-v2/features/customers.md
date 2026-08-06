@@ -51,6 +51,8 @@ Threshold config dari `business_configs`:
 - `dormant_threshold_months.b2b_project` — untuk project + intercompany
 - `dormant_threshold_months.b2c` — untuk e_commerce + freelancer
 
+> **Fix RBAC (2026-08-06, [[task022]])**: kategori threshold di atas di-resolve dari divisi paling dominan di company yang di-scope (`resolveDormantMonths()`, dipanggil `findCustomers()` di file ini) — sebelumnya `company_id='all'` scan SEMUA company lintas holding (bukan cuma company user), threshold yang kepilih bisa salah. Detail lengkap: `features/metrics.md` §Dormant Trend.
+
 Ubah threshold di halaman **Config → Business Rules** → status customer berubah real-time tanpa deploy.
 
 ---

@@ -121,6 +121,26 @@ Cuma balikin nilai `division` unik (bukan mapping `channel_name` lengkap) — **
 
 Route: `channelDivisionsRoutes.get('/values', handleListDivisionValues)` — didaftarkan **sebelum** `GET /` di file route (urutan tidak masalah di sini karena keduanya path statis, tidak ada konflik `:id`).
 
+> **Fix RBAC (2026-08-06, [[task022]])**: walau permission-nya memang sengaja dibuka lebar, `company_id` eksplisit (bukan `'all'`) TETAP wajib divalidasi terhadap akses company user — sebelumnya `handleListDivisionValues` tidak pernah panggil `resolveCompanyScope()`, jadi user company A bisa lihat daftar division company B lewat `?company_id=<company B>`. Sekarang: `company_id` eksplisit di luar akses → `403`, `'all'` di-resolve ke `scopeIds` (cuma company milik user, superadmin tetap bypass total).
+
+---
+
+### `GET /settings/channel-divisions/unmapped-channels`
+
+Balikin daftar `channel_name` **asli** dari invoice yang belum punya mapping di `channel_divisions` — dipakai isi dropdown "Add Channel Mapping" (pilih dari data nyata, bukan ketik manual). Permission: `settings.channel.division:view`.
+
+**Query params:**
+| Param | Tipe | Default | Keterangan |
+|-------|------|---------|------------|
+| `company_id` | integer \| `"all"` | `"all"` | `resolveCompanyScope()` — company eksplisit di luar akses user → `403` |
+
+**Response 200:**
+```json
+{ "message": "Success", "data": ["SHOPEE COS", "TIKTOK CST", "..."] }
+```
+
+> **Fix RBAC (2026-08-06, [[task022]])**: sebelumnya endpoint ini mengembalikan `channel_name` **company lain** (data bisnis riil, bukan sekadar kategori) begitu `company_id` diganti manual di query string — beda dari `/values` di atas, endpoint ini memang dirancang sensitif (lihat alasan pemisahan endpoint di §`/values`), jadi celah ini severity-nya lebih tinggi. Dikonfirmasi exploitable di production sebelum fix (lihat [[task022]] §3). Sekarang scope company divalidasi sama seperti endpoint lain.
+
 ---
 
 ### `POST /settings/channel-divisions`

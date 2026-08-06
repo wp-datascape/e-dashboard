@@ -208,7 +208,9 @@ mendapat rata-rata yang melambung jauh dari kenyataan (`fetchDormantValueRanking
 
 **M10** = reactivation_current.value (% reactivation bulan terakhir)
 
-Dormant threshold (dormantDays) dibaca dari `business_configs.dormant_threshold_months.*` via `resolveSegmentParams()`.
+Dormant threshold (dormantDays) dibaca dari `business_configs.dormant_threshold_months.*` via `resolveSegmentParams()` — kategori threshold-nya (`b2b_dc`/`b2b_project`/`b2c`/`manufacturing`) di-resolve dari divisi PALING DOMINAN (jumlah invoice terbanyak) di company yang di-scope (`resolveDormantMonths()`, `features/config/threshold.ts`).
+
+> **Fix bug (2026-08-06, [[task022]])**: sebelumnya `resolveDormantMonths()` tidak menerima `companyScopeIds` sama sekali — begitu `company_id='all'` diminta (termasuk oleh user non-superadmin yang scope-nya sebenarnya cuma 1 company), pencarian "divisi paling dominan" scan SEMUA company lintas holding, bukan cuma company milik user. Company dengan volume invoice jauh lebih besar mendominasi hasil, sehingga threshold yang kepilih salah untuk company lain — mempengaruhi klasifikasi existing/dormant di M3–M10 tanpa terlihat sebagai error (angka cuma "beda", bukan gagal). Fix: thread `companyScopeIds` dari kedua caller (`metrics.service.ts`, `customers.repository.ts`), reuse `buildCompanyConditionRaw` untuk kondisi company-nya.
 
 ---
 

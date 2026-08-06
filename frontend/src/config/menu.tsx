@@ -78,6 +78,27 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <TrendingUpIcon fontSize="small" />,
     permissionKey: 'expansion:menu',
   },
+  // Analisis Revenue/Retention — detail per-customer YoY dari metrik yang
+  // sama dengan tren di atas (Expansion halaman ini mem-bundle M3/M4/M6, dst)
+  // — SENGAJA ditaruh persis di bawah Expansion (bukan grup sendiri lagi
+  // seperti sebelumnya), supaya kedua "sudut pandang" 1 metrik (tren vs
+  // rincian per-customer) selalu bersebelahan di sidebar. Restrukturisasi
+  // 2026-08-07 atas masukan user: "M1-M10 yang terpencar-pencar menyulitkan
+  // pemahaman" — lihat [[task021]] §0/§0a untuk riwayat sebelum ini.
+  {
+    key: 'analisis-revenue',
+    path: '/analisis/revenue',
+    labelKey: 'nav.analisisRevenue',
+    icon: <AssessmentIcon fontSize="small" />,
+    permissionKey: 'analisis:menu',
+  },
+  {
+    key: 'analisis-retention',
+    path: '/analisis/retention',
+    labelKey: 'nav.analisisRetention',
+    icon: <ReplayIcon fontSize="small" />,
+    permissionKey: 'analisis.retention:menu',
+  },
   {
     key: 'churn-risk',
     path: '/dormant-customer',
@@ -129,21 +150,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <ReceiptLongIcon fontSize="small" />,
     permissionKey: 'transaction:menu',
     groupLabelKey: 'nav.groups.transactionRevenue',
-  },
-  {
-    key: 'analisis-revenue',
-    path: '/analisis/revenue',
-    labelKey: 'nav.analisisRevenue',
-    icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'analisis:menu',
-    groupLabelKey: 'nav.groups.analisis',
-  },
-  {
-    key: 'analisis-retention',
-    path: '/analisis/retention',
-    labelKey: 'nav.analisisRetention',
-    icon: <ReplayIcon fontSize="small" />,
-    permissionKey: 'analisis.retention:menu',
   },
   {
     key: 'project',

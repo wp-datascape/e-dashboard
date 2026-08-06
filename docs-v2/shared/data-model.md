@@ -583,3 +583,24 @@ GET /api/v1/metrics/cross-selling?company_id=1&branch_id=6&period_end=2026-07-05
 ```
 Filter `branch_id`/`division` optional — jika tidak dikirim, hitung semua branch/division
 dalam scope akses user (bukan berarti bypass RBAC, cuma tidak dipersempit lebih lanjut).
+
+### Pola wajib: `company_id='all'` HARUS threading `scopeIds`, bukan cuma cek `cid=0`
+
+Ditemukan lewat audit lanjutan RBAC ([[task022]], 2026-08-06) — 2 kelas bug
+berbeda yang berulang kali muncul di codebase ini:
+
+1. Query raw SQL yang mengecek sentinel `cid=0` ("company_id='all'") sebagai
+   kondisi `TRUE` tanpa syarat, TANPA ikut mengecek `companyScopeIds` hasil
+   `resolveCompanyScope()` — bocor data/kalkulasi lintas company untuk user
+   non-superadmin yang minta `'all'` (contoh: `resolveDormantMonths()`,
+   `backend/src/features/config/threshold.ts`). Selalu gunakan
+   `buildCompanyConditionRaw(companyExpr, cid, companyScopeIds)`
+   (`utils/scope.ts`) untuk kondisi company, jangan tulis manual.
+2. Handler yang menerima `company_id` dari query/body TAPI tidak pernah
+   memanggil `resolveCompanyScope()` sama sekali — company eksplisit di luar
+   akses user pun lolos tanpa validasi (3 endpoint ditemukan: `channel-
+   divisions/unmapped-channels`, `divisions/values`, `item-types/values`).
+   Endpoint kategori "list nilai buat dropdown" (bukan tabel data utama)
+   paling sering kelewat pola ini karena terasa "kurang penting" untuk
+   diaudit — checklist review endpoint baru: SETIAP handler yang terima
+   `company_id` WAJIB panggil `resolveCompanyScope()`, tanpa kecuali.
