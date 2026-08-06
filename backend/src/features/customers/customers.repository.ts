@@ -27,7 +27,7 @@ export async function findCustomers(
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
-  const dormantMonths = await resolveDormantMonths(cid, dormant)
+  const dormantMonths = await resolveDormantMonths(cid, dormant, scopeIds)
 
   // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
   // dari urutan lama yang baru dihitung dekat akhir function.

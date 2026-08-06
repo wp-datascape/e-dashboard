@@ -24,6 +24,7 @@ import type { SQL } from 'drizzle-orm'
 import { findAllConfigs } from './config.repository'
 import { db } from '@/config/db'
 import { divisions } from '@/db/schema'
+import { buildCompanyConditionRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,18 @@ export async function loadThresholds(): Promise<ThresholdConfig> {
 export async function resolveDormantMonths(
   cid: number,
   dormant: ThresholdConfig['dormant'],
+  companyScopeIds?: number[],
 ): Promise<number> {
+  // BUG (ditemukan lewat laporan user 2026-08-06 - M5 beda antara superadmin
+  // vs mko.executive): sebelumnya kondisi cuma "cid=0 OR company_id=cid",
+  // artinya user non-superadmin yang minta company_id='all' (cid jadi 0) tetap
+  // scan SEMUA company lintas holding buat cari divisi paling dominan --
+  // termasuk company LAIN yang bukan haknya. Company dengan volume invoice
+  // jauh lebih besar (mis. KNT ~182rb vs MKO ~7rb) mendominasi hasil,
+  // dormant_category yang kepilih jadi tidak relevan sama sekali buat scope
+  // asli user. Reuse buildCompanyConditionRaw yang sudah benar menangani
+  // cid=0+scopeIds (union) vs cid=0+tanpa scopeIds (bypass superadmin).
+  const companyCond = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
   const result = await db.execute(sql`
     SELECT cd.division_id, COUNT(*) AS cnt
     FROM invoices i
@@ -172,7 +184,7 @@ export async function resolveDormantMonths(
       ON cd.channel_name = i.channel_name
      AND cd.company_id = i.company_id
     WHERE i.deleted_at IS NULL
-      AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+      AND ${companyCond}
       AND i.channel_name IS NOT NULL
     GROUP BY cd.division_id
     ORDER BY cnt DESC
