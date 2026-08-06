@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -23,17 +22,17 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
-import { useAnalisis } from '@/hooks/useAnalisis'
-import { formatIDR, formatIDRSigned } from '@/utils/format'
+import { useRetentionAnalisis } from '@/hooks/useAnalisis'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
-import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
+import { TrendChip } from '@/components/analisis/ComparisonMetrics'
 import { SummaryBar } from '@/components/analisis/SummaryBar'
 import { trendColor } from '@/utils/analisisComparison'
-import type { AnalisisPeriodType, AnalisisRow, AnalisisSummary } from '@/types/analisis'
+import type { StatusChipColor } from '@/components/ui/StatusChip'
+import type { AnalisisPeriodType, RetentionRow, RetentionSummary } from '@/types/analisis'
 
-// Urutan terpendek -> terpanjang (UI/UX review 2026-07-31).
+// Urutan terpendek -> terpanjang, mirror halaman Analisis Revenue.
 const PERIOD_TYPES: AnalisisPeriodType[] = ['monthly', 'quarter', 'semester', 'ytd', 'annual']
 
 function todayISODate(): string {
@@ -41,8 +40,6 @@ function todayISODate(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// ─── Badge Pareto — mirror pola "highMarginBadge" di Product Ledger: chip kecil
-// di sebelah nama, customer yang di-flag tetap tampil dalam list lengkap ──────
 function ParetoBadge() {
   const { t } = useTranslation()
   return (
@@ -55,68 +52,31 @@ function ParetoBadge() {
   )
 }
 
-export default function AnalisisPage() {
+// ─── Sel angka tunggal (jumlah order) — versi 1-baris dari MetricPair
+// (yang dirancang khusus pasangan Rev/GP), dipakai kolom Pembanding/Periode
+// Ini/Perubahan Nilai di tabel Retention. ──────────────────────────────────
+function OrderCountCell({ text, color }: { text: string; color?: StatusChipColor }) {
+  return (
+    <Typography variant="body2" sx={{ py: 1, fontWeight: color ? 600 : 400, color: color ? `${color}.main` : undefined }}>
+      {text}
+    </Typography>
+  )
+}
+
+export default function AnalisisRetentionPage() {
   const { t } = useTranslation()
 
-  // Baca filter awal dari query string (SEKALI, saat mount) — dipakai tombol
-  // "Lihat di Analisis" di popup detail notifikasi biar halaman ini kebuka
-  // dengan data yang PERSIS sama dengan yang disebut di pesan notifikasi
-  // (company/periode/search), bukan halaman generik kosong. Kalau deep-link
-  // bawa period_key (histori dari notifikasi lama), endDate awal dihitung dari
-  // akhir NATURAL periode itu — bukan hari ini.
-  const [searchParams] = useSearchParams()
-  const initialPeriodType = (PERIOD_TYPES as string[]).includes(searchParams.get('period_type') ?? '')
-    ? (searchParams.get('period_type') as AnalisisPeriodType)
-    : 'quarter'
-  const initialEndDate = (() => {
-    const explicit = searchParams.get('end_date')
-    if (explicit) return explicit
-    const deepLinkPeriodKey = searchParams.get('period_key')
-    if (deepLinkPeriodKey) {
-      try {
-        return getPeriodDateRange(initialPeriodType, deepLinkPeriodKey).end
-      } catch {
-        // period_key tidak valid utk periodType ini — abaikan, fallback hari ini.
-      }
-    }
-    return todayISODate()
-  })()
-
-  // Filter Cabang & Divisi (task016 §27) — SSOT yang sama dipakai Customers/
-  // Products/Transactions dkk (docs-v2/task/task001.md Task H), bukan implementasi
-  // scope-aware terpisah lagi. Opsi branch/division SUDAH difilter sesuai hak
-  // akses user (lihat useScopedCompanyFilter), jadi tidak perlu enforcement
-  // tambahan di sisi frontend.
   const scopeFilter = useScopedCompanyFilter()
-  const { companyId, setCompanyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
+  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
 
-  // Deep-link company_id dari popup notifikasi (SEKALI saat mount) — hook
-  // useScopedCompanyFilter tidak terima initial value langsung, jadi di-apply
-  // via effect one-time, bukan reactive sync (sesuai catatan hook: hindari
-  // setState sinkron REAKTIF di effect, tapi inisialisasi sekali dari URL beda
-  // kasus — tidak ada dependency lain yang bisa berubah lagi setelah mount).
-  useEffect(() => {
-    const v = searchParams.get('company_id')
-    if (v) setCompanyId(Number(v))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const [periodType, setPeriodType] = useState<AnalisisPeriodType>(initialPeriodType)
-  // "Tanggal" — filter tunggal pengganti period_key+Pembanding (task016 §26,
-  // revisi 2026-08-01): user pilih TANGGAL PERSIS (bukan bulan), start range
-  // selalu awal periode yang mengandung tanggal itu, end selalu tanggal itu
-  // sendiri. Pembanding SELALU YoY (dropdown-nya dihapus), digeser -1 tahun
-  // persis dari currentRange — lihat perhitungan currentRange/comparisonRange
-  // di bawah, MIRROR 1-ke-1 logic backend analisis.service.ts.
-  const [endDate, setEndDate] = useState<string>(initialEndDate)
-  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
+  const [periodType, setPeriodType] = useState<AnalisisPeriodType>('quarter')
+  const [endDate, setEndDate] = useState<string>(todayISODate())
+  const [search, setSearch] = useState('')
   const [onlyPareto, setOnlyPareto] = useState(false)
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 25 })
 
-  // Kolom 'current' (Periode Ini) satu-satunya yang sortable — sort by revenue.
-  // Selain itu 'default' = prioritas Pareto duluan lalu nama alfabetis (task016 §12).
-  const sortBy = sortModel[0]?.field === 'current' ? 'revenue' : 'default'
+  const sortBy = sortModel[0]?.field === 'current' ? 'invoice_count' : 'default'
   const sortDir = sortModel[0]?.sort ?? 'desc'
 
   const todayStr = todayISODate()
@@ -129,7 +89,7 @@ export default function AnalisisPage() {
   const currentRangeText = formatDateRange(currentRange)
   const comparisonRangeText = formatDateRange(comparisonRange)
 
-  const { data, isLoading } = useAnalisis({
+  const { data, isLoading } = useRetentionAnalisis({
     company_id: companyId,
     branch_id: branchId === 'all' ? undefined : branchId,
     division: division || undefined,
@@ -143,21 +103,15 @@ export default function AnalisisPage() {
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
   })
-  // DataGrid butuh field `id` unik per baris
   const rows = (data?.data ?? []).map((row) => ({ ...row, id: row.customer_id }))
-  // Total SELURUH customer yang lolos filter (bukan cuma halaman ini) —
-  // backend hitung terpisah dari data per-baris, lihat meta.summary.
-  const summary = data?.meta.summary as AnalisisSummary | undefined
+  const summary = data?.meta.summary as RetentionSummary | undefined
 
-  const hasAnyAlert = (row: AnalisisRow) =>
-    row.comparison.revenue_alert || row.comparison.margin_alert
+  const hasAnyAlert = (row: RetentionRow) => row.comparison.invoice_count_alert
 
-  const revLabel = t('analisis.metricRevenue')
-  const gmLabel = t('analisis.metricMargin') // dipakai KHUSUS nilai persentase (rasio)
-  const gpLabel = t('analisis.metricGP') // dipakai KHUSUS nilai Rupiah (angka absolut)
+  const orderLabel = t('analisis.metricOrderCount')
   const newBusinessLabel = t('analisis.newBusiness')
 
-  const columns: GridColDef<AnalisisRow>[] = [
+  const columns: GridColDef<RetentionRow>[] = [
     {
       field: 'company_name',
       headerName: t('analisis.company'),
@@ -190,38 +144,27 @@ export default function AnalisisPage() {
     {
       field: 'periode_lampau',
       headerName: t('analisis.comparisonLabel'),
-      width: 170,
+      width: 140,
       sortable: false,
-      renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
-      ),
+      renderCell: ({ row }) => <OrderCountCell text={`${orderLabel}: ${row.comparison.invoice_count}`} />,
     },
     {
       field: 'current',
       headerName: t('analisis.periodLabel'),
-      width: 170,
+      width: 140,
       sortable: true,
-      // Klik pertama langsung descending (besar ke kecil) — default MUI DataGrid
-      // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
-      renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} showLabels={false} />
-      ),
+      renderCell: ({ row }) => <OrderCountCell text={String(row.current.invoice_count)} />,
     },
     {
       field: 'changeValue',
       headerName: t('analisis.changeValue'),
-      width: 170,
+      width: 140,
       sortable: false,
       renderCell: ({ row }) => (
-        <MetricPair
-          revenueLabel={revLabel}
-          marginLabel={gpLabel}
-          revenueText={formatIDRSigned(row.comparison.revenue_change_value)}
-          marginText={formatIDRSigned(row.comparison.margin_change_value)}
-          revenueColor={trendColor(row.comparison.revenue_change_pct, row.comparison.revenue_alert)}
-          marginColor={trendColor(row.comparison.margin_change_pct, row.comparison.margin_alert)}
-          showLabels={false}
+        <OrderCountCell
+          text={row.comparison.invoice_count_change_value > 0 ? `+${row.comparison.invoice_count_change_value}` : String(row.comparison.invoice_count_change_value)}
+          color={trendColor(row.comparison.invoice_count_change_pct, row.comparison.invoice_count_alert)}
         />
       ),
     },
@@ -231,13 +174,10 @@ export default function AnalisisPage() {
       width: 160,
       sortable: false,
       renderCell: ({ row }) => (
-        <MetricPercentPair
-          revenueLabel={revLabel}
-          marginLabel={gmLabel}
-          revenuePct={row.comparison.revenue_change_pct}
-          marginPct={row.comparison.margin_change_pct}
-          revenueAlert={row.comparison.revenue_alert}
-          marginAlert={row.comparison.margin_alert}
+        <TrendChip
+          label={orderLabel}
+          pct={row.comparison.invoice_count_change_pct}
+          alert={row.comparison.invoice_count_alert}
           newBusinessLabel={newBusinessLabel}
         />
       ),
@@ -258,8 +198,8 @@ export default function AnalisisPage() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ mb: 3 }}>
-        <Typography variant="pageTitle">{t('analisis.title')}</Typography>
-        <Typography variant="pageSubtitle">{t('analisis.subtitle')}</Typography>
+        <Typography variant="pageTitle">{t('analisis.retentionTitle')}</Typography>
+        <Typography variant="pageSubtitle">{t('analisis.retentionSubtitle')}</Typography>
       </Box>
 
       <Card sx={{ p: 2.5, mb: 2 }}>
@@ -284,8 +224,6 @@ export default function AnalisisPage() {
             label={t('analisis.periodDataLabel')}
             value={endDate}
             onChange={(e) => {
-              // Tidak boleh pilih tanggal di masa depan — clamp ke hari ini
-              // (komponen DatePicker atomic tidak expose slotProps/max native).
               const picked = e.target.value
               setEndDate(picked && picked > todayStr ? todayStr : picked)
               setPaginationModel((p) => ({ ...p, page: 0 }))
@@ -369,33 +307,16 @@ export default function AnalisisPage() {
           periodLabel={t('analisis.periodLabel')}
           changeValueLabel={t('analisis.changeValue')}
           changePercentLabel={t('analisis.changePercent')}
-          comparisonContent={
-            <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(summary.comparison.revenue)} marginText={formatIDR(summary.comparison.margin)} />
-          }
-          periodContent={
-            <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(summary.current.revenue)} marginText={formatIDR(summary.current.margin)} showLabels={false} />
-          }
+          comparisonContent={<OrderCountCell text={`${orderLabel}: ${summary.comparison_invoice_count}`} />}
+          periodContent={<OrderCountCell text={String(summary.current_invoice_count)} />}
           changeValueContent={
-            <MetricPair
-              revenueLabel={revLabel}
-              marginLabel={gpLabel}
-              revenueText={formatIDRSigned(summary.revenue_change_value)}
-              marginText={formatIDRSigned(summary.margin_change_value)}
-              revenueColor={trendColor(summary.revenue_change_pct, false)}
-              marginColor={trendColor(summary.margin_change_pct, false)}
-              showLabels={false}
+            <OrderCountCell
+              text={summary.change_value > 0 ? `+${summary.change_value}` : String(summary.change_value)}
+              color={trendColor(summary.change_pct, false)}
             />
           }
           changePercentContent={
-            <MetricPercentPair
-              revenueLabel={revLabel}
-              marginLabel={gmLabel}
-              revenuePct={summary.revenue_change_pct}
-              marginPct={summary.margin_change_pct}
-              revenueAlert={false}
-              marginAlert={false}
-              newBusinessLabel={newBusinessLabel}
-            />
+            <TrendChip label={orderLabel} pct={summary.change_pct} alert={false} newBusinessLabel={newBusinessLabel} />
           }
         />
       )}

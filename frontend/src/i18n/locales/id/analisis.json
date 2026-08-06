@@ -22,5 +22,9 @@
   "metricMargin": "GM",
   "metricGP": "GP",
   "critical": "Kritis",
-  "normal": "Normal"
+  "normal": "Normal",
+  "summaryLabel": "Total — Semua Data Difilter",
+  "retentionTitle": "Analisis Retention",
+  "retentionSubtitle": "Frekuensi order (repeat order) seluruh customer, customer prioritas (Pareto) ditampilkan duluan, dibandingkan periode sama tahun lalu",
+  "metricOrderCount": "Jml Order"
 }

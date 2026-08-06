@@ -33,6 +33,7 @@ export const ClassificationSettings = lazy(() => import('../pages/Config/Classif
 export const ThresholdSettings = lazy(() => import('../pages/Settings/Threshold/index'))
 export const ParetoCustomersSettings = lazy(() => import('../pages/Settings/ParetoCustomers/index'))
 export const AnalisisPage = lazy(() => import('../pages/Analisis/index'))
+export const AnalisisRetentionPage = lazy(() => import('../pages/AnalisisRetention/index'))
 export const NotificationsPage = lazy(() => import('../pages/Notifications/index'))
 export const AppSettings = lazy(() => import('../pages/Settings/AppSettings/index'))
 export const IntegrationPage = lazy(() => import('../pages/Config/Integration/index'))

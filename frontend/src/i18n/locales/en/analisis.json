@@ -22,5 +22,9 @@
   "metricMargin": "GM",
   "metricGP": "GP",
   "critical": "Critical",
-  "normal": "Normal"
+  "normal": "Normal",
+  "summaryLabel": "Total — All Filtered Data",
+  "retentionTitle": "Retention Analysis",
+  "retentionSubtitle": "Order frequency (repeat order) of all customers, priority (Pareto) ones first, compared to the same period last year",
+  "metricOrderCount": "Order Count"
 }

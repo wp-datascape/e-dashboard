@@ -43,6 +43,17 @@ export interface AnalisisRow {
   comparison: AnalisisMetricComparison
 }
 
+// Total revenue/margin utk SELURUH customer yang lolos filter (bukan cuma
+// halaman yang sedang tampil) — ditampilkan di baris ringkasan di atas tabel.
+export interface AnalisisSummary {
+  current: { revenue: number; margin: number }
+  comparison: { revenue: number; margin: number }
+  revenue_change_value: number
+  margin_change_value: number
+  revenue_change_pct: number | null
+  margin_change_pct: number | null
+}
+
 export type AnalisisSortBy = 'default' | 'revenue'
 export type AnalisisSortDir = 'asc' | 'desc'
 
@@ -70,6 +81,58 @@ export interface AnalisisParams {
   // Toggle "Exclude Intercompany" — mirror ExcludeIntercompanyToggle.
   exclude_intercompany?: boolean
   sort_by?: AnalisisSortBy
+  sort_dir?: AnalisisSortDir
+  page: number
+  per_page: number
+}
+
+// ─── Analisis Retention — submenu ke-2 grup Analisis (task021) ────────────────
+// Customer repeat order (jumlah invoice) per periode, YoY — mirror struktur
+// AnalisisRow/AnalisisParams (Revenue & GP) persis, cuma metrik beda.
+
+export interface RetentionComparison {
+  period_key: string
+  invoice_count: number
+  invoice_count_change_value: number
+  invoice_count_change_pct: number | null
+  invoice_count_alert: boolean
+}
+
+export interface RetentionRow {
+  customer_id: number
+  company_id: number
+  company_name: string | null
+  customer_name: string
+  customer_code: string | null
+  is_pareto: boolean
+  period_type: AnalisisPeriodType
+  period_key: string
+  current: { invoice_count: number }
+  comparison: RetentionComparison
+}
+
+export interface RetentionSummary {
+  current_invoice_count: number
+  comparison_invoice_count: number
+  change_value: number
+  change_pct: number | null
+}
+
+export type RetentionSortBy = 'default' | 'invoice_count'
+
+export interface RetentionParams {
+  company_id: number | 'all'
+  period_type: AnalisisPeriodType
+  period_key?: string
+  comparison?: AnalisisComparisonBasis
+  end_date?: string
+  branch_id?: number
+  division?: number
+  customer_id?: number
+  search?: string
+  only_pareto?: boolean
+  exclude_intercompany?: boolean
+  sort_by?: RetentionSortBy
   sort_dir?: AnalisisSortDir
   page: number
   per_page: number

@@ -111,7 +111,7 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
 
   const handleViewAnalisis = () => {
     if (!entityRef) {
-      navigate('/analisis')
+      navigate('/analisis/revenue')
       onClose()
       return
     }
@@ -123,7 +123,7 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
     })
     if (anyRow) params.set('search', anyRow.customer_name)
     onClose()
-    navigate(`/analisis?${params.toString()}`)
+    navigate(`/analisis/revenue?${params.toString()}`)
   }
 
   return (

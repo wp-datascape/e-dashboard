@@ -156,8 +156,14 @@ const defaultPermissions = [
   // Analisis (task016 §12) — laporan customer lengkap + prioritas Pareto,
   // permission SENGAJA terpisah dari settings.pareto:* (bukan halaman
   // konfigurasi, ada di menu Transaction & Revenue bukan Settings).
-  { name: 'analisis:menu', description: 'Menu Analisis', category: 'Analisis' },
-  { name: 'analisis:view', description: 'View Analisis', category: 'Analisis' },
+  { name: 'analisis:menu', description: 'Menu Analisis Revenue', category: 'Analisis' },
+  { name: 'analisis:view', description: 'View Analisis Revenue', category: 'Analisis' },
+  // Analisis Retention (task021) — submenu ke-2 grup Analisis (repeat order
+  // per periode), permission TERPISAH dari analisis:menu/:view supaya bisa
+  // digranulasi per role independen walau tampil di 1 grup menu yang sama
+  // (mirror pola high.margin:menu/product.trend:menu terpisah dari product:menu).
+  { name: 'analisis.retention:menu', description: 'Menu Analisis Retention', category: 'Analisis' },
+  { name: 'analisis.retention:view', description: 'View Analisis Retention', category: 'Analisis' },
   // Notification Center (task016 §19) — SEBELUMNYA tanpa permission sama
   // sekali ("siapa pun login boleh akses", personal by user_id). Diubah biar
   // konsisten dgn pola menu lain: 'notifications:menu' kontrol visibilitas
@@ -259,6 +265,7 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'settings.pareto:menu', 'settings.pareto:view', 'settings.pareto:create', 'settings.pareto:update', 'settings.pareto:delete',
   'analisis:menu', 'analisis:view',
+  'analisis.retention:menu', 'analisis.retention:view',
   // Alert notifikasi (task016) cuma dikirim ke admin/superadmin (recipients.ts)
   // — user biasa tidak pernah dapat isinya, jadi sengaja TIDAK dimasukkan ke
   // USER_PERMISSION_NAMES (bell yang selalu kosong cuma bikin bingung).
@@ -332,6 +339,7 @@ const defaultPageSettings = [
   { page_key: 'settings-high-margin', ready: true },
   { page_key: 'settings-pareto-customers', ready: true },
   { page_key: 'analisis', ready: true },
+  { page_key: 'analisis-retention', ready: true },
   { page_key: 'notifications', ready: true },
   { page_key: 'settings-classification', ready: true },
   { page_key: 'settings-threshold', ready: true },

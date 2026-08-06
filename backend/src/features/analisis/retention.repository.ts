@@ -9,31 +9,31 @@ import {
   buildDivisionCondition,
 } from '@/utils/scope'
 
-export interface CustomerPeriodAggregate {
+/**
+ * Analisis Retention — customer repeat order (jumlah invoice) per periode,
+ * dibandingkan periode sama tahun lalu (YoY). Mirror pola analisis.repository.ts
+ * (Revenue & GP) persis, cuma nilai yang dihitung beda: COUNT(DISTINCT invoice)
+ * per customer, bukan SUM(revenue). Kondisi filter/scope SENGAJA disalin
+ * (bukan diekstrak jadi 1 helper bersama dgn analisis.repository.ts) — supaya
+ * fungsi Revenue (dipakai scheduler notifikasi digest email) tidak ikut
+ * tersentuh perubahan apa pun di sini.
+ */
+
+export interface CustomerInvoiceCountAggregate {
   customer_id: number
-  revenue: number
-  margin: number
+  invoice_count: number
 }
 
-/**
- * SUM total_revenue/total_gp langsung dari `invoices` (BUKAN join invoice_items)
- * supaya tidak duplikasi — pola sama seperti findCustomerDetail trend 12 bulan
- * (customers.repository.ts, lihat komentar di situ soal duplikasi JOIN).
- * Dipakai untuk periode previous/YoY (cuma customer_id di 1 halaman, bukan
- * seluruh scope — beda dari current_revenue yang dihitung inline di
- * findAnalisisCustomers supaya bisa dipakai sorting sebelum paginasi).
- */
-export async function aggregateInvoicesByCustomer(
+export async function aggregateInvoiceCountByCustomer(
   customerIds: number[],
   range: { start: string; end: string },
-): Promise<Map<number, CustomerPeriodAggregate>> {
+): Promise<Map<number, CustomerInvoiceCountAggregate>> {
   if (customerIds.length === 0) return new Map()
 
   const rows = await db
     .select({
       customer_id: invoices.customer_id,
-      revenue: sql<string>`COALESCE(SUM(${invoices.total_revenue}::numeric), 0)`,
-      margin: sql<string>`COALESCE(SUM(${invoices.total_gp}::numeric), 0)`,
+      invoice_count: sql<number>`COUNT(DISTINCT ${invoices.id})::int`,
     })
     .from(invoices)
     .where(
@@ -46,56 +46,33 @@ export async function aggregateInvoicesByCustomer(
     )
     .groupBy(invoices.customer_id)
 
-  const map = new Map<number, CustomerPeriodAggregate>()
+  const map = new Map<number, CustomerInvoiceCountAggregate>()
   for (const r of rows) {
-    map.set(r.customer_id, {
-      customer_id: r.customer_id,
-      revenue: Number(r.revenue),
-      margin: Number(r.margin),
-    })
+    map.set(r.customer_id, { customer_id: r.customer_id, invoice_count: Number(r.invoice_count) })
   }
   return map
 }
 
-export interface AnalisisCustomerRow {
+export interface RetentionCustomerRow {
   customer_id: number
   customer_name: string
   customer_code: string | null
   company_id: number
   company_name: string | null
   is_pareto: boolean
-  current_revenue: string
-  current_margin: string
+  current_invoice_count: number
 }
 
-export type AnalisisSortBy = 'default' | 'revenue'
-export type AnalisisSortDir = 'asc' | 'desc'
+export type RetentionSortBy = 'default' | 'invoice_count'
+export type RetentionSortDir = 'asc' | 'desc'
 
-/**
- * SEMUA customer non-placeholder di scope (bukan cuma yang di-flag Pareto) —
- * ditandai `is_pareto` via LEFT JOIN ke pareto_customers aktif, diprioritaskan
- * tampil duluan secara default (ORDER BY is_pareto DESC) mirror pola High
- * Margin di halaman Product Ledger (chip + tetap muncul dalam list lengkap,
- * bukan halaman terpisah). `onlyPareto` = toggle filter (mirror
- * `high_margin_only`), independen dari prioritas tampil default.
- *
- * `excludeIntercompany` — toggle laporan (mirror `ExcludeIntercompanyToggle`
- * yang sudah dipakai Products/Transactions/Customers), exclude customer yang
- * division efektifnya 'intercompany' (COALESCE division_override_id, division
- * dari channel invoice TERBARU — pola sama persis dgn customers.repository.ts).
- *
- * Revenue/margin periode SAAT INI dihitung LANGSUNG di query ini (LEFT JOIN
- * invoices + CASE WHEN, bukan query terpisah) supaya bisa jadi basis sorting
- * SEBELUM paginasi — kalau dihitung belakangan (per halaman saja, pola lama),
- * sort by revenue tidak mungkin benar lintas halaman.
- */
-export async function findAnalisisCustomers(
+export async function findRetentionCustomers(
   scopeIds: number[] | undefined,
   search: string | undefined,
   onlyPareto: boolean,
   excludeIntercompany: boolean,
-  sortBy: AnalisisSortBy,
-  sortDir: AnalisisSortDir,
+  sortBy: RetentionSortBy,
+  sortDir: RetentionSortDir,
   currentRange: { start: string; end: string },
   page: number,
   perPage: number,
@@ -104,13 +81,9 @@ export async function findAnalisisCustomers(
   divisionScope?: Map<number, number[]>,
   branchIdFilter?: number,
   divisionFilter?: number,
-): Promise<{ rows: AnalisisCustomerRow[]; total: number }> {
+): Promise<{ rows: RetentionCustomerRow[]; total: number }> {
   if (scopeIds && scopeIds.length === 0) return { rows: [], total: 0 }
 
-  // Subquery: channel_name + branch_id dari invoice terbaru per customer —
-  // dipakai resolve division efektif utk exclude-intercompany DAN scope
-  // Cabang/Divisi (task016 §27), pola sama persis dgn `latestSalespersonSq`
-  // di customers.repository.ts.
   const latestChannelSq = db
     .selectDistinctOn([invoices.customer_id], {
       customer_id: invoices.customer_id,
@@ -119,10 +92,6 @@ export async function findAnalisisCustomers(
     })
     .from(invoices)
     .where(isNull(invoices.deleted_at))
-    // Tie-break invoice.id DESC — tanpa ini, customer dengan 2+ invoice di
-    // TANGGAL SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
-    // (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT
-    // (customer 13516/13533, 2 invoice tanggal sama, channel beda).
     .orderBy(invoices.customer_id, sql`${invoices.invoice_date} DESC`, sql`${invoices.id} DESC`)
     .as('latest_channel')
 
@@ -139,18 +108,9 @@ export async function findAnalisisCustomers(
     excludeIntercompany,
   )
 
-  // Scope Cabang/Divisi (enforcement RBAC) — WAJIB dipasang meski undefined
-  // (bypass superadmin) sesuai pola resolveBranchScope/resolveDivisionScope
-  // di middleware/auth.ts. Filter Cabang/Divisi (pilihan user di UI, opsional)
-  // dipasang TERPISAH — dua hal beda meski nyasar ke kolom yang sama, lihat
-  // customers.repository.ts.
   const branchScopeCond = buildBranchCondition(customers.company_id, latestChannelSq.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(latestChannelSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
   const branchFilterCond = branchIdFilter ? eq(latestChannelSq.branch_id, branchIdFilter) : undefined
-  // COALESCE ke division_id "other" milik company customer ini — tanpa ini, customer
-  // yang latest channel name-nya tidak match rule apa pun (division_id NULL) tidak
-  // akan pernah muncul waktu filter divisi "Lainnya" dipilih (bug ditemukan lewat
-  // audit KNT).
   const divisionFilterCond = divisionFilter
     ? eq(sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, divisionFilter)
     : undefined
@@ -191,8 +151,7 @@ export async function findAnalisisCustomers(
 
   if (total === 0) return { rows: [], total: 0 }
 
-  const revenueExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_revenue}::numeric END), 0)`
-  const marginExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_gp}::numeric END), 0)`
+  const invoiceCountExpr = sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.id} END)::int`
   const isParetoExpr = sql<boolean>`bool_or(${pareto_customers.id} IS NOT NULL)`
 
   let query = db
@@ -203,8 +162,7 @@ export async function findAnalisisCustomers(
       company_id: customers.company_id,
       company_name: companies.name,
       is_pareto: isParetoExpr,
-      current_revenue: revenueExpr,
-      current_margin: marginExpr,
+      current_invoice_count: invoiceCountExpr,
     })
     .from(customers)
     .leftJoin(companies, eq(customers.company_id, companies.id))
@@ -220,38 +178,21 @@ export async function findAnalisisCustomers(
     query = query.having(sql`bool_or(${pareto_customers.id} IS NOT NULL) = true`)
   }
 
-  // Ulangi persis ekspresi revenueExpr di ORDER BY (bukan reference alias
-  // SELECT) — pola sama dengan is_pareto DESC di bawah, aman dari perubahan
-  // urutan kolom SELECT.
-  //
-  // Default (sortBy !== 'revenue') SENGAJA ikut urutkan revenue DESC sebagai
-  // tiebreak kedua (bukan cuma customer_name ASC) — kalau cuma alfabetis,
-  // customer nama berawalan angka/huruf awal yang omset-nya 0 nongol duluan,
-  // di atas customer aktif ber-omset besar (laporan user 2026-07-29).
-  query = sortBy === 'revenue'
-    ? query.orderBy(sortDir === 'asc' ? sql`${revenueExpr} ASC` : sql`${revenueExpr} DESC`)
-    : query.orderBy(sql`bool_or(${pareto_customers.id} IS NOT NULL) DESC`, sql`${revenueExpr} DESC`, customers.customer_name)
+  query = sortBy === 'invoice_count'
+    ? query.orderBy(sortDir === 'asc' ? sql`${invoiceCountExpr} ASC` : sql`${invoiceCountExpr} DESC`)
+    : query.orderBy(sql`bool_or(${pareto_customers.id} IS NOT NULL) DESC`, sql`${invoiceCountExpr} DESC`, customers.customer_name)
 
   const rows = await query.limit(perPage).offset((page - 1) * perPage)
 
   return { rows, total }
 }
 
-export interface AnalisisSummary {
-  current: { revenue: number; margin: number }
-  comparison: { revenue: number; margin: number }
+export interface RetentionSummary {
+  current_invoice_count: number
+  comparison_invoice_count: number
 }
 
-/**
- * Total revenue/margin utk SELURUH customer yang lolos filter (bukan cuma
- * halaman yang sedang tampil) — dipakai baris "Total" di atas tabel Analisis.
- * Kondisi filter DISALIN dari findAnalisisCustomers (bukan diekstrak jadi
- * helper bersama) — sengaja, supaya fungsi scheduler-critical di atas
- * (dipakai notifikasi digest email) tidak ikut tersentuh perubahan apa pun
- * di sini, isolasi risiko lebih penting daripada menghindari duplikasi ~30
- * baris kondisi scope/filter.
- */
-export async function aggregateAnalisisSummary(
+export async function aggregateRetentionSummary(
   scopeIds: number[] | undefined,
   search: string | undefined,
   onlyPareto: boolean,
@@ -263,8 +204,8 @@ export async function aggregateAnalisisSummary(
   divisionScope?: Map<number, number[]>,
   branchIdFilter?: number,
   divisionFilter?: number,
-): Promise<AnalisisSummary> {
-  const empty: AnalisisSummary = { current: { revenue: 0, margin: 0 }, comparison: { revenue: 0, margin: 0 } }
+): Promise<RetentionSummary> {
+  const empty: RetentionSummary = { current_invoice_count: 0, comparison_invoice_count: 0 }
   if (scopeIds && scopeIds.length === 0) return empty
 
   const latestChannelSq = db
@@ -320,18 +261,14 @@ export async function aggregateAnalisisSummary(
     eq(channel_divisions.company_id, customers.company_id),
   )
 
-  const curRevenueExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_revenue}::numeric END), 0)`
-  const curMarginExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_gp}::numeric END), 0)`
-  const cmpRevenueExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${comparisonRange.start} AND ${comparisonRange.end} THEN ${invoices.total_revenue}::numeric END), 0)`
-  const cmpMarginExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${comparisonRange.start} AND ${comparisonRange.end} THEN ${invoices.total_gp}::numeric END), 0)`
+  const curCountExpr = sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.id} END)::int`
+  const cmpCountExpr = sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.invoice_date} BETWEEN ${comparisonRange.start} AND ${comparisonRange.end} THEN ${invoices.id} END)::int`
 
   let perCustomer = db
     .select({
       customer_id: customers.id,
-      cur_revenue: curRevenueExpr,
-      cur_margin: curMarginExpr,
-      cmp_revenue: cmpRevenueExpr,
-      cmp_margin: cmpMarginExpr,
+      cur_count: curCountExpr,
+      cmp_count: cmpCountExpr,
     })
     .from(customers)
     .leftJoin(pareto_customers, activeParetoJoin)
@@ -349,16 +286,11 @@ export async function aggregateAnalisisSummary(
   const sub = perCustomer.as('sub')
   const [row] = await db
     .select({
-      total_cur_revenue: sql<string>`COALESCE(SUM(${sub.cur_revenue}::numeric), 0)`,
-      total_cur_margin: sql<string>`COALESCE(SUM(${sub.cur_margin}::numeric), 0)`,
-      total_cmp_revenue: sql<string>`COALESCE(SUM(${sub.cmp_revenue}::numeric), 0)`,
-      total_cmp_margin: sql<string>`COALESCE(SUM(${sub.cmp_margin}::numeric), 0)`,
+      total_cur: sql<number>`COALESCE(SUM(${sub.cur_count}), 0)::int`,
+      total_cmp: sql<number>`COALESCE(SUM(${sub.cmp_count}), 0)::int`,
     })
     .from(sub)
 
   if (!row) return empty
-  return {
-    current: { revenue: Number(row.total_cur_revenue), margin: Number(row.total_cur_margin) },
-    comparison: { revenue: Number(row.total_cmp_revenue), margin: Number(row.total_cmp_margin) },
-  }
+  return { current_invoice_count: Number(row.total_cur), comparison_invoice_count: Number(row.total_cmp) }
 }

@@ -27,6 +27,7 @@ import {
   ThresholdSettings,
   ParetoCustomersSettings,
   AnalisisPage,
+  AnalisisRetentionPage,
   NotificationsPage,
   AppSettings,
   IntegrationPage,
@@ -63,7 +64,8 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Transaction & Revenue ────────────────────────────────────────────────
   'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },
-  'analisis':             { path: '/analisis',                element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
+  'analisis':             { path: '/analisis/revenue',        element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
+  'analisis-retention':   { path: '/analisis/retention',       element: withLayout(<AnalisisRetentionPage />),  protected: true, permissionKey: 'analisis.retention:view' },
   // Personal, tidak butuh permission spesifik — siapa pun yang login berhak
   // lihat notifikasi miliknya sendiri (di-scope by user_id di backend).
   'notifications':        { path: '/notifications',           element: withLayout(<NotificationsPage />),      protected: true, permissionKey: 'notifications:view' },

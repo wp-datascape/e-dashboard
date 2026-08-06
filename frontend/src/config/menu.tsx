@@ -31,6 +31,7 @@ import WebIcon from '@mui/icons-material/Web';
 import LoginIcon from '@mui/icons-material/Login';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import ReplayIcon from '@mui/icons-material/Replay';
 
 export interface NavItem {
   key: string;
@@ -130,11 +131,19 @@ export const NAV_ITEMS: NavItem[] = [
     groupLabelKey: 'nav.groups.transactionRevenue',
   },
   {
-    key: 'analisis',
-    path: '/analisis',
-    labelKey: 'nav.analisis',
+    key: 'analisis-revenue',
+    path: '/analisis/revenue',
+    labelKey: 'nav.analisisRevenue',
     icon: <AssessmentIcon fontSize="small" />,
     permissionKey: 'analisis:menu',
+    groupLabelKey: 'nav.groups.analisis',
+  },
+  {
+    key: 'analisis-retention',
+    path: '/analisis/retention',
+    labelKey: 'nav.analisisRetention',
+    icon: <ReplayIcon fontSize="small" />,
+    permissionKey: 'analisis.retention:menu',
   },
   {
     key: 'project',
