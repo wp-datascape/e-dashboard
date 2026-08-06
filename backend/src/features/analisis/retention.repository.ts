@@ -267,8 +267,8 @@ export async function aggregateRetentionSummary(
   let perCustomer = db
     .select({
       customer_id: customers.id,
-      cur_count: curCountExpr,
-      cmp_count: cmpCountExpr,
+      cur_count: curCountExpr.as('cur_count'),
+      cmp_count: cmpCountExpr.as('cmp_count'),
     })
     .from(customers)
     .leftJoin(pareto_customers, activeParetoJoin)

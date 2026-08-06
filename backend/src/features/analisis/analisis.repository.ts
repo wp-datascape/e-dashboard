@@ -328,10 +328,10 @@ export async function aggregateAnalisisSummary(
   let perCustomer = db
     .select({
       customer_id: customers.id,
-      cur_revenue: curRevenueExpr,
-      cur_margin: curMarginExpr,
-      cmp_revenue: cmpRevenueExpr,
-      cmp_margin: cmpMarginExpr,
+      cur_revenue: curRevenueExpr.as('cur_revenue'),
+      cur_margin: curMarginExpr.as('cur_margin'),
+      cmp_revenue: cmpRevenueExpr.as('cmp_revenue'),
+      cmp_margin: cmpMarginExpr.as('cmp_margin'),
     })
     .from(customers)
     .leftJoin(pareto_customers, activeParetoJoin)
