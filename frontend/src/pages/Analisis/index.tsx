@@ -29,7 +29,7 @@ import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
 import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
-import { SummaryBar } from '@/components/analisis/SummaryBar'
+import { PeriodTotalBox } from '@/components/analisis/PeriodTotalBox'
 import { trendColor } from '@/utils/analisisComparison'
 import type { AnalisisPeriodType, AnalisisRow, AnalisisSummary } from '@/types/analisis'
 
@@ -329,11 +329,22 @@ export default function AnalisisPage() {
           />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
           <IconButton size="small" sx={{ flexShrink: 0 }} onClick={() => setEndDate(shiftEndDate(periodType, endDate, -1))}>
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
-          <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+
+          {summary && (
+            <PeriodTotalBox
+              label={t('analisis.totalPeriodeLampau')}
+              lines={[
+                { label: revLabel, text: formatIDR(summary.comparison.revenue) },
+                { label: gpLabel, text: formatIDR(summary.comparison.margin) },
+              ]}
+            />
+          )}
+
+          <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden', order: { xs: 3, sm: 0 } }}>
             <Typography variant="subtitle2" noWrap sx={{ maxWidth: '100%' }}>
               {formatPeriodLabel(periodType, periodKey)}
             </Typography>
@@ -349,6 +360,21 @@ export default function AnalisisPage() {
               <StatusChip size="small" color="warning" label={t('analisis.inProgress')} />
             )}
           </Stack>
+
+          {summary && (
+            <PeriodTotalBox
+              label={t('analisis.totalPeriodeIni')}
+              lines={[
+                { label: revLabel, text: formatIDR(summary.current.revenue) },
+                { label: gpLabel, text: formatIDR(summary.current.margin) },
+              ]}
+              growthPct={summary.revenue_change_pct}
+              growthAlert={false}
+              growthLabel={t('analisis.growthLabel')}
+              newBusinessLabel={newBusinessLabel}
+            />
+          )}
+
           <IconButton
             sx={{ flexShrink: 0 }}
             size="small"
@@ -362,43 +388,6 @@ export default function AnalisisPage() {
           </IconButton>
         </Box>
       </Card>
-
-      {summary && (
-        <SummaryBar
-          comparisonLabel={t('analisis.comparisonLabel')}
-          periodLabel={t('analisis.periodLabel')}
-          changeValueLabel={t('analisis.changeValue')}
-          changePercentLabel={t('analisis.changePercent')}
-          comparisonContent={
-            <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(summary.comparison.revenue)} marginText={formatIDR(summary.comparison.margin)} />
-          }
-          periodContent={
-            <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(summary.current.revenue)} marginText={formatIDR(summary.current.margin)} showLabels={false} />
-          }
-          changeValueContent={
-            <MetricPair
-              revenueLabel={revLabel}
-              marginLabel={gpLabel}
-              revenueText={formatIDRSigned(summary.revenue_change_value)}
-              marginText={formatIDRSigned(summary.margin_change_value)}
-              revenueColor={trendColor(summary.revenue_change_pct, false)}
-              marginColor={trendColor(summary.margin_change_pct, false)}
-              showLabels={false}
-            />
-          }
-          changePercentContent={
-            <MetricPercentPair
-              revenueLabel={revLabel}
-              marginLabel={gmLabel}
-              revenuePct={summary.revenue_change_pct}
-              marginPct={summary.margin_change_pct}
-              revenueAlert={false}
-              marginAlert={false}
-              newBusinessLabel={newBusinessLabel}
-            />
-          }
-        />
-      )}
 
       <Card>
         <ResponsiveListView

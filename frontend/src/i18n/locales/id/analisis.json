@@ -1,6 +1,6 @@
 {
-  "title": "Analisis",
-  "subtitle": "Performa revenue dan margin seluruh customer, customer prioritas (Pareto) ditampilkan duluan, dibandingkan periode sama tahun lalu",
+  "title": "Analisis Revenue",
+  "subtitle": "Berapa banyak uang masuk (pendapatan) dan untung bersih (laba kotor) dari tiap pelanggan, dibandingkan periode yang sama tahun lalu. Pelanggan prioritas (Pareto) ditampilkan lebih dulu.",
   "company": "Perusahaan",
   "allCompanies": "Semua Entitas",
   "customer": "Customer",
@@ -17,14 +17,18 @@
     "previous_period": "Periode Sebelumnya"
   },
   "inProgress": "Sedang berjalan",
-  "newBusiness": "Baru",
-  "metricRevenue": "Rev",
-  "metricMargin": "GM",
-  "metricGP": "GP",
-  "critical": "Kritis",
-  "normal": "Normal",
-  "summaryLabel": "Total — Semua Data Difilter",
+  "newBusiness": "Pelanggan Baru",
+  "metricRevenue": "Pendapatan",
+  "metricMargin": "Pertumbuhan Laba",
+  "metricGP": "Laba Kotor",
+  "critical": "Perlu Perhatian",
+  "normal": "Aman",
+  "totalPeriodeLampau": "Total — Periode Sebelumnya",
+  "totalPeriodeIni": "Total — Periode Ini",
+  "growthLabel": "Pertumbuhan",
   "retentionTitle": "Analisis Retention",
-  "retentionSubtitle": "Frekuensi order (repeat order) seluruh customer, customer prioritas (Pareto) ditampilkan duluan, dibandingkan periode sama tahun lalu",
-  "metricOrderCount": "Jml Order"
+  "retentionSubtitle": "Seberapa sering tiap pelanggan belanja ulang (jumlah transaksi) dalam periode ini, dibandingkan periode yang sama tahun lalu. Pelanggan prioritas (Pareto) ditampilkan lebih dulu.",
+  "metricOrderCount": "Jumlah Transaksi",
+  "totalOrderPeriodeLampau": "Total Transaksi — Periode Sebelumnya",
+  "totalOrderPeriodeIni": "Total Transaksi — Periode Ini"
 }

@@ -27,7 +27,7 @@ import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
 import { TrendChip } from '@/components/analisis/ComparisonMetrics'
-import { SummaryBar } from '@/components/analisis/SummaryBar'
+import { PeriodTotalBox } from '@/components/analisis/PeriodTotalBox'
 import { trendColor } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { AnalisisPeriodType, RetentionRow, RetentionSummary } from '@/types/analisis'
@@ -267,11 +267,19 @@ export default function AnalisisRetentionPage() {
           />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
           <IconButton size="small" sx={{ flexShrink: 0 }} onClick={() => setEndDate(shiftEndDate(periodType, endDate, -1))}>
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
-          <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+
+          {summary && (
+            <PeriodTotalBox
+              label={t('analisis.totalOrderPeriodeLampau')}
+              lines={[{ label: orderLabel, text: String(summary.comparison_invoice_count) }]}
+            />
+          )}
+
+          <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden', order: { xs: 3, sm: 0 } }}>
             <Typography variant="subtitle2" noWrap sx={{ maxWidth: '100%' }}>
               {formatPeriodLabel(periodType, periodKey)}
             </Typography>
@@ -287,6 +295,18 @@ export default function AnalisisRetentionPage() {
               <StatusChip size="small" color="warning" label={t('analisis.inProgress')} />
             )}
           </Stack>
+
+          {summary && (
+            <PeriodTotalBox
+              label={t('analisis.totalOrderPeriodeIni')}
+              lines={[{ label: orderLabel, text: String(summary.current_invoice_count) }]}
+              growthPct={summary.change_pct}
+              growthAlert={false}
+              growthLabel={t('analisis.growthLabel')}
+              newBusinessLabel={newBusinessLabel}
+            />
+          )}
+
           <IconButton
             sx={{ flexShrink: 0 }}
             size="small"
@@ -300,26 +320,6 @@ export default function AnalisisRetentionPage() {
           </IconButton>
         </Box>
       </Card>
-
-      {summary && (
-        <SummaryBar
-          comparisonLabel={t('analisis.comparisonLabel')}
-          periodLabel={t('analisis.periodLabel')}
-          changeValueLabel={t('analisis.changeValue')}
-          changePercentLabel={t('analisis.changePercent')}
-          comparisonContent={<OrderCountCell text={`${orderLabel}: ${summary.comparison_invoice_count}`} />}
-          periodContent={<OrderCountCell text={String(summary.current_invoice_count)} />}
-          changeValueContent={
-            <OrderCountCell
-              text={summary.change_value > 0 ? `+${summary.change_value}` : String(summary.change_value)}
-              color={trendColor(summary.change_pct, false)}
-            />
-          }
-          changePercentContent={
-            <TrendChip label={orderLabel} pct={summary.change_pct} alert={false} newBusinessLabel={newBusinessLabel} />
-          }
-        />
-      )}
 
       <Card>
         <ResponsiveListView

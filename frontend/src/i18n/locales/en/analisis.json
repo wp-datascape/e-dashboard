@@ -1,6 +1,6 @@
 {
-  "title": "Analysis",
-  "subtitle": "Revenue and margin performance of all customers, priority (Pareto) ones first, compared to the same period last year",
+  "title": "Revenue Analysis",
+  "subtitle": "How much money came in (revenue) and net profit (gross profit) per customer, compared to the same period last year. Priority (Pareto) customers are shown first.",
   "company": "Company",
   "allCompanies": "All Entities",
   "customer": "Customer",
@@ -17,14 +17,18 @@
     "previous_period": "Previous Period"
   },
   "inProgress": "In progress",
-  "newBusiness": "New",
-  "metricRevenue": "Rev",
-  "metricMargin": "GM",
-  "metricGP": "GP",
-  "critical": "Critical",
-  "normal": "Normal",
-  "summaryLabel": "Total — All Filtered Data",
+  "newBusiness": "New Customer",
+  "metricRevenue": "Revenue",
+  "metricMargin": "Profit Growth",
+  "metricGP": "Gross Profit",
+  "critical": "Needs Attention",
+  "normal": "Fine",
+  "totalPeriodeLampau": "Total — Previous Period",
+  "totalPeriodeIni": "Total — This Period",
+  "growthLabel": "Growth",
   "retentionTitle": "Retention Analysis",
-  "retentionSubtitle": "Order frequency (repeat order) of all customers, priority (Pareto) ones first, compared to the same period last year",
-  "metricOrderCount": "Order Count"
+  "retentionSubtitle": "How often each customer re-orders (transaction count) this period, compared to the same period last year. Priority (Pareto) customers are shown first.",
+  "metricOrderCount": "Transaction Count",
+  "totalOrderPeriodeLampau": "Total Transactions — Previous Period",
+  "totalOrderPeriodeIni": "Total Transactions — This Period"
 }
