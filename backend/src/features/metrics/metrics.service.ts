@@ -53,7 +53,7 @@ export async function resolveSegmentParams(
     const dormantKey = await resolveDormantCategory(division)
     dormantMonths = dormant[dormantKey]
   } else {
-    dormantMonths = await resolveDormantMonths(cid, dormant)
+    dormantMonths = await resolveDormantMonths(cid, dormant, companyScopeIds)
   }
   // Fallback division_id 'other'/'intercompany' per company (task012 v2) — resolusi
   // sekali per request, lihat utils/scope.ts
