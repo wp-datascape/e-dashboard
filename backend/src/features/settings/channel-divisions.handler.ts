@@ -30,13 +30,18 @@ export async function handleListChannelDivisions(c: Context) {
 
 export async function handleListDivisionValues(c: Context) {
   const query = validateQuery(c, unmappedChannelsQuerySchema)
-  const result = await listDivisionValuesService(query.company_id)
+  // Celah RBAC (audit lanjutan 2026-08-06): sebelumnya company_id dari query
+  // dipakai mentah tanpa resolveCompanyScope() sama sekali -- user company A
+  // bisa lihat division/channel milik company B lewat ?company_id=<company B>.
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listDivisionValuesService(query.company_id, scopeIds)
   return success(c, result)
 }
 
 export async function handleListUnmappedChannels(c: Context) {
   const query = validateQuery(c, unmappedChannelsQuerySchema)
-  const result = await listUnmappedChannelsService(query.company_id)
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listUnmappedChannelsService(query.company_id, scopeIds)
   return success(c, result)
 }
 

@@ -25,7 +25,11 @@ export async function handleListDivisions(c: Context) {
 
 export async function handleListDivisionValues(c: Context) {
   const query = validateQuery(c, listDivisionsQuerySchema)
-  const result = await listActiveDivisionsService(query.company_id)
+  // Celah RBAC (audit lanjutan 2026-08-06): sebelumnya company_id dari query
+  // dipakai mentah tanpa resolveCompanyScope() -- user company A bisa lihat
+  // daftar division company B lewat ?company_id=<company B>.
+  const scopeIds = resolveCompanyScope(c, query.company_id)
+  const result = await listActiveDivisionsService(query.company_id, scopeIds)
   return success(c, result)
 }
 

@@ -30,9 +30,9 @@ export async function listDivisionsService(scopeIds?: number[]) {
   }
 }
 
-export async function listActiveDivisionsService(companyId: number | 'all') {
+export async function listActiveDivisionsService(companyId: number | 'all', scopeIds?: number[]) {
   try {
-    return await findActiveDivisions(companyId)
+    return await findActiveDivisions(companyId, scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar division', 500)

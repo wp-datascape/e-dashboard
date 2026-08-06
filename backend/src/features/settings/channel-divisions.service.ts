@@ -39,19 +39,19 @@ export async function listChannelDivisionsService(params: FindChannelDivisionsPa
   }
 }
 
-export async function listDivisionValuesService(companyId: number | 'all') {
+export async function listDivisionValuesService(companyId: number | 'all', scopeIds?: number[]) {
   try {
-    return await findDistinctDivisions(companyId)
+    return await findDistinctDivisions(companyId, scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil daftar divisi', 500)
   }
 }
 
-export async function listUnmappedChannelsService(companyId: number | 'all') {
+export async function listUnmappedChannelsService(companyId: number | 'all', scopeIds?: number[]) {
   try {
     const cid = companyId === 'all' ? 0 : companyId
-    return await findUnmappedChannelNames(cid)
+    return await findUnmappedChannelNames(cid, scopeIds)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil channel name yang belum di-mapping', 500)

@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { channel_divisions, companies, divisions } from '@/db/schema'
 import { and, eq, ilike, inArray, sql } from 'drizzle-orm'
+import { buildCompanyConditionRaw } from '@/utils/scope'
 import type { CreateChannelDivisionDto, UpdateChannelDivisionDto } from './channel-divisions.schema'
 
 export interface FindChannelDivisionsParams {
@@ -55,11 +56,18 @@ export async function findChannelDivisions(params: FindChannelDivisionsParams) {
  * — nama channel penjualan asli tetap hanya kelihatan lewat endpoint mapping penuh
  * yang tetap terproteksi.
  */
-export async function findDistinctDivisions(companyId: number | 'all'): Promise<number[]> {
+// Sama pola dengan findChannelDivisions (task015 §2b) -- scopeIds (hasil
+// resolveCompanyScope di handler) satu-satunya filter company, bukan companyId
+// mentah dari query (celah RBAC ditemukan lewat audit lanjutan 2026-08-06,
+// endpoint ini kelewat waktu fix task015 dulu).
+export async function findDistinctDivisions(companyId: number | 'all', scopeIds?: number[]): Promise<number[]> {
+  if (scopeIds && scopeIds.length === 0) return []
+
   const conditions = []
   if (companyId !== 'all') {
     conditions.push(eq(channel_divisions.company_id, companyId))
   }
+  if (scopeIds) conditions.push(inArray(channel_divisions.company_id, scopeIds))
 
   const rows = await db
     .selectDistinct({ division_id: channel_divisions.division_id })
@@ -128,13 +136,20 @@ export async function deleteChannelDivision(id: number) {
  * di channel_divisions — dipakai untuk opsi dropdown "Add Channel Mapping"
  * agar admin pilih dari data nyata, bukan ketik manual.
  */
-export async function findUnmappedChannelNames(cid: number): Promise<string[]> {
+// Celah RBAC (audit lanjutan 2026-08-06): sebelumnya cid=0 ("Semua Perusahaan")
+// scan SEMUA company TANPA cek scopeIds sama sekali -- handler juga sebelumnya
+// tidak pernah panggil resolveCompanyScope(), jadi company_id=<company lain>
+// eksplisit lewat query param pun tidak pernah divalidasi. Sekarang scopeIds
+// (hasil resolveCompanyScope di handler) WAJIB dipakai kalau ada.
+export async function findUnmappedChannelNames(cid: number, scopeIds?: number[]): Promise<string[]> {
+  if (scopeIds && scopeIds.length === 0) return []
+  const companyCond = buildCompanyConditionRaw('i.company_id', cid, scopeIds)
   const rows = await db.execute(sql`
     SELECT DISTINCT i.channel_name
     FROM invoices i
     WHERE i.deleted_at IS NULL
       AND i.channel_name IS NOT NULL
-      AND (${cid}::int = 0 OR i.company_id = ${cid}::int)
+      AND ${companyCond}
       AND NOT EXISTS (
         SELECT 1 FROM channel_divisions cd
         WHERE cd.channel_name = i.channel_name
