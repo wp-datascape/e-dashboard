@@ -215,11 +215,11 @@ export default function Products() {
 
           <ScopeFilterFields filter={scopeFilter} />
 
+          {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
           <MonthYearPicker
             size="small" label={t('common.filters.period')}
             value={periodMonth}
             onChange={setPeriodMonth}
-            sx={{ minWidth: { xs: '100%', sm: 150 } }}
           />
 
           <RangeFilter value={activeWindow} onChange={setActiveWindow} sx={{ minWidth: { xs: '100%', sm: 130 } }} />

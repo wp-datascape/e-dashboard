@@ -32,6 +32,8 @@ import LoginIcon from '@mui/icons-material/Login';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ReplayIcon from '@mui/icons-material/Replay';
+import MoneyOffIcon from '@mui/icons-material/MoneyOff';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 
 export interface NavItem {
   key: string;
@@ -42,6 +44,14 @@ export interface NavItem {
   permissionKey?: string;
   /** i18n key untuk label grup di atas item ini (hanya saat sidebar expanded) */
   groupLabelKey?: string;
+  /** i18n key untuk caption mini DI DALAM grup yang sama (bukan grup baru) —
+   * penanda tier "Ringkasan/Tren" vs "Detail per Customer" dst. Beda dari
+   * groupLabelKey: tidak didahului Divider, font lebih kecil/ringan — supaya
+   * kebaca sebagai sub-penanda dalam 1 grup, BUKAN batas grup baru. Sengaja
+   * TIDAK bikin grup collapsible baru (lihat task023 §3a) — itu akan
+   * membalik keputusan task021 §0b yang eksplisit melarang grup "Analisis"
+   * terpisah lagi. */
+  tierLabelKey?: string;
   /** Sub-menu items — render sebagai collapsible nested list */
   children?: Omit<NavItem, 'groupLabelKey' | 'children'>[];
 }
@@ -71,26 +81,60 @@ export const NAV_ITEMS: NavItem[] = [
     permissionKey: 'customer:menu',
     groupLabelKey: 'nav.groups.customerWorkbench',
   },
+  // Restrukturisasi 2026-08-07 atas masukan user: "M1-M10 yang
+  // terpencar-pencar menyulitkan pemahaman" — lihat [[task021]] §0/§0a untuk
+  // riwayat sebelum ini. Analisis Revenue/Retention digabung ke sini (bukan
+  // grup sendiri lagi) supaya kedua "sudut pandang" 1 metrik (tren vs
+  // rincian per-customer) selalu ada di 1 grup yang sama.
+  //
+  // Susunan di dalam grup ini (audit UX lanjutan, task023 §3): dipecah jadi
+  // 2 tier via `tierLabelKey` — Ringkasan/Tren (grafik agregat, klik →
+  // dialog breakdown) lalu Detail per Customer (tabel penuh, sortir/filter/
+  // export). Klasifikasi diverifikasi baca kode tiap halaman, BUKAN ditebak
+  // dari nama menu — lihat tabel di task023.md §3a. Cross Selling sengaja
+  // TIDAK ditag tier apa pun (halamannya hybrid: grafik + 2 tabel sekaligus,
+  // memaksakan ke salah satu tier malah menyesatkan).
   {
     key: 'expansion',
     path: '/customer-metrics',
     labelKey: 'nav.expansionTargets',
     icon: <TrendingUpIcon fontSize="small" />,
     permissionKey: 'expansion:menu',
+    tierLabelKey: 'nav.tiers.overview',
   },
-  // Analisis Revenue/Retention — detail per-customer YoY dari metrik yang
-  // sama dengan tren di atas (Expansion halaman ini mem-bundle M3/M4/M6, dst)
-  // — SENGAJA ditaruh persis di bawah Expansion (bukan grup sendiri lagi
-  // seperti sebelumnya), supaya kedua "sudut pandang" 1 metrik (tren vs
-  // rincian per-customer) selalu bersebelahan di sidebar. Restrukturisasi
-  // 2026-08-07 atas masukan user: "M1-M10 yang terpencar-pencar menyulitkan
-  // pemahaman" — lihat [[task021]] §0/§0a untuk riwayat sebelum ini.
+  // DormantCustomer (bundel M8+M9+M10, 1 menu item) dipecah jadi 3 halaman
+  // (task025 §7a, 2026-08-07) — permission TETAP 1 (`churn.risk:menu`,
+  // reuse), backend juga masih 1 endpoint gabungan; rationale lengkap di
+  // task025.md §7a. Ini BUKAN rework kategori menu (§6a, masih fase
+  // terpisah) — cuma memecah 1 item jadi 3 di posisi/urutan yang sama.
+  {
+    key: 'dormant-rate',
+    path: '/dormant-rate',
+    labelKey: 'nav.dormantRate',
+    icon: <PersonOffIcon fontSize="small" />,
+    permissionKey: 'churn.risk:menu',
+  },
+  {
+    key: 'dormant-value',
+    path: '/dormant-value',
+    labelKey: 'nav.dormantValue',
+    icon: <MoneyOffIcon fontSize="small" />,
+    permissionKey: 'churn.risk:menu',
+  },
+  {
+    key: 'reactivation-rate',
+    path: '/reactivation-rate',
+    labelKey: 'nav.reactivationRate',
+    icon: <AutorenewIcon fontSize="small" />,
+    permissionKey: 'churn.risk:menu',
+  },
   {
     key: 'analisis-revenue',
     path: '/analisis/revenue',
     labelKey: 'nav.analisisRevenue',
     icon: <AssessmentIcon fontSize="small" />,
     permissionKey: 'analisis:menu',
+    tierLabelKey: 'nav.tiers.detail',
   },
   {
     key: 'analisis-retention',
@@ -98,13 +142,6 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.analisisRetention',
     icon: <ReplayIcon fontSize="small" />,
     permissionKey: 'analisis.retention:menu',
-  },
-  {
-    key: 'churn-risk',
-    path: '/dormant-customer',
-    labelKey: 'nav.churnRisk',
-    icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
   },
   {
     key: 'cross-selling',

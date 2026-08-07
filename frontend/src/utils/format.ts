@@ -22,3 +22,17 @@ export function formatEnumLabel(value: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 }
+
+/**
+ * Default Y-axis tick formatter untuk chart widget (Bar/Area/LineAlert). Recharts
+ * TANPA tickFormatter menghasilkan tick mentah dari algoritma auto-scale-nya
+ * (bisa "86.02", bukan "86") — kelihatan belum dipoles (task023, temuan audit UX
+ * Dashboard 2026-08-07). Dibulatkan ke bilangan bulat kalau nilainya "dekat" bulat
+ * (toleransi kecil buat floating point), kalau memang perlu desimal (skala kecil,
+ * mis. rata-rata kategori 2.35) tetap tampilkan maks 1 desimal.
+ */
+export function formatAxisTick(v: number): string {
+  const rounded = Math.round(v)
+  if (Math.abs(v - rounded) < 0.05) return rounded.toString()
+  return v.toFixed(1)
+}

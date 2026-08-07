@@ -1,0 +1,20 @@
+{
+  "pageTitle": "Nilai Pendapatan yang Hilang",
+  "pageSubtitle": "KPI 9 — Dormant Customer Value. Estimasi potensi omset yang hilang dari pelanggan yang sudah tidak aktif bertransaksi.",
+  "m9SectionLabel": "M9 · Dormant Customer Value — Ranking Potensi Omset Hilang",
+  "m9ChartTitle": "Top Dormant Customer — Ranked by Estimated Lost Value",
+  "m9ChartSubtitle": "Diurutkan dari nilai kerugian terbesar · Estimasi = avg revenue 12 bulan terakhir sebelum dormant × bulan dormant",
+  "m9SeriesLabel": "Potensi Omset Hilang",
+  "m9FormulaTitle": "Estimasi Nilai Hilang per Customer",
+  "m9Formula": "Estimasi Nilai Hilang = Rata-rata Revenue Bulanan × Jumlah Bulan Dormant\n\nRata-rata Revenue Bulanan = Total revenue 12 bulan kalender terakhir\nSEBELUM transaksi terakhir customer, dibagi 12\nJumlah Bulan Dormant = (tanggal acuan − tanggal transaksi terakhir) ÷ 30,\ndibulatkan, minimum 1 bulan",
+  "m9FormulaNote": "Menampilkan 20 customer dengan estimasi nilai hilang terbesar.",
+  "colCompany": "Perusahaan",
+  "colCustomer": "Customer",
+  "colLastTransaction": "Transaksi Terakhir",
+  "colMonthsDormant": "Bulan Dormant",
+  "colAvgMonthlyRevenue": "Revenue/Bulan",
+  "colEstimatedLostValue": "Estimasi Nilai Hilang",
+  "searchPlaceholder": "Cari customer...",
+  "customerCountText": "{{count}} pelanggan",
+  "emptyTable": "Tidak ada customer dormant pada scope/periode ini"
+}

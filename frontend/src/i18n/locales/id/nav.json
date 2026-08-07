@@ -3,6 +3,9 @@
   "customers": "Customer",
   "expansionTargets": "Ekspansi",
   "churnRisk": "Risiko Churn",
+  "dormantRate": "Pelanggan Tidak Aktif",
+  "dormantValue": "Nilai Hilang",
+  "reactivationRate": "Aktivasi Kembali",
   "crossSellMatrix": "Cross Selling",
   "productLedger": "Produk",
   "highMarginPush": "High Margin",
@@ -35,7 +38,11 @@
   "settingsParetoCustomers": "Pareto Customer",
   "analisis": "Analisis",
   "analisisRevenue": "Revenue",
-  "analisisRetention": "Retention",
+  "analisisRetention": "Pembelian Berulang",
+  "tiers": {
+    "overview": "Ringkasan & Tren",
+    "detail": "Detail per Customer"
+  },
   "settingsApp": "Pengaturan Aplikasi",
   "configApp": "Pengaturan Aplikasi",
   "configIntegration": "Integrasi",

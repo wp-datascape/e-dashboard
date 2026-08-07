@@ -3,6 +3,9 @@
   "customers": "Customer",
   "expansionTargets": "Expansion",
   "churnRisk": "Churn Risk",
+  "dormantRate": "Inactive Customers",
+  "dormantValue": "Lost Value",
+  "reactivationRate": "Reactivation",
   "crossSellMatrix": "Cross Selling",
   "productLedger": "Products",
   "highMarginPush": "High Margin",
@@ -35,7 +38,11 @@
   "settingsParetoCustomers": "Pareto Customer",
   "analisis": "Analysis",
   "analisisRevenue": "Revenue",
-  "analisisRetention": "Retention",
+  "analisisRetention": "Repeat Purchases",
+  "tiers": {
+    "overview": "Overview & Trends",
+    "detail": "Per-Customer Detail"
+  },
   "settingsApp": "App Settings",
   "configApp": "App Settings",
   "configIntegration": "Integration",

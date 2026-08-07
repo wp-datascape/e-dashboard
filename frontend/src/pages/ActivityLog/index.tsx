@@ -52,9 +52,12 @@ function getActivityColumns(t: TFunction): GridColDef[] {
       renderCell: (params) => fmtDate(params.value as string),
     },
     {
+      // flex+minWidth (bukan width tetap) — nama pengguna panjangnya bebas,
+      // width tetap bikin nama panjang kepotong ellipsis (task023 §5b).
       field: 'user',
       headerName: t('activityLog.user'),
-      width: 150,
+      flex: 1,
+      minWidth: 150,
       renderCell: (params) => {
         const user = params.value as { id: number; name: string } | null
         return user?.name ?? '—'
@@ -76,9 +79,12 @@ function getActivityColumns(t: TFunction): GridColDef[] {
       renderCell: (params) => (params.value as string | null) ?? '—',
     },
     {
+      // flex+minWidth — API path panjangnya bebas (bisa jauh lebih dari 220px),
+      // ini yang paling sering kepotong (task023 §5b).
       field: 'path',
       headerName: t('activityLog.path'),
-      width: 220,
+      flex: 2,
+      minWidth: 220,
     },
     {
       field: 'status_code',

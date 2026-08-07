@@ -32,19 +32,19 @@
     "title": "Key Definitions",
     "activeCustomer": {
       "term": "Active Customer",
-      "def": "last_transaction_date ≥ period start − {{months}} months"
+      "def": "Has transacted within the last {{months}} months before the period start"
     },
     "existingCustomer": {
       "term": "Existing Customer",
-      "def": "first_transaction_date < period start"
+      "def": "First transaction happened before this period started (not a new customer)"
     },
     "newCustomer": {
       "term": "New Customer",
-      "def": "first_transaction_date within this period"
+      "def": "First transaction happened within this period"
     },
     "dormantCustomer": {
       "term": "Dormant Customer",
-      "def": "last_transaction_date < period start − 3 months (default)"
+      "def": "No transactions for more than 3 months before the period start (default)"
     },
     "productCategory": {
       "term": "Product Category",
@@ -52,7 +52,7 @@
     },
     "highMarginProduct": {
       "term": "High Margin Product",
-      "def": "product_categories.is_high_margin = true"
+      "def": "Product flagged by an admin as a high-margin category"
     }
   }
 }

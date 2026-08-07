@@ -42,13 +42,13 @@ export function CompanyPeriodFields({
         </FormControl>
       </Grid>
       <Grid size={{ xs: 12, sm: 6 }}>
+        {/* minWidth dilepas — lebar aman sudah default di komponen (task023 §5) */}
         <MonthYearPicker
           label={t('import.form.period')}
           size="small"
           value={periodMonth}
           onChange={onPeriod}
           disabled={disabled}
-          sx={{ minWidth: 160 }}
           helperText={t('import.form.periodHint')}
         />
       </Grid>

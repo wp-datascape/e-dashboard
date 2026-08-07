@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui';
+import { formatAxisTick } from '@/utils/format';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
@@ -77,11 +78,14 @@ export const LineAlertWidget = ({
             axisLine={false}
             tickLine={false}
           />
+          {/* tickFormatter: bulatkan tick (task023, audit UX Dashboard — tick mentah
+              non-bulat kelihatan belum dipoles) */}
           <YAxis
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}
             domain={[0, yMax]}
+            tickFormatter={formatAxisTick}
           />
           <Tooltip
             contentStyle={{

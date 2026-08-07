@@ -201,6 +201,7 @@ export interface DormantValueRankingRow {
   customer_id: number;
   customer_name: string;
   customer_code: string | null;
+  company_name: string;
   last_invoice_date: string;
   months_dormant: number;
   avg_monthly_revenue: number;
@@ -212,12 +213,24 @@ export interface DormantRateCurrent {
   dormant_count: number;
   total_customers: number;
   alert_pct: number;
+  comparison_value: number;
 }
 
 export interface ReactivationCurrent {
   value: number;
   target_low: number;
   target_high: number;
+  comparison_value: number;
+}
+
+export interface ReactivatedCustomerRow {
+  customer_id: number;
+  customer_name: string;
+  customer_code: string | null;
+  company_name: string;
+  previous_last_invoice_date: string;
+  reactivation_date: string;
+  months_was_dormant: number;
 }
 
 export interface DormantData {
@@ -225,4 +238,7 @@ export interface DormantData {
   value_ranking: DormantValueRankingRow[];
   dormant_rate_current: DormantRateCurrent;
   reactivation_current: ReactivationCurrent;
+  value_ranking_total_current: number;
+  value_ranking_total_comparison: number;
+  reactivated_customers: ReactivatedCustomerRow[];
 }

@@ -20,6 +20,7 @@ import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { isInversePolarityMetric } from '@/utils/metricPolarity';
 import type { MetricCard } from '@/types/dashboard';
 import { StatCardSkeleton } from './components/StatCardSkeleton';
 import { ChartSkeleton } from './components/ChartSkeleton';
@@ -119,12 +120,12 @@ export default function Dashboard() {
       {/* ── Filter Bar ── */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
         <ScopeFilterFields filter={scopeFilter} />
+        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
         <MonthYearPicker
           size="small"
           label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
-          sx={{ width: { xs: '100%', sm: 160 } }}
         />
         <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
@@ -151,6 +152,7 @@ export default function Dashboard() {
                   data={metric.monthly_trend}
                   color={metric.color}
                   link={metric.link}
+                  inversePolarity={isInversePolarityMetric(metric.metric_key)}
                 />
               </Grid>
             ))}

@@ -13,9 +13,9 @@
     "stable": "Stabil"
   },
   "vs": "vs bulan lalu",
-  "overviewTitle": "Overview Metrics",
+  "overviewTitle": "Ringkasan Metrik",
   "periodStripLabel": "Periode: {{period}}",
-  "activeWindowStripLabel": "Window Aktif: {{months}} bulan",
+  "activeWindowStripLabel": "Jendela Aktif: {{months}} bulan",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Kategori",
@@ -32,19 +32,19 @@
     "title": "Definisi Kunci",
     "activeCustomer": {
       "term": "Customer Aktif",
-      "def": "last_transaction_date ≥ awal periode − {{months}} bulan"
+      "def": "Masih bertransaksi dalam {{months}} bulan terakhir sebelum awal periode"
     },
     "existingCustomer": {
       "term": "Existing Customer",
-      "def": "first_transaction_date < awal periode"
+      "def": "Transaksi pertamanya sudah terjadi sebelum periode ini dimulai (bukan pelanggan baru)"
     },
     "newCustomer": {
       "term": "New Customer",
-      "def": "first_transaction_date dalam periode ini"
+      "def": "Transaksi pertamanya baru terjadi di dalam periode ini"
     },
     "dormantCustomer": {
       "term": "Dormant Customer",
-      "def": "last_transaction_date < awal periode − 3 bulan (default)"
+      "def": "Sudah tidak bertransaksi lebih dari 3 bulan sebelum awal periode (default)"
     },
     "productCategory": {
       "term": "Kategori Produk",
@@ -52,7 +52,7 @@
     },
     "highMarginProduct": {
       "term": "High Margin Product",
-      "def": "product_categories.is_high_margin = true"
+      "def": "Produk yang ditandai admin sebagai kategori margin tinggi"
     }
   }
 }

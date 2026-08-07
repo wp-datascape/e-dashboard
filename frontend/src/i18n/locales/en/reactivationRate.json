@@ -1,0 +1,20 @@
+{
+  "pageTitle": "Inactive Customer Reactivation",
+  "pageSubtitle": "KPI 10 — Customer Reactivation Rate. Share of previously-dormant customers who transacted again this period.",
+  "m10SectionLabel": "M10 · Customer Reactivation Rate — vs KPI Target",
+  "m10ChartTitle": "Customer Reactivation Rate",
+  "m10ChartSubtitle": "Actual value vs target range {{targetLow}}%–{{targetHigh}}% · Background color changes when met",
+  "m10TrendTitle": "Reactivation Rate — 12 Month Trend",
+  "m10TrendSubtitle": "Target zone: {{targetLow}}%–{{targetHigh}}% · Blue line = monthly actual",
+  "lineLabelReactivationRate": "Reactivation Rate (%)",
+  "targetMinLabel": "Target Min {{targetLow}}%",
+  "tableSectionLabel": "Reactivated Customer List",
+  "colCompany": "Company",
+  "colCustomer": "Customer",
+  "colPreviousLastInvoice": "Before Dormant",
+  "colReactivationDate": "Reactivation Date",
+  "colMonthsWasDormant": "Months Dormant",
+  "searchPlaceholder": "Search customer...",
+  "customerCountText": "{{count}} customers",
+  "emptyTable": "No reactivated customers for this scope/period"
+}

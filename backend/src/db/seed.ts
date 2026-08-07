@@ -318,7 +318,13 @@ const defaultPageSettings = [
   { page_key: 'dashboard', ready: true },
   { page_key: 'customers', ready: true },
   { page_key: 'customers-expansion', ready: true },
-  { page_key: 'dormant-customer', ready: true },
+  // 'dormant-customer' (bundel M8+M9+M10) dipecah jadi 3 halaman task025 §7a
+  // (2026-08-07) — baris lama DIBIARKAN di DB (harmless, sudah tidak dipakai
+  // route manapun, redirect ke /dormant-rate sekarang statis di App.tsx,
+  // tidak bergantung page_settings), 3 baris baru ditambahkan idempotent.
+  { page_key: 'dormant-rate', ready: true },
+  { page_key: 'dormant-value', ready: true },
+  { page_key: 'reactivation-rate', ready: true },
   { page_key: 'cross-selling', ready: true },
   { page_key: 'products', ready: true },
   { page_key: 'products-high-margin', ready: true },

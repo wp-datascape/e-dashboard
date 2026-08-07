@@ -110,20 +110,23 @@ export async function getDashboard(
         customer.trend.map((r) => ({ month: r.month, value: r.expansion_rate })),
       ),
       buildCard(
+        // Link per-KPI (task025 §7a, 2026-08-07) — DormantCustomer bundle
+        // dipecah jadi 3 halaman, tiap card sekarang mengarah ke halaman
+        // spesifik-nya (sebelumnya ketiganya sama-sama ke '/dormant-customer').
         'dormant_rate', 'Dormant Customer Rate',
-        'Existing customer tidak aktif', '/dormant-customer',
+        'Existing customer tidak aktif', '/dormant-rate',
         'percent', '#EF4444',
         dormant.trend.map((r) => ({ month: r.month, value: r.dormant_rate })),
       ),
       buildCard(
         'dormant_value', 'Dormant Customer Value',
-        'Estimasi potensi omset hilang dari customer dormant', '/dormant-customer',
+        'Estimasi potensi omset hilang dari customer dormant', '/dormant-value',
         'currency', '#F97316',
         dormantValueTrend,
       ),
       buildCard(
         'reactivation_rate', 'Customer Reactivation Rate',
-        'Customer dormant yang kembali aktif bulan ini', '/dormant-customer',
+        'Customer dormant yang kembali aktif bulan ini', '/reactivation-rate',
         'percent', '#8B5CF6',
         dormant.trend.map((r) => ({ month: r.month, value: r.reactivation_rate })),
       ),

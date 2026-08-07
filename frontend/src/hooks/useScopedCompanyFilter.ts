@@ -44,6 +44,18 @@ export function useScopedCompanyFilter() {
     setDivision('');
   };
 
+  // Reset company/branch/division/toggle ke default — dipusatkan di sini (bukan
+  // ditulis ulang per halaman) supaya tombol "Reset" filter di halaman KPI
+  // (task025 §5 Fase 0) konsisten definisi "default"-nya. Caller yang punya
+  // state tambahan di luar hook ini (mis. periodEnd/date, search) reset itu
+  // sendiri di handler-nya masing-masing.
+  const reset = () => {
+    setCompanyIdState('all');
+    setBranchIdState('all');
+    setDivision('');
+    setExcludeIntercompany(false);
+  };
+
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);
   const { data: allBranches = [] } = useBranchesByCompany(companyId === 'all' ? null : companyId);
@@ -87,5 +99,6 @@ export function useScopedCompanyFilter() {
     showDivisionFilter,
     excludeIntercompany,
     setExcludeIntercompany,
+    reset,
   };
 }

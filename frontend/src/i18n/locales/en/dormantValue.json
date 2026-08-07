@@ -1,0 +1,20 @@
+{
+  "pageTitle": "Lost Revenue Value",
+  "pageSubtitle": "KPI 9 — Dormant Customer Value. Estimated potential revenue lost from customers who have gone inactive.",
+  "m9SectionLabel": "M9 · Dormant Customer Value — Estimated Lost Revenue Ranking",
+  "m9ChartTitle": "Top Dormant Customers — Ranked by Estimated Lost Value",
+  "m9ChartSubtitle": "Sorted by highest lost value · Estimate = avg revenue over the last 12 months before going dormant × months dormant",
+  "m9SeriesLabel": "Estimated Lost Revenue",
+  "m9FormulaTitle": "Estimated Lost Value per Customer",
+  "m9Formula": "Estimated Lost Value = Avg Monthly Revenue × Months Dormant\n\nAvg Monthly Revenue = total revenue over the 12 calendar months\nBEFORE the customer's last transaction, divided by 12\nMonths Dormant = (reference date − last transaction date) ÷ 30,\nrounded, minimum 1 month",
+  "m9FormulaNote": "Shows the top 20 customers by estimated lost value.",
+  "colCompany": "Company",
+  "colCustomer": "Customer",
+  "colLastTransaction": "Last Transaction",
+  "colMonthsDormant": "Months Dormant",
+  "colAvgMonthlyRevenue": "Revenue/Month",
+  "colEstimatedLostValue": "Estimated Lost Value",
+  "searchPlaceholder": "Search customer...",
+  "customerCountText": "{{count}} customers",
+  "emptyTable": "No dormant customers for this scope/period"
+}
