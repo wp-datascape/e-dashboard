@@ -34,6 +34,8 @@
     "legendConcentrated": "1 customer > 25% total revenue — high concentration"
   },
   "m4": {
+    "pageTitle": "Loyal Customer Profit",
+    "pageSubtitle": "KPI 4 — Average Gross Profit. Gross profit contribution per existing customer, split by tier (Top/Mid/Bottom).",
     "sectionLabel": "M4 · Average Gross Profit per Existing Customer",
     "tooltipInfo": "Same as M3, but based on Gross Profit (absolute margin), not Revenue. Tiers are recalculated each month from the median individual GP — the customer mix per tier can differ from M3 even if the chart shape looks similar.",
     "chartTitle": "Total GP Existing Customer — Contribution per Tier (12 Months)",
@@ -61,6 +63,8 @@
     "emptyMessage": "No GP data this month"
   },
   "m5": {
+    "pageTitle": "Focus Product Purchase",
+    "pageSubtitle": "KPI 5 — High Margin Penetration. Share of existing customers who bought high margin products this month.",
     "sectionLabel": "M5 · High Margin Product Penetration — Current Month",
     "tooltipInfo": "Measures the CUSTOMER share (not revenue) who bought at least 1 product tagged High Margin by an admin (Settings → High Margin). Different from M3's \"High Margin Contribution\", which measures the REVENUE share — many customers buying (M5 high) doesn't mean the value is large (M3 can still be low), or vice versa.",
     "chartTitle": "High Margin Product Penetration",
@@ -97,6 +101,8 @@
     "emptyMessage": "No existing customer ordered more than once this month"
   },
   "m7": {
+    "pageTitle": "Spending Increase",
+    "pageSubtitle": "KPI 7 — Customer Expansion Rate. Share of existing customers with rising spending vs flat/declining this period.",
     "sectionLabel": "M7 · Customer Expansion Rate — Spending Up vs Flat/Down",
     "tooltipInfo": "Compared against the 30 days BEFORE the active period (not the same month last year). A customer who didn't order at all before but orders now still counts as \"spending up\".",
     "chartTitle": "Customer Expansion Rate — 100% Stacked Horizontal (12 Months)",

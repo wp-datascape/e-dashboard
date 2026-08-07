@@ -120,6 +120,17 @@ function AppRouter() {
             belum sempat diupdate) tidak putus jadi 404. */}
         <Route path="/dormant-customer" element={<Navigate to="/dormant-rate" replace />} />
 
+        {/* Legacy Redirect — CustomerMetrics (bundel M3-M7) dipecah jadi 5
+            halaman (task025 §12, 2026-08-07). /customer-metrics -> KPI3
+            (entry point paling wajar, kartu pertama grup "Nilai Pelanggan
+            Loyal"). /analisis/revenue & /analisis/retention (tabel yang
+            direuse KPI3/KPI6) juga jadi redirect permanen — bookmark/
+            deep-link lama (termasuk NotificationDetailDialog.tsx) tidak
+            putus jadi 404. */}
+        <Route path="/customer-metrics" element={<Navigate to="/customer-revenue" replace />} />
+        <Route path="/analisis/revenue" element={<Navigate to="/customer-revenue" replace />} />
+        <Route path="/analisis/retention" element={<Navigate to="/repeat-order" replace />} />
+
         {/* Dynamic Generated Routes Mapping Berdasarkan Kontrol DB */}
         {pageSettings?.map(({ page_key, ready }) => {
           const registry = routeRegistry[page_key]

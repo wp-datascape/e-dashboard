@@ -34,6 +34,8 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import ReplayIcon from '@mui/icons-material/Replay';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
+import PaidIcon from '@mui/icons-material/Paid';
+import PieChartIcon from '@mui/icons-material/PieChart';
 
 export interface NavItem {
   key: string;
@@ -94,13 +96,48 @@ export const NAV_ITEMS: NavItem[] = [
   // dari nama menu — lihat tabel di task023.md §3a. Cross Selling sengaja
   // TIDAK ditag tier apa pun (halamannya hybrid: grafik + 2 tabel sekaligus,
   // memaksakan ke salah satu tier malah menyesatkan).
+  // CustomerMetrics (bundel M3-M7, 1 menu item) dipecah jadi 5 halaman
+  // (task025 §12, 2026-08-07) — permission masing-masing spesifik per-KPI
+  // (rename dari expansion:*/analisis:*/analisis.retention:*, rationale
+  // lengkap di task025.md §12 + backend/src/db/seed.ts
+  // migrateRenamedPermissions()). BUKAN rework kategori menu (§6a) — cuma
+  // memecah 3 item lama (expansion/analisis-revenue/analisis-retention)
+  // jadi 5 di posisi/urutan yang sama.
   {
-    key: 'expansion',
-    path: '/customer-metrics',
-    labelKey: 'nav.expansionTargets',
-    icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'expansion:menu',
+    key: 'customer-revenue',
+    path: '/customer-revenue',
+    labelKey: 'nav.customerRevenue',
+    icon: <AssessmentIcon fontSize="small" />,
+    permissionKey: 'customer.revenue:menu',
     tierLabelKey: 'nav.tiers.overview',
+  },
+  {
+    key: 'customer-gross-profit',
+    path: '/customer-gross-profit',
+    labelKey: 'nav.customerGrossProfit',
+    icon: <PaidIcon fontSize="small" />,
+    permissionKey: 'customer.gross.profit:menu',
+  },
+  {
+    key: 'high-margin-penetration',
+    path: '/high-margin-penetration',
+    labelKey: 'nav.highMarginPenetration',
+    icon: <PieChartIcon fontSize="small" />,
+    permissionKey: 'high.margin.penetration:menu',
+  },
+  {
+    key: 'repeat-order',
+    path: '/repeat-order',
+    labelKey: 'nav.repeatOrder',
+    icon: <ReplayIcon fontSize="small" />,
+    permissionKey: 'repeat.order:menu',
+  },
+  {
+    key: 'customer-expansion',
+    path: '/customer-expansion',
+    labelKey: 'nav.customerExpansion',
+    icon: <TrendingUpIcon fontSize="small" />,
+    permissionKey: 'customer.expansion:menu',
   },
   // DormantCustomer (bundel M8+M9+M10, 1 menu item) dipecah jadi 3 halaman
   // (task025 §7a, 2026-08-07) — permission TETAP 1 (`churn.risk:menu`,
@@ -127,21 +164,6 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.reactivationRate',
     icon: <AutorenewIcon fontSize="small" />,
     permissionKey: 'churn.risk:menu',
-  },
-  {
-    key: 'analisis-revenue',
-    path: '/analisis/revenue',
-    labelKey: 'nav.analisisRevenue',
-    icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'analisis:menu',
-    tierLabelKey: 'nav.tiers.detail',
-  },
-  {
-    key: 'analisis-retention',
-    path: '/analisis/retention',
-    labelKey: 'nav.analisisRetention',
-    icon: <ReplayIcon fontSize="small" />,
-    permissionKey: 'analisis.retention:menu',
   },
   {
     key: 'cross-selling',

@@ -224,13 +224,6 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
     exclude_intercompany: excludeIntercompany,
   });
 
-  // hm_pct dihitung di frontend (bukan dari API) - sama seperti avg_revenue dialog yang
-  // juga dihitung inline dari total_revenue/total_existing, konsisten dgn pola existing.
-  const trendWithHmPct = trend.map((d) => ({
-    ...d,
-    hm_pct: d.total_revenue_existing > 0 ? (d.hm_revenue / d.total_revenue_existing) * 100 : 0,
-  }));
-
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
@@ -253,7 +246,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
         <ComboChartWidget
           title={t('customerMetrics.m3.chartTitle')}
           subtitle={t('customerMetrics.m3.chartSubtitle')}
-          data={trendWithHmPct}
+          data={trend}
           barKey="total_revenue_existing"
           barLabel={t('customerMetrics.m3.barLabel')}
           barColor={theme.palette.primary.main}
@@ -263,10 +256,6 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           line2Key="median_revenue"
           line2Label={t('customerMetrics.m3.lineLabelMedian')}
           line2Color={lineTemplate.line2}
-          line3Key="hm_pct"
-          line3Label={t('customerMetrics.m3.lineLabelHm')}
-          line3Color={lineTemplate.line3}
-          formatLine3={(v) => `${v.toFixed(1)}%`}
           concentrationKey="top_customer_pct"
           concentrationThreshold={25}
           concentrationColor={concentrationColor}

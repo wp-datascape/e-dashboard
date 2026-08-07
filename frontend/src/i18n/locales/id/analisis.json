@@ -1,5 +1,5 @@
 {
-  "title": "Analisis Revenue",
+  "title": "Revenue Pelanggan Loyal",
   "subtitle": "Berapa banyak uang masuk (pendapatan) dan untung bersih (laba kotor) dari tiap pelanggan, dibandingkan periode yang sama tahun lalu. Pelanggan prioritas (Pareto) ditampilkan lebih dulu.",
   "company": "Perusahaan",
   "allCompanies": "Semua Entitas",
@@ -35,7 +35,7 @@
   "summaryStripTitle": "Total · Seluruh Data",
   "comparisonSubLabel": "pembanding",
   "growthLabel": "Pertumbuhan",
-  "retentionTitle": "Analisis Pembelian Berulang",
+  "retentionTitle": "Pembelian Berulang",
   "retentionSubtitle": "Seberapa sering tiap pelanggan belanja ulang (jumlah transaksi) dalam periode ini, dibandingkan periode yang sama tahun lalu. Pelanggan prioritas (Pareto) ditampilkan lebih dulu.",
   "metricOrderCount": "Jumlah Transaksi"
 }

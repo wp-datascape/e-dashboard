@@ -110,8 +110,13 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
   const newBusinessLabel = t('analisis.newBusiness')
 
   const handleViewAnalisis = () => {
+    // Navigasi LANGSUNG ke /customer-revenue (task025 §12, 2026-08-07) —
+    // BUKAN ke /analisis/revenue lalu redirect, supaya query string
+    // (company_id/period_key/dst.) tidak hilang. <Navigate> statis di
+    // App.tsx TIDAK meneruskan search params, jadi deep-link internal
+    // ini harus langsung ke route baru.
     if (!entityRef) {
-      navigate('/analisis/revenue')
+      navigate('/customer-revenue')
       onClose()
       return
     }
@@ -123,7 +128,7 @@ export function NotificationDetailDialog({ notification, onClose }: Notification
     })
     if (anyRow) params.set('search', anyRow.customer_name)
     onClose()
-    navigate(`/analisis/revenue?${params.toString()}`)
+    navigate(`/customer-revenue?${params.toString()}`)
   }
 
   return (

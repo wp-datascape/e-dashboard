@@ -41,7 +41,7 @@ function ParetoBadge() {
   )
 }
 
-export default function AnalisisPage() {
+export default function CustomerRevenue() {
   const { t } = useTranslation()
 
   // Baca filter awal dari query string (SEKALI, saat mount) — dipakai tombol

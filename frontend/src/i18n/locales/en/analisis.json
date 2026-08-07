@@ -1,5 +1,5 @@
 {
-  "title": "Revenue Analysis",
+  "title": "Loyal Customer Revenue",
   "subtitle": "How much money came in (revenue) and net profit (gross profit) per customer, compared to the same period last year. Priority (Pareto) customers are shown first.",
   "company": "Company",
   "allCompanies": "All Entities",
@@ -35,7 +35,7 @@
   "summaryStripTitle": "Total · All Data",
   "comparisonSubLabel": "comparison",
   "growthLabel": "Growth",
-  "retentionTitle": "Repeat Purchase Analysis",
+  "retentionTitle": "Repeat Order",
   "retentionSubtitle": "How often each customer re-orders (transaction count) this period, compared to the same period last year. Priority (Pareto) customers are shown first.",
   "metricOrderCount": "Transaction Count"
 }

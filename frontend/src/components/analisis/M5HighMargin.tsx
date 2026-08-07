@@ -14,8 +14,33 @@ import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { fmtRpDetail, monthToEndDate } from './helpers';
-import { SectionLabel } from './HelperComponents';
+
+// Dipusatkan di sini (semula lokal di pages/CustomerMetrics/M5HighMargin.tsx)
+// karena sekarang dipakai halaman HighMarginPenetration (KPI5) — helper
+// inline, BUKAN cross-page import (konvensi sama dgn M3Revenue.tsx dkk).
+function fmtRpDetail(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}M`;
+  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(2)}jt`;
+  if (v >= 1_000)         return `${(v / 1_000).toFixed(1)}rb`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
+}
+
+function monthToEndDate(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <Typography
+      variant="body2"
+      sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 }}
+    >
+      {label}
+    </Typography>
+  );
+}
 
 function useHmColumns(t: TFunction): GridColDef[] {
   return [
