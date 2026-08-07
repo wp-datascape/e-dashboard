@@ -135,6 +135,7 @@ export default function HighMarginPenetration() {
         division={division || undefined}
         periodEnd={endDate}
         excludeIntercompany={excludeIntercompany}
+        trend={data?.trend}
       />
 
       {data && (

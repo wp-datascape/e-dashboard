@@ -11,9 +11,11 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
+import { LineChartWidget } from '@/components/charts/LineChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
+import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 // Dipusatkan di sini (semula lokal di pages/CustomerMetrics/M5HighMargin.tsx)
 // karena sekarang dipakai halaman HighMarginPenetration (KPI5) — helper
@@ -63,9 +65,17 @@ interface Props {
   division?: number
   periodEnd: string
   excludeIntercompany?: boolean
+  // Tren 12 bulan (task025 §20, 2026-08-07) — chart 2-seri Kontribusi %
+  // (porsi REVENUE dari produk High Margin) vs Penetrasi % (porsi CUSTOMER
+  // yang membeli, = high_margin_ratio). Field `hm_revenue`/
+  // `total_revenue_existing` SUDAH ada di trend (dipakai M3 sebelum
+  // "Pemisahan M3" §4 keluarkan garis HM dari sana) — Kontribusi % dihitung
+  // di sini (bukan backend baru), formula identik dgn m4.repository.ts
+  // (hm_revenue/total_revenue*100, sudah dipakai utk hm_pct per-baris).
+  trend?: CustomerMetricsTrendPoint[]
 }
 
-export function M5HighMargin({ isLoading, hm, companyId, branchId, division, periodEnd, excludeIntercompany }: Props) {
+export function M5HighMargin({ isLoading, hm, companyId, branchId, division, periodEnd, excludeIntercompany, trend = [] }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [hmDrillDate, setHmDrillDate] = useState<string | null>(null);
@@ -78,6 +88,12 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
     division,
     exclude_intercompany: excludeIntercompany,
   });
+
+  const trendChartData = trend.map((p) => ({
+    month: p.month,
+    penetration_pct: p.high_margin_ratio,
+    contribution_pct: p.total_revenue_existing > 0 ? Math.round((p.hm_revenue / p.total_revenue_existing) * 1000) / 10 : 0,
+  }));
 
   return (
     <>
@@ -95,6 +111,26 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
             </IconButton>
           </MuiTooltip>
         </Box>
+        {/* Chart tren 12 bulan — 2 seri, sebelum donut snapshot (ux-menu-mapping.md
+            §4 poin 5: "chart = tren high margin 12 bln... dua metrik → dua seri
+            dalam satu chart"). Line (bukan bar) atas permintaan user 2026-08-07. */}
+        {isLoading ? (
+          <Skeleton variant="rectangular" height={260} sx={{ mb: 2 }} />
+        ) : (
+          <Box sx={{ mb: 2 }}>
+            <LineChartWidget
+              title={t('customerMetrics.m5.trendChartTitle')}
+              subtitle={t('customerMetrics.m5.trendChartSubtitle')}
+              data={trendChartData}
+              series={[
+                { key: 'contribution_pct', label: t('customerMetrics.m5.seriesContribution'), color: theme.palette.warning.main, formatValue: (v) => `${v}%` },
+                { key: 'penetration_pct', label: t('customerMetrics.m5.seriesPenetration'), color: theme.palette.info.main, formatValue: (v) => `${v}%` },
+              ]}
+              xKey="month"
+              height={260}
+            />
+          </Box>
+        )}
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (

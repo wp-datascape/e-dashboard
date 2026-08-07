@@ -1195,3 +1195,46 @@ tidak cek modul `dashboard/` juga.
   Revenue/KPI3 yang beda pola (genuinely periodType-aware di backend
   `/analisis`, sudah benar sejak awal).
 
+## 20. KPI3 diverifikasi ulang + chart tren 2-seri KPI5 dibangun (2026-08-07)
+
+User: "KPI5 dan 3 belum dikerjakan?" — dua hal terpisah:
+
+**KPI3 (Revenue)** — klaim §18 "genuinely periodType-aware" SEBELUMNYA
+diverifikasi pakai tanggal 30 April yang KEBETULAN awal kuartal (April =
+bulan pertama Q2), jadi Bulanan vs Kuartalan kelihatan identik padahal itu
+cuma kebetulan tanggal, BUKAN bukti valid. Diverifikasi ULANG pakai
+tanggal 30 Juni (bukan awal kuartal): Bulanan Rp2,4jt (1-30 Juni) vs
+Kuartalan Rp7,7jt (1 April-30 Juni) — BEDA, rentang tanggal benar. KPI3
+terkonfirmasi benar dgn bukti yang valid, bukan cuma klaim dari baca kode.
+
+**KPI5 (High Margin Penetration)** — chart tren 2-seri "Kontribusi %"
+(porsi revenue) vs "Penetrasi %" (porsi customer, = `high_margin_ratio`)
+yang disebut §16/§12 sbg follow-up belum dibangun, DIKERJAKAN SEKARANG:
+
+- **Tidak perlu backend baru** — `hm_revenue` dan `total_revenue_existing`
+  SUDAH ada per-bulan di `CustomerMetricsTrendPoint` (trend yang sama
+  dipakai M3/M4/M7 dkk), Kontribusi % dihitung murni di frontend:
+  `hm_revenue / total_revenue_existing × 100`, formula IDENTIK dgn
+  `hm_pct` per-baris yang sudah dipakai di `m4.repository.ts` (bukan
+  logika baru, verifikasi ke kode dulu sebelum implementasi).
+- **`components/charts/LineChartWidget/`** (baru) — user eksplisit minta
+  "jenis chart bisa selain bar gunakan line jika bisa". Widget baru
+  (bukan reuse `AreaChartWidget`) krn Area SELALU ada gradient fill di
+  bawah garis — utk 2 seri yang saling overlap area-nya bikin visual
+  numpuk; `LineChartWidget` sama struktur/convention (header value+change,
+  axis, tooltip, legend otomatis >1 seri) tapi elemen chart `<Line>` polos.
+  Prop `formatValue` per-seri baru (mis. tooltip "15.6%" bukan "15.6").
+- `M5HighMargin.tsx` — prop baru `trend?: CustomerMetricsTrendPoint[]`,
+  render `LineChartWidget` 2-seri SEBELUM donut snapshot (urutan sesuai
+  ux-menu-mapping.md §4 poin 5: "kartu donut snapshot + chart = tren...").
+  Donut TIDAK berubah (tetap snapshot bulan berjalan, klik → dialog).
+  `HighMarginPenetration/index.tsx` teruskan `trend={data?.trend}`.
+- Tooltip info M5 diupdate — sebelumnya bilang "beda dgn Kontribusi High
+  Margin di M3" (M3 sudah tidak lagi tampilkan garis itu sejak Pemisahan
+  M3), sekarang benar merujuk ke chart tren di halaman ini sendiri.
+- Diverifikasi dgn data real (periode April 2026): 2 garis (Kontribusi
+  oranye, Penetrasi biru) render benar dari 0% naik ke ~14-28% mengikuti
+  histori data asli, legend+tooltip %, anti-truncation OK, 0 console
+  error.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+
