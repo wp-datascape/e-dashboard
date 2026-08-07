@@ -9,6 +9,18 @@ import type { StatusChipColor } from '@/components/ui/StatusChip'
  * rusak kalau 1 file campur export komponen + fungsi biasa).
  */
 
+/**
+ * Persentase perubahan current vs comparison — null kalau comparison 0
+ * (hindari bagi nol / "Infinity%", resolveTrendKind menangani null sbg
+ * kasus "Baru"). Dipusatkan di sini (sebelumnya diduplikasi 3x di
+ * DormantRate/DormantValue/ReactivationRate) — dipakai juga oleh
+ * CustomerGrossProfit/HighMarginPenetration/CustomerExpansion.
+ */
+export function computeChangePct(current: number, previous: number): number | null {
+  if (previous === 0) return null
+  return ((current - previous) / previous) * 100
+}
+
 // Growth % di atas ini tampilannya di-cap ("999%+") — nilai asli (Growth
 // Value dalam Rupiah) tetap ditampilkan penuh, TIDAK dibulatkan jadi 100%.
 // Metric Comparison Standard: angka ekstrem murni akibat basis pembanding

@@ -60,7 +60,9 @@
     "dialogMedianThreshold": "Median threshold",
     "dialogExistingTx": "Existing customers transacting this month",
     "exportPdf": "Export PDF",
-    "emptyMessage": "No GP data this month"
+    "emptyMessage": "No GP data this month",
+    "searchPlaceholder": "Search customer...",
+    "customerCountText": "{{count}} customers"
   },
   "m5": {
     "pageTitle": "Focus Product Purchase",
@@ -82,7 +84,9 @@
     "colCode": "Code",
     "colRevenueHm": "HM Revenue",
     "colPctHm": "% Total HM",
-    "emptyMessage": "No existing customer bought high margin products this month"
+    "emptyMessage": "No existing customer bought high margin products this month",
+    "searchPlaceholder": "Search customer...",
+    "customerCountText": "{{count}} customers"
   },
   "m6": {
     "sectionLabel": "M6 · Repeat Order Rate — Current Month",
@@ -119,6 +123,8 @@
     "colStatus": "Status",
     "statusUp": "Up",
     "statusFlatDown": "Flat/Down",
-    "emptyMessage": "No expansion data for this month"
+    "emptyMessage": "No expansion data for this month",
+    "searchPlaceholder": "Search customer...",
+    "customerCountText": "{{count}} customers"
   }
 }

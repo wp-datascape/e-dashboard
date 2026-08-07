@@ -19,6 +19,7 @@ import {
   type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
+import { computeChangePct } from '@/utils/analisisComparison';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { DormantValueRankingRow } from '@/types/metrics';
 
@@ -26,12 +27,6 @@ function fmtRp(v: number): string {
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}jt`;
   return `Rp ${v.toLocaleString('id-ID')}`;
-}
-
-/** Persentase perubahan current vs comparison — null kalau comparison 0 (hindari bagi nol / "Infinity%"). */
-function computeChangePct(current: number, previous: number): number | null {
-  if (previous === 0) return null;
-  return ((current - previous) / previous) * 100;
 }
 
 // KPI 9 — Dormant Customer Value. Sebelumnya bagian dari bundel
