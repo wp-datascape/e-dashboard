@@ -17,7 +17,7 @@ import {
   KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths, sumLastMonths } from '@/utils/analisisComparison';
 import type { HmBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -69,14 +69,37 @@ export default function HighMarginPenetration() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  const hm = data?.high_margin_current;
   // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
   // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
   const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
   const currentHm = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
   const comparisonHm = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
   const growthPct = computeChangePct(currentHm, comparisonHm);
-  const hmLabel = t('customerMetrics.m5.chartTitle');
+  const hmLabel = t('customerMetrics.m5.seriesPenetration');
+
+  // Card Total Revenue/Total Revenue HM/Kontribusi % + growth (task025
+  // §21, 2026-08-07 — user: "dalam card tambahkan total revenue pada
+  // periode tersebut, total revenue high margin dan persentase
+  // kontribusinya, dan tambahkan info growth"). SUM (bukan rata-rata) K
+  // bulan terakhir — ini metrik ADITIF (uang), beda dari Penetrasi %
+  // (rata-rata rasio bulanan). Kontribusi % = rasio dari JUMLAH (bukan
+  // rata-rata dari rasio bulanan) — lebih akurat mewakili "total periode"
+  // yang diminta, formula sama dgn m4.repository.ts hm_pct per-baris.
+  const totalRevenueCurrent = sumLastMonths(data?.trend ?? [], periodMonths, (p) => p.total_revenue_existing);
+  const totalRevenueComparison = sumLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.total_revenue_existing);
+  const totalRevenueGrowthPct = computeChangePct(totalRevenueCurrent, totalRevenueComparison);
+
+  const totalHmRevenueCurrent = sumLastMonths(data?.trend ?? [], periodMonths, (p) => p.hm_revenue);
+  const totalHmRevenueComparison = sumLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.hm_revenue);
+  const totalHmRevenueGrowthPct = computeChangePct(totalHmRevenueCurrent, totalHmRevenueComparison);
+
+  const contributionPctCurrent = totalRevenueCurrent > 0 ? Math.round((totalHmRevenueCurrent / totalRevenueCurrent) * 10000) / 100 : 0;
+  const contributionPctComparison = totalRevenueComparison > 0 ? Math.round((totalHmRevenueComparison / totalRevenueComparison) * 10000) / 100 : 0;
+  const contributionGrowthPct = computeChangePct(contributionPctCurrent, contributionPctComparison);
+
+  const totalRevenueLabel = t('customerMetrics.m5.totalRevenueLabel');
+  const totalHmRevenueLabel = t('customerMetrics.m5.totalRevenueHmLabel');
+  const contributionLabel = t('customerMetrics.m5.seriesContribution');
 
   const [search, setSearch] = useState('');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 });
@@ -129,28 +152,50 @@ export default function HighMarginPenetration() {
 
       <M5HighMargin
         isLoading={isLoading}
-        hm={hm}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        periodEnd={endDate}
-        excludeIntercompany={excludeIntercompany}
         trend={data?.trend}
       />
 
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: hmLabel, comparisonText: `${comparisonHm.toFixed(1)}%`, currentText: `${currentHm.toFixed(1)}%` }]}
+          metrics={[
+            { label: totalRevenueLabel, comparisonText: fmtRpDetail(totalRevenueComparison), currentText: fmtRpDetail(totalRevenueCurrent) },
+            { label: totalHmRevenueLabel, comparisonText: fmtRpDetail(totalHmRevenueComparison), currentText: fmtRpDetail(totalHmRevenueCurrent) },
+            { label: contributionLabel, comparisonText: `${contributionPctComparison.toFixed(2)}%`, currentText: `${contributionPctCurrent.toFixed(2)}%` },
+            { label: hmLabel, comparisonText: `${comparisonHm.toFixed(2)}%`, currentText: `${currentHm.toFixed(2)}%` },
+          ]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}
-          growth={[{
-            metricLabel: hmLabel,
-            pct: growthPct,
-            value: currentHm - comparisonHm,
-            currentIsZero: currentHm === 0,
-            formatValue: (v) => `${v.toFixed(1)}%`,
-          }]}
+          growth={[
+            {
+              metricLabel: totalRevenueLabel,
+              pct: totalRevenueGrowthPct,
+              value: totalRevenueCurrent - totalRevenueComparison,
+              currentIsZero: totalRevenueCurrent === 0,
+              formatValue: fmtRpDetail,
+            },
+            {
+              metricLabel: totalHmRevenueLabel,
+              pct: totalHmRevenueGrowthPct,
+              value: totalHmRevenueCurrent - totalHmRevenueComparison,
+              currentIsZero: totalHmRevenueCurrent === 0,
+              formatValue: fmtRpDetail,
+            },
+            {
+              metricLabel: contributionLabel,
+              pct: contributionGrowthPct,
+              value: contributionPctCurrent - contributionPctComparison,
+              currentIsZero: contributionPctCurrent === 0,
+              formatValue: (v) => `${v.toFixed(2)}%`,
+            },
+            {
+              metricLabel: hmLabel,
+              pct: growthPct,
+              value: currentHm - comparisonHm,
+              currentIsZero: currentHm === 0,
+              formatValue: (v) => `${v.toFixed(2)}%`,
+            },
+          ]}
           onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
           onNext={() => {
             const next = shiftEndDate(periodType, endDate, 1);

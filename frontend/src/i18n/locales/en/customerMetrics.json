@@ -72,6 +72,8 @@
     "trendChartTitle": "High Margin Contribution vs Penetration — 12 Month Trend",
     "trendChartSubtitle": "Contribution = % revenue from high margin products · Penetration = % customers who bought high margin products",
     "seriesContribution": "Contribution (%)",
+    "totalRevenueLabel": "Total Revenue",
+    "totalRevenueHmLabel": "Total High Margin Revenue",
     "seriesPenetration": "Penetration (%)",
     "chartTitle": "High Margin Product Penetration",
     "chartSubtitle": "Click chart to view customer list — current month snapshot",
@@ -95,6 +97,9 @@
   "m6": {
     "sectionLabel": "M6 · Repeat Order Rate — Current Month",
     "tooltipInfo": "\"Repeat order\" here means MORE THAN 1 transaction within the current month — not just having bought before. The green target line is configured in Settings → Threshold, not always 100%.",
+    "trendChartTitle": "Repeat Order Rate — 12 Month Trend",
+    "trendChartSubtitle": "Share of existing customers transacting more than once within the current month",
+    "seriesRate": "Repeat Order Rate (%)",
     "chartTitle": "Repeat Order Rate",
     "chartSubtitle": "Green ≥ {{thresholdPct}}% (on target) · Click to view customer list",
     "dialogTitle": "Repeat Order Buyers — {{date}}",

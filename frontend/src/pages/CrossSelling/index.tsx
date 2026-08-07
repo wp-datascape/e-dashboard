@@ -197,7 +197,7 @@ export default function CrossSelling() {
       {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: rateLabel, comparisonText: `${comparisonRatio.toFixed(1)}%`, currentText: `${currentRatio.toFixed(1)}%` }]}
+          metrics={[{ label: rateLabel, comparisonText: `${comparisonRatio.toFixed(2)}%`, currentText: `${currentRatio.toFixed(2)}%` }]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}
@@ -206,7 +206,7 @@ export default function CrossSelling() {
             pct: growthPct,
             value: currentRatio - comparisonRatio,
             currentIsZero: currentRatio === 0,
-            formatValue: (v) => `${v.toFixed(1)}%`,
+            formatValue: (v) => `${v.toFixed(2)}%`,
           }]}
           onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
           onNext={() => {

@@ -1238,3 +1238,71 @@ yang disebut §16/§12 sbg follow-up belum dibangun, DIKERJAKAN SEKARANG:
   error.
 - `tsc --noEmit` + `eslint src` bersih (0 error).
 
+## 21. KPI5 donut dihapus + KPI6 chart tren + pembulatan 2 desimal (2026-08-07)
+
+User: "hapus donat chart, sudah digantikan tren / dalam card tambahkan
+total revenue pada periode tersebut, total revenue high margin dan
+persentase kontribusinya / dan tambahkan info growth" — lalu di pesan yang
+sama: "hal yang sama lakukan pada repeat order rate, buat chart trend...
+banyak persentase yang angka dibelakang koma nya lebih dari 3, lakukan
+pembatasan 2 angka dibelakang koma untuk semua value angka".
+
+**Root-cause pembulatan** — `averageLastMonths` (§18) mengembalikan hasil
+bagi JS mentah (mis. `45.666666666666664`) tanpa pembulatan; widget chart
+(`RadialBarWidget`/`BulletChartWidget`) merender `value` APA ADANYA tanpa
+format internal — kombinasi keduanya yang bikin angka desimal panjang
+nongol di UI (`ror6Value`/`currentReactivationRate` dkk, dipasang §18,
+dikirim mentah ke widget tanpa `.toFixed()`).
+
+- **`utils/analisisComparison.ts`**: `round2()` helper baru (bulatkan ke 2
+  desimal), dipakai DI DALAM `averageLastMonths` (bukan di tiap
+  pemanggil) — perbaikan di 1 titik sumber otomatis membenarkan SEMUA
+  turunannya (KPI1,2,4,5,6,7,8,9,10). `sumLastMonths()` baru (pasangan
+  aditif — JUMLAH bukan rata-rata K bulan terakhir, utk metrik uang).
+  Tampilan persentase growth di 4 halaman (CrossSelling, CustomerExpansion,
+  DormantRate, ReactivationRate) diseragamkan dari `.toFixed(1)` ke
+  `.toFixed(2)` supaya konsisten (sebelumnya campur 1/2 desimal antar
+  halaman).
+- **KPI5 (`M5HighMargin.tsx`)**: donut snapshot + dialog drill-down
+  (`useHmBreakdown`, `hmDrillDate`) DIHAPUS TOTAL — sama pola redundansi
+  yang ditemukan di CrossSelling M2 (§13): dialog-nya pakai endpoint yang
+  SAMA dgn tabel persisten yang SUDAH ADA di halaman induk
+  (`HighMarginPenetration/index.tsx`, `useHmBreakdown` bound ke `endDate`).
+  Prop `hm`/`companyId`/`branchId`/`division`/`periodEnd`/
+  `excludeIntercompany` semua ikut dihapus dari `M5HighMargin` (jadi dead
+  props setelah dialog dihapus).
+- **Card Total Revenue/Total Revenue HM/Kontribusi% + growth**:
+  `HighMarginPenetration/index.tsx` — `sumLastMonths` (BUKAN
+  `averageLastMonths`) utk `total_revenue_existing`/`hm_revenue` K bulan
+  terakhir (metrik ADITIF/uang, beda dari Penetrasi% yang rata-rata rasio
+  bulanan). Kontribusi% = rasio dari JUMLAH (bukan rata-rata rasio
+  bulanan) — representasi "total periode" yang diminta user, formula sama
+  dgn `m4.repository.ts` `hm_pct` per-baris. 4 metrik (Total Revenue/Total
+  Revenue HM/Kontribusi%/Penetrasi%) ditambahkan ke `KpiSummaryStrip` yang
+  SUDAH ADA (generic, terima N metrik) — BUKAN komponen kartu baru,
+  centralisasi (lihat [[feedback_centralize_ui_no_duplication]]).
+- **KPI6 (`M6RepeatOrder.tsx`)**: chart tren `LineChartWidget` 1-seri
+  (`repeat_order_rate`) ditambahkan SEBELUM RadialBar gauge (RadialBar +
+  dialog drill-down TIDAK dihapus — beda dari KPI5, tabel di halaman induk
+  RepeatOrder pakai `useRetentionAnalisis` yang metriknya BEDA/invoice_count,
+  bukan `useRorBreakdown`, jadi TIDAK redundan). Field `repeat_order_rate`
+  sudah ada di trend yang sama, tidak perlu backend baru.
+- Anti-truncation: kolom "Perubahan Nilai" tabel RepeatOrder (`width: 140`
+  fixed) kepotong setelah dicek `scrollWidth>clientWidth` — dikonversi
+  `minWidth: 160`+`flex: 0.9` (bukan sekadar ganti ke minWidth+flex tanpa
+  cek — `minWidth: 140`+`flex: 0.8` awalnya MASIH kepotong, dinaikkan lagi
+  sampai scrollWidth<=clientWidth beneran terverifikasi 0 truncation).
+- Ditemukan+diperbaiki saat verifikasi: i18n key `totalRevenueLabel`/
+  `totalRevenueHmLabel` sempat lupa ditambahkan (nongol sbg raw key
+  string di card, ketauan dari screenshot verifikasi — bukan ditebak).
+- Diverifikasi END-TO-END data real (30 April 2026): KPI5 card 4-metrik +
+  growth semua tampil benar, tidak ada key i18n mentah, tidak ada
+  desimal >2. KPI6 chart tren + gauge (17.67%, 2 desimal) tampil benar,
+  0 truncation, 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+- **Filter RepeatOrder dicek** (user minta "standarisasi semua filter
+  sesuai template Revenue") — SUDAH pakai `KpiFilterBar` (via
+  `FilterBarShell`, §17) identik dgn Revenue sejak migrasi task025 §12,
+  tidak ada perubahan diperlukan di sini. Bukan diasumsikan — dicek
+  langsung ke kode sebelum lapor "sudah sesuai".
+

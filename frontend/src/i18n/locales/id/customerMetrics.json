@@ -70,6 +70,8 @@
     "trendChartTitle": "Kontribusi vs Penetrasi High Margin — Tren 12 Bulan",
     "trendChartSubtitle": "Kontribusi = % revenue dari produk high margin · Penetrasi = % pelanggan yang membeli produk high margin",
     "seriesContribution": "Kontribusi (%)",
+    "totalRevenueLabel": "Total Revenue",
+    "totalRevenueHmLabel": "Total Revenue High Margin",
     "seriesPenetration": "Penetrasi (%)",
     "chartTitle": "Penetrasi Produk High Margin",
     "chartSubtitle": "Klik chart untuk melihat daftar pelanggan — snapshot bulan berjalan",
@@ -93,6 +95,9 @@
   "m6": {
     "sectionLabel": "M6 · Repeat Order Rate — Bulan Berjalan",
     "tooltipInfo": "\"Repeat order\" di sini artinya transaksi LEBIH DARI 1x dalam bulan berjalan — bukan sekadar pernah beli sebelumnya. Target garis hijau diatur di Settings → Threshold, bukan selalu 100%.",
+    "trendChartTitle": "Repeat Order Rate — Tren 12 Bulan",
+    "trendChartSubtitle": "Persentase pelanggan existing yang bertransaksi lebih dari 1x dalam bulan berjalan",
+    "seriesRate": "Repeat Order Rate (%)",
     "chartTitle": "Repeat Order Rate",
     "chartSubtitle": "Hijau ≥ {{thresholdPct}}% (on target) · Klik untuk lihat daftar pelanggan",
     "dialogTitle": "Repeat Order Buyers — {{date}}",
