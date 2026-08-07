@@ -27,8 +27,8 @@
     "statTotalGp": "Total GP",
     "statMargin": "Margin",
     "statInvoice": "Faktur",
-    "statCustomer": "Customer",
-    "statUniqueTooltip": "Dihitung unik per kategori — customer/faktur yang beli lebih dari satu produk di sini tetap dihitung sekali, jadi bisa lebih kecil daripada kalau dijumlah manual dari tabel di bawah.",
+    "statCustomer": "Pelanggan",
+    "statUniqueTooltip": "Dihitung unik per kategori — pelanggan/faktur yang beli lebih dari satu produk di sini tetap dihitung sekali, jadi bisa lebih kecil daripada kalau dijumlah manual dari tabel di bawah.",
     "statLastSold": "Terakhir Jual",
     "listTitle": "Daftar Produk ({{count}})",
     "colProductName": "Nama Produk",
@@ -36,7 +36,7 @@
     "colGp": "GP",
     "colMargin": "Margin",
     "colInvoice": "Faktur",
-    "colCustomer": "Customer",
+    "colCustomer": "Pelanggan",
     "colCategory": "Kategori"
   }
 }

@@ -73,43 +73,50 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 2: CUSTOMER WORKBENCH
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    key: 'customer',
-    path: '/customers',
-    labelKey: 'nav.customers',
-    icon: <PeopleIcon fontSize="small" />,
-    permissionKey: 'customer:menu',
-    groupLabelKey: 'nav.groups.customerWorkbench',
-  },
-  // Restrukturisasi 2026-08-07 atas masukan user: "M1-M10 yang
-  // terpencar-pencar menyulitkan pemahaman" — lihat [[task021]] §0/§0a untuk
-  // riwayat sebelum ini. Analisis Revenue/Retention digabung ke sini (bukan
-  // grup sendiri lagi) supaya kedua "sudut pandang" 1 metrik (tren vs
-  // rincian per-customer) selalu ada di 1 grup yang sama.
+  // Rework kategori (task025 §6a → §15, 2026-08-07) — user: "klasifikasikan
+  // menu sesuai dokumen ux-menu-mapping.md". §6a menunda rework ini sampai
+  // "cukup banyak KPI individual selesai dibangun"; sekarang semua 10 KPI
+  // sudah punya halaman sendiri (§7a/§12/§14), jadi dieksekusi sekarang.
   //
-  // Susunan di dalam grup ini (audit UX lanjutan, task023 §3): dipecah jadi
-  // 2 tier via `tierLabelKey` — Ringkasan/Tren (grafik agregat, klik →
-  // dialog breakdown) lalu Detail per Customer (tabel penuh, sortir/filter/
-  // export). Klasifikasi diverifikasi baca kode tiap halaman, BUKAN ditebak
-  // dari nama menu — lihat tabel di task023.md §3a. Cross Selling sengaja
-  // TIDAK ditag tier apa pun (halamannya hybrid: grafik + 2 tabel sekaligus,
-  // memaksakan ke salah satu tier malah menyesatkan).
-  // CustomerMetrics (bundel M3-M7, 1 menu item) dipecah jadi 5 halaman
-  // (task025 §12, 2026-08-07) — permission masing-masing spesifik per-KPI
-  // (rename dari expansion:*/analisis:*/analisis.retention:*, rationale
-  // lengkap di task025.md §12 + backend/src/db/seed.ts
-  // migrateRenamedPermissions()). BUKAN rework kategori menu (§6a) — cuma
-  // memecah 3 item lama (expansion/analisis-revenue/analisis-retention)
-  // jadi 5 di posisi/urutan yang sama.
+  // Grup lama "Customer Workbench" mengelompokkan 10 halaman KPI + menu
+  // "Customer" (list mentah) jadi satu — PER JENIS KONTEN (semua "berbau
+  // customer"). ux-menu-mapping.md §0/§2 eksplisit: kelompokkan per DOMAIN
+  // BISNIS (4 kategori + 1 afiliasi), bukan jenis konten. 10 KPI di bawah
+  // ini sekarang dipecah jadi 4 grup sesuai §2 dokumen (Afiliasi
+  // Antarperusahaan BELUM ditambahkan — fiturnya sendiri belum dibangun,
+  // §9 poin 10). Permission TIDAK berubah sama sekali, cuma pindah grup +
+  // urutan ikut §2 (1→10, bukan urutan lama).
+  //
+  // Grup "Customer Workbench" TETAP ada (bukan dihapus) tapi isinya
+  // menyempit jadi cuma "Customer" (list mentah) — beda scope dari 10 KPI
+  // makro ini (CLAUDE.md: "mikro, siapa yang beli" vs "makro, 10 KPI").
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── RAGAM PEMBELIAN (KPI1-2) ──
+  {
+    key: 'cross-selling',
+    path: '/cross-selling',
+    labelKey: 'nav.crossSellMatrix',
+    icon: <SwapHorizIcon fontSize="small" />,
+    permissionKey: 'cross.selling:menu',
+    groupLabelKey: 'nav.groups.purchaseVariety',
+  },
+  {
+    key: 'avg-category-per-customer',
+    path: '/avg-category-per-customer',
+    labelKey: 'nav.avgCategoryPerCustomer',
+    icon: <LayersIcon fontSize="small" />,
+    permissionKey: 'cross.selling:menu',
+  },
+
+  // ── NILAI PELANGGAN LOYAL (KPI3-4) ──
   {
     key: 'customer-revenue',
     path: '/customer-revenue',
     labelKey: 'nav.customerRevenue',
     icon: <AssessmentIcon fontSize="small" />,
     permissionKey: 'customer.revenue:menu',
-    tierLabelKey: 'nav.tiers.overview',
+    groupLabelKey: 'nav.groups.loyalCustomerValue',
   },
   {
     key: 'customer-gross-profit',
@@ -118,12 +125,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <PaidIcon fontSize="small" />,
     permissionKey: 'customer.gross.profit:menu',
   },
+
+  // ── PERTUMBUHAN PEMBELIAN (KPI5-7) ──
   {
     key: 'high-margin-penetration',
     path: '/high-margin-penetration',
     labelKey: 'nav.highMarginPenetration',
     icon: <PieChartIcon fontSize="small" />,
     permissionKey: 'high.margin.penetration:menu',
+    groupLabelKey: 'nav.groups.purchaseGrowth',
   },
   {
     key: 'repeat-order',
@@ -139,17 +149,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <TrendingUpIcon fontSize="small" />,
     permissionKey: 'customer.expansion:menu',
   },
-  // DormantCustomer (bundel M8+M9+M10, 1 menu item) dipecah jadi 3 halaman
-  // (task025 §7a, 2026-08-07) — permission TETAP 1 (`churn.risk:menu`,
-  // reuse), backend juga masih 1 endpoint gabungan; rationale lengkap di
-  // task025.md §7a. Ini BUKAN rework kategori menu (§6a, masih fase
-  // terpisah) — cuma memecah 1 item jadi 3 di posisi/urutan yang sama.
+
+  // ── PELANGGAN TIDAK AKTIF (KPI8-10) ──
   {
     key: 'dormant-rate',
     path: '/dormant-rate',
     labelKey: 'nav.dormantRate',
     icon: <PersonOffIcon fontSize="small" />,
     permissionKey: 'churn.risk:menu',
+    groupLabelKey: 'nav.groups.inactiveCustomers',
   },
   {
     key: 'dormant-value',
@@ -165,25 +173,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <AutorenewIcon fontSize="small" />,
     permissionKey: 'churn.risk:menu',
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP 2: CUSTOMER WORKBENCH — mikro "siapa yang beli", beda scope dari
+  // 10 KPI makro di atas (CLAUDE.md). Isinya menyempit jadi cuma "Customer"
+  // (list mentah) setelah 10 KPI dipindah ke 4 grup domain bisnis di atas.
+  // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'cross-selling',
-    path: '/cross-selling',
-    labelKey: 'nav.crossSellMatrix',
-    icon: <SwapHorizIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
-  },
-  // CrossSelling (bundel KPI1+KPI2, 1 menu item) dipecah jadi 2 halaman
-  // (task025 §14, 2026-08-07) — permission TETAP 1 (`cross.selling:menu`,
-  // reuse), backend juga masih 1 endpoint gabungan. Menggantikan
-  // `product-trend` (Group 3 Product & Portfolio, dihapus — redundan,
-  // lihat task025.md §14); KPI2 tetap di grup yang sama dgn KPI1 (Group 2
-  // Customer Workbench), bukan dipindah ke Product & Portfolio.
-  {
-    key: 'avg-category-per-customer',
-    path: '/avg-category-per-customer',
-    labelKey: 'nav.avgCategoryPerCustomer',
-    icon: <LayersIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
+    key: 'customer',
+    path: '/customers',
+    labelKey: 'nav.customers',
+    icon: <PeopleIcon fontSize="small" />,
+    permissionKey: 'customer:menu',
+    groupLabelKey: 'nav.groups.customerWorkbench',
   },
 
   // ─────────────────────────────────────────────────────────────────────────

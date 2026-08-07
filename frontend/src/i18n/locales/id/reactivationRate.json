@@ -10,11 +10,11 @@
   "targetMinLabel": "Target Min {{targetLow}}%",
   "tableSectionLabel": "Daftar Pelanggan yang Kembali Aktif",
   "colCompany": "Perusahaan",
-  "colCustomer": "Customer",
+  "colCustomer": "Pelanggan",
   "colPreviousLastInvoice": "Sebelum Dormant",
   "colReactivationDate": "Tanggal Aktivasi Kembali",
   "colMonthsWasDormant": "Lama Dormant (Bulan)",
-  "searchPlaceholder": "Cari customer...",
+  "searchPlaceholder": "Cari pelanggan...",
   "customerCountText": "{{count}} pelanggan",
-  "emptyTable": "Tidak ada customer yang reaktivasi pada scope/periode ini"
+  "emptyTable": "Tidak ada pelanggan yang reaktivasi pada scope/periode ini"
 }
