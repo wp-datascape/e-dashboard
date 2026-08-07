@@ -1157,3 +1157,41 @@ dicatat supaya tidak terulang):
   Bulanan=60.3% vs Kuartalan=59.1% (beda). 0 console error di semua kasus.
 - `tsc --noEmit` + `eslint src` bersih (0 error).
 
+## 19. Dormant Value (KPI9) ternyata BISA diperbaiki — koreksi §18 (2026-08-07)
+
+User, setelah §18 di-deploy: "bukankah average dormant value? sama dengan
+penentuan pengambilan data dormant customer?" — mengoreksi klaim §18 yang
+bilang KPI9 "butuh keputusan arsitektur terpisah". SALAH — ditemukan
+`fetchDormantValueTrend()` di `backend/src/features/dashboard/
+dashboard.repository.ts` SUDAH ADA sejak awal (dipakai Dashboard summary
+card `dormant_value`), menghitung PERSIS metrik yang sama dgn cara yang
+dibutuhkan: tren 12-bulan estimasi total nilai hilang dari **SELURUH**
+customer dormant (bukan cuma top-20 spt `value_ranking`), formula &
+`dormantMonths` threshold SAMA PERSIS dgn `fetchDormantValueRanking`. Saya
+lewatkan fungsi ini di §18 karena cuma grep di `metrics.repository.ts`,
+tidak cek modul `dashboard/` juga.
+
+- Backend: `getDormantCustomerMetrics` (metrics.service.ts) — tambah
+  `fetchDormantValueTrend(segParams)` ke `Promise.all` yang sudah ada,
+  field baru `value_trend: DormantValueTrendPoint[]` di response
+  `DormantMetricsData`. Reuse fungsi yang SUDAH ADA — bukan query baru,
+  bukan ubah parameter kalkulasi apa pun (threshold dormant TETAP dari
+  `segParams` yang sama).
+- Frontend: `types/metrics.ts` — `DormantData.value_trend` ditambahkan.
+  `DormantValue/index.tsx` direstruktur SAMA PERSIS pola DormantRate/
+  ReactivationRate (§18): fetch kedua (`comparisonDate`) supaya ada
+  `value_trend` sendiri yang berakhir di tanggal pembanding,
+  `averageLastMonths(value_trend, periodMonths, p => p.value)` gantikan
+  `value_ranking_total_current`/`_comparison` (yang cuma snapshot top-20 1
+  titik waktu). Chart bar top-20 ranking TIDAK berubah (tetap snapshot,
+  sesuai adaptasi §7) — HANYA banner `KpiSummaryStrip` yang sekarang
+  merespons dropdown Periode.
+- Diverifikasi END-TO-END data real (30 April 2026): Bulanan Rp19.0M vs
+  pembanding Rp544.4jt (+18.5M) — Kuartalan Rp16.8M vs pembanding Rp0
+  ("Pelanggan Baru", beda krn window rata-rata beda). 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error) frontend & backend.
+- **Semua 9 dari 10 halaman KPI snapshot sekarang konsisten** pakai
+  `averageLastMonths` (KPI1,2,4,5,6[gauge M6],7,8,9,10). Hanya
+  Revenue/KPI3 yang beda pola (genuinely periodType-aware di backend
+  `/analisis`, sudah benar sejak awal).
+

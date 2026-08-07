@@ -16,10 +16,10 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { DormantValueRankingRow } from '@/types/metrics';
 
@@ -67,9 +67,27 @@ export default function DormantValue() {
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
+  // Fetch kedua di tanggal pembanding (setahun lalu) — sama pola dgn
+  // DormantRate/ReactivationRate (task025 §18/§19): butuh `value_trend`
+  // SENDIRI yang berakhir di comparisonDate, supaya averageLastMonths bisa
+  // dihitung independen utk sisi pembanding juga.
+  const comparisonDate = shiftDateByYears(endDate, -1);
+  const { data: comparisonData } = useDormantCustomer({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: comparisonDate,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  });
 
-  const totalCurrent = data?.value_ranking_total_current ?? 0;
-  const totalComparison = data?.value_ranking_total_comparison ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType) dari `value_trend` (SELURUH
+  // customer dormant, bukan cuma top-20 seperti `value_ranking_total_*`
+  // lama) — supaya dropdown Periode benar-benar mengubah angka, konsisten
+  // dgn KPI8/KPI10 (task025 §19). Parameter kalkulasi TIDAK berubah —
+  // formula/threshold dormant sama persis dgn sebelumnya.
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const totalCurrent = averageLastMonths(data?.value_trend ?? [], periodMonths, (p) => p.value);
+  const totalComparison = averageLastMonths(comparisonData?.value_trend ?? [], periodMonths, (p) => p.value);
   const growthPct = data ? computeChangePct(totalCurrent, totalComparison) : null;
   const lostValueLabel = t('dormantValue.m9SeriesLabel');
 

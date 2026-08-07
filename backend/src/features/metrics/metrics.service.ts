@@ -2,6 +2,11 @@ import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, resolveDormantCategory, resolveDormantMonths } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
 import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchReactivatedCustomers, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+// Reuse fetchDormantValueTrend (task025 §19, 2026-08-07) — sebelumnya cuma
+// dipakai Dashboard summary card, sekarang dipakai juga halaman KPI9
+// (Nilai Hilang) supaya bisa averageLastMonths sama seperti KPI8/KPI10.
+// Formula/threshold PERSIS sama, cuma dipanggil dari 1 tempat lagi.
+import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repository'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -266,12 +271,13 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     ])
     const comparisonSegParams = { ...segParams, filterDate: comparisonFilterDate }
 
-    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, reactivatedCustomers] = await Promise.all([
+    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, reactivatedCustomers, valueTrend] = await Promise.all([
       fetchDormantTrend(segParams),
       fetchDormantValueRanking(segParams),
       fetchDormantTrend(comparisonSegParams),
       fetchDormantValueRanking(comparisonSegParams),
       fetchReactivatedCustomers(segParams),
+      fetchDormantValueTrend(segParams),
     ])
 
     const last = trend.at(-1)
@@ -297,6 +303,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       value_ranking_total_current:    sumLostValue(valueRanking),
       value_ranking_total_comparison: sumLostValue(comparisonValueRanking),
       reactivated_customers: reactivatedCustomers,
+      value_trend: valueTrend,
     }
   } catch (err) {
     if (err instanceof AppError) throw err

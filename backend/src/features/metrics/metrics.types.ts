@@ -169,9 +169,22 @@ export interface ReactivatedCustomerRow {
   months_was_dormant: number
 }
 
+export interface DormantValueTrendPoint {
+  month: string
+  value: number
+}
+
 export interface DormantMetricsData {
   trend: DormantTrendRow[]
   value_ranking: DormantValueRow[]
+  // Tren 12-bulan estimasi total nilai hilang dari SELURUH customer dormant
+  // (bukan cuma top-20 seperti value_ranking) — task025 §18/§19, 2026-08-07.
+  // Reuse fetchDormantValueTrend (sebelumnya cuma dipakai Dashboard) supaya
+  // KPI9 bisa pakai averageLastMonths yang sama dgn KPI8/KPI10, BUKAN
+  // perhitungan baru — formula & threshold dormant PERSIS sama dgn
+  // value_ranking (avg_monthly_revenue × months_dormant, dormantMonths dari
+  // business_configs).
+  value_trend: DormantValueTrendPoint[]
   dormant_rate_current: {
     value: number
     dormant_count: number
