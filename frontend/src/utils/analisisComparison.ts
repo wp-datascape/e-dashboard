@@ -21,6 +21,34 @@ export function computeChangePct(current: number, previous: number): number | nu
   return ((current - previous) / previous) * 100
 }
 
+/**
+ * Rata-rata field numerik dari K titik TERAKHIR trend bulanan, K = jumlah
+ * bulan periodType (`KPI_PERIOD_TYPE_MONTHS`, utils/analisisPeriod.ts) —
+ * dipakai semua halaman KPI snapshot (bukan Revenue/KPI3, yang memang
+ * genuinely agregat backend per periodType) supaya dropdown Periode
+ * (Bulanan/Kuartalan/Semester/Tahunan) BENAR-BENAR mengubah angka yang
+ * ditampilkan (task025 §18, 2026-08-07 — laporan user: "tertulis 1,4 di
+ * semua filter... seharusnya beda").
+ *
+ * PENTING — parameter kalkulasi TIDAK berubah: tiap titik trend tetap
+ * dihitung backend dari `business_configs` + tanggal bulan itu, PERSIS
+ * seperti sebelumnya (user eksplisit: "parameter tetap business config dan
+ * end date"). Ini murni agregasi TAMPILAN — jumlah K nilai bulanan dibagi
+ * K (rata-rata), bukan mengubah window/threshold yang dipakai backend
+ * menghitung tiap titik.
+ *
+ * `slice.length` (bukan `months`) dipakai sbg pembagi — kalau histori
+ * trend lebih pendek dari `months` (mis. baru 2 bulan data tapi
+ * periodType=Tahunan/12), pembagi ikut jumlah data yang benar-benar ada,
+ * supaya tidak mendeflasi rata-rata secara artifisial.
+ */
+export function averageLastMonths<T>(trend: T[], months: number, field: (point: T) => number): number {
+  const slice = trend.slice(-months)
+  if (slice.length === 0) return 0
+  const sum = slice.reduce((acc, point) => acc + field(point), 0)
+  return sum / slice.length
+}
+
 // Growth % di atas ini tampilannya di-cap ("999%+") — nilai asli (Growth
 // Value dalam Rupiah) tetap ditampilkan penuh, TIDAK dibulatkan jadi 100%.
 // Metric Comparison Standard: angka ekstrem murni akibat basis pembanding

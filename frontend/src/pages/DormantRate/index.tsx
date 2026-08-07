@@ -17,10 +17,10 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { CustomerRow } from '@/types/customers';
 
 function fmtRp(v: number): string {
@@ -73,11 +73,31 @@ export default function DormantRate() {
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
+  // Fetch kedua di tanggal pembanding (setahun lalu) — dibutuhkan supaya
+  // rata-rata K-bulan (di bawah) punya trend 12-bulan SENDIRI yang berakhir
+  // di comparisonDate, bukan cuma 1 scalar `comparison_value` (task025 §18,
+  // sama pola dgn CrossSelling/AvgCategoryPerCustomer).
+  const comparisonDate = shiftDateByYears(endDate, -1);
+  const { data: comparisonData } = useDormantCustomer({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: comparisonDate,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  });
 
   const drc = data?.dormant_rate_current;
   const alertPct = drc?.alert_pct ?? 10;
 
-  const growthPct = drc ? computeChangePct(drc.value, drc.comparison_value) : null;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  // Parameter kalkulasi TIDAK berubah — tiap titik trend tetap dihitung
+  // backend dari business_configs + tanggal bulan itu, sama seperti
+  // sebelumnya, ini murni agregasi tampilan.
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentDormantRate = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.dormant_rate);
+  const comparisonDormantRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.dormant_rate);
+  const growthPct = computeChangePct(currentDormantRate, comparisonDormantRate);
   const dormantRateLabel = t('dormantRate.dormantRateCurrentLabel');
 
   // ── Tabel — daftar pelanggan tidak aktif (KPI8). REUSE endpoint /customers
@@ -227,7 +247,7 @@ export default function DormantRate() {
       {drc && (
         <KpiSummaryStrip
           metrics={[
-            { label: dormantRateLabel, comparisonText: `${drc.comparison_value}%`, currentText: `${drc.value}%` },
+            { label: dormantRateLabel, comparisonText: `${comparisonDormantRate.toFixed(1)}%`, currentText: `${currentDormantRate.toFixed(1)}%` },
           ]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
@@ -236,8 +256,8 @@ export default function DormantRate() {
             {
               metricLabel: dormantRateLabel,
               pct: growthPct,
-              value: drc.value - drc.comparison_value,
-              currentIsZero: drc.value === 0,
+              value: currentDormantRate - comparisonDormantRate,
+              currentIsZero: currentDormantRate === 0,
               // Dormant Rate = inverse polarity (naik = buruk, lihat metricPolarity.ts)
               inversePolarity: true,
               formatValue: (v) => `${v.toFixed(1)}%`,

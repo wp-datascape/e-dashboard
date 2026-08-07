@@ -14,10 +14,10 @@ import { Card, StatusChip } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { GpBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -77,8 +77,11 @@ export default function CustomerGrossProfit() {
   });
 
   const trend = data?.trend ?? [];
-  const currentGp = trend.at(-1)?.avg_gross_profit ?? 0;
-  const comparisonGp = comparisonData?.trend.at(-1)?.avg_gross_profit ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentGp = averageLastMonths(trend, periodMonths, (p) => p.avg_gross_profit);
+  const comparisonGp = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.avg_gross_profit);
   const growthPct = computeChangePct(currentGp, comparisonGp);
   const gpLabel = t('customerMetrics.m4.chartTitle');
 

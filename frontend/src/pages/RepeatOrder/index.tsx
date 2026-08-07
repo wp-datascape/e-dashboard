@@ -17,11 +17,11 @@ import { useRetentionAnalisis } from '@/hooks/useAnalisis'
 import { useCustomerMetrics } from '@/hooks/useMetrics'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod'
 import { todayIsoDate } from '@/utils/date'
 import { TrendChip } from '@/components/analisis/ComparisonMetrics'
-import { resolveTrendKind, trendKindColor } from '@/utils/analisisComparison'
+import { resolveTrendKind, trendKindColor, averageLastMonths } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { RetentionRow, RetentionSummary } from '@/types/analisis'
 
@@ -113,6 +113,11 @@ export default function RepeatOrder() {
     exclude_intercompany: excludeIntercompany,
   })
   const ror = customerMetricsData?.repeat_order_current
+  // Rata-rata K bulan terakhir (K = periodType) utk gauge M6 — supaya
+  // dropdown Periode benar-benar mengubah angka (task025 §18). Tanpa
+  // pembanding YoY di sini (RadialBar cuma current vs target, bukan
+  // current vs comparison).
+  const ror6Value = averageLastMonths(customerMetricsData?.trend ?? [], KPI_PERIOD_TYPE_MONTHS[periodType], (p) => p.repeat_order_rate)
 
   const hasAnyAlert = (row: RetentionRow) => row.comparison.invoice_count_alert
 
@@ -282,7 +287,7 @@ export default function RepeatOrder() {
             KpiSummaryStrip (task025 §12, 2026-08-07) ── */}
         <M6RepeatOrder
           isLoading={isM6Loading}
-          value={ror?.value ?? 0}
+          value={ror6Value}
           thresholdPct={ror?.target_pct ?? 80}
           companyId={companyId}
           branchId={branchId === 'all' ? undefined : branchId}

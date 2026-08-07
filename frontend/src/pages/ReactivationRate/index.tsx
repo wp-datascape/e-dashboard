@@ -18,10 +18,10 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { ReactivatedCustomerRow } from '@/types/metrics';
 
 function fmtDate(v: string): string {
@@ -63,13 +63,30 @@ export default function ReactivationRate() {
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
+  // Fetch kedua di tanggal pembanding (setahun lalu) — sama pola dgn
+  // DormantRate/CrossSelling (task025 §18): butuh trend 12-bulan SENDIRI
+  // yang berakhir di comparisonDate, bukan cuma 1 scalar `comparison_value`.
+  const comparisonDate = shiftDateByYears(endDate, -1);
+  const { data: comparisonData } = useDormantCustomer({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: comparisonDate,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  });
 
   const rc = data?.reactivation_current;
   const targetLow = rc?.target_low ?? 15;
   const targetHigh = rc?.target_high ?? 20;
   const bulletMax = Math.max(targetHigh * 2, 30);
 
-  const growthPct = rc ? computeChangePct(rc.value, rc.comparison_value) : null;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  // Parameter kalkulasi TIDAK berubah (business_configs + end_date tetap).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentReactivationRate = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.reactivation_rate);
+  const comparisonReactivationRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.reactivation_rate);
+  const growthPct = computeChangePct(currentReactivationRate, comparisonReactivationRate);
   const reactivationLabel = t('reactivationRate.m10ChartTitle');
 
   // ── Tabel — daftar pelanggan yang kembali aktif (KPI10). Snapshot top-20
@@ -169,7 +186,7 @@ export default function ReactivationRate() {
               <BulletChartWidget
                 title={t('reactivationRate.m10ChartTitle')}
                 subtitle={t('reactivationRate.m10ChartSubtitle', { targetLow, targetHigh })}
-                value={rc?.value ?? 0}
+                value={currentReactivationRate}
                 targetLow={targetLow}
                 targetHigh={targetHigh}
                 max={bulletMax}
@@ -201,7 +218,7 @@ export default function ReactivationRate() {
       {rc && (
         <KpiSummaryStrip
           metrics={[
-            { label: reactivationLabel, comparisonText: `${rc.comparison_value}%`, currentText: `${rc.value}%` },
+            { label: reactivationLabel, comparisonText: `${comparisonReactivationRate.toFixed(1)}%`, currentText: `${currentReactivationRate.toFixed(1)}%` },
           ]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
@@ -210,8 +227,8 @@ export default function ReactivationRate() {
             {
               metricLabel: reactivationLabel,
               pct: growthPct,
-              value: rc.value - rc.comparison_value,
-              currentIsZero: rc.value === 0,
+              value: currentReactivationRate - comparisonReactivationRate,
+              currentIsZero: currentReactivationRate === 0,
               // Reactivation Rate = polaritas normal (naik = baik)
               formatValue: (v) => `${v.toFixed(1)}%`,
             },

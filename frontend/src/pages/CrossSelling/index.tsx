@@ -21,10 +21,10 @@ import { formatIDR } from '@/utils/format';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /** Terjemahkan key item_type mentah ('unit'/'sparepart'/'consumable') ke label chip */
@@ -107,8 +107,11 @@ export default function CrossSelling() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  const currentRatio = data?.trend.at(-1)?.ratio ?? 0;
-  const comparisonRatio = comparisonData?.trend.at(-1)?.ratio ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentRatio = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.ratio);
+  const comparisonRatio = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.ratio);
   const growthPct = computeChangePct(currentRatio, comparisonRatio);
   const rateLabel = t('crossSelling.kpi1Label');
 
@@ -194,7 +197,7 @@ export default function CrossSelling() {
       {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: rateLabel, comparisonText: `${comparisonRatio}%`, currentText: `${currentRatio}%` }]}
+          metrics={[{ label: rateLabel, comparisonText: `${comparisonRatio.toFixed(1)}%`, currentText: `${currentRatio.toFixed(1)}%` }]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}

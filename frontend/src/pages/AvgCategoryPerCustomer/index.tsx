@@ -17,10 +17,10 @@ import { useCrossSelling } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtRp(v: number): string {
@@ -94,8 +94,11 @@ export default function AvgCategoryPerCustomer() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  const currentAvg = data?.trend.at(-1)?.avg_category ?? 0;
-  const comparisonAvg = comparisonData?.trend.at(-1)?.avg_category ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentAvg = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.avg_category);
+  const comparisonAvg = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.avg_category);
   const growthPct = computeChangePct(currentAvg, comparisonAvg);
   const avgLabel = t('crossSelling.kpi2Label');
 
@@ -191,7 +194,7 @@ export default function AvgCategoryPerCustomer() {
           <AreaChartWidget
             title={t('crossSelling.m2ChartTitle')}
             subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}`}
-            value={`${currentAvg}`}
+            value={currentAvg.toFixed(2)}
             data={data?.trend ?? []}
             series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
             xKey="month"
@@ -203,7 +206,7 @@ export default function AvgCategoryPerCustomer() {
       {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: avgLabel, comparisonText: `${comparisonAvg}`, currentText: `${currentAvg}` }]}
+          metrics={[{ label: avgLabel, comparisonText: comparisonAvg.toFixed(2), currentText: currentAvg.toFixed(2) }]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}
