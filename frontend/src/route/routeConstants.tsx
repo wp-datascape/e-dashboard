@@ -4,6 +4,7 @@ import {
   Dashboard,
   Customers,
   CrossSelling,
+  AvgCategoryPerCustomer,
   DormantRate,
   DormantValue,
   ReactivationRate,
@@ -14,7 +15,6 @@ import {
   CustomerExpansion,
   Products,
   ProductsHighMargin,
-  ProductsTrend,
   Transactions,
   Projects,
   Import,
@@ -59,6 +59,10 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'cross-selling':        { path: '/cross-selling',          element: withLayout(<CrossSelling />),          protected: true, permissionKey: 'cross.selling:view' },
+  // CrossSelling (bundel KPI1+KPI2) dipecah task025 §14 — permission TETAP
+  // 1 (`cross.selling:*`, reuse), backend juga masih 1 endpoint gabungan;
+  // menggantikan `products-trend` (dihapus, redundan).
+  'avg-category-per-customer': { path: '/avg-category-per-customer', element: withLayout(<AvgCategoryPerCustomer />), protected: true, permissionKey: 'cross.selling:view' },
   // DormantCustomer (bundel M8+M9+M10) dipecah task025 §7a — permission TETAP
   // 1 (`churn.risk:*`, reuse), backend juga masih 1 endpoint gabungan; lihat
   // rationale lengkap di task025.md §7a.
@@ -76,7 +80,6 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Product & Portfolio ──────────────────────────────────────────────────
   'products':             { path: '/products',               element: withLayout(<Products />),              protected: true, permissionKey: 'product:view' },
   'products-high-margin': { path: '/products/high-margin',   element: withLayout(<ProductsHighMargin />),    protected: true, permissionKey: 'high.margin:view' },
-  'products-trend':       { path: '/products/trend',         element: withLayout(<ProductsTrend />),         protected: true, permissionKey: 'product.trend:view' },
   // ── Transaction & Revenue ────────────────────────────────────────────────
   'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },

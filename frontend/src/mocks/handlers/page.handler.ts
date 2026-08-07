@@ -47,7 +47,7 @@ export const pageHandlers = [
       { page_key: 'cross-selling', ready: true },
       { page_key: 'products', ready: true },
       { page_key: 'products-high-margin', ready: true },
-      { page_key: 'products-trend', ready: true },
+      { page_key: 'avg-category-per-customer', ready: true },
       { page_key: 'transactions', ready: true },
        { page_key: 'projects', ready: false },
        { page_key: 'import', ready: true },

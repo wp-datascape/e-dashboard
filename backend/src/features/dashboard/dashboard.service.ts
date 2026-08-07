@@ -74,38 +74,46 @@ export async function getDashboard(
         cross.trend.map((r) => ({ month: r.month, value: r.ratio })),
       ),
       buildCard(
+        // Link per-KPI (task025 §14, 2026-08-07) — CrossSelling bundle KPI1+KPI2
+        // dipecah jadi 2 halaman, card KPI2 sekarang mengarah ke halaman
+        // spesifik-nya (sebelumnya sama-sama ke '/cross-selling').
         'avg_category', 'Rata-rata Kategori Produk',
-        'Rata-rata kategori unik per customer aktif', '/cross-selling',
+        'Rata-rata kategori unik per customer aktif', '/avg-category-per-customer',
         'number', '#8B5CF6',
         cross.trend.map((r) => ({ month: r.month, value: r.avg_category })),
       ),
+      // Link per-KPI (task025 §12, 2026-08-07) — CustomerMetrics bundle M3-M7
+      // dipecah jadi 5 halaman; sebelumnya ke-5 card ini SEMUA mengarah ke
+      // '/customer-metrics' (route lama, masih redirect statis ke
+      // /customer-revenue di App.tsx tapi bukan halaman spesifik KPI-nya) —
+      // ditemukan sbg bug terkait saat memperbaiki link avg_category di atas.
       buildCard(
         'avg_revenue', 'Rata-rata Revenue',
-        'Revenue per existing customer di periode ini', '/customer-metrics',
+        'Revenue per existing customer di periode ini', '/customer-revenue',
         'currency', '#10B981',
         customer.trend.map((r) => ({ month: r.month, value: r.avg_revenue })),
       ),
       buildCard(
         'avg_gross_profit', 'Rata-rata Gross Profit',
-        'Gross profit per existing customer', '/customer-metrics',
+        'Gross profit per existing customer', '/customer-gross-profit',
         'currency', '#06B6D4',
         customer.trend.map((r) => ({ month: r.month, value: r.avg_gross_profit })),
       ),
       buildCard(
         'high_margin_penetration', 'High Margin Penetration',
-        'Existing customer beli produk high margin', '/customer-metrics',
+        'Existing customer beli produk high margin', '/high-margin-penetration',
         'percent', '#F59E0B',
         customer.trend.map((r) => ({ month: r.month, value: r.high_margin_ratio })),
       ),
       buildCard(
         'repeat_order_rate', 'Repeat Order Rate',
-        'Existing customer yang bertransaksi ulang', '/customer-metrics',
+        'Existing customer yang bertransaksi ulang', '/repeat-order',
         'percent', '#3B82F6',
         customer.trend.map((r) => ({ month: r.month, value: r.repeat_order_rate })),
       ),
       buildCard(
         'expansion_rate', 'Customer Expansion Rate',
-        'Customer dengan spending naik vs bulan lalu', '/customer-metrics',
+        'Customer dengan spending naik vs bulan lalu', '/customer-expansion',
         'percent', '#10B981',
         customer.trend.map((r) => ({ month: r.month, value: r.expansion_rate })),
       ),

@@ -10,6 +10,11 @@ export const UnderMaintenance = lazy(() => import('../pages/UnderMaintenance/ind
 export const Dashboard = lazy(() => import('../pages/Dashboard/index'))
 export const Customers = lazy(() => import('../pages/Customers/index'))
 export const CrossSelling = lazy(() => import('../pages/CrossSelling/index'))
+// CrossSelling (bundel KPI1+KPI2, 1 route) dipecah task025 §14 — KPI2 (M2,
+// rata-rata kategori per customer) pindah ke halaman sendiri, menggantikan
+// `ProductsTrend` (`/products/trend`) yang REDUNDAN (endpoint lamanya cuma
+// agregat tanpa detail per customer).
+export const AvgCategoryPerCustomer = lazy(() => import('../pages/AvgCategoryPerCustomer/index'))
 // DormantCustomer (bundel M8+M9+M10, 1 route) dipecah jadi 3 halaman task025
 // §7a, mengikuti ux-menu-mapping.md v8 "1 route = 1 KPI" — TIDAK ADA lagi
 // pola multi-section/sub-nav.
@@ -26,7 +31,6 @@ export const RepeatOrder = lazy(() => import('../pages/RepeatOrder/index'))
 export const CustomerExpansion = lazy(() => import('../pages/CustomerExpansion/index'))
 export const Products = lazy(() => import('../pages/Products/index'))
 export const ProductsHighMargin = lazy(() => import('../pages/ProductsHighMargin/index'))
-export const ProductsTrend = lazy(() => import('../pages/ProductsTrend/index'))
 export const Transactions = lazy(() => import('../pages/Transactions/index'))
 export const Projects = lazy(() => import('../pages/Projects/index'))
 export const Import = lazy(() => import('../pages/Import/index'))

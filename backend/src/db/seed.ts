@@ -368,9 +368,13 @@ const defaultPageSettings = [
   { page_key: 'dormant-value', ready: true },
   { page_key: 'reactivation-rate', ready: true },
   { page_key: 'cross-selling', ready: true },
+  // 'products-trend' (`/products/trend`, ProductsTrend) DIHAPUS — redundan,
+  // digantikan `avg-category-per-customer` hasil pembelahan cross-selling
+  // (task025 §14, 2026-08-07). Baris lama DIBIARKAN di DB (harmless, sudah
+  // tidak dipakai route manapun, redirect statis di App.tsx).
+  { page_key: 'avg-category-per-customer', ready: true },
   { page_key: 'products', ready: true },
   { page_key: 'products-high-margin', ready: true },
-  { page_key: 'products-trend', ready: true },
   { page_key: 'transactions', ready: true },
   { page_key: 'projects', ready: false },
   { page_key: 'import', ready: true },
@@ -526,6 +530,15 @@ const PERMISSION_RENAME_MAP: Record<string, string[]> = {
   'analisis:view':    ['customer.revenue:view'],
   'analisis.retention:menu': ['repeat.order:menu'],
   'analisis.retention:view': ['repeat.order:view'],
+  // CrossSelling dipecah jadi 2 halaman (task025 §14, 2026-08-07) — KPI2
+  // (`/avg-category-per-customer`) reuse `cross.selling:*` (endpoint backend
+  // TETAP 1), MENGGANTIKAN `product.trend:*` punya `ProductsTrend` yang
+  // dihapus. Role custom yang sebelumnya cuma di-grant `product.trend:*`
+  // (tanpa `cross.selling:*`) di-backfill di sini supaya tidak kehilangan
+  // akses ke KPI2.
+  'product.trend:menu':   ['cross.selling:menu'],
+  'product.trend:view':   ['cross.selling:view'],
+  'product.trend:export': ['cross.selling:export'],
 }
 
 async function migrateRenamedPermissions() {

@@ -131,6 +131,13 @@ function AppRouter() {
         <Route path="/analisis/revenue" element={<Navigate to="/customer-revenue" replace />} />
         <Route path="/analisis/retention" element={<Navigate to="/repeat-order" replace />} />
 
+        {/* Legacy Redirect — CrossSelling (bundel KPI1+KPI2) dipecah jadi 2
+            halaman (task025 §14, 2026-08-07). /products/trend (`ProductsTrend`,
+            redundan — endpoint lamanya cuma agregat tanpa detail per customer)
+            DIHAPUS, redirect ke pengganti KPI2 supaya bookmark/deep-link lama
+            tidak putus jadi 404. */}
+        <Route path="/products/trend" element={<Navigate to="/avg-category-per-customer" replace />} />
+
         {/* Dynamic Generated Routes Mapping Berdasarkan Kontrol DB */}
         {pageSettings?.map(({ page_key, ready }) => {
           const registry = routeRegistry[page_key]
