@@ -1044,3 +1044,35 @@ Dead code `useCrossSellingDetail` (hook tak terpakai sejak §13) dihapus.
   (`JSON.parse` check).
 - `tsc --noEmit` + `eslint src` bersih (0 error) frontend.
 
+## 17. FilterBarShell — Dashboard ikut disatukan (2026-08-07)
+
+User (pesan berikutnya, setelah §16 di-PR): "dashboard utama masih memakai
+filter lama". Benar — baris 1 KpiFilterBar & bekas-DateScopeFilterBar
+SUDAH identik (copy-paste), tapi Dashboard punya versi ke-3 yang beda
+chrome-nya sama sekali: `<Box>` polos (bukan `Card`+2-baris), `ScopeFilterFields`
+TANPA lebar tetap (stretch), TANPA tombol Reset.
+
+- **`components/filters/FilterBarShell.tsx`** (baru) — memusatkan baris 1
+  ("SIAPA": Perusahaan/Cabang/Divisi lebar tetap 240/160/200 + toggle
+  intercompany + Reset, dibungkus `Card`+`Divider`) yang SEBELUMNYA
+  di-copy-paste identik antara `KpiFilterBar` dan bekas-`DateScopeFilterBar`.
+  Baris 2 ("KAPAN") SENGAJA tidak dipusatkan — kontrolnya genuinely beda
+  per halaman (periodType+tanggal / tanggal tunggal / bulan), caller kirim
+  lewat `children` (pemisahan SIAPA/KAPAN ini sudah ada di ux-menu-mapping.md
+  §1 sejak awal, cuma implementasinya belum benar-benar disatukan).
+- `KpiFilterBar` direfactor pakai `FilterBarShell` — behavior/tampilan
+  TIDAK berubah, cuma baris 1 sekarang 1 sumber.
+- **`DateScopeFilterBar` DIHAPUS TOTAL** — sejak §16 (CrossSelling/
+  AvgCategoryPerCustomer pindah ke `KpiFilterBar`), komponen ini sudah
+  tidak dipakai halaman manapun (0 import, cuma nyisa di komentar).
+- **Dashboard** (`/dashboard`) sekarang pakai `FilterBarShell` juga — baris
+  2 isinya `MonthYearPicker` (Ringkasan genuinely multi-KPI bulanan, bukan
+  1 metrik dgn pembanding YoY, jadi TIDAK pakai periodType+YoY seperti
+  KpiFilterBar). Reset sekarang benar-benar reset scope+periode (sebelumnya
+  Dashboard malah tidak punya tombol Reset sama sekali).
+- Diverifikasi visual (Playwright, locale id-ID): Dashboard, Revenue,
+  Cross Selling, Rata-rata Kategori, Dormant Rate — chrome filter bar
+  (lebar field, posisi Reset, Card+Divider) identik piksel-demi-piksel di
+  semua halaman. 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+
