@@ -924,3 +924,123 @@ Dua keputusan sekaligus:
   kunci M2 (`m2*`) TIDAK dihapus — masih hidup, dipindah pemakaiannya ke
   halaman baru (bukan didup­likasi ke namespace baru, biar 1 sumber string).
 
+## 15. Rework kategori menu.tsx (§6a, dieksekusi sekarang) — 2026-08-07
+
+User: "sekarang klasifikasikan menu sesuai dokumen ux-menu-mapping.md" — §6a
+di atas menunda rework ini sampai "cukup banyak KPI individual selesai
+dibangun". Sekarang seluruh 10 KPI + intercompany-nya sudah punya halaman
+sendiri (KPI1-10 semua split, task025 §7a/§12/§14), jadi syarat §6a
+terpenuhi.
+
+**Masalah**: `menu.tsx` sekarang mengelompokkan SEMUA 10 halaman KPI + menu
+"Customer" (list mentah) jadi satu grup `nav.groups.customerWorkbench`
+("Customer Workbench") — pengelompokan PER JENIS KONTEN (semua yang
+"berbau customer"), padahal `ux-menu-mapping.md` §0/§2 eksplisit: "Per
+domain bisnis (4 kategori + 1 afiliasi), BUKAN per jenis konten".
+
+**Rencana** (mengikuti §2 tree persis, label diambil verbatim dari dokumen):
+
+| Grup baru | Isi (permission tetap, TIDAK direname) |
+|---|---|
+| Executive Dashboard (tetap) | Dashboard |
+| **Ragam Pembelian** (baru) | Cross Selling (KPI1), Rata-rata Kategori/Pelanggan (KPI2) |
+| **Nilai Pelanggan Loyal** (baru) | Customer Revenue (KPI3), Keuntungan Pelanggan (KPI4) |
+| **Pertumbuhan Pembelian** (baru) | Pembelian Produk Fokus (KPI5), Pembelian Berulang (KPI6), Peningkatan Belanja (KPI7) |
+| **Pelanggan Tidak Aktif** (baru) | Pelanggan Tidak Aktif (KPI8), Nilai Hilang (KPI9), Aktivasi Kembali (KPI10) |
+| Afiliasi Antarperusahaan | **BELUM dibuat** — `/intercompany` masih scope tertunda (§9 poin 10); grup ini TIDAK ditambahkan ke menu dulu, tidak ada halaman utk di-link. Ditambahkan nanti begitu fitur intercompany selesai. |
+| Customer Workbench (tetap, isi menyempit) | Customer (list mentah) — SATU-SATUNYA isi sekarang setelah 10 KPI dipindah keluar; tetap dipertahankan sbg grup terpisah krn ini "mikro: siapa yang beli" (CLAUDE.md), beda scope dari 10 KPI makro |
+| Produk & Portofolio, Transaksi & Revenue, Administrasi | tidak berubah |
+
+- **Permission TIDAK berubah sama sekali** — ini murni pengelompokan visual
+  (`groupLabelKey` per item), bukan rename/pindah permission. Setiap item
+  KPI cuma pindah grup, path/permissionKey persis sama dgn sebelumnya.
+- **Urutan dalam grup** ikut urutan KPI di §2 dokumen (1→10), BUKAN urutan
+  lama (yang sebelumnya taruh Dormant sebelum Cross Selling).
+- **`tierLabelKey: 'nav.tiers.overview'`** (nempel di `customer-revenue`)
+  DIHAPUS — sisa dari skema 2-tier "Ringkasan/Tren vs Detail per Customer"
+  task023 §3a yang cuma relevan SELAMA M3-M7 masih 1 halaman gabungan
+  (`/customer-metrics`). Sekarang tiap KPI sudah 1 halaman sendiri isi
+  chart+tabel sekaligus, jadi pembedaan tier itu tidak berlaku lagi — kalau
+  dibiarkan cuma nongol sbg caption aneh di atas 1 item doang. Key i18n
+  `nav.tiers.*` (sudah tidak dipakai di mana pun lagi setelah ini) ikut
+  dihapus.
+- `Config/Features/index.tsx` (`GROUP_KEY_MAP`, `GROUP_KEY_ORDER`,
+  `ITEM_ORDER`) ikut diupdate supaya toggle fitur di halaman admin
+  konsisten dgn pengelompokan sidebar yang baru — halaman itu render grup
+  berdasarkan map yang sama, kalau tidak disinkronkan tampilannya beda dgn
+  sidebar sungguhan.
+- i18n: 4 key grup baru (`nav.groups.purchaseVariety/loyalCustomerValue/
+  purchaseGrowth/inactiveCustomers`) ditambahkan id/en; `nav.groups.
+  customerWorkbench` label TETAP dipakai (bukan dihapus) krn masih
+  menaungi menu Customer list.
+
+## 16. Susulan §14 — parity penuh KpiFilterBar + audit i18n (2026-08-07)
+
+User, 3 pesan berturut-turut setelah §15 selesai:
+1. "filter beberapa halaman masih pakai filter template lama, bukankah
+   seharusnya komponen filter sudah 1 kesatuan atomic komponen..."
+2. "lalu juga card diatas tabel informasi summary belum kamu pasang"
+3. "bukankah sudah jelas aku bilang template standar baru adalah seperti
+   halaman revenue\nlalu penamaan menu dan i18n belum konsisten masih
+   banyak yang bahasanya campuran indonesia dan inggris\naudit menyeluruh
+   dan perbaiki semua all page all komponen"
+
+**Temuan filter**: 3 keluarga filter hidup — `KpiFilterBar` (8 halaman,
+"template resmi"), `DateScopeFilterBar` (CrossSelling+AvgCategoryPerCustomer
+saja, TANPA YoY, sengaja dicatat sbg gap di komponennya sendiri §13/§14),
+`ScopeFilterFields` inline (Dashboard/Customers/Products/Transactions/
+ProductsHighMargin — beda use-case, bukan halaman KPI single-metric, TIDAK
+disentuh — Dashboard genuinely multi-KPI monthly-only, bukan kandidat
+KpiFilterBar).
+
+**Perbaikan**: `useCrossSelling` trend SUDAH 12-bulan rolling per titik
+waktu (persis sama sifatnya dgn `useCustomerMetrics` yang dipakai trik YoY
+di §12-susulan) — jadi gap "backend belum expose YoY" yang dicatat di
+`DateScopeFilterBar.tsx`/task025 §14 ternyata BISA ditutup tanpa endpoint
+baru. CrossSelling & AvgCategoryPerCustomer diubah:
+`DateScopeFilterBar`→`KpiFilterBar`, banner `KpiSummaryStrip` YoY nyata
+(2x panggil `useCrossSelling`, endDate & `shiftDateByYears(endDate,-1)`,
+scalar dari `trend.at(-1)?.ratio`/`?.avg_category`). Sekarang SEMUA 10
+halaman KPI pola filter+banner-nya identik (Revenue = referensi).
+Dead code `useCrossSellingDetail` (hook tak terpakai sejak §13) dihapus.
+
+**Audit i18n** (temuan `nav.json` dkk campuran ID/EN tanpa pola jelas):
+- Login page SEBENARNYA sudah benar (auth.json id sudah "Masuk"/"Kata
+  Sandi" dst) — screenshot awal yang kelihatan Inggris cuma karena browser
+  test (Playwright headless) defaultnya locale `en-US`, BUKAN bug aplikasi.
+  Diverifikasi ulang dgn `context: { locale: 'id-ID' }` — benar Indonesia.
+- Bug NYATA yang ditemukan: banyak value di `id/*.json` literal berisi kata
+  Inggris ("Customer", "Division", "Setting High Margin", kalimat penuh
+  "Top Dormant Customer — Ranked by Estimated Lost Value" di
+  `dormantValue.json`). Prinsip perbaikan yang dipakai (bukan translate
+  buta semua): **kata benda umum dalam kalimat** → Indonesia penuh
+  ("customer"→"pelanggan", "Division"→"Divisi"); **nama metrik/istilah
+  formal Title Case** (mis. "Dormant Customer Rate", "Existing Customer",
+  "Customer Expansion Rate", "Executive Dashboard", "Customer Workbench")
+  DIBIARKAN — ini istilah teknis/nama-metrik resmi yang dipakai konsisten
+  di formula/dokumentasi (metrics.md) dan nama arsitektur (CLAUDE.md), body
+  desimal Bahasa Indonesia yang kaku memaksa terjemahkan justru melanggar
+  [[feedback_bahasa_natural]]. Loanword universal (Email, Login, Export,
+  Import, Dashboard, PDF, API) juga dibiarkan — sudah lazim dipakai apa
+  adanya di software bisnis Indonesia.
+- File diperbaiki: `nav.json` (id+en, + hapus 10 key orphan peninggalan
+  bundle lama: crossSelling/customerMetrics/dormantCustomer/analisis/
+  analisisRevenue/analisisRetention/expansionTargets/churnRisk/profile/
+  highMarginSettings), `crossSelling.json` (id+en, ditulis ulang bersih —
+  hapus 21 key orphan dari iterasi chart/dialog lama), `customerMetrics.json`
+  (hapus 2 key root orphan, translate ~15 kalimat), `dormantRate.json`,
+  `dormantValue.json` (translate 1 chart title yang FULL bahasa Inggris),
+  `reactivationRate.json`, `divisionManagement.json` (id+en), `divisions.json`,
+  `customerIntercompany.json`, `paretoCustomers.json`, `highMargin.json`,
+  `common.json`, `customers.json`, `notifications.json`, `products.json`,
+  `productsHighMargin.json`, `config.json`, `analisis.json`.
+- **BELUM selesai** (scope 40 file id/*.json, sisanya belum diaudit satu-
+  satu): halaman admin lain (Users/RBAC/AuditLog/dll), teks MUI DataGrid
+  bawaan ("Rows per page", "1–10 of 21" — perlu `LocalizationProvider`+
+  `localeText` MUI, bukan sekadar t() aplikasi). Dicatat sbg follow-up,
+  BUKAN diklaim selesai 100%.
+- Diverifikasi END-TO-END dgn `context: { locale: 'id-ID' }` (Playwright) —
+  7 halaman dicek visual, 0 console error, JSON semua file valid
+  (`JSON.parse` check).
+- `tsc --noEmit` + `eslint src` bersih (0 error) frontend.
+

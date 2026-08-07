@@ -1,6 +1,6 @@
 {
   "title": "Notifikasi",
-  "subtitle": "Riwayat alert customer yang revenue atau margin-nya turun melewati threshold",
+  "subtitle": "Riwayat alert pelanggan yang revenue atau margin-nya turun melewati threshold",
   "empty": "Belum ada notifikasi",
   "markAllRead": "Tandai semua dibaca",
   "viewAll": "Lihat semua notifikasi",

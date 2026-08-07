@@ -45,17 +45,22 @@ const PAGE_LABEL_KEYS: Record<string, string> = {
 
 const GROUP_KEY_MAP: Record<string, string> = {
   dashboard: 'nav.groups.executiveDashboard',
+  // Rework kategori (task025 §15, 2026-08-07) — 10 KPI dipecah dari 1 grup
+  // "Customer Workbench" (per jenis konten) jadi 4 grup domain bisnis
+  // (ux-menu-mapping.md §0/§2), sama persis dgn pengelompokan sidebar
+  // sungguhan di menu.tsx. "Customer Workbench" TETAP ada tapi isinya
+  // menyempit jadi cuma "customers" (list mentah).
+  'cross-selling': 'nav.groups.purchaseVariety',
+  'avg-category-per-customer': 'nav.groups.purchaseVariety',
+  'customer-revenue': 'nav.groups.loyalCustomerValue',
+  'customer-gross-profit': 'nav.groups.loyalCustomerValue',
+  'high-margin-penetration': 'nav.groups.purchaseGrowth',
+  'repeat-order': 'nav.groups.purchaseGrowth',
+  'customer-expansion': 'nav.groups.purchaseGrowth',
+  'dormant-rate': 'nav.groups.inactiveCustomers',
+  'dormant-value': 'nav.groups.inactiveCustomers',
+  'reactivation-rate': 'nav.groups.inactiveCustomers',
   customers: 'nav.groups.customerWorkbench',
-  'customer-revenue': 'nav.groups.customerWorkbench',
-  'customer-gross-profit': 'nav.groups.customerWorkbench',
-  'high-margin-penetration': 'nav.groups.customerWorkbench',
-  'repeat-order': 'nav.groups.customerWorkbench',
-  'customer-expansion': 'nav.groups.customerWorkbench',
-  'dormant-rate': 'nav.groups.customerWorkbench',
-  'dormant-value': 'nav.groups.customerWorkbench',
-  'reactivation-rate': 'nav.groups.customerWorkbench',
-  'cross-selling': 'nav.groups.customerWorkbench',
-  'avg-category-per-customer': 'nav.groups.customerWorkbench',
   products: 'nav.groups.productPortfolio',
   'products-high-margin': 'nav.groups.productPortfolio',
   transactions: 'nav.groups.transactionRevenue',
@@ -79,6 +84,10 @@ const GROUP_KEY_MAP: Record<string, string> = {
 
 const GROUP_KEY_ORDER = [
   'nav.groups.executiveDashboard',
+  'nav.groups.purchaseVariety',
+  'nav.groups.loyalCustomerValue',
+  'nav.groups.purchaseGrowth',
+  'nav.groups.inactiveCustomers',
   'nav.groups.customerWorkbench',
   'nav.groups.productPortfolio',
   'nav.groups.transactionRevenue',
@@ -91,18 +100,22 @@ const GROUP_KEY_ORDER = [
 const ITEM_ORDER: Record<string, number> = {
   // Executive Dashboard
   dashboard: 0,
+  // Ragam Pembelian (KPI1-2)
+  'cross-selling': 0,
+  'avg-category-per-customer': 1,
+  // Nilai Pelanggan Loyal (KPI3-4)
+  'customer-revenue': 0,
+  'customer-gross-profit': 1,
+  // Pertumbuhan Pembelian (KPI5-7)
+  'high-margin-penetration': 0,
+  'repeat-order': 1,
+  'customer-expansion': 2,
+  // Pelanggan Tidak Aktif (KPI8-10)
+  'dormant-rate': 0,
+  'dormant-value': 1,
+  'reactivation-rate': 2,
   // Customer Workbench
   customers: 0,
-  'customer-revenue': 1,
-  'customer-gross-profit': 2,
-  'high-margin-penetration': 3,
-  'repeat-order': 4,
-  'customer-expansion': 5,
-  'dormant-rate': 6,
-  'dormant-value': 7,
-  'reactivation-rate': 8,
-  'cross-selling': 9,
-  'avg-category-per-customer': 10,
   // Product & Portfolio
   products: 0,
   'products-high-margin': 1,

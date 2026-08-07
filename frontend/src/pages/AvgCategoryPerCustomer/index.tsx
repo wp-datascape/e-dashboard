@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -11,16 +10,19 @@ import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Card } from '@/components/ui';
+import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
+import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import { DateScopeFilterBar } from '@/components/filters/DateScopeFilterBar';
+import {
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
+  type KpiPeriodType,
+} from '@/utils/analisisPeriod';
+import { todayIsoDate } from '@/utils/date';
+import { computeChangePct } from '@/utils/analisisComparison';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function fmtRp(v: number): string {
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}jt`;
@@ -45,59 +47,57 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-// ─── KPI Summary Card ─────────────────────────────────────────────────────────
-function KpiCard({
-  label,
-  value,
-  sub,
-  color = 'primary.main',
-}: {
-  label: string;
-  value: string | number;
-  sub: string;
-  color?: string;
-}) {
-  return (
-    <Card sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: '0.68rem' }}>
-        {label}
-      </Typography>
-      <Typography variant="h3" sx={{ fontWeight: 800, color, lineHeight: 1 }}>
-        {value}
-      </Typography>
-      <Typography variant="caption" color="text.secondary">{sub}</Typography>
-    </Card>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 // KPI 2 — Rata-rata jumlah kategori produk yang dibeli per customer (M2).
-// Dibelah dari `pages/CrossSelling` (task025 §14, 2026-08-07) — user:
-// "halaman yang kamu kerjakan juga 1 page untuk 2 KPI yang harus dipisahkan
-// itu menyalahi aturan". Endpoint backend TETAP 1 (`/metrics/cross-selling`
-// via `useCrossSelling`, sama presedennya dgn Dormant §7a) — dipanggil
-// terpisah di sini (bukan share state dgn halaman KPI1), permission juga
-// TETAP `cross.selling:*` (reuse, sama alasan). Menggantikan `ProductsTrend`
-// (`/products/trend`) yang REDUNDAN — endpoint lamanya (`/metrics/
-// avg-category`) cuma agregat tanpa detail per customer, halaman ini jauh
-// lebih lengkap (tabel persisten dari `data.detail`).
+// Dibelah dari `pages/CrossSelling` (task025 §14) — endpoint backend TETAP 1
+// (`/metrics/cross-selling` via `useCrossSelling`), permission TETAP
+// `cross.selling:*` (reuse).
+//
+// Susulan (task025 §16, 2026-08-07) — filter disamakan penuh ke template
+// Revenue: KpiFilterBar + banner KpiSummaryStrip YoY NYATA, dihitung dari 2x
+// panggil `useCrossSelling` (endDate & `shiftDateByYears(endDate,-1)`),
+// ambil scalar dari `trend.at(-1)?.avg_category` — TIDAK perlu endpoint
+// backend baru (sama trik dgn halaman KPI1 di sebelah).
 export default function AvgCategoryPerCustomer() {
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const [periodEnd,  setPeriodEnd]  = useState(todayStr());
   const scopeFilter = useScopedCompanyFilter();
   const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
+
+  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
+  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const todayStr = todayIsoDate();
+  const isViewingInProgress = endDate === todayStr;
+
+  const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
+  const periodStart = getPeriodDateRange(periodType, periodKey).start;
+  const currentRangeText = formatDateRange({ start: periodStart, end: endDate });
+  const comparisonDate = shiftDateByYears(endDate, -1);
+  const comparisonRangeText = formatDateRange({
+    start: shiftDateByYears(periodStart, -1),
+    end: comparisonDate,
+  });
 
   const { data, isLoading } = useCrossSelling({
     company_id: companyId,
     branch_id:   branchId === 'all' ? undefined : branchId,
-    period_end:  periodEnd,
+    period_end:  endDate,
+    division:    division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  });
+  const { data: comparisonData } = useCrossSelling({
+    company_id: companyId,
+    branch_id:   branchId === 'all' ? undefined : branchId,
+    period_end:  comparisonDate,
     division:    division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
 
-  const latestTrend = data?.trend.at(-1);
+  const currentAvg = data?.trend.at(-1)?.avg_category ?? 0;
+  const comparisonAvg = comparisonData?.trend.at(-1)?.avg_category ?? 0;
+  const growthPct = computeChangePct(currentAvg, comparisonAvg);
+  const avgLabel = t('crossSelling.kpi2Label');
 
   const [search, setSearch] = useState('');
   const rows = data?.detail ?? [];
@@ -168,31 +168,19 @@ export default function AvgCategoryPerCustomer() {
         </Typography>
       </Box>
 
-      {/* ── Filter bar (template §1 ux-menu-mapping.md — GLOBAL apple-to-apple
-          dgn semua halaman KPI lain) ── */}
-      <DateScopeFilterBar
-        scopeFilter={scopeFilter}
-        periodEnd={periodEnd}
-        onPeriodEndChange={setPeriodEnd}
-        onReset={() => {
-          scopeFilter.reset();
-          setPeriodEnd(todayStr());
+      {/* ── Filter bar — template resmi Revenue (KpiFilterBar), task025 §16 ── */}
+      <KpiFilterBar
+        filter={scopeFilter}
+        periodType={periodType}
+        onPeriodTypeChange={setPeriodType}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onResetExtra={() => {
+          setPeriodType('quarter');
+          setEndDate(todayStr);
+          setSearch('');
         }}
       />
-
-      {/* ── KPI Summary Card ── */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
-            <KpiCard
-              label={t('crossSelling.kpi2Label')}
-              value={data?.kpi2.avg_categories ?? 0}
-              sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, months: data?.period.active_months ?? '…' })}
-              color={theme.palette.info.main}
-            />
-          )}
-        </Grid>
-      </Grid>
 
       {/* ── M2: Avg Category per Customer Trend ── */}
       <Box>
@@ -203,7 +191,7 @@ export default function AvgCategoryPerCustomer() {
           <AreaChartWidget
             title={t('crossSelling.m2ChartTitle')}
             subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}`}
-            value={`${latestTrend?.avg_category ?? 0}`}
+            value={`${currentAvg}`}
             data={data?.trend ?? []}
             series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
             xKey="month"
@@ -212,7 +200,30 @@ export default function AvgCategoryPerCustomer() {
         )}
       </Box>
 
-      {/* ── Tabel persisten — bound ke `periodEnd` filter ── */}
+      {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
+      {data && (
+        <KpiSummaryStrip
+          metrics={[{ label: avgLabel, comparisonText: `${comparisonAvg}`, currentText: `${currentAvg}` }]}
+          comparisonRangeLabel={comparisonRangeText}
+          currentRangeLabel={currentRangeText}
+          isCurrentInProgress={isViewingInProgress}
+          growth={[{
+            metricLabel: avgLabel,
+            pct: growthPct,
+            value: currentAvg - comparisonAvg,
+            currentIsZero: currentAvg === 0,
+            formatValue: (v) => v.toFixed(2),
+          }]}
+          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
+          onNext={() => {
+            const next = shiftEndDate(periodType, endDate, 1);
+            setEndDate(next > todayStr ? todayStr : next);
+          }}
+          nextDisabled={isViewingInProgress}
+        />
+      )}
+
+      {/* ── Tabel persisten — bound ke `endDate` filter ── */}
       <Card>
         <KpiTableToolbar
           search={search}

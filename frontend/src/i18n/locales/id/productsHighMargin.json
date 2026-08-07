@@ -20,9 +20,9 @@
   "buyers": {
     "divisionBreakdown": "Capaian per Divisi",
     "noBreakdown": "Belum ada transaksi pada periode ini.",
-    "customerCount": "{{count}} customer",
+    "customerCount": "{{count}} pelanggan",
     "listTitle": "Customer Pembeli ({{count}})",
-    "colCustomer": "Customer",
+    "colCustomer": "Pelanggan",
     "colDivision": "Divisi",
     "colLastPurchase": "Terakhir Beli",
     "otherDivision": "Lainnya",

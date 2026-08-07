@@ -20,27 +20,6 @@ export function useCrossSelling(params?: {
   });
 }
 
-// ── M2 Drill-down (klik titik chart avg-category) ─────────────────────────────
-// Endpoint /metrics/cross-selling scope by period_end (mirror pola gp-breakdown/
-// hm-breakdown/ror-breakdown) - re-fetch payload yang sama tapi cuma `.detail` yang
-// dipakai di dialog. Belum ada endpoint detail-only terpisah di backend, jadi reuse
-// endpoint yang sudah ada (bukan bikin baru) - konsisten dengan cara M1 CS_INV_CTE
-// sudah scope by SegmentParams.filterDate per titik bulan.
-export function useCrossSellingDetail(params: {
-  period_end: string | null;
-  company_id?: number | 'all';
-  division?: number;
-  branch_id?: number;
-  exclude_intercompany?: boolean;
-}) {
-  return useQuery<CrossSellingData>({
-    queryKey: ['metrics', 'cross-selling-detail', params],
-    queryFn: () => metricsApi.getCrossSelling({ ...params, period_end: params.period_end! }),
-    enabled: !!params.period_end,
-    staleTime: STALE_TIME,
-  });
-}
-
 // ── M3–M7 — Customer Metrics ──────────────────────────────────────────────────
 export function useCustomerMetrics(params?: {
   company_id?: number | 'all';

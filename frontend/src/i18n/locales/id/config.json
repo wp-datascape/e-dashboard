@@ -56,7 +56,7 @@
     "resend": {
       "title": "Integrasi Email (Resend)",
       "subtitle": "Konfigurasi global — dipakai untuk mengirim digest email alert Analisis (task016) ke semua perusahaan.",
-      "infoText": "Satu konfigurasi berlaku untuk seluruh sistem (bukan per cabang). Email dikirim otomatis saat scheduler alert Analisis menemukan penurunan performa customer.",
+      "infoText": "Satu konfigurasi berlaku untuk seluruh sistem (bukan per cabang). Email dikirim otomatis saat scheduler alert Analisis menemukan penurunan performa pelanggan.",
       "apiKey": "API Key",
       "apiKeyHelper": "Dari dashboard Resend > API Keys",
       "apiKeySetHelper": "API Key sudah tersimpan. Isi ulang hanya jika ingin menggantinya.",
@@ -125,7 +125,7 @@
   "hidden": "Tersembunyi",
   "buThreshold": {
     "title": "Threshold Dorman per Unit Bisnis",
-    "subtitle": "Jumlah bulan tanpa transaksi sebelum customer dianggap dorman. Setiap Unit Bisnis dapat memiliki kebijakan yang berbeda.",
+    "subtitle": "Jumlah bulan tanpa transaksi sebelum pelanggan dianggap dorman. Setiap Unit Bisnis dapat memiliki kebijakan yang berbeda.",
     "tooltip": "Customer yang last_invoice_date-nya lebih lama dari threshold ini (dari periode yang dipilih) akan ditandai sebagai Dorman.",
     "colBu": "Unit Bisnis",
     "colThreshold": "Threshold Dorman",
@@ -152,7 +152,7 @@
     "dormantAlertLabel": "M8 · Ambang Batas Dormant Rate",
     "reactivationMinLabel": "M10 · Target Reactivation Rate (Min)",
     "reactivationIdealLabel": "M10 · Target Reactivation Rate (Ideal)",
-    "repeatOrderDesc": "Persentase minimum existing customer yang harus repeat order dalam 30 hari",
+    "repeatOrderDesc": "Persentase minimum pelanggan existing yang harus repeat order dalam 30 hari",
     "dormantAlertDesc": "Jika Dormant Rate di atas nilai ini, grafik M8 tampil dalam zona merah (peringatan)",
     "reactivationMinDesc": "Batas bawah target M10 — BulletChart zona kuning mulai dari nilai ini",
     "reactivationIdealDesc": "Batas atas target M10 — BulletChart zona hijau mulai dari nilai ini"
@@ -160,7 +160,7 @@
   "generalSection": {
     "title": "Pengaturan Umum",
     "activeWindowLabel": "Window Bulan Aktif",
-    "activeWindowDesc": "Window bulan aktif: customer dianggap aktif jika ada transaksi dalam N bulan terakhir",
+    "activeWindowDesc": "Window bulan aktif: pelanggan dianggap aktif jika ada transaksi dalam N bulan terakhir",
     "enforcementLabel": "Isolasi Akses Branch/Division",
     "enforcementDesc": "\"Aktif\" berarti user non-superadmin dibatasi ke branch/division yang di-assign; \"Nonaktif\" berarti cuma company scope yang berlaku",
     "accurateSyncLabel": "Tombol Sinkron Accurate",

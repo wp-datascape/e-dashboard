@@ -74,7 +74,7 @@
   "radialTargetLabel": "Target ≥ {{threshold}}%",
   "viewDetailOf": "Lihat detail {{title}}",
   "heatmap": {
-    "summaryLine": "{{count}} customer · chip hijau = ada transaksi",
+    "summaryLine": "{{count}} pelanggan · chip hijau = ada transaksi",
     "productsCount": "{{bought}}/{{total}} produk",
     "totalTransactions": "Total {{count}} transaksi",
     "cellTooltip": "{{customer}} — {{label}}: {{status}}",
@@ -82,7 +82,7 @@
     "statusNo": "Tidak ada transaksi",
     "legendBought": "Beli (nilai = jumlah transaksi)",
     "legendNotBought": "Tidak beli",
-    "mobileSubtitle": "Tampilan mobile: produk yang dibeli per customer",
+    "mobileSubtitle": "Tampilan mobile: produk yang dibeli per pelanggan",
     "colTotalRevenue": "Total Revenue",
     "totalRevenue": "Total revenue: {{value}}"
   },
