@@ -34,6 +34,8 @@
     "legendConcentrated": "1 customer > 25% total revenue — konsentrasi tinggi"
   },
   "m4": {
+    "pageTitle": "Keuntungan Pelanggan Loyal",
+    "pageSubtitle": "KPI 4 — Average Gross Profit. Kontribusi laba kotor per pelanggan existing, dibagi per tier (Atas/Tengah/Bawah).",
     "sectionLabel": "M4 · Average Gross Profit per Existing Customer",
     "tooltipInfo": "Sama seperti M3, tapi berbasis Gross Profit (margin absolut), bukan Revenue. Tier dihitung ulang tiap bulan dari median GP individu — bisa beda komposisi customer dengan tier di M3 walau chart-nya mirip.",
     "chartTitle": "Total GP Existing Customer — Kontribusi per Tier (12 Bulan)",
@@ -61,6 +63,8 @@
     "emptyMessage": "Tidak ada data GP bulan ini"
   },
   "m5": {
+    "pageTitle": "Pembelian Produk Fokus",
+    "pageSubtitle": "KPI 5 — High Margin Penetration. Proporsi pelanggan existing yang membeli produk high margin bulan ini.",
     "sectionLabel": "M5 · High Margin Product Penetration — Bulan Berjalan",
     "tooltipInfo": "Mengukur porsi CUSTOMER (bukan revenue) yang minimal 1x beli produk yang ditandai High Margin oleh admin (Settings → High Margin). Beda dengan \"Kontribusi High Margin\" di M3 yang mengukur porsi REVENUE — banyak customer beli (M5 tinggi) belum tentu nilainya besar (M3 bisa tetap rendah), atau sebaliknya.",
     "chartTitle": "Penetrasi Produk High Margin",
@@ -97,6 +101,8 @@
     "emptyMessage": "Tidak ada existing customer yang order lebih dari 1x bulan ini"
   },
   "m7": {
+    "pageTitle": "Peningkatan Nilai Belanja",
+    "pageSubtitle": "KPI 7 — Customer Expansion Rate. Proporsi pelanggan existing dengan spending naik vs flat/turun periode ini.",
     "sectionLabel": "M7 · Customer Expansion Rate — Spending Naik vs Flat/Turun",
     "tooltipInfo": "Dibandingkan terhadap 30 hari SEBELUM periode aktif (bukan bulan yang sama tahun lalu). Customer yang sebelumnya tidak order sama sekali lalu order sekarang tetap dihitung \"spending naik\".",
     "chartTitle": "Customer Expansion Rate — 100% Stacked Horizontal (12 Bulan)",

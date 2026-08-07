@@ -674,3 +674,130 @@ dibangun sekarang:
   (April 2026) → tabel terisi 20 baris data konsisten dgn banner.
 - `tsc --noEmit` + `eslint src` bersih (0 error) frontend & backend.
 
+## 12. Pembelahan CustomerMetrics (M3-M7) jadi 5 halaman KPI (2026-08-07)
+
+User minta lanjut ke KPI lain; dikonfirmasi 3 keputusan lewat AskUserQuestion:
+1. **Sekalian semua M3-M7** jadi 5 halaman (bukan cuma KPI3+4 dulu).
+2. Nama KPI3: **`/customer-revenue`**.
+3. Permission: **backend endpoint direname/disatukan** (bukan cuma nambah
+   gate baru di atas endpoint lama) — risiko lebih tinggi tapi lebih bersih.
+
+### Temuan penting sebelum eksekusi (verifikasi kode, bukan asumsi)
+
+- M4/M5/M6/M7 SEMUANYA sudah punya breakdown table lengkap **via Dialog**
+  (`useGpBreakdown`/`useHmBreakdown`/`useRorBreakdown`/`useExpansionBreakdown`,
+  masing-masing keyed by `drillDate` state dari klik bar/chart) — bukan
+  "❌ bangun dari nol", tapi "formalisasi dialog jadi tabel persisten"
+  (BUKAN pekerjaan sekecil kelihatannya di v9 §3, tapi juga tidak
+  se-berat kalau harus bikin query API baru).
+- M5's "chart tren high margin 2 seri" (Kontribusi % + Penetrasi %) BISA
+  dibangun dari data trend YANG SUDAH ADA — `high_margin_ratio` (=
+  penetrasi, sudah dihitung backend di `m3m7.repository.ts:299`) dan
+  `hm_revenue`/`total_revenue_existing` (= kontribusi, sudah dihitung
+  client-side di M3Revenue). TIDAK perlu endpoint baru.
+- KPI3 & KPI6 py2 sudah punya tabel YoY lengkap di `/analisis/revenue` &
+  `/analisis/retention` (dipakai reuse) — TAPI M3Revenue & M6RepeatOrder
+  py2 juga punya dialog breakdown SENDIRI (snapshot 1-bulan, beda dari
+  tabel YoY). Diputuskan: dialog lama DIHAPUS di KPI3/KPI6 (redundan
+  dgn tabel YoY yang lebih lengkap), TIDAK dihapus fungsinya tapi
+  digantikan — sesuai v9 §1 "dialog transisi s.d. tabel live, lalu
+  dihapus".
+- ⚠️ **Risiko RBAC nyata**: permission lama (`expansion:view` gate SELURUH
+  bundel M3-M7, `analisis:view`, `analisis.retention:view`) sudah dipakai
+  di `role_permissions` PRODUCTION untuk role admin/user/custom manapun.
+  Rename permission TANPA migrasi backfill = user existing kehilangan akses
+  diam-diam. **WAJIB backfill**: role manapun yang py2 punya permission
+  lama otomatis dikasih permission baru yang setara (bukan cuma update
+  `seed.ts` utk instalasi baru).
+
+### Rencana final — nama route/page/permission
+
+| KPI | Label | Route baru | Page | Permission baru | Sumber tabel |
+|---|---|---|---|---|---|
+| 3 | Jumlah pelanggan loyal | `/customer-revenue` | `CustomerRevenue` | `customer.revenue:*` | Reuse tabel Analisis Revenue (YoY) |
+| 4 | Keuntungan pelanggan loyal | `/customer-gross-profit` | `CustomerGrossProfit` | `customer.gross.profit:*` | Formalisasi dialog M4 → tabel persisten |
+| 5 | Pembelian produk fokus (penetrasi HM) | `/high-margin-penetration` | `HighMarginPenetration` | `high.margin.penetration:*` | Formalisasi dialog M5 → tabel persisten + chart tren baru |
+| 6 | Pembelian berulang | `/repeat-order` | `RepeatOrder` | `repeat.order:*` | Reuse tabel Analisis Retention (YoY) |
+| 7 | Peningkatan nilai belanja | `/customer-expansion` | `CustomerExpansion` | `customer.expansion:*` | Formalisasi dialog M7 → tabel persisten |
+
+- `high.margin.penetration` SENGAJA beda dari `high.margin:*` yang sudah
+  dipakai halaman "High Margin Push" (Product & Portfolio, konsep beda:
+  push = tracking produk, penetration = % customer yang beli) — dicek
+  dulu tidak ada bentrok nama.
+  `customer.expansion` SENGAJA beda dari `expansion:*` lama (yang di-retire)
+  — bukan cuma tambahan huruf, benar-benar permission baru.
+- Filter: KPI3/KPI6 pakai `KpiFilterBar` (periodType+YoY, ikut pola tabel
+  yang direuse). KPI4/5/7 pakai `DateScopeFilterBar` (single-date, sesuai
+  breakdown hook masing-masing yang cuma terima `period_end` tunggal).
+- Tabel KPI4/5/7 di-bind LANGSUNG ke tanggal filter halaman (bukan
+  `drillDate` terpisah dari klik bar) — persistent, selalu tampil,
+  bukan menunggu klik. Klik bar/chart DIHAPUS (bukan filter tabel — itu
+  scope lebih besar/belum ada preseden di codebase manapun, ditunda).
+- `/customer-metrics` (route lama) DIHAPUS, redirect ke `/customer-revenue`
+  (KPI3 = kartu pertama grup ini, entry point paling wajar).
+  `/analisis/revenue` → redirect `/customer-revenue`.
+  `/analisis/retention` → redirect `/repeat-order`.
+- Backend: 5 permission trio baru (`:menu/:view/:export`) ditambah ke
+  `seed.ts`; route lama (`expansion:*` dkk) DIBIARKAN ada di DB (harmless,
+  konsisten pola `OLD_PERMISSION_NAMES`) TAPI role manapun yang py2 punya
+  permission lama di-backfill otomatis dapat yang baru (SQL migrasi
+  sekali jalan, dieksekusi ke local+dev, PROD nanti pas deploy).
+- menu.tsx: 3 item lama (`expansion`, `analisis-revenue`, `analisis-retention`)
+  diganti 5 item baru, TETAP di grup/urutan yang sama (bukan rework
+  kategori §6a).
+
+Status: eksekusi dimulai sekarang.
+
+### Status: SELESAI dieksekusi (2026-08-07)
+
+- **Backend**: 5 permission trio baru ditambahkan ke `seed.ts`
+  (`customer.revenue`/`customer.gross.profit`/`high.margin.penetration`/
+  `repeat.order`/`customer.expansion`), `analisis:*`/`analisis.retention:*`
+  di-rename (route handler diupdate ke permission baru), `expansion:*`
+  TETAP ada khusus utk endpoint chart gabungan `/metrics/customer-metrics`.
+  Fungsi baru `migrateRenamedPermissions()` — backfill generik ke SEMUA
+  role (termasuk custom, bukan cuma admin/user hardcoded) yang py2 punya
+  permission lama, jalan otomatis tiap `db:seed`. `bun run db:seed` sudah
+  dijalankan di DB lokal, 5 permission trio + 5 page_settings baru masuk.
+- **Frontend**: `Analisis`→`CustomerRevenue`, `AnalisisRetention`→
+  `RepeatOrder` (rename folder via `git mv`, konten yang sudah dibangun
+  fase sebelumnya DIPERTAHANKAN utuh — filter/banner/tabel KpiFilterBar
+  dkk sudah match). M6 chart (RadialBar) DITAMBAHKAN ke RepeatOrder
+  (sebelumnya cuma tabel, sekarang lengkap chart+tabel). M3's line3
+  (Kontribusi High Margin %) DIHAPUS dari `M3Revenue.tsx` sesuai keputusan
+  "Pemisahan M3" (v9 §9 poin 5) — TIDAK dipindah ke KPI5 dalam fase ini
+  (lihat catatan follow-up di bawah).
+  3 halaman baru dibuat dari nol: `CustomerGrossProfit` (KPI4),
+  `HighMarginPenetration` (KPI5), `CustomerExpansion` (KPI7) — masing-masing
+  `DateScopeFilterBar` + chart existing (M4/M5/M7, dipindah ke
+  `components/analisis/` sama pola dgn M3/M6, helper diinline bukan
+  cross-page import).
+  `pages/CustomerMetrics` (bundel lama) DIHAPUS total.
+  Redirect permanen: `/customer-metrics`→`/customer-revenue`,
+  `/analisis/revenue`→`/customer-revenue`, `/analisis/retention`→
+  `/repeat-order`. `NotificationDetailDialog.tsx` (satu-satunya pemanggil
+  internal ke `/analisis/revenue`) diupdate navigasi LANGSUNG ke
+  `/customer-revenue` (bukan lewat redirect) — supaya query string
+  (company_id/period_key/dst.) tidak hilang (`<Navigate>` statis TIDAK
+  meneruskan search params).
+  `routeConstants.tsx`/`routeLazyComponents.tsx`/`menu.tsx`/
+  `Config/Features/index.tsx` diupdate semua (3 item lama → 5 item baru,
+  posisi/urutan grup TETAP sama, bukan rework kategori §6a).
+- **BELUM dikerjakan (follow-up, dicatat eksplisit, bukan dilewatkan
+  diam-diam)**:
+  1. Tabel persisten KPI4/5/7 — MASIH pakai dialog drill-down lama (klik
+     chart → dialog), BELUM diformalkan jadi tabel persisten spt KPI8/9/10.
+     Datanya sudah lengkap (breakdown hook + kolom sudah ada di dialog),
+     tinggal "angkat" ke `KpiTableToolbar`+`ResponsiveListView` persisten +
+     hapus dialog — kerja mekanis, bukan riset baru.
+  2. Chart tren high-margin 2 seri (Kontribusi % + Penetrasi %) di KPI5 —
+     BELUM dibangun. Datanya SUDAH tersedia di trend (`high_margin_ratio` +
+     `hm_revenue`/`total_revenue_existing`), tinggal dibuatkan
+     `AreaChartWidget`/`LineAlertWidget` 2-garis, mengikuti pola M8's
+     LineAlertWidget.
+- Diverifikasi END-TO-END (login real + backend real via Playwright): 5
+  halaman baru render benar dengan data asli, 3 redirect (`/customer-metrics`,
+  `/analisis/revenue`, `/analisis/retention`) semua mengarah ke tujuan yang
+  benar, sidebar tampil 5 item baru, 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error) frontend & backend.
+

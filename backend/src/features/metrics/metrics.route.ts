@@ -10,12 +10,15 @@ export const metricsRoutes = new Hono()
 // db/seed.ts). Sebelum ini, TIDAK ADA role non-superadmin yang bisa lolos endpoint
 // manapun di sini karena 'metrics:view' tidak pernah bisa di-assign lewat RBAC UI.
 metricsRoutes.get('/cross-selling',         requirePermission('cross.selling:view'), handleGetCrossSelling)
+// customer-metrics TETAP expansion:view (shared trend/chart data utk KPI3-7
+// sekaligus, tidak dipecah — task025 §12). Breakdown per-KPI di bawah SUDAH
+// dipecah ke permission spesifik masing-masing (rename dari expansion:view).
 metricsRoutes.get('/customer-metrics',      requirePermission('expansion:view'), handleGetCustomerMetrics)
-metricsRoutes.get('/revenue-breakdown',     requirePermission('expansion:view'), handleGetRevenueBreakdown)
-metricsRoutes.get('/expansion-breakdown',   requirePermission('expansion:view'), handleGetExpansionBreakdown)
-metricsRoutes.get('/gp-breakdown',          requirePermission('expansion:view'), handleGetGpBreakdown)
-metricsRoutes.get('/hm-breakdown',          requirePermission('expansion:view'), handleGetHmBreakdown)
-metricsRoutes.get('/ror-breakdown',         requirePermission('expansion:view'), handleGetRorBreakdown)
+metricsRoutes.get('/revenue-breakdown',     requirePermission('customer.revenue:view'), handleGetRevenueBreakdown)
+metricsRoutes.get('/expansion-breakdown',   requirePermission('customer.expansion:view'), handleGetExpansionBreakdown)
+metricsRoutes.get('/gp-breakdown',          requirePermission('customer.gross.profit:view'), handleGetGpBreakdown)
+metricsRoutes.get('/hm-breakdown',          requirePermission('high.margin.penetration:view'), handleGetHmBreakdown)
+metricsRoutes.get('/ror-breakdown',         requirePermission('repeat.order:view'), handleGetRorBreakdown)
 metricsRoutes.get('/dormant-customer',      requirePermission('churn.risk:view'), handleGetDormantMetrics)
 metricsRoutes.get('/category-performance',  requirePermission('product:view'), handleGetCategoryPerformance)
 metricsRoutes.get('/product-performance',   requirePermission('product:view'), handleGetProductPerformance)

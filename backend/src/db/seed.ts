@@ -153,17 +153,37 @@ const defaultPermissions = [
   { name: 'settings.pareto:create', description: 'Create Pareto Customer', category: 'Pareto Customer' },
   { name: 'settings.pareto:update', description: 'Update Pareto Customer', category: 'Pareto Customer' },
   { name: 'settings.pareto:delete', description: 'Delete Pareto Customer', category: 'Pareto Customer' },
-  // Analisis (task016 §12) — laporan customer lengkap + prioritas Pareto,
-  // permission SENGAJA terpisah dari settings.pareto:* (bukan halaman
-  // konfigurasi, ada di menu Transaction & Revenue bukan Settings).
-  { name: 'analisis:menu', description: 'Menu Analisis Revenue', category: 'Analisis' },
-  { name: 'analisis:view', description: 'View Analisis Revenue', category: 'Analisis' },
-  // Analisis Retention (task021) — submenu ke-2 grup Analisis (repeat order
-  // per periode), permission TERPISAH dari analisis:menu/:view supaya bisa
-  // digranulasi per role independen walau tampil di 1 grup menu yang sama
-  // (mirror pola high.margin:menu/product.trend:menu terpisah dari product:menu).
-  { name: 'analisis.retention:menu', description: 'Menu Analisis Retention', category: 'Analisis' },
-  { name: 'analisis.retention:view', description: 'View Analisis Retention', category: 'Analisis' },
+  // KPI3 "Jumlah pelanggan loyal" (task025 §12, 2026-08-07) — RENAME dari
+  // analisis:menu/:view (halaman /analisis/revenue dipensiunkan jadi
+  // redirect ke /customer-revenue, tabelnya diboyong ke sini). Permission
+  // lama TIDAK dihapus dari DB (harmless), tapi role yang py2 punya
+  // analisis:*/expansion:* di-backfill otomatis (lihat migratePermissions()
+  // di bawah) supaya tidak ada yang kehilangan akses diam-diam.
+  { name: 'customer.revenue:menu',   description: 'Menu Customer Revenue (KPI3)',   category: 'Customer Revenue' },
+  { name: 'customer.revenue:view',   description: 'View Customer Revenue (KPI3)',   category: 'Customer Revenue' },
+  { name: 'customer.revenue:export', description: 'Export Customer Revenue (KPI3)', category: 'Customer Revenue' },
+  // KPI4 "Keuntungan pelanggan loyal" — BARU, sebelumnya bagian dari
+  // expansion:* (chart+dialog GP tergabung di bundel /customer-metrics).
+  { name: 'customer.gross.profit:menu',   description: 'Menu Customer Gross Profit (KPI4)',   category: 'Customer Gross Profit' },
+  { name: 'customer.gross.profit:view',   description: 'View Customer Gross Profit (KPI4)',   category: 'Customer Gross Profit' },
+  { name: 'customer.gross.profit:export', description: 'Export Customer Gross Profit (KPI4)', category: 'Customer Gross Profit' },
+  // KPI5 "Pembelian produk fokus" / High Margin Penetration — BARU. SENGAJA
+  // beda dari high.margin:* (itu "High Margin Push" di Product & Portfolio,
+  // konsep beda: push = tracking produk, penetration = % customer beli).
+  { name: 'high.margin.penetration:menu',   description: 'Menu High Margin Penetration (KPI5)',   category: 'High Margin Penetration' },
+  { name: 'high.margin.penetration:view',   description: 'View High Margin Penetration (KPI5)',   category: 'High Margin Penetration' },
+  { name: 'high.margin.penetration:export', description: 'Export High Margin Penetration (KPI5)', category: 'High Margin Penetration' },
+  // KPI6 "Pembelian berulang" — RENAME dari analisis.retention:menu/:view
+  // (halaman /analisis/retention dipensiunkan jadi redirect ke /repeat-order).
+  { name: 'repeat.order:menu',   description: 'Menu Repeat Order (KPI6)',   category: 'Repeat Order' },
+  { name: 'repeat.order:view',   description: 'View Repeat Order (KPI6)',   category: 'Repeat Order' },
+  { name: 'repeat.order:export', description: 'Export Repeat Order (KPI6)', category: 'Repeat Order' },
+  // KPI7 "Peningkatan nilai belanja" / Customer Expansion Rate — BARU.
+  // SENGAJA beda dari expansion:* lama (yang itu gate bundel CHART M3-M7,
+  // dipertahankan HANYA utk endpoint chart gabungan /metrics/customer-metrics).
+  { name: 'customer.expansion:menu',   description: 'Menu Customer Expansion (KPI7)',   category: 'Customer Expansion' },
+  { name: 'customer.expansion:view',   description: 'View Customer Expansion (KPI7)',   category: 'Customer Expansion' },
+  { name: 'customer.expansion:export', description: 'Export Customer Expansion (KPI7)', category: 'Customer Expansion' },
   // Notification Center (task016 §19) — SEBELUMNYA tanpa permission sama
   // sekali ("siapa pun login boleh akses", personal by user_id). Diubah biar
   // konsisten dgn pola menu lain: 'notifications:menu' kontrol visibilitas
@@ -264,8 +284,13 @@ const ADMIN_PERMISSION_NAMES = [
   'settings.product:menu', 'settings.product:view', 'settings.product:update',
   'settings.threshold:menu', 'settings.threshold:view', 'settings.threshold:update',
   'settings.pareto:menu', 'settings.pareto:view', 'settings.pareto:create', 'settings.pareto:update', 'settings.pareto:delete',
-  'analisis:menu', 'analisis:view',
-  'analisis.retention:menu', 'analisis.retention:view',
+  // KPI3-7 (task025 §12) — rename analisis:*/analisis.retention:* +
+  // pemecahan expansion:* jadi 5 permission spesifik per-KPI.
+  'customer.revenue:menu', 'customer.revenue:view', 'customer.revenue:export',
+  'customer.gross.profit:menu', 'customer.gross.profit:view', 'customer.gross.profit:export',
+  'high.margin.penetration:menu', 'high.margin.penetration:view', 'high.margin.penetration:export',
+  'repeat.order:menu', 'repeat.order:view', 'repeat.order:export',
+  'customer.expansion:menu', 'customer.expansion:view', 'customer.expansion:export',
   // Alert notifikasi (task016) cuma dikirim ke admin/superadmin (recipients.ts)
   // — user biasa tidak pernah dapat isinya, jadi sengaja TIDAK dimasukkan ke
   // USER_PERMISSION_NAMES (bell yang selalu kosong cuma bikin bingung).
@@ -282,6 +307,15 @@ const USER_PERMISSION_NAMES = [
   'dashboard:menu', 'dashboard:view',
   'customer:menu', 'customer:view',
   'expansion:menu', 'expansion:view', 'expansion:export',
+  // KPI4/5/7 (task025 §12) — role 'user' py2 punya expansion:view (yg dulu
+  // sekaligus gate dialog GP/HM/Expansion breakdown), jadi 3 permission
+  // baru ini di-tambahkan supaya AKSES TIDAK BERKURANG. customer.revenue &
+  // repeat.order SENGAJA TIDAK ditambahkan — role 'user' memang dari awal
+  // TIDAK punya analisis:*/analisis.retention:* (cuma admin), jadi tetap
+  // konsisten dgn batasan akses yang sudah ada.
+  'customer.gross.profit:menu', 'customer.gross.profit:view', 'customer.gross.profit:export',
+  'high.margin.penetration:menu', 'high.margin.penetration:view', 'high.margin.penetration:export',
+  'customer.expansion:menu', 'customer.expansion:view', 'customer.expansion:export',
   'churn.risk:menu', 'churn.risk:view', 'churn.risk:export',
   'cross.selling:menu', 'cross.selling:view', 'cross.selling:export',
   'product:menu', 'product:view', 'product:export',
@@ -317,7 +351,15 @@ const defaultBusinessConfigs = [
 const defaultPageSettings = [
   { page_key: 'dashboard', ready: true },
   { page_key: 'customers', ready: true },
-  { page_key: 'customers-expansion', ready: true },
+  // 'customers-expansion' (bundel M3-M7 lama, /customer-metrics) dipecah
+  // jadi 5 halaman task025 §12 (2026-08-07) — baris lama DIBIARKAN di DB
+  // (harmless, redirect ke /customer-revenue sekarang statis di App.tsx),
+  // 5 baris baru ditambahkan idempotent.
+  { page_key: 'customer-revenue', ready: true },
+  { page_key: 'customer-gross-profit', ready: true },
+  { page_key: 'high-margin-penetration', ready: true },
+  { page_key: 'repeat-order', ready: true },
+  { page_key: 'customer-expansion', ready: true },
   // 'dormant-customer' (bundel M8+M9+M10) dipecah jadi 3 halaman task025 §7a
   // (2026-08-07) — baris lama DIBIARKAN di DB (harmless, sudah tidak dipakai
   // route manapun, redirect ke /dormant-rate sekarang statis di App.tsx,
@@ -467,6 +509,60 @@ async function seedRolePermissions() {
   await seedRoleDefaultPermissions('user', USER_PERMISSION_NAMES)
 }
 
+// Rename permission (task025 §12, 2026-08-07): KPI3-7 dipecah dari
+// expansion:*/analisis:*/analisis.retention:* jadi 5 permission spesifik
+// per-KPI (lihat defaultPermissions & ADMIN/USER_PERMISSION_NAMES di atas).
+// Role CUSTOM (bukan admin/user/superadmin, dibuat manual lewat RBAC UI)
+// TIDAK tersentuh oleh ADMIN/USER_PERMISSION_NAMES — kalau ada role custom
+// yang py2 di-grant permission lama ini secara manual, migrasi generik di
+// bawah memastikan mereka OTOMATIS dapat permission baru yang setara,
+// SEBELUM permission lama ini benar-benar dilepas dari pemakaian di route.
+// Tidak pernah mencabut apa pun, cuma menambah — aman dijalankan berkali-kali.
+const PERMISSION_RENAME_MAP: Record<string, string[]> = {
+  'expansion:menu':   ['customer.revenue:menu', 'customer.gross.profit:menu', 'high.margin.penetration:menu', 'repeat.order:menu', 'customer.expansion:menu'],
+  'expansion:view':   ['customer.revenue:view', 'customer.gross.profit:view', 'high.margin.penetration:view', 'repeat.order:view', 'customer.expansion:view'],
+  'expansion:export': ['customer.revenue:export', 'customer.gross.profit:export', 'high.margin.penetration:export', 'repeat.order:export', 'customer.expansion:export'],
+  'analisis:menu':    ['customer.revenue:menu'],
+  'analisis:view':    ['customer.revenue:view'],
+  'analisis.retention:menu': ['repeat.order:menu'],
+  'analisis.retention:view': ['repeat.order:view'],
+}
+
+async function migrateRenamedPermissions() {
+  console.log('Migrasi permission lama -> baru (backfill semua role, termasuk custom)...')
+  const allPermRows = await db.select({ id: permissions.id, name: permissions.name }).from(permissions)
+  const idByName = new Map(allPermRows.map((p) => [p.name, p.id]))
+
+  let totalGranted = 0
+  for (const [oldName, newNames] of Object.entries(PERMISSION_RENAME_MAP)) {
+    const oldId = idByName.get(oldName)
+    if (!oldId) continue // permission lama sudah tidak ada (misal sudah di-cleanup) — skip
+
+    // Semua role yang PUNYA permission lama ini
+    const rolesWithOld = await db
+      .select({ roleId: rolePermissions.role_id })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.permission_id, oldId))
+
+    for (const { roleId } of rolesWithOld) {
+      for (const newName of newNames) {
+        const newId = idByName.get(newName)
+        if (!newId) continue
+        const [ex] = await db
+          .select({ roleId: rolePermissions.role_id })
+          .from(rolePermissions)
+          .where(and(eq(rolePermissions.role_id, roleId), eq(rolePermissions.permission_id, newId)))
+          .limit(1)
+        if (!ex) {
+          await db.insert(rolePermissions).values({ role_id: roleId, permission_id: newId })
+          totalGranted++
+        }
+      }
+    }
+  }
+  console.log(`  ok    ${totalGranted} grant baru dari migrasi rename`)
+}
+
 /**
  * Assign baseline permission (by name) ke role tertentu — cuma nambah yang belum
  * ada (idempotent, sama seperti pola superadmin di atas), TIDAK PERNAH mencabut
@@ -605,6 +701,7 @@ async function seed() {
     await cleanupOldPermissions()
     await seedPermissionsList()
     await seedRolePermissions()
+    await migrateRenamedPermissions()
     await seedUserAssignments()
     await seedBusinessConfigs()
     await seedPageSettings()

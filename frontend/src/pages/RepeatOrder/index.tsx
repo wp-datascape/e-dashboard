@@ -11,8 +11,10 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar'
 import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip'
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar'
+import { M6RepeatOrder } from '@/components/analisis/M6RepeatOrder'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { useRetentionAnalisis } from '@/hooks/useAnalisis'
+import { useCustomerMetrics } from '@/hooks/useMetrics'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
   type KpiPeriodType,
@@ -53,7 +55,7 @@ function OrderCountCell({ text, color }: { text: string; color?: StatusChipColor
   )
 }
 
-export default function AnalisisRetentionPage() {
+export default function RepeatOrder() {
   const { t } = useTranslation()
 
   const scopeFilter = useScopedCompanyFilter()
@@ -98,6 +100,19 @@ export default function AnalisisRetentionPage() {
   })
   const rows = (data?.data ?? []).map((row) => ({ ...row, id: row.customer_id }))
   const summary = data?.meta.summary as RetentionSummary | undefined
+
+  // Chart M6 (RadialBar target 80%) — instruksi lanjutan task025 §12:
+  // gabungkan chart M6 (sebelumnya di /customer-metrics) ke halaman KPI6
+  // ini juga, sama pola dgn M3-di-Revenue. Endpoint `customer-metrics`
+  // di-reuse (bukan endpoint baru), `period_end` ikut `endDate` yang sama.
+  const { data: customerMetricsData, isLoading: isM6Loading } = useCustomerMetrics({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: endDate,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  })
+  const ror = customerMetricsData?.repeat_order_current
 
   const hasAnyAlert = (row: RetentionRow) => row.comparison.invoice_count_alert
 
@@ -261,6 +276,19 @@ export default function AnalisisRetentionPage() {
             setOnlyPareto(false)
             setPaginationModel((p) => ({ ...p, page: 0 }))
           }}
+        />
+
+        {/* ── M6 · RadialBar target 80% — di bawah filter, di atas banner
+            KpiSummaryStrip (task025 §12, 2026-08-07) ── */}
+        <M6RepeatOrder
+          isLoading={isM6Loading}
+          value={ror?.value ?? 0}
+          thresholdPct={ror?.target_pct ?? 80}
+          companyId={companyId}
+          branchId={branchId === 'all' ? undefined : branchId}
+          division={division || undefined}
+          periodEnd={endDate}
+          excludeIntercompany={excludeIntercompany}
         />
 
         {isEmptyPeriod && (

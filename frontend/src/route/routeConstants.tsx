@@ -3,11 +3,15 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import {
   Dashboard,
   Customers,
-  CustomerMetrics,
   CrossSelling,
   DormantRate,
   DormantValue,
   ReactivationRate,
+  CustomerRevenue,
+  CustomerGrossProfit,
+  HighMarginPenetration,
+  RepeatOrder,
+  CustomerExpansion,
   Products,
   ProductsHighMargin,
   ProductsTrend,
@@ -28,8 +32,6 @@ import {
   ClassificationSettings,
   ThresholdSettings,
   ParetoCustomersSettings,
-  AnalisisPage,
-  AnalisisRetentionPage,
   NotificationsPage,
   AppSettings,
   IntegrationPage,
@@ -56,7 +58,6 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'dashboard':            { path: '/dashboard',              element: withLayout(<Dashboard />),             protected: true, permissionKey: 'dashboard:view' },
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
-  'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },
   'cross-selling':        { path: '/cross-selling',          element: withLayout(<CrossSelling />),          protected: true, permissionKey: 'cross.selling:view' },
   // DormantCustomer (bundel M8+M9+M10) dipecah task025 §7a — permission TETAP
   // 1 (`churn.risk:*`, reuse), backend juga masih 1 endpoint gabungan; lihat
@@ -64,6 +65,14 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'dormant-rate':         { path: '/dormant-rate',           element: withLayout(<DormantRate />),           protected: true, permissionKey: 'churn.risk:view' },
   'dormant-value':        { path: '/dormant-value',          element: withLayout(<DormantValue />),          protected: true, permissionKey: 'churn.risk:view' },
   'reactivation-rate':    { path: '/reactivation-rate',       element: withLayout(<ReactivationRate />),      protected: true, permissionKey: 'churn.risk:view' },
+  // CustomerMetrics (bundel M3-M7) dipecah task025 §12 — 5 permission
+  // spesifik per-KPI (rename dari expansion:*/analisis:*/analisis.retention:*,
+  // lihat backend/src/db/seed.ts migrateRenamedPermissions()).
+  'customer-revenue':       { path: '/customer-revenue',       element: withLayout(<CustomerRevenue />),       protected: true, permissionKey: 'customer.revenue:view' },
+  'customer-gross-profit':  { path: '/customer-gross-profit',  element: withLayout(<CustomerGrossProfit />),   protected: true, permissionKey: 'customer.gross.profit:view' },
+  'high-margin-penetration': { path: '/high-margin-penetration', element: withLayout(<HighMarginPenetration />), protected: true, permissionKey: 'high.margin.penetration:view' },
+  'repeat-order':           { path: '/repeat-order',           element: withLayout(<RepeatOrder />),           protected: true, permissionKey: 'repeat.order:view' },
+  'customer-expansion':     { path: '/customer-expansion',      element: withLayout(<CustomerExpansion />),     protected: true, permissionKey: 'customer.expansion:view' },
   // ── Product & Portfolio ──────────────────────────────────────────────────
   'products':             { path: '/products',               element: withLayout(<Products />),              protected: true, permissionKey: 'product:view' },
   'products-high-margin': { path: '/products/high-margin',   element: withLayout(<ProductsHighMargin />),    protected: true, permissionKey: 'high.margin:view' },
@@ -71,8 +80,6 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Transaction & Revenue ────────────────────────────────────────────────
   'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },
-  'analisis':             { path: '/analisis/revenue',        element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
-  'analisis-retention':   { path: '/analisis/retention',       element: withLayout(<AnalisisRetentionPage />),  protected: true, permissionKey: 'analisis.retention:view' },
   // Personal, tidak butuh permission spesifik — siapa pun yang login berhak
   // lihat notifikasi miliknya sendiri (di-scope by user_id di backend).
   'notifications':        { path: '/notifications',           element: withLayout(<NotificationsPage />),      protected: true, permissionKey: 'notifications:view' },

@@ -15,8 +15,41 @@ import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, monthToEndDate } from './helpers';
-import { SectionLabel } from './HelperComponents';
+
+// Dipusatkan di sini (semula lokal di pages/CustomerMetrics/M6RepeatOrder.tsx)
+// karena sekarang dipakai halaman RepeatOrder (KPI6) — helper inline, BUKAN
+// cross-page import (konvensi yang sama dgn M3Revenue.tsx).
+function fmtRp(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
+  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(1)}jt`;
+  if (v >= 1_000)         return `${Math.round(v / 1_000)}rb`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
+}
+
+/** Konversi 'YYYY-MM' (label dari trend chart) ke hari terakhir bulan sebagai 'YYYY-MM-DD' */
+function monthToEndDate(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <Typography
+      variant="body2"
+      sx={{
+        fontWeight: 700,
+        mb: 0.5,
+        color: 'text.secondary',
+        fontSize: '0.72rem',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}
+    >
+      {label}
+    </Typography>
+  );
+}
 
 function orderCountColor(n: number): StatusChipColor {
   if (n >= 10) return 'success';
