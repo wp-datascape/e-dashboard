@@ -7,8 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Card } from '@/components/ui';
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
-import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
-import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
+import { FilterBarShell } from '@/components/filters/FilterBarShell';
 import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
 
 import { StatCard } from '@/components/charts/StatCard';
@@ -70,7 +69,7 @@ export default function Dashboard() {
   const { t } = useTranslation();
 
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany } = scopeFilter;
 
   const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
 
@@ -117,18 +116,20 @@ export default function Dashboard() {
         )}
       </Box>
 
-      {/* ── Filter Bar ── */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
-        <ScopeFilterFields filter={scopeFilter} />
-        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
+      {/* ── Filter Bar — template resmi FilterBarShell (task025 §16 lanjutan,
+          2026-08-07: user "filter... dipanggil ulang sebagai filter global
+          mulai halaman dashboard sampai halaman lainnya"). Baris 2 cuma
+          MonthYearPicker (bukan periodType+YoY) — Ringkasan genuinely
+          multi-KPI bulanan, bukan 1 metrik dgn pembanding YoY. ── */}
+      <FilterBarShell filter={scopeFilter} onResetExtra={() => setPeriodMonth(currentYearMonth())}>
         <MonthYearPicker
           size="small"
           label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
+          sx={{ width: { xs: '100%', sm: 180 } }}
         />
-        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
-      </Box>
+      </FilterBarShell>
 
       {/* ── Row 1: 10 Metric Stat Cards ── */}
       <Grid container spacing={2}>

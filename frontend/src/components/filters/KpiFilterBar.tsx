@@ -1,16 +1,13 @@
 // frontend/src/components/filters/KpiFilterBar.tsx
-import Box from '@mui/material/Box'
-import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import { useTranslation } from 'react-i18next'
-import { Card, Button } from '@/components/ui'
+import Box from '@mui/material/Box'
 import { DatePicker } from '@/components/ui/DatePicker'
-import { ScopeFilterFields } from './ScopeFilterFields'
-import { ExcludeIntercompanyToggle } from './ExcludeIntercompanyToggle'
+import { FilterBarShell } from './FilterBarShell'
 import type { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { todayIsoDate } from '@/utils/date'
 import {
@@ -75,79 +72,48 @@ export function KpiFilterBar({
   const dateFieldSx = { width: { xs: '100%', sm: 170 } } as const
 
   return (
-    <Card sx={{ p: 2 }}>
-      {/* ── Baris 1 — perusahaan/cabang/divisi/intercompany. Caption
-          "Entitas" DIHAPUS (feedback: duplikat dgn label field Perusahaan/
-          Cabang/Divisi yang sudah ada di tiap TextField). ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <ScopeFilterFields
-          filter={filter}
-          alwaysShowCompanyAndBranch
-          companyWidth={240}
-          branchWidth={160}
-          divisionWidth={200}
-        />
-        <ExcludeIntercompanyToggle checked={filter.excludeIntercompany} onChange={filter.setExcludeIntercompany} />
-        <Button
-          variant="outlined"
-          size="small"
-          sx={{ ml: { sm: 'auto' } }}
-          onClick={() => {
-            filter.reset()
-            onResetExtra?.()
-          }}
-        >
-          {t('common.reset')}
-        </Button>
-      </Box>
-
-      {/* Pemisah baris 1/2 — divider tipis + margin 16px (bukan caption teks
-          "Rentang Waktu" lagi, sama alasannya dgn di atas). */}
-      <Divider sx={{ my: 2 }} />
-
+    <FilterBarShell filter={filter} onResetExtra={onResetExtra}>
       {/* ── Baris 2 — Periode, Per Tanggal, baru teks rentang literal
           (urutan: kontrol dulu, teks penjelas SETELAHNYA). ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={periodFieldSx}>
-          <InputLabel>{t('common.filters.period')}</InputLabel>
-          <Select
-            value={periodType}
-            label={t('common.filters.period')}
-            onChange={(e) => onPeriodTypeChange(e.target.value as KpiPeriodType)}
-          >
-            {KPI_PERIOD_TYPES.map((p) => (
-              <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <DatePicker
-          size="small"
-          label={t('common.filters.asOfDate')}
-          value={endDate}
-          onChange={(e) => {
-            const picked = e.target.value
-            onEndDateChange(picked && picked > todayStr ? todayStr : picked)
-          }}
-          sx={dateFieldSx}
-        />
-
-        {/* whiteSpace:nowrap PER TANGGAL (bukan pada seluruh kalimat) — supaya
-            "1 April – 7 Mei 2026" tidak terpotong jadi 2 baris di tengah
-            tanggal saat wrap ke mobile, tapi kalimat masih boleh wrap di
-            sekitar kata "dibandingkan". */}
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ flexShrink: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}
+      <FormControl size="small" sx={periodFieldSx}>
+        <InputLabel>{t('common.filters.period')}</InputLabel>
+        <Select
+          value={periodType}
+          label={t('common.filters.period')}
+          onChange={(e) => onPeriodTypeChange(e.target.value as KpiPeriodType)}
         >
-          <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{currentRangeText}</Box>
-          {' '}
-          {t('common.filters.comparedTo')}
-          {' '}
-          <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{comparisonRangeText}</Box>
-        </Typography>
-      </Box>
-    </Card>
+          {KPI_PERIOD_TYPES.map((p) => (
+            <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <DatePicker
+        size="small"
+        label={t('common.filters.asOfDate')}
+        value={endDate}
+        onChange={(e) => {
+          const picked = e.target.value
+          onEndDateChange(picked && picked > todayStr ? todayStr : picked)
+        }}
+        sx={dateFieldSx}
+      />
+
+      {/* whiteSpace:nowrap PER TANGGAL (bukan pada seluruh kalimat) — supaya
+          "1 April – 7 Mei 2026" tidak terpotong jadi 2 baris di tengah
+          tanggal saat wrap ke mobile, tapi kalimat masih boleh wrap di
+          sekitar kata "dibandingkan". */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ flexShrink: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}
+      >
+        <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{currentRangeText}</Box>
+        {' '}
+        {t('common.filters.comparedTo')}
+        {' '}
+        <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{comparisonRangeText}</Box>
+      </Typography>
+    </FilterBarShell>
   )
 }
