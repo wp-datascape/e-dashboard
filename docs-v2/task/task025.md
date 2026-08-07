@@ -831,3 +831,29 @@ bukan cuma halaman/route/permission-nya yang terpisah:
 - **Masih follow-up** (tidak berubah dari sebelumnya): chart tren 2-seri
   high-margin di KPI5 belum dibangun.
 
+## 13. M2 (KPI2, Cross Selling) — tabel persisten (2026-08-07)
+
+User: "tren produk KPI M2 belum dikerjakan" — M2 (Rata-rata jumlah produk
+yang dibeli, `/cross-selling`) masih dialog drill-down lama per v9 §3
+("❌ bangun — jadikan tabel persisten di bawah chart, bukan dialog").
+
+- **Bukan halaman baru** — M2 tetap section di `/cross-selling` (beda dari
+  M3-M7 yang dipecah jadi halaman terpisah); KPI1 (Heatmap) di halaman yang
+  sama sudah persisten sejak awal, cuma M2 yang masih dialog.
+- **Temuan penting**: dialog M2 sebelumnya pakai `useCrossSellingDetail`
+  (endpoint TERPISAH), padahal `getCrossSelling` (hook UTAMA yang sudah
+  jalan di halaman) SUDAH mengembalikan `data.detail` — array yang PERSIS
+  SAMA. Dialog memanggil endpoint yang SAMA 2x dengan `period_end` sama.
+  Diperbaiki: hapus `useCrossSellingDetail` + dialog, `data.detail` dari
+  hook utama langsung dipakai tabel persisten — TIDAK ADA request baru.
+- Filter TETAP `DateScopeFilterBar` (bukan KpiFilterBar) — halaman ini
+  cakupannya KPI1+KPI2 sekaligus (beda dari M3-M7 yang 1 KPI = 1 halaman),
+  `getCrossSelling` juga tidak expose struktur YoY.
+- Kolom tabel (`colCustomerCode`/`colCustomerName`/chip Unit-Consumable-
+  Sparepart/`colCategoryCount`/`colTotalRevenue`) dikonversi `width` tetap
+  → `minWidth`+`flex` (anti-truncation, pola konsisten dgn tabel KPI lain).
+- Diverifikasi END-TO-END dgn data real: 201 pelanggan (periode April
+  2026), semua header tabel tanpa truncation (`scrollWidth>clientWidth`
+  dicek langsung, bukan tebak visual). 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+
