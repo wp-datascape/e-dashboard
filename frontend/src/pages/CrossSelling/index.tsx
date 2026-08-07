@@ -15,7 +15,8 @@ import { HeatmapWidget } from '@/components/charts/HeatmapWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Card, Dialog } from '@/components/ui';
-import { useCrossSelling, useCrossSellingDetail } from '@/hooks/useMetrics';
+import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
+import { useCrossSelling } from '@/hooks/useMetrics';
 import { useCustomerProducts } from '@/hooks/useProducts';
 import { formatIDR } from '@/utils/format';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
@@ -24,13 +25,6 @@ import { DateScopeFilterBar } from '@/components/filters/DateScopeFilterBar';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-/** Konversi 'YYYY-MM' (label dari trend chart) ke hari terakhir bulan sebagai 'YYYY-MM-DD' */
-function monthToEndDate(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  const d = new Date(y, m, 0).getDate();
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 /** Terjemahkan key item_type mentah ('unit'/'sparepart'/'consumable') ke label chip */
@@ -107,15 +101,19 @@ export default function CrossSelling() {
 
   const latestTrend = data?.trend.at(-1);
 
-  // ─── M2 Drill-down (klik titik grafik avg-category) ────────────────────────
-  const [drillDate, setDrillDate] = useState<string | null>(null);
-  const { data: drillData, isLoading: drillLoading } = useCrossSellingDetail({
-    period_end: drillDate,
-    company_id: companyId,
-    branch_id: branchId === 'all' ? undefined : branchId,
-    division: division || undefined,
-    exclude_intercompany: excludeIntercompany,
-  });
+  // ─── M2: tabel persisten (task025 lanjutan, 2026-08-07 — user: "tren
+  // produk KPI M2 belum dikerjakan") — SEBELUMNYA dialog klik-titik-grafik
+  // pakai endpoint TERPISAH (`useCrossSellingDetail`) padahal isinya
+  // PERSIS SAMA dengan `useCrossSelling` utama (`getCrossSelling` dipanggil
+  // 2x dgn period_end sama) — dihapus, `data.detail` dari hook utama
+  // sudah cukup, tidak perlu query kedua yang redundan.
+  const [m2Search, setM2Search] = useState('');
+  const m2Rows = data?.detail ?? [];
+  const filteredM2Rows = m2Search
+    ? m2Rows.filter((r) =>
+        r.customer_name.toLowerCase().includes(m2Search.toLowerCase())
+        || (r.customer_code ?? '').toLowerCase().includes(m2Search.toLowerCase()))
+    : m2Rows;
 
   // ─── M1.1 Drill-down (klik sel heatmap customer × kategori) ─────────────────
   const [productDrill, setProductDrill] = useState<{ customerId: number; customerName: string; itemType: string; itemLabel: string } | null>(null);
@@ -145,14 +143,17 @@ export default function CrossSelling() {
     { field: 'invoice_count', headerName: t('crossSelling.m11ColInvoice'), width: 90, type: 'number', sortable: false },
   ];
 
-  // ─── Desktop Table Columns ─────────────────────────────────────────────────
+  // ─── Desktop Table Columns (M2, tabel persisten) ────────────────────────────
+  // minWidth+flex (bukan width tetap) — anti-truncation, konsisten dgn pola
+  // yang sudah dipakai di semua tabel KPI lain sejak task025.
   const detailColumns: GridColDef[] = [
-    { field: 'customer_code', headerName: t('crossSelling.colCustomerCode'), width: 130 },
-    { field: 'customer_name', headerName: t('crossSelling.colCustomerName'), flex: 1, minWidth: 180 },
+    { field: 'customer_code', headerName: t('crossSelling.colCustomerCode'), minWidth: 140, flex: 0.8 },
+    { field: 'customer_name', headerName: t('crossSelling.colCustomerName'), flex: 1.4, minWidth: 200 },
     {
       field: 'has_unit',
       headerName: t('crossSelling.chipUnit'),
-      width: 90,
+      minWidth: 110,
+      flex: 0.6,
       renderCell: (p) => (
         <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
@@ -160,7 +161,8 @@ export default function CrossSelling() {
     {
       field: 'has_consumable',
       headerName: t('crossSelling.chipConsumable'),
-      width: 110,
+      minWidth: 140,
+      flex: 0.7,
       renderCell: (p) => (
         <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
@@ -168,7 +170,8 @@ export default function CrossSelling() {
     {
       field: 'has_sparepart',
       headerName: t('crossSelling.chipSparepart'),
-      width: 110,
+      minWidth: 140,
+      flex: 0.7,
       renderCell: (p) => (
         <StatusChip label={p.value ? t('crossSelling.yes') : t('crossSelling.no')} color={p.value ? 'primary' : 'default'} />
       ),
@@ -176,13 +179,15 @@ export default function CrossSelling() {
     {
       field: 'category_count',
       headerName: t('crossSelling.colCategoryCount'),
-      width: 110,
+      minWidth: 150,
+      flex: 0.8,
       type: 'number',
     },
     {
       field: 'total_revenue',
       headerName: t('crossSelling.colTotalRevenue'),
-      width: 160,
+      minWidth: 160,
+      flex: 0.9,
       type: 'number',
       valueFormatter: (value: number) => fmtRp(value),
     },
@@ -314,7 +319,7 @@ export default function CrossSelling() {
         )}
       </Box>
 
-      {/* ── M2: Avg Category per Customer Trend ── */}
+      {/* ── M2: Avg Category per Customer Trend + Tabel Persisten ── */}
       <Box>
         <SectionLabel label={t('crossSelling.labelM2')} />
         {isLoading ? (
@@ -322,52 +327,38 @@ export default function CrossSelling() {
         ) : (
           <AreaChartWidget
             title={t('crossSelling.m2ChartTitle')}
-            subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })} · ${t('crossSelling.m2ChartHint')}`}
+            subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}`}
             value={`${latestTrend?.avg_category ?? 0}`}
             data={data?.trend ?? []}
             series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
             xKey="month"
             height={220}
-            onAreaClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
           />
         )}
       </Box>
 
-      {/* M2 Drill-down Dialog — detail per customer bulan yang diklik */}
-      <Dialog
-        open={!!drillDate}
-        onClose={() => setDrillDate(null)}
-        maxWidth="md"
-        title={t('crossSelling.m2DialogTitle', { date: drillDate })}
-        showCloseButton
-        contentSx={{ p: 1 }}
-        subtitle={drillData && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
-            {([
-              [t('crossSelling.m2DialogAvgCategories'), String(drillData.kpi2.avg_categories)],
-              [t('crossSelling.m2DialogDistinctCats'),  String(drillData.kpi2.total_distinct_cats)],
-              [t('crossSelling.m2DialogActiveCount'),   String(drillData.kpi1.active_count)],
-            ] as [string, string][]).map(([label, val]) => (
-              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
-              </Box>
-            ))}
-          </Box>
-        )}
-      >
+      {/* Tabel persisten (task025 lanjutan, 2026-08-07) — dari dialog
+          klik-titik-grafik jadi persisten, bound ke `periodEnd` filter,
+          bukan lagi query terpisah (`data.detail` dari hook utama sudah
+          cukup, lihat komentar di `m2Rows` di atas). */}
+      <Card>
+        <KpiTableToolbar
+          search={m2Search}
+          onSearchChange={setM2Search}
+          searchPlaceholder={t('crossSelling.m2SearchPlaceholder')}
+          totalCountText={t('crossSelling.m2CustomerCountText', { count: filteredM2Rows.length })}
+        />
         <ResponsiveListView
-          rows={(drillData?.detail ?? []).map((r) => ({ ...r, id: r.customer_id }))}
+          rows={filteredM2Rows.map((r) => ({ ...r, id: r.customer_id }))}
           columns={detailColumns}
-          loading={drillLoading}
-          height={420}
-          pageSize={25}
-          pageSizeOptions={[25, 50, 100]}
+          loading={isLoading}
           emptyMessage={t('crossSelling.m2EmptyMessage')}
           mobileFields={['customer_name', 'category_count', 'total_revenue']}
+          height={420}
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50]}
         />
-      </Dialog>
+      </Card>
 
       {/* M1.1 Drill-down Dialog — detail produk per customer × kategori yang diklik di heatmap */}
       <Dialog

@@ -61,5 +61,7 @@
   "m2DialogAvgCategories": "Rata-rata Kategori/Customer",
   "m2DialogDistinctCats": "Jenis Kategori Terjual",
   "m2DialogActiveCount": "Customer Aktif",
-  "m2EmptyMessage": "Tidak ada data customer aktif bulan ini"
+  "m2EmptyMessage": "Tidak ada data customer aktif bulan ini",
+  "m2SearchPlaceholder": "Cari customer...",
+  "m2CustomerCountText": "{{count}} pelanggan"
 }

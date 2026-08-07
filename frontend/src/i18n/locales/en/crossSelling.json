@@ -61,5 +61,7 @@
   "m2DialogAvgCategories": "Avg Categories/Customer",
   "m2DialogDistinctCats": "Distinct Categories Sold",
   "m2DialogActiveCount": "Active Customers",
-  "m2EmptyMessage": "No active customer data for this month"
+  "m2EmptyMessage": "No active customer data for this month",
+  "m2SearchPlaceholder": "Search customer...",
+  "m2CustomerCountText": "{{count}} customers"
 }
