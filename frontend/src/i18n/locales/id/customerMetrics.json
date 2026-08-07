@@ -60,7 +60,9 @@
     "dialogMedianThreshold": "Median threshold",
     "dialogExistingTx": "Existing bertransaksi bulan ini",
     "exportPdf": "Export PDF",
-    "emptyMessage": "Tidak ada data GP bulan ini"
+    "emptyMessage": "Tidak ada data GP bulan ini",
+    "searchPlaceholder": "Cari customer...",
+    "customerCountText": "{{count}} pelanggan"
   },
   "m5": {
     "pageTitle": "Pembelian Produk Fokus",
@@ -82,7 +84,9 @@
     "colCode": "Kode",
     "colRevenueHm": "Revenue HM",
     "colPctHm": "% Total HM",
-    "emptyMessage": "Tidak ada existing customer yang membeli produk high margin bulan ini"
+    "emptyMessage": "Tidak ada existing customer yang membeli produk high margin bulan ini",
+    "searchPlaceholder": "Cari customer...",
+    "customerCountText": "{{count}} pelanggan"
   },
   "m6": {
     "sectionLabel": "M6 · Repeat Order Rate — Bulan Berjalan",
@@ -119,6 +123,8 @@
     "colStatus": "Status",
     "statusUp": "Naik",
     "statusFlatDown": "Flat/Turun",
-    "emptyMessage": "Tidak ada data expansion bulan ini"
+    "emptyMessage": "Tidak ada data expansion bulan ini",
+    "searchPlaceholder": "Cari customer...",
+    "customerCountText": "{{count}} pelanggan"
   }
 }

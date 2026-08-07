@@ -21,13 +21,8 @@ import {
   type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
+import { computeChangePct } from '@/utils/analisisComparison';
 import type { ReactivatedCustomerRow } from '@/types/metrics';
-
-/** Persentase perubahan current vs comparison — null kalau comparison 0 (hindari bagi nol / "Infinity%"). */
-function computeChangePct(current: number, previous: number): number | null {
-  if (previous === 0) return null;
-  return ((current - previous) / previous) * 100;
-}
 
 function fmtDate(v: string): string {
   return new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });

@@ -801,3 +801,33 @@ Status: eksekusi dimulai sekarang.
   benar, sidebar tampil 5 item baru, 0 console error.
 - `tsc --noEmit` + `eslint src` bersih (0 error) frontend & backend.
 
+### Susulan (2026-08-07) — user tanya "kenapa tabel dan filternya belum menyesuaikan template sesuai revenue"
+
+Follow-up §12 poin 1 di atas DIKERJAKAN SEKARANG (bukan ditunda lagi) untuk
+KPI4/5/7 — user menegaskan filter+tabel harus benar-benar apple-to-apple,
+bukan cuma halaman/route/permission-nya yang terpisah:
+
+- **Filter**: `DateScopeFilterBar` → `KpiFilterBar` (periodType+YoY penuh)
+  di ketiga halaman.
+- **Banner KpiSummaryStrip**: YoY NYATA (bukan placeholder) — dihitung dari
+  2x panggil `useCustomerMetrics` (endDate & `shiftDateByYears(endDate,-1)`),
+  ambil scalar dari `trend.at(-1)` (`avg_gross_profit`/`high_margin_ratio`/
+  `up_rate`). TIDAK perlu endpoint backend baru — trend sudah 12-bulan
+  rolling per titik waktu, sama trik yang dipakai M3-di-Revenue.
+- **Tabel**: dari dialog drill-down (klik bar → `drillDate` state) jadi
+  PERSISTEN — breakdown hook (`useGpBreakdown`/`useHmBreakdown`/
+  `useExpansionBreakdown`) langsung di-bind ke `endDate` filter, render via
+  `KpiTableToolbar`+`ResponsiveListView` di bawah banner (search + count,
+  server-side pagination/sort). Chart (M4/M5/M7 shared component) TIDAK
+  diubah — dialog klik-bar-nya tetap ada di situ sbg drill historis
+  terpisah, sekarang JUGA ada tabel persisten independen di halaman.
+- `computeChangePct()` (sebelumnya diduplikasi 3x di DormantRate/
+  DormantValue/ReactivationRate) DIPUSATKAN ke `utils/analisisComparison.ts`
+  — dipakai 6 halaman sekarang, 3 lama diupdate importnya.
+- Diverifikasi END-TO-END dgn data real: KPI4 Rp1.16jt→Rp0 ("Berhenti"),
+  KPI5 0%→0% ("Belum ada data"), KPI7 27.4%→0.0% ("Berhenti") + tabel 240
+  baris data asli tanpa truncation. 0 console error.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+- **Masih follow-up** (tidak berubah dari sebelumnya): chart tren 2-seri
+  high-margin di KPI5 belum dibangun.
+

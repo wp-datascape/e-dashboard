@@ -20,13 +20,8 @@ import {
   type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
+import { computeChangePct } from '@/utils/analisisComparison';
 import type { CustomerRow } from '@/types/customers';
-
-/** Persentase perubahan current vs comparison — null kalau comparison 0 (hindari bagi nol / "Infinity%"). */
-function computeChangePct(current: number, previous: number): number | null {
-  if (previous === 0) return null;
-  return ((current - previous) / previous) * 100;
-}
 
 function fmtRp(v: number): string {
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
