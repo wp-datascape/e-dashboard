@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui';
+import { formatAxisTick } from '@/utils/format';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
@@ -74,7 +75,10 @@ export const BarChartWidget = ({
   renderTooltip,
   concentrationKey,
   concentrationThreshold = 25,
-  yAxisFormatter,
+  // Default: bulatkan tick (task023, audit UX Dashboard — tick "86.02" mentah
+  // tanpa formatter kelihatan belum dipoles). Caller tetap bisa override lewat
+  // prop kalau butuh format lain (mis. fmtRp buat sumbu Rupiah).
+  yAxisFormatter = formatAxisTick,
   onBarClick,
   showLabels = false,
   labelFormatter,
@@ -125,7 +129,9 @@ export const BarChartWidget = ({
         <BarChart
           data={data}
           layout={isHorizontal ? 'vertical' : 'horizontal'}
-          margin={{ top: concentrationKey ? 16 : 4, right: 4, left: isHorizontal ? 4 : (yAxisFormatter ? 0 : -20), bottom: 0 }}
+          // left:0 (bukan ternary lagi) — yAxisFormatter SELALU ada sekarang (default
+          // formatAxisTick), jadi Y-axis vertical SELALU butuh ruang label
+          margin={{ top: concentrationKey ? 16 : 4, right: 4, left: isHorizontal ? 4 : 0, bottom: 0 }}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -165,7 +171,8 @@ export const BarChartWidget = ({
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={yAxisFormatter}
-                width={yAxisFormatter ? 62 : undefined}
+                // width:62 tetap (bukan ternary) — yAxisFormatter SELALU ada sekarang
+                width={62}
               />
             </>
           )}

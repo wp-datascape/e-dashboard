@@ -20,8 +20,84 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
 import { PALETTES } from '@/theme/palettes';
-import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
-import { SectionLabel, Row } from './HelperComponents';
+
+// M3 · Revenue existing customer — chart bar (total revenue) + 2 garis
+// (avg/median) + 1 garis Kontribusi High Margin (%). Dipusatkan di sini
+// (semula lokal di pages/CustomerMetrics/M3Revenue.tsx) karena sekarang
+// dipakai 2 halaman: CustomerMetrics (M3 asli) DAN Analisis Revenue
+// (task025 lanjutan, 2026-08-07 — instruksi user: tampilkan tren revenue
+// 12 bulan di halaman menu Revenue, diposisikan di bawah filter, di atas
+// KpiSummaryStrip). i18n key TETAP `customerMetrics.m3.*` (reuse, bukan
+// namespace baru) — komponennya sendiri sudah spesifik "M3", bukan nama
+// generik yang menyesatkan (beda kasus dengan §6c "Analisis" generik).
+//
+// Helper fmtRp/fmtRpDetail/monthToEndDate & SectionLabel/Row inline di sini
+// (BUKAN import dari pages/CustomerMetrics/helpers — cross-page import),
+// konsisten dgn konvensi "helper inline per file" yang sudah dipakai di
+// halaman KPI lain (DormantRate/DormantValue/dst).
+
+function fmtRp(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
+  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(1)}jt`;
+  if (v >= 1_000)         return `${Math.round(v / 1_000)}rb`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
+}
+
+// 2 desimal agar sum baris tabel ≈ total header
+function fmtRpDetail(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}M`;
+  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(2)}jt`;
+  if (v >= 1_000)         return `${(v / 1_000).toFixed(1)}rb`;
+  return `Rp ${v.toLocaleString('id-ID')}`;
+}
+
+/** Konversi 'YYYY-MM' (label dari trend chart) ke hari terakhir bulan sebagai 'YYYY-MM-DD' */
+function monthToEndDate(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <Typography
+      variant="body2"
+      sx={{
+        fontWeight: 700,
+        mb: 0.5,
+        color: 'text.secondary',
+        fontSize: '0.72rem',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}
+    >
+      {label}
+    </Typography>
+  );
+}
+
+function Row({
+  label,
+  value,
+  highlight,
+  icon,
+}: {
+  label: string
+  value: string
+  highlight?: boolean
+  icon?: string
+}) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+      <Typography variant="caption" color={highlight ? 'warning.main' : 'text.secondary'}>
+        {icon}{label}
+      </Typography>
+      <Typography variant="caption" sx={{ fontWeight: 600, color: highlight ? 'warning.main' : 'text.primary' }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
 
 function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();
@@ -89,7 +165,6 @@ function tierChipColor(tier: string): 'primary' | 'info' | 'default' {
   if (tier === 'Tengah') return 'info';
   return 'default';
 }
-
 
 function tierLabel(tier: string, t: TFunction): string {
   if (tier === 'Atas')   return t('customerMetrics.m4.tierTop');

@@ -85,11 +85,11 @@ export default function Transactions() {
         <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
 
+        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
         <MonthYearPicker
           size="small" label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
-          sx={{ width: { xs: '100%', sm: 150 } }}
         />
 
         <RangeFilter value={activeWindow} onChange={setActiveWindow} />

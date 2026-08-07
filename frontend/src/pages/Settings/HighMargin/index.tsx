@@ -244,12 +244,14 @@ export default function HighMarginSettings() {
             </Select>
           </FormControl>
 
+          {/* width dilepas — lebar aman sudah default di komponen (task023 §5), flex
+              tetap dipertahankan supaya tidak ikut grow/shrink di row filter ini */}
           <MonthYearPicker
             size="small"
             label={t('highMargin.filterPeriod')}
             value={period}
             onChange={setPeriod}
-            sx={{ width: { xs: '100%', sm: 180 }, flex: { sm: '0 0 auto' } }}
+            sx={{ flex: { sm: '0 0 auto' } }}
           />
 
           <FormControlLabel

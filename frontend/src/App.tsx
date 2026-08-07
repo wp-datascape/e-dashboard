@@ -113,6 +113,13 @@ function AppRouter() {
           element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
         />
 
+        {/* Legacy Redirect — /dormant-customer dipecah jadi 3 halaman
+            (task025 §7a, 2026-08-07): /dormant-rate, /dormant-value,
+            /reactivation-rate. Redirect ke halaman pertama (KPI8) supaya
+            bookmark/deep-link lama (termasuk 3 insight card Dashboard yang
+            belum sempat diupdate) tidak putus jadi 404. */}
+        <Route path="/dormant-customer" element={<Navigate to="/dormant-rate" replace />} />
+
         {/* Dynamic Generated Routes Mapping Berdasarkan Kontrol DB */}
         {pageSettings?.map(({ page_key, ready }) => {
           const registry = routeRegistry[page_key]

@@ -6,11 +6,9 @@ import { useTranslation } from 'react-i18next';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
-import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
-import { DatePicker } from '@/components/ui/DatePicker';
+import { DateScopeFilterBar } from '@/components/filters/DateScopeFilterBar';
 import { todayIsoDate } from './helpers';
-import { M3Revenue }     from './M3Revenue';
+import { M3Revenue }     from '@/components/analisis/M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
 import { M5HighMargin }  from './M5HighMargin';
 import { M6RepeatOrder } from './M6RepeatOrder';
@@ -20,7 +18,7 @@ export default function CustomerMetrics() {
   const { t } = useTranslation();
   const [periodEnd,  setPeriodEnd]  = useState(todayIsoDate());
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
 
   const { data, isLoading } = useCustomerMetrics({
     company_id:  companyId,
@@ -36,35 +34,27 @@ export default function CustomerMetrics() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* ── Header + Filter ── */}
-      <Box sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'stretch', sm: 'flex-start' },
-        justifyContent: 'space-between',
-        gap: 2,
-      }}>
-        <Box>
-          <Typography variant="pageTitle">
-            {t('customerMetrics.pageTitle')}
-          </Typography>
-          <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
-            {t('customerMetrics.pageSubtitle')}
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
-          <ScopeFilterFields filter={scopeFilter} />
-
-          <DatePicker
-            size="small" label={t('common.filters.periodDate')}
-            value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
-            sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          />
-          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
-        </Box>
+      {/* ── Header ── */}
+      <Box>
+        <Typography variant="pageTitle">
+          {t('customerMetrics.pageTitle')}
+        </Typography>
+        <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
+          {t('customerMetrics.pageSubtitle')}
+        </Typography>
       </Box>
+
+      {/* ── Filter bar (template §1 ux-menu-mapping.md — GLOBAL apple-to-apple
+          dgn semua halaman KPI lain, task025 lanjutan 2026-08-07) ── */}
+      <DateScopeFilterBar
+        scopeFilter={scopeFilter}
+        periodEnd={periodEnd}
+        onPeriodEndChange={setPeriodEnd}
+        onReset={() => {
+          scopeFilter.reset();
+          setPeriodEnd(todayIsoDate());
+        }}
+      />
 
       {/* ── M3 ── */}
       <M3Revenue

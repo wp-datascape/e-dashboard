@@ -11,7 +11,12 @@ export const Dashboard = lazy(() => import('../pages/Dashboard/index'))
 export const Customers = lazy(() => import('../pages/Customers/index'))
 export const CrossSelling = lazy(() => import('../pages/CrossSelling/index'))
 export const CustomerMetrics = lazy(() => import('../pages/CustomerMetrics/index'))
-export const DormantCustomer = lazy(() => import('../pages/DormantCustomer/index'))
+// DormantCustomer (bundel M8+M9+M10, 1 route) dipecah jadi 3 halaman task025
+// §7a, mengikuti ux-menu-mapping.md v8 "1 route = 1 KPI" — TIDAK ADA lagi
+// pola multi-section/sub-nav.
+export const DormantRate = lazy(() => import('../pages/DormantRate/index'))
+export const DormantValue = lazy(() => import('../pages/DormantValue/index'))
+export const ReactivationRate = lazy(() => import('../pages/ReactivationRate/index'))
 export const Products = lazy(() => import('../pages/Products/index'))
 export const ProductsHighMargin = lazy(() => import('../pages/ProductsHighMargin/index'))
 export const ProductsTrend = lazy(() => import('../pages/ProductsTrend/index'))

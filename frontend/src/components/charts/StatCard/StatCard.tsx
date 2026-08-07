@@ -25,6 +25,10 @@ export interface StatCardProps {
   data: { month: string; value: number }[];
   color?: string;
   link?: string;
+  /** True kalau trend 'up' untuk metrik ini justru hal BURUK (mis. Dormant Rate/Value)
+   * — badge warna dibalik (naik = merah), panah arah tetap sesuai trend asli. Lihat
+   * `utils/metricPolarity.ts`. Default false (kenaikan = baik, kasus mayoritas). */
+  inversePolarity?: boolean;
 }
 
 export const StatCard = ({
@@ -36,6 +40,7 @@ export const StatCard = ({
   data,
   color: colorProp,
   link,
+  inversePolarity = false,
 }: StatCardProps) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -44,12 +49,15 @@ export const StatCard = ({
   const isNeutral = trend === 'stable';
   const color = colorProp ?? theme.palette.primary.main;
 
+  // Panah arah SELALU ikut trend asli (naik/turun beneran) — yang polaritas-aware
+  // cuma warna badge (baik/buruk), supaya tidak ada kontradiksi arah-vs-warna.
   const TrendIcon = isNeutral
     ? RemoveIcon
     : isPositive
       ? TrendingUpIcon
       : TrendingDownIcon;
-  const chipColor = isNeutral ? 'default' : isPositive ? 'success' : 'error';
+  const isGood = isNeutral ? null : inversePolarity ? !isPositive : isPositive;
+  const chipColor = isNeutral ? 'default' : isGood ? 'success' : 'error';
 
   return (
     <Tooltip title={link ? t('common.viewDetailOf', { title }) : ''} placement="top" arrow>

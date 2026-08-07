@@ -5,7 +5,9 @@ import {
   Customers,
   CustomerMetrics,
   CrossSelling,
-  DormantCustomer,
+  DormantRate,
+  DormantValue,
+  ReactivationRate,
   Products,
   ProductsHighMargin,
   ProductsTrend,
@@ -56,7 +58,12 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },
   'cross-selling':        { path: '/cross-selling',          element: withLayout(<CrossSelling />),          protected: true, permissionKey: 'cross.selling:view' },
-  'dormant-customer':     { path: '/dormant-customer',       element: withLayout(<DormantCustomer />),       protected: true, permissionKey: 'churn.risk:view' },
+  // DormantCustomer (bundel M8+M9+M10) dipecah task025 §7a — permission TETAP
+  // 1 (`churn.risk:*`, reuse), backend juga masih 1 endpoint gabungan; lihat
+  // rationale lengkap di task025.md §7a.
+  'dormant-rate':         { path: '/dormant-rate',           element: withLayout(<DormantRate />),           protected: true, permissionKey: 'churn.risk:view' },
+  'dormant-value':        { path: '/dormant-value',          element: withLayout(<DormantValue />),          protected: true, permissionKey: 'churn.risk:view' },
+  'reactivation-rate':    { path: '/reactivation-rate',       element: withLayout(<ReactivationRate />),      protected: true, permissionKey: 'churn.risk:view' },
   // ── Product & Portfolio ──────────────────────────────────────────────────
   'products':             { path: '/products',               element: withLayout(<Products />),              protected: true, permissionKey: 'product:view' },
   'products-high-margin': { path: '/products/high-margin',   element: withLayout(<ProductsHighMargin />),    protected: true, permissionKey: 'high.margin:view' },

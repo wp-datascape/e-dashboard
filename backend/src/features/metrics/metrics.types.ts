@@ -145,10 +145,28 @@ export interface DormantValueRow {
   customer_id: number
   customer_name: string
   customer_code: string | null
+  // company_name (task025 lanjutan §8/§9, 2026-08-07): template tabel §7
+  // "SATU template untuk semua menu/halaman" WAJIB kolom Perusahaan sebagai
+  // kolom pertama — sebelumnya tidak ada di query ini, ditambah (murni
+  // penarikan data, bukan perubahan aturan bisnis).
+  company_name: string
   last_invoice_date: string
   months_dormant: number
   avg_monthly_revenue: number
   estimated_lost_value: number
+}
+
+export interface ReactivatedCustomerRow {
+  customer_id: number
+  customer_name: string
+  customer_code: string | null
+  company_name: string
+  // Tanggal transaksi terakhir SEBELUM customer dormant (kapan dia "hilang")
+  previous_last_invoice_date: string
+  // Tanggal transaksi PERTAMA setelah dormant, dalam window bulan berjalan
+  // (kapan dia "kembali")
+  reactivation_date: string
+  months_was_dormant: number
 }
 
 export interface DormantMetricsData {
@@ -159,12 +177,28 @@ export interface DormantMetricsData {
     dormant_count: number
     total_customers: number
     alert_pct: number
+    // comparison_value (task025 lanjutan, 2026-08-07): nilai dormant_rate
+    // pada tanggal YANG SAMA setahun lalu — dipakai KpiSummaryStrip di
+    // frontend (pola "apple to apple" dgn halaman Revenue/Retention).
+    // Dihitung dari fetchDormantTrend KEDUA dgn filterDate digeser -1 tahun,
+    // BUKAN perubahan business rule apa pun (threshold dormant tetap sama).
+    comparison_value: number
   }
   reactivation_current: {
     value: number
     target_low: number
     target_high: number
+    comparison_value: number
   }
+  // Total estimated_lost_value dari top-20 ranking, current vs setahun lalu
+  // (top-20 dihitung ULANG di tanggal pembanding, bukan snapshot ranking yang
+  // sama) — dipakai KpiSummaryStrip halaman Nilai Hilang (KPI9).
+  value_ranking_total_current: number
+  value_ranking_total_comparison: number
+  // Daftar customer yang reaktivasi di bulan berjalan (KPI10 tabel, top 20
+  // by tanggal reaktivasi terbaru) — konsisten dgn perhitungan
+  // reactivation_current (bulan sama, definisi sama persis).
+  reactivated_customers: ReactivatedCustomerRow[]
 }
 
 export interface CustomerMetricsData {

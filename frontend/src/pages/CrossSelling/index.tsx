@@ -19,9 +19,7 @@ import { useCrossSelling, useCrossSellingDetail } from '@/hooks/useMetrics';
 import { useCustomerProducts } from '@/hooks/useProducts';
 import { formatIDR } from '@/utils/format';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
-import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
-import { DatePicker } from '@/components/ui/DatePicker';
+import { DateScopeFilterBar } from '@/components/filters/DateScopeFilterBar';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function todayStr(): string {
@@ -97,7 +95,7 @@ export default function CrossSelling() {
 
   const [periodEnd,  setPeriodEnd]  = useState(todayStr());
   const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
 
   const { data, isLoading } = useCrossSelling({
     company_id: companyId,
@@ -192,35 +190,27 @@ export default function CrossSelling() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* ── Header + Filter ── */}
-      <Box sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'stretch', sm: 'flex-start' },
-        justifyContent: 'space-between',
-        gap: 2,
-      }}>
-        <Box>
-          <Typography variant="pageTitle">
-            {t('crossSelling.pageTitle')}
-          </Typography>
-          <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
-            {t('crossSelling.subtitleWindow', { months: data?.period.active_months ?? '…' })}
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
-          <ScopeFilterFields filter={scopeFilter} />
-
-          <DatePicker
-            size="small" label={t('crossSelling.filterDateEnd')}
-            value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
-            sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          />
-          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
-        </Box>
+      {/* ── Header ── */}
+      <Box>
+        <Typography variant="pageTitle">
+          {t('crossSelling.pageTitle')}
+        </Typography>
+        <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>
+          {t('crossSelling.subtitleWindow', { months: data?.period.active_months ?? '…' })}
+        </Typography>
       </Box>
+
+      {/* ── Filter bar (template §1 ux-menu-mapping.md — GLOBAL apple-to-apple
+          dgn semua halaman KPI lain, task025 lanjutan 2026-08-07) ── */}
+      <DateScopeFilterBar
+        scopeFilter={scopeFilter}
+        periodEnd={periodEnd}
+        onPeriodEndChange={setPeriodEnd}
+        onReset={() => {
+          scopeFilter.reset();
+          setPeriodEnd(todayStr());
+        }}
+      />
 
       {/* ── KPI Summary Cards ── */}
       {/* Cards 1 dan 4 dulu tampil sekaligus tapi selalu identik: backend menormalkan

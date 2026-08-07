@@ -2,9 +2,10 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { useTranslation } from 'react-i18next'
 import { StatusChip } from '@/components/ui'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
-import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
+import { formatGrowthPct, resolveTrendKind, trendKindColor } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { AnalisisMetricComparison } from '@/types/analisis'
 
@@ -68,10 +69,44 @@ export function MetricPair({
 // yang dipakai di teks utama sengaja MEMBULATKAN & MEN-CAP nilai ekstrem
 // (mis. "999%+") biar tidak menyesatkan tampilan, tapi angka aslinya tetap
 // harus bisa dicek — permintaan user, tooltip tetap dipertahankan. ─────────
-export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: string; pct: number | null; alert: boolean; newBusinessLabel: string }) {
-  const color = pct === null ? 'info' : trendColor(pct, alert)
-  const arrow = pct === null ? '' : pct < 0 ? '▼ ' : '▲ '
-  const text = pct === null ? `${label}: ${newBusinessLabel}` : `${arrow}${label}: ${formatGrowthPct(pct)}`
+export function TrendChip({
+  label, pct, alert, newBusinessLabel, currentIsZero = false, hideLabel = false,
+}: {
+  label: string
+  pct: number | null
+  alert: boolean
+  newBusinessLabel: string
+  /** current metric = 0 persis — membedakan `pct===null` "belum pernah ada
+   * transaksi sama sekali" (current JUGA 0) dari "pelanggan baru" (current >
+   * 0). Juga membedakan "berhenti total" (pct===-100 DAN current 0) dari
+   * "turun 100%" biasa. Default false (aman utk caller lama yang belum
+   * di-update pass prop ini). */
+  currentIsZero?: boolean
+  /** true = chip TANPA prefix label (mis. "▲ 64.3%" bukan "▲ Pendapatan:
+   * 64.3%") — dipakai kolom Perubahan (%) tabel Analisis, urutan stack
+   * (atas=Pendapatan, bawah=Laba) sudah cukup menyatakan metrik mana tanpa
+   * label diulang (feedback user 2026-08-07: chip kepanjangan/kepotong).
+   * Default false (backward compat — ComparisonSections/mobile card/
+   * NotificationDetailDialog tetap pakai label seperti sebelumnya). */
+  hideLabel?: boolean
+}) {
+  const { t } = useTranslation()
+  const kind = resolveTrendKind(pct, currentIsZero)
+  const color = trendKindColor(kind, alert)
+  const arrow = kind === 'up' ? '▲ ' : kind === 'down' ? '▼ ' : ''
+  const prefix = hideLabel ? '' : `${label}: `
+
+  const text = (() => {
+    switch (kind) {
+      case 'new': return `${prefix}${newBusinessLabel}`
+      case 'none': return `${prefix}${t('analisis.noDataLabel')}`
+      case 'stopped': return `${prefix}${t('analisis.stoppedLabel')}`
+      case 'flat': return `${prefix}${t('analisis.flatLabel')}`
+      // withSign=false — panah ▲/▼ sudah menyatakan arah, tanda +/- jadi
+      // redundan (feedback user 2026-08-07, contoh target "▲ 64.3%").
+      default: return `${arrow}${prefix}${formatGrowthPct(pct as number, false)}`
+    }
+  })()
   const exactText = pct === null ? null : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`
 
   const content = <StatusChip size="small" color={color} label={text} />
@@ -87,6 +122,7 @@ export function TrendChip({ label, pct, alert, newBusinessLabel }: { label: stri
 
 export function MetricPercentPair({
   revenueLabel, marginLabel, revenuePct, marginPct, revenueAlert, marginAlert, newBusinessLabel,
+  revenueCurrentIsZero = false, marginCurrentIsZero = false, hideLabel = false,
 }: {
   revenueLabel: string
   marginLabel: string
@@ -95,11 +131,17 @@ export function MetricPercentPair({
   revenueAlert: boolean
   marginAlert: boolean
   newBusinessLabel: string
+  /** Lihat `TrendChip.currentIsZero` — bedakan "belum pernah ada transaksi"
+   * dari "pelanggan baru"/"berhenti total". Default false (backward compat). */
+  revenueCurrentIsZero?: boolean
+  marginCurrentIsZero?: boolean
+  /** Lihat `TrendChip.hideLabel`. Default false (backward compat). */
+  hideLabel?: boolean
 }) {
   return (
     <Stack spacing={0.5} sx={{ py: 1 }}>
-      <TrendChip label={revenueLabel} pct={revenuePct} alert={revenueAlert} newBusinessLabel={newBusinessLabel} />
-      <TrendChip label={marginLabel} pct={marginPct} alert={marginAlert} newBusinessLabel={newBusinessLabel} />
+      <TrendChip label={revenueLabel} pct={revenuePct} alert={revenueAlert} newBusinessLabel={newBusinessLabel} currentIsZero={revenueCurrentIsZero} hideLabel={hideLabel} />
+      <TrendChip label={marginLabel} pct={marginPct} alert={marginAlert} newBusinessLabel={newBusinessLabel} currentIsZero={marginCurrentIsZero} hideLabel={hideLabel} />
     </Stack>
   )
 }
@@ -150,8 +192,8 @@ export function ComparisonSections({
           marginLabel={marginLabel}
           revenueText={formatIDRSigned(comparison.revenue_change_value)}
           marginText={formatIDRSigned(comparison.margin_change_value)}
-          revenueColor={trendColor(comparison.revenue_change_pct, comparison.revenue_alert)}
-          marginColor={trendColor(comparison.margin_change_pct, comparison.margin_alert)}
+          revenueColor={trendKindColor(resolveTrendKind(comparison.revenue_change_pct, current.revenue === 0), comparison.revenue_alert)}
+          marginColor={trendKindColor(resolveTrendKind(comparison.margin_change_pct, current.margin === 0), comparison.margin_alert)}
           showLabels={false}
         />
       </Box>
@@ -168,6 +210,8 @@ export function ComparisonSections({
           revenueAlert={comparison.revenue_alert}
           marginAlert={comparison.margin_alert}
           newBusinessLabel={newBusinessLabel}
+          revenueCurrentIsZero={current.revenue === 0}
+          marginCurrentIsZero={current.margin === 0}
         />
       </Box>
     </Stack>

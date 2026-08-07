@@ -87,8 +87,8 @@
     "totalRevenue": "Total revenue: {{value}}"
   },
   "filters": {
-    "entity": "Entitas",
-    "allEntities": "Semua Entitas",
+    "entity": "Perusahaan",
+    "allEntities": "Semua Perusahaan",
     "division": "Divisi",
     "allDivisions": "Semua Divisi",
     "periodDate": "Periode",
@@ -98,7 +98,10 @@
     "range3Months": "3 Bulan",
     "range6Months": "6 Bulan",
     "range12Months": "12 Bulan",
-    "excludeIntercompany": "Kecualikan Intercompany"
+    "excludeIntercompany": "Kecualikan transaksi antarperusahaan",
+    "asOfDate": "Per Tanggal",
+    "vsSamePeriodLastYear": "dibanding tahun lalu",
+    "comparedTo": "dibandingkan"
   },
   "userMenu": {
     "moreCount": "+{{count}} lainnya",

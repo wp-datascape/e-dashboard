@@ -1,0 +1,20 @@
+{
+  "pageTitle": "Aktivasi Kembali Pelanggan Tidak Aktif",
+  "pageSubtitle": "KPI 10 — Customer Reactivation Rate. Proporsi pelanggan dormant periode sebelumnya yang kembali bertransaksi di periode ini.",
+  "m10SectionLabel": "M10 · Customer Reactivation Rate — vs Target KPI",
+  "m10ChartTitle": "Customer Reactivation Rate",
+  "m10ChartSubtitle": "Nilai realisasi vs rentang target {{targetLow}}%–{{targetHigh}}% · Latar berubah warna saat tercapai",
+  "m10TrendTitle": "Reactivation Rate — Tren 12 Bulan",
+  "m10TrendSubtitle": "Target zona: {{targetLow}}%–{{targetHigh}}% · Garis biru = realisasi bulanan",
+  "lineLabelReactivationRate": "Reactivation Rate (%)",
+  "targetMinLabel": "Target Min {{targetLow}}%",
+  "tableSectionLabel": "Daftar Pelanggan yang Kembali Aktif",
+  "colCompany": "Perusahaan",
+  "colCustomer": "Customer",
+  "colPreviousLastInvoice": "Sebelum Dormant",
+  "colReactivationDate": "Tanggal Aktivasi Kembali",
+  "colMonthsWasDormant": "Lama Dormant (Bulan)",
+  "searchPlaceholder": "Cari customer...",
+  "customerCountText": "{{count}} pelanggan",
+  "emptyTable": "Tidak ada customer yang reaktivasi pada scope/periode ini"
+}

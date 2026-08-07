@@ -29,7 +29,10 @@ Faktur Accurate / File CSV
 
 > **Dihapus**: `period_month` (YYYY-MM) dan `active_window` tidak lagi dipakai.
 > Periode berjalan = **30 hari rolling** mundur dari `period_end`.
-> Threshold dormant = fixed **90 hari**.
+> Threshold dormant = **dinamis per kategori bisnis** (KOREKSI 2026-08-07 —
+> lihat catatan di bawah §Perbandingan; baris ini SEBELUMNYA salah menulis
+> "fixed 90 hari", basi sejak fitur threshold per-unit ditambahkan setelah
+> 2026-06-30, tidak pernah diupdate).
 
 ---
 
@@ -41,9 +44,18 @@ Semua status dihitung relatif terhadap **`period_end`** (tanggal dipilih user, d
 | Status | Kondisi | Threshold |
 |---|---|---|
 | **Aktif** | Ada invoice dalam `(period_end - 30 hari, period_end]` | 30 hari rolling |
-| **Existing** | `first_invoice_date < period_end - 30 hari` AND `last_invoice_date >= period_end - 90 hari` | Pernah beli sebelum window + belum dormant |
-| **Dormant** | `last_invoice_date < period_end - 90 hari` | 90 hari tanpa transaksi |
+| **Existing** | `first_invoice_date < period_end - 30 hari` AND `last_invoice_date >= period_end - N bulan` | Pernah beli sebelum window + belum dormant |
+| **Dormant** | `last_invoice_date < period_end - N bulan` | N bulan tanpa transaksi, N dinamis per kategori bisnis |
 | **New** | `first_invoice_date` dalam `(period_end - 30 hari, period_end]` | Pertama kali beli dalam window aktif |
+
+> **N (threshold dormant) BUKAN angka tetap** — diambil dari
+> `business_configs.dormant_threshold_months.<kategori>` sesuai kategori
+> bisnis dominan pada scope yang dipilih (`resolveDormantMonths()` di
+> `features/config/threshold.ts`). Default per kategori: `b2b_dc` 3 bulan,
+> `b2b_project` 12 bulan, `b2c` 6 bulan, `manufacturing` 6 bulan — dapat
+> diubah admin lewat Settings → Threshold. Baris tabel di atas SEBELUMNYA
+> menulis literal "90 hari", basi sejak fitur ini ditambahkan (koreksi
+> 2026-08-07).
 
 ---
 
@@ -185,19 +197,21 @@ Denominator : COUNT TOTAL existing customer
 
 ## KPI 8 — Dormant Customer Rate
 
-**Definisi:** Proporsi customer yang tidak bertransaksi selama 90 hari dari **seluruh customer** (bukan hanya existing).
+**Definisi:** Proporsi customer yang tidak bertransaksi selama N bulan (threshold dinamis per kategori bisnis, lihat catatan §Definisi Status Customer) dari **seluruh customer** (bukan hanya existing).
 
-**Dormant:** `last_invoice_date < period_end - 90 hari`
+**Dormant:** `last_invoice_date < period_end - N bulan`
 
 **Cara hitung:**
 ```
-Numerator   : COUNT customer dengan last_invoice_date < period_end - 90 hari
+Numerator   : COUNT customer dengan last_invoice_date < period_end - N bulan
 Denominator : COUNT ALL customer (seluruh data customer di DB)
+N           : dormant_threshold_months.<kategori bisnis dominan scope>
+              (business_configs, default: b2b_dc=3, b2b_project=12, b2c=6, manufacturing=6)
 ```
 
 **Butuh data:** Seluruh tabel `customers` + tanggal transaksi terakhir dari `invoices`.
 
-**Chart:** LineAlertWidget (threshold 10%) di `/dormant-customer`
+**Chart:** LineAlertWidget (threshold 10%) di `/dormant-rate` (sebelumnya bundel `/dormant-customer`, dipecah 2026-08-07 — lihat [[task025]] §7a)
 
 ---
 
@@ -208,7 +222,7 @@ Estimasi value yang hilang per customer dormant:
 AVG monthly revenue (histori sebelum dormant) × Jumlah bulan dormant
 ```
 
-**Chart:** BarChartWidget horizontal ranking di `/dormant-customer`
+**Chart:** BarChartWidget horizontal ranking di `/dormant-value` (sebelumnya bundel `/dormant-customer`, dipecah 2026-08-07 — lihat [[task025]] §7a)
 
 ---
 
@@ -221,7 +235,7 @@ Customer dormant (period sebelumnya) yang kembali transaksi di period ini
 
 Target minimum: 15–20%
 
-**Chart:** BulletChartWidget di `/dormant-customer`
+**Chart:** BulletChartWidget di `/reactivation-rate` (sebelumnya bundel `/dormant-customer`, dipecah 2026-08-07 — lihat [[task025]] §7a)
 
 ---
 
@@ -231,14 +245,14 @@ Target minimum: 15–20%
 |---|---|---|
 | Parameter filter | `period_month: YYYY-MM` | `period_end: YYYY-MM-DD` (default: hari ini) |
 | Periode berjalan | Bulan kalender | **30 hari rolling** mundur dari `period_end` |
-| Threshold dormant | `dormant_threshold_months` dari config | Fixed **90 hari** |
+| Threshold dormant | `dormant_threshold_months` dari config | ~~Fixed 90 hari~~ **KOREKSI 2026-08-07**: tetap **dinamis dari `dormant_threshold_months` per kategori bisnis** — keputusan "fixed 90 hari" di baris ini tidak pernah benar-benar dieksekusi ke kode, dan dikonfirmasi TIDAK jadi diubah (kode/business_configs yang jadi acuan, dokumen ini yang salah) |
 | `active_window` param | Ada di query param | Dihapus |
 | KPI 1 window | Multi-window 30/90/180/360 hari | Bar chart **12 bulan** (tiap bar = 30-hari rolling) |
 | KPI 3 tampilan | Count + avg revenue | **Count saja** (avg revenue = fitur post-MVP) |
 | KPI 5,6,7 denominator | Active existing | Total existing |
 | KPI 6 definisi | Returning customer | **Frekuensi > 1x dalam 30 hari** |
 | KPI 8 denominator | Total existing | **All customer** |
-| Definisi "existing" | first_invoice_date < period_start | + syarat belum dormant (< 90 hari) |
+| Definisi "existing" | first_invoice_date < period_start | + syarat belum dormant (< N bulan, N dinamis per kategori bisnis) |
 
 ---
 

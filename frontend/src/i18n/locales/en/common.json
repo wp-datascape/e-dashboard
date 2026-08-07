@@ -87,8 +87,8 @@
     "totalRevenue": "Total revenue: {{value}}"
   },
   "filters": {
-    "entity": "Entity",
-    "allEntities": "All Entities",
+    "entity": "Company",
+    "allEntities": "All Companies",
     "division": "Division",
     "allDivisions": "All Divisions",
     "periodDate": "Period",
@@ -98,7 +98,10 @@
     "range3Months": "3 Months",
     "range6Months": "6 Months",
     "range12Months": "12 Months",
-    "excludeIntercompany": "Exclude Intercompany"
+    "excludeIntercompany": "Exclude Intercompany Transactions",
+    "asOfDate": "As Of",
+    "vsSamePeriodLastYear": "vs last year",
+    "comparedTo": "compared to"
   },
   "userMenu": {
     "moreCount": "+{{count}} more",

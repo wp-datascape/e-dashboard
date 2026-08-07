@@ -315,9 +315,27 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
 
               {section.items.map((item) => {
                 if (!isNavItemVisible(item, canSee)) return null
-                return item.children
-                  ? <NavGroup key={item.key} item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
-                  : <NavButton key={item.key} item={item} collapsed={collapsed} onNav={handleNav} />
+                return (
+                  <span key={item.key}>
+                    {/* tierLabelKey — penanda tier DI DALAM grup yang sama (bukan grup
+                        baru), mis. "Ringkasan/Tren" vs "Detail per Customer" di Customer
+                        Workbench (task023 §3). Sengaja TANPA Divider (beda dari
+                        groupLabelKey di atas) dan font lebih kecil/ringan — supaya kebaca
+                        sebagai sub-penanda, bukan batas grup baru. */}
+                    {item.tierLabelKey && (
+                      <Collapse in={!collapsed} timeout="auto" unmountOnExit>
+                        <Box sx={{ px: 2, pt: 1, pb: 0.25 }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 500, letterSpacing: '0.04em', color: 'text.disabled', display: 'block' }}>
+                            {t(item.tierLabelKey)}
+                          </Typography>
+                        </Box>
+                      </Collapse>
+                    )}
+                    {item.children
+                      ? <NavGroup item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
+                      : <NavButton item={item} collapsed={collapsed} onNav={handleNav} />}
+                  </span>
+                )
               })}
             </span>
           )

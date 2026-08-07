@@ -102,11 +102,11 @@ export default function Customers() {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
+        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
         <MonthYearPicker
           size="small" label={t('common.filters.period')}
           value={periodMonth}
           onChange={setPeriodMonth}
-          sx={{ width: { xs: '100%', sm: 150 } }}
         />
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: 140 } }}>
           <MenuItem value="">{t('common.all')}</MenuItem>

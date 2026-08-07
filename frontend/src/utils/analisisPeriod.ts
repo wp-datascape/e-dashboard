@@ -8,6 +8,18 @@
  */
 import type { AnalisisPeriodType } from '@/types/analisis'
 
+/**
+ * Set periodType yang DISTANDARKAN ke semua 10 halaman KPI (task025 §0a,
+ * keputusan 2026-08-07) — 4 pilihan, BUKAN 5 seperti `AnalisisPeriodType`
+ * lama. `ytd` sengaja tidak masuk: terverifikasi redundant dengan `annual`
+ * (lihat pemakai `getPeriodDateRange`/`getCurrentPeriodKey` di bawah —
+ * `currentRange.end` di halaman KPI SELALU tanggal yang dipilih user, bukan
+ * akhir alami periodType, jadi `annual` dan `ytd` selalu hasilkan rentang
+ * tanggal identik untuk `endDate` yang sama).
+ */
+export type KpiPeriodType = 'monthly' | 'quarter' | 'semester' | 'annual'
+export const KPI_PERIOD_TYPES: KpiPeriodType[] = ['monthly', 'quarter', 'semester', 'annual']
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
