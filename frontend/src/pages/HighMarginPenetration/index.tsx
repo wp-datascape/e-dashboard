@@ -14,10 +14,10 @@ import { Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { HmBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -70,8 +70,11 @@ export default function HighMarginPenetration() {
   });
 
   const hm = data?.high_margin_current;
-  const currentHm = data?.trend.at(-1)?.high_margin_ratio ?? 0;
-  const comparisonHm = comparisonData?.trend.at(-1)?.high_margin_ratio ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentHm = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
+  const comparisonHm = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
   const growthPct = computeChangePct(currentHm, comparisonHm);
   const hmLabel = t('customerMetrics.m5.chartTitle');
 
@@ -136,7 +139,7 @@ export default function HighMarginPenetration() {
 
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: hmLabel, comparisonText: `${comparisonHm}%`, currentText: `${currentHm}%` }]}
+          metrics={[{ label: hmLabel, comparisonText: `${comparisonHm.toFixed(1)}%`, currentText: `${currentHm.toFixed(1)}%` }]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}

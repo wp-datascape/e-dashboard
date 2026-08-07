@@ -14,10 +14,10 @@ import { Card, StatusChip } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  type KpiPeriodType,
+  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct } from '@/utils/analisisComparison';
+import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
 import type { ExpansionBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -68,8 +68,11 @@ export default function CustomerExpansion() {
   });
 
   const trend = data?.trend ?? [];
-  const currentRate = trend.at(-1)?.up_rate ?? 0;
-  const comparisonRate = comparisonData?.trend.at(-1)?.up_rate ?? 0;
+  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
+  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
+  const currentRate = averageLastMonths(trend, periodMonths, (p) => p.up_rate);
+  const comparisonRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.up_rate);
   const growthPct = computeChangePct(currentRate, comparisonRate);
   const expansionLabel = t('customerMetrics.m7.sectionLabel');
 

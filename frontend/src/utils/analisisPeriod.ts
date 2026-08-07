@@ -20,6 +20,23 @@ import type { AnalisisPeriodType } from '@/types/analisis'
 export type KpiPeriodType = 'monthly' | 'quarter' | 'semester' | 'annual'
 export const KPI_PERIOD_TYPES: KpiPeriodType[] = ['monthly', 'quarter', 'semester', 'annual']
 
+/**
+ * periodType -> jumlah bulan window ("active_window") dikirim ke backend
+ * halaman KPI snapshot (Cross Selling, Rata-rata Kategori, Keuntungan
+ * Pelanggan, dst — semua yang bukan Revenue/KPI3) supaya dropdown Periode
+ * BENAR-BENAR mengubah data, bukan cuma label rentang tanggal (task025
+ * §18, 2026-08-07 — laporan user: "tertulis 1,4 di semua filter... data
+ * yang kamu tampilkan [tidak berubah] per filter"). Sebelumnya window
+ * SELALU dari `business_configs.active_window_months` (default backend,
+ * tidak bisa di-override) — sekarang periodType MENGGANTIKAN default itu
+ * utk request tsb (backend tetap fallback ke business_configs kalau
+ * `active_window` tidak dikirim, lihat backend/metrics.service.ts
+ * resolveSegmentParams).
+ */
+export const KPI_PERIOD_TYPE_MONTHS: Record<KpiPeriodType, number> = {
+  monthly: 1, quarter: 3, semester: 6, annual: 12,
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }

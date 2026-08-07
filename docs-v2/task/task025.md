@@ -1076,3 +1076,84 @@ TANPA lebar tetap (stretch), TANPA tombol Reset.
   semua halaman. 0 console error.
 - `tsc --noEmit` + `eslint src` bersih (0 error).
 
+## 18. Dropdown Periode tidak mengubah data — 8 halaman KPI (2026-08-07)
+
+User: "pengambilan datamu kacau, contoh menu rata rata kategori, tertulis
+1,4 di semua filter bulanan, quartal, semester, tahunan semua sama
+seharusnya beda. data yang kamu tampilkan ada data bulanan per filter".
+
+**Verifikasi ke kode** (bukan tebak): grep `period_type`/`periodType` di
+seluruh `backend/src/features/metrics/*.ts` — NOL hasil. Dropdown "Periode"
+(Bulanan/Kuartalan/Semester/Tahunan) di `KpiFilterBar` TIDAK PERNAH dikirim
+ke backend untuk 9 dari 10 halaman KPI (semua kecuali Revenue/KPI3, yang
+genuinely kirim `period_type` ke `/analisis`). Backend cuma terima
+`period_end` — window agregasi SELALU 1 titik (bulan terakhir trend),
+terlepas dropdown-nya diapa-apakan.
+
+**Iterasi pemahaman** (2 kali salah tebak, dikoreksi user tiap kali —
+dicatat supaya tidak terulang):
+
+1. **Tebakan pertama (SALAH)**: usul hapus dropdown Periode (karena
+   "window aktif ikut business_configs, bukan pilihan UI" — prinsip yang
+   benar utk *threshold dormant*, tapi salah diterapkan generik ke semua
+   metrik). User tolak via AskUserQuestion — pilih "hapus dropdown", TAPI
+   lalu langsung koreksi: **"kenapa pakai business config????? kan
+   penarikan periode data"**.
+2. **Tebakan kedua (SALAH ARAH)**: bikin backend terima `active_window`
+   override (Bulanan=1/Kuartalan=3/Semester=6/Tahunan=12 bulan), MENGUBAH
+   window yang dipakai backend menghitung tiap titik. User koreksi:
+   **"dormant value tetap dihitung dari business config, dan end date...
+   parameter tetap business config dan end date"** — parameter kalkulasi
+   TIDAK BOLEH berubah dari toggle UI. Perubahan backend (`crossSelling
+   QuerySchema`/`customerMetricsQuerySchema.active_window`,
+   `resolveSegmentParams` override param) DIBATALKAN total (`git checkout`),
+   tidak ada jejak di kode final.
+3. **Pemahaman FINAL (dikonfirmasi user 2x lewat AskUserQuestion)**:
+   dropdown Periode = jendela AGREGASI TAMPILAN, bukan parameter kalkulasi.
+   Trend bulanan yang sudah ada (12 titik, TIAP TITIK tetap dihitung
+   backend dari `business_configs`+tanggal bulan itu, TIDAK BERUBAH) —
+   Kuartalan/Semester/Tahunan = **rata-rata** K titik TERAKHIR dari trend
+   itu (K=3/6/12), BUKAN jumlah mentah. User eksplisit 2x: "yang dicari
+   average... ditambahkan dan dibagi periode penarikan data" dan "nilainya
+   yang dijumlah baru dibagi kan?" — keduanya sama-sama mendeskripsikan
+   rata-rata (sum/K), berlaku SAMA untuk metrik uang (GP) maupun rasio
+   (Cross-Selling Ratio, Dormant Rate, dst) — tidak ada logika beda per
+   jenis metrik.
+
+**Implementasi final** (murni frontend, NOL perubahan backend):
+- `utils/analisisComparison.ts` — `averageLastMonths<T>(trend, months,
+  field)`: ambil `months` titik terakhir, jumlah dibagi `slice.length`
+  (bukan `months` mentah — kalau histori lebih pendek dari `months`,
+  pembagi ikut jumlah data yang benar-benar ada).
+- `utils/analisisPeriod.ts` — `KPI_PERIOD_TYPE_MONTHS` (monthly=1/
+  quarter=3/semester=6/annual=12), reuse mapping yang sudah ada
+  (`PERIOD_STEP_MONTHS` internal) tapi di-export utk `KpiPeriodType`
+  (4 pilihan, bukan `AnalisisPeriodType` yang masih ada 'ytd').
+- **8 halaman diperbaiki** — ganti `trend.at(-1)?.field` (titik terakhir
+  saja) jadi `averageLastMonths(trend, periodMonths, p => p.field)`:
+  CrossSelling (`ratio`), AvgCategoryPerCustomer (`avg_category`),
+  CustomerGrossProfit (`avg_gross_profit`), HighMarginPenetration
+  (`high_margin_ratio`), CustomerExpansion (`up_rate`), RepeatOrder (gauge
+  M6 saja, `repeat_order_rate` — banner utama TIDAK disentuh, sudah
+  genuinely periodType-aware lewat `useRetentionAnalisis`/`/analisis`).
+- **DormantRate & ReactivationRate** — restrukturisasi lebih besar: kedua
+  halaman sebelumnya andalkan `dormant_rate_current.value`/
+  `reactivation_current.value` (1 scalar snapshot dari backend, BUKAN
+  trend array). Diubah jadi fetch KEDUA (`useDormantCustomer` dgn
+  `period_end: comparisonDate`, sama pola CrossSelling) supaya ada trend
+  12-bulan SENDIRI yang berakhir di tanggal pembanding, lalu
+  `averageLastMonths` dari KEDUA trend (current & comparison) independen.
+- **BELUM diperbaiki (follow-up, TIDAK diklaim selesai)**: Dormant Value
+  (KPI9) — `value_ranking_total_current` adalah SUM top-20 ranking
+  snapshot per tanggal, BUKAN trend bulanan sederhana yang bisa
+  di-`averageLastMonths`. Butuh keputusan arsitektur terpisah (opsi: fetch
+  berurutan N bulan lalu jumlah, atau backend expose trend bulanan
+  "total estimasi nilai hilang SEMUA pelanggan dormant" bukan cuma
+  top-20) — TIDAK dikerjakan sekarang, dicatat eksplisit sbg gap.
+- Diverifikasi END-TO-END dgn data real (Playwright, periode 30 April
+  2026): AvgCategoryPerCustomer Bulanan=1.86 → Kuartalan=1.89 →
+  Semester=1.98 → Tahunan=2.05 (4 angka BEDA, rentang tanggal caption ikut
+  berubah "1 Jan–30 Apr 2026" utk Semester/Tahunan). DormantRate
+  Bulanan=60.3% vs Kuartalan=59.1% (beda). 0 console error di semua kasus.
+- `tsc --noEmit` + `eslint src` bersih (0 error).
+
