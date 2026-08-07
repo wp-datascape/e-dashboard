@@ -95,7 +95,7 @@ RINGKASAN (Dasbor — Seluruh KPI Sekilas)
 | # | Label menu | Route chart saat ini | Tabel detail saat ini | Status tabel |
 |---|---|---|---|---|
 | 1 | Pembelian lebih dari satu produk | `/cross-selling` | Heatmap Customer×Kategori | ✅ ada |
-| 2 | Rata-rata jumlah produk yang dibeli | `/cross-selling` | — | ❌ bangun |
+| 2 | Rata-rata jumlah produk yang dibeli | `/avg-category-per-customer` *(dibelah dari `/cross-selling`, [[task025]] §14)* | tabel persisten (`data.detail`) | ✅ ada |
 | 3 | Jumlah pelanggan loyal | `/customer-metrics` | `/analisis/revenue` | ✅ ada (route terpisah) |
 | 4 | Keuntungan dari pelanggan loyal | `/customer-metrics` | dialog kecil | ❌ bangun (transisi) |
 | 5 | Pembelian produk fokus | `/customer-metrics` | dialog kecil | ❌ bangun (transisi) |
@@ -121,8 +121,8 @@ Pola: **Filter → Total 3-card → Chart → Toolbar+Tabel** (§7). 1 chart, 1 
 - Satu-satunya tampilan multi-KPI.
 
 ### Ragam Pembelian
-- **1**: BarChart 12 bln + Heatmap Customer×Kategori; klik bar → heatmap ter-filter.
-- **2**: AreaChart tren + tabel jumlah kategori per customer.
+- **1** (`/cross-selling`): BarChart 12 bln + Heatmap Customer×Kategori; klik bar → heatmap ter-filter.
+- **2** (`/avg-category-per-customer`, halaman terpisah — [[task025]] §14): AreaChart tren + tabel jumlah kategori per customer.
 
 ### Nilai Pelanggan Loyal
 - **3**: M3 murni revenue (batang total + garis avg & median; garis high-margin dikeluarkan ke halaman 5). Judul awam *"Total pendapatan pelanggan loyal, rata-rata & median per pelanggan"*; simbol → ⓘ; garis putus di data terakhir. Tabel: revenue & laba per customer (old vs new), reuse `/analisis/revenue`; klik bar → filter.
@@ -229,7 +229,7 @@ currentPeriodLabel    = formatPeriodLabel(periodType, periodKey)
 
 ## 9. Status, Asumsi & Track
 
-1. Route terverifikasi: `/cross-selling`, `/customer-metrics`, `/dormant-customer`, `/analisis/revenue`, `/analisis/retention`.
+1. Route terverifikasi: `/cross-selling`, `/avg-category-per-customer` (dibelah dari `/cross-selling`, §14), `/customer-metrics`, `/dormant-customer`, `/analisis/revenue`, `/analisis/retention` (route lama = redirect permanen ke halaman pengganti masing-masing).
 2. `/intercompany` track terpisah; MVP = 3-card + tabel.
 3. "❌ bangun" = scope bertahap ([[task025]]).
 4. Label perbandingan: SELESAI (literal, YoY, dieksekusi).

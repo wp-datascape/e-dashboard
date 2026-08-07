@@ -8,7 +8,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import StarIcon from '@mui/icons-material/Star';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
+import LayersIcon from '@mui/icons-material/Layers';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -172,6 +172,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <SwapHorizIcon fontSize="small" />,
     permissionKey: 'cross.selling:menu',
   },
+  // CrossSelling (bundel KPI1+KPI2, 1 menu item) dipecah jadi 2 halaman
+  // (task025 §14, 2026-08-07) — permission TETAP 1 (`cross.selling:menu`,
+  // reuse), backend juga masih 1 endpoint gabungan. Menggantikan
+  // `product-trend` (Group 3 Product & Portfolio, dihapus — redundan,
+  // lihat task025.md §14); KPI2 tetap di grup yang sama dgn KPI1 (Group 2
+  // Customer Workbench), bukan dipindah ke Product & Portfolio.
+  {
+    key: 'avg-category-per-customer',
+    path: '/avg-category-per-customer',
+    labelKey: 'nav.avgCategoryPerCustomer',
+    icon: <LayersIcon fontSize="small" />,
+    permissionKey: 'cross.selling:menu',
+  },
 
   // ─────────────────────────────────────────────────────────────────────────
   // GROUP 3: PRODUCT & PORTFOLIO
@@ -190,13 +203,6 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.highMarginPush',
     icon: <StarIcon fontSize="small" />,
     permissionKey: 'high.margin:menu',
-  },
-  {
-    key: 'product-trend',
-    path: '/products/trend',
-    labelKey: 'nav.productTrend',
-    icon: <ShowChartIcon fontSize="small" />,
-    permissionKey: 'product.trend:menu',
   },
 
   // ─────────────────────────────────────────────────────────────────────────

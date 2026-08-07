@@ -857,3 +857,70 @@ yang dibeli, `/cross-selling`) masih dialog drill-down lama per v9 §3
   dicek langsung, bukan tebak visual). 0 console error.
 - `tsc --noEmit` + `eslint src` bersih (0 error).
 
+## 14. Pemisahan CrossSelling → 2 halaman (KPI1/KPI2) + hapus ProductsTrend (2026-08-07)
+
+User (setelah §13 di atas selesai): "menu mana yang kamu kerjakan? menu tren
+produk belum ada tabel nya?" — ternyata ada halaman TERPISAH `/products/trend`
+(`ProductsTrend`, permission `product.trend:*`) yang belum disentuh. Setelah
+diperiksa, `ProductsTrend` memakai endpoint SENDIRI (`/metrics/avg-category`,
+`fetchAvgCategoryTrend` di `avg-category.repository.ts`) yang HANYA
+mengembalikan trend agregat (`current_avg`/`prev_avg`/`change_pct`/`trend[]`) —
+TIDAK ADA data per-customer sama sekali (beda dari `getCrossSelling` yang
+sudah punya `data.detail`). Ditanyakan ke user via AskUserQuestion; jawaban:
+
+> "Halaman tersebut redundan, tapi halaman yang kamu kerjakan juga 1 page
+> untuk 2 KPI yang harus dipisahkan itu menyalahi aturan"
+
+Dua keputusan sekaligus:
+
+1. **`ProductsTrend` (`/products/trend`) DIHAPUS** — redundan, cuma duplikat
+   tampilan M2 pakai endpoint terpisah yang lebih lemah (tanpa tabel, tanpa
+   detail per customer). Permission `product.trend:*` DIBIARKAN orphan di DB
+   (konvensi lama — tidak pernah hard-delete permission), redirect statis
+   `/products/trend` → route KPI2 baru.
+2. **`CrossSelling` (`/cross-selling`) sendiri melanggar "1 KPI = 1 halaman"**
+   — bundel KPI1 (Cross-Selling Ratio, M1+M1.1 Heatmap) + KPI2 (Rata-rata
+   kategori per customer, M2) dalam 1 route. Ini sama persis pola lama
+   DormantCustomer/CustomerMetrics yang sudah dibelah — harus dibelah juga,
+   BUKAN dipertahankan sebagai "pengecualian sengaja" seperti klaim §13 yang
+   sekarang KELIRU (§13 bilang "beda dari M3-M7 yang 1 KPI = 1 halaman" —
+   ternyata itu salah baca aturan, v9 §1 tidak punya pengecualian untuk
+   cross-selling).
+
+**Rencana pemisahan** (tanpa tanya lanjutan — mengikuti preseden penamaan
+`/customer-revenue` dkk., §12):
+
+- **KPI1** tetap di `/cross-selling` (`CrossSelling`, route/permission lama
+  DIPERTAHANKAN — least churn utk bookmark/notifikasi lama): Filter →
+  2-card (Cross-Sell Rate, Active Customer) → M1 ComboChart → M1.1 Heatmap +
+  dialog drill produk (TETAP, ini sudah "tabel" per §7 adaptasi KPI1 = heatmap).
+- **KPI2** halaman BARU `/avg-category-per-customer`
+  (`AvgCategoryPerCustomer`): Filter → 1-card (Avg Kategori/Customer) → M2
+  AreaChart → tabel persisten (`data.detail`, kolom sama dgn tabel M2 §13).
+- **Endpoint backend TETAP 1** (`/metrics/cross-selling` via `useCrossSelling`)
+  — dipanggil dari KEDUA halaman baru, sama presedennya dgn Dormant (§7a):
+  data KPI1+KPI2 secara struktural nyambung 1 query (trend bulanan, heatmap,
+  detail per-customer semua dihitung dari agregat customer×kategori yang
+  sama), memisah jadi 2 endpoint cuma nambah round-trip tanpa manfaat nyata.
+- **Permission TETAP 1** (`cross.selling:*`, reuse di 2 halaman) — sama
+  alasan dgn endpoint: data sumbernya memang satu, beda dari CustomerMetrics
+  (yang endpoint breakdown-nya SUDAH terpisah per-KPI sejak awal).
+- **Filter TETAP `DateScopeFilterBar`** (bukan `KpiFilterBar`) — `getCrossSelling`
+  tidak expose struktur YoY comparison (`prev_period`/dua kali panggil
+  dgn `shiftDateByYears` TIDAK applicable di sini karena field ratio/avg
+  category historisnya perlu window bulanan yang sama, bukan snapshot
+  tunggal — beda kasus dgn GP/HM/Expansion di §12-susulan yang trend-nya
+  memang per-titik-waktu rolling). **Catatan follow-up**: kalau nanti user
+  minta YoY juga di KPI1/KPI2, perlu endpoint baru — dicatat sbg gap, BUKAN
+  dikerjakan diam-diam sekarang.
+- Redirect statis di `App.tsx`: `/products/trend` → `/avg-category-per-customer`.
+- Menu (`menu.tsx`): item `product-trend` (Group 3 Product & Portfolio)
+  DIHAPUS; item baru `avg-category-per-customer` ditaruh di Group 2 (Customer
+  Workbench), tepat setelah `cross-selling` — sama grup dgn KPI1, keduanya
+  bagian dari 10 KPI Executive Dashboard yang menu-nya dikelompokkan di
+  Customer Workbench (`ProductsTrend` sebelumnya salah taruh di Product &
+  Portfolio gara-gara nama "produk").
+- i18n namespace baru `avgCategoryPerCustomer.json` (id/en); `crossSelling.json`
+  kunci M2 (`m2*`) TIDAK dihapus — masih hidup, dipindah pemakaiannya ke
+  halaman baru (bukan didup­likasi ke namespace baru, biar 1 sumber string).
+
