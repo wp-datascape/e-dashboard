@@ -247,7 +247,7 @@ export default function DormantRate() {
       {drc && (
         <KpiSummaryStrip
           metrics={[
-            { label: dormantRateLabel, comparisonText: `${comparisonDormantRate.toFixed(1)}%`, currentText: `${currentDormantRate.toFixed(1)}%` },
+            { label: dormantRateLabel, comparisonText: `${comparisonDormantRate.toFixed(2)}%`, currentText: `${currentDormantRate.toFixed(2)}%` },
           ]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
@@ -260,7 +260,7 @@ export default function DormantRate() {
               currentIsZero: currentDormantRate === 0,
               // Dormant Rate = inverse polarity (naik = buruk, lihat metricPolarity.ts)
               inversePolarity: true,
-              formatValue: (v) => `${v.toFixed(1)}%`,
+              formatValue: (v) => `${v.toFixed(2)}%`,
             },
           ]}
           onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}

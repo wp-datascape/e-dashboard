@@ -9,12 +9,15 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
+import { useTheme } from '@mui/material/styles';
 import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
+import { LineChartWidget } from '@/components/charts/LineChartWidget';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
+import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
 // Dipusatkan di sini (semula lokal di pages/CustomerMetrics/M6RepeatOrder.tsx)
 // karena sekarang dipakai halaman RepeatOrder (KPI6) — helper inline, BUKAN
@@ -85,10 +88,15 @@ interface Props {
   division?: number
   periodEnd: string
   excludeIntercompany?: boolean
+  // Tren 12 bulan (task025 §21, 2026-08-07 — user: "buatkan chart trend
+  // 12 bulan") — field `repeat_order_rate` SUDAH ada per-bulan di trend
+  // yang sama dipakai M3/M4/M5/M7, tidak perlu query backend baru.
+  trend?: CustomerMetricsTrendPoint[]
 }
 
-export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branchId, division, periodEnd, excludeIntercompany }: Props) {
+export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branchId, division, periodEnd, excludeIntercompany, trend = [] }: Props) {
   const { t } = useTranslation();
+  const theme = useTheme();
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const rorColumns = useRorColumns(t);
 
@@ -99,6 +107,8 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branc
     division,
     exclude_intercompany: excludeIntercompany,
   });
+
+  const trendChartData = trend.map((p) => ({ month: p.month, rate: p.repeat_order_rate }));
 
   return (
     <>
@@ -116,6 +126,24 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branc
             </IconButton>
           </MuiTooltip>
         </Box>
+        {/* Chart tren 12 bulan — sebelum RadialBar snapshot (pola sama dgn
+            KPI5: chart tren + kartu snapshot di bawahnya). */}
+        {isLoading ? (
+          <Skeleton variant="rectangular" height={260} sx={{ mb: 2 }} />
+        ) : (
+          <Box sx={{ mb: 2 }}>
+            <LineChartWidget
+              title={t('customerMetrics.m6.trendChartTitle')}
+              subtitle={t('customerMetrics.m6.trendChartSubtitle')}
+              data={trendChartData}
+              series={[
+                { key: 'rate', label: t('customerMetrics.m6.seriesRate'), color: theme.palette.primary.main, formatValue: (v) => `${v}%` },
+              ]}
+              xKey="month"
+              height={220}
+            />
+          </Box>
+        )}
         {isLoading ? (
           <Skeleton variant="rectangular" height={280} />
         ) : (

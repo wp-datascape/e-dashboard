@@ -218,7 +218,7 @@ export default function ReactivationRate() {
       {rc && (
         <KpiSummaryStrip
           metrics={[
-            { label: reactivationLabel, comparisonText: `${comparisonReactivationRate.toFixed(1)}%`, currentText: `${currentReactivationRate.toFixed(1)}%` },
+            { label: reactivationLabel, comparisonText: `${comparisonReactivationRate.toFixed(2)}%`, currentText: `${currentReactivationRate.toFixed(2)}%` },
           ]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
@@ -230,7 +230,7 @@ export default function ReactivationRate() {
               value: currentReactivationRate - comparisonReactivationRate,
               currentIsZero: currentReactivationRate === 0,
               // Reactivation Rate = polaritas normal (naik = baik)
-              formatValue: (v) => `${v.toFixed(1)}%`,
+              formatValue: (v) => `${v.toFixed(2)}%`,
             },
           ]}
           onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}

@@ -145,7 +145,7 @@ export default function CustomerExpansion() {
 
       {data && (
         <KpiSummaryStrip
-          metrics={[{ label: expansionLabel, comparisonText: `${comparisonRate.toFixed(1)}%`, currentText: `${currentRate.toFixed(1)}%` }]}
+          metrics={[{ label: expansionLabel, comparisonText: `${comparisonRate.toFixed(2)}%`, currentText: `${currentRate.toFixed(2)}%` }]}
           comparisonRangeLabel={comparisonRangeText}
           currentRangeLabel={currentRangeText}
           isCurrentInProgress={isViewingInProgress}
@@ -154,7 +154,7 @@ export default function CustomerExpansion() {
             pct: growthPct,
             value: currentRate - comparisonRate,
             currentIsZero: currentRate === 0,
-            formatValue: (v) => `${v.toFixed(1)}%`,
+            formatValue: (v) => `${v.toFixed(2)}%`,
           }]}
           onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
           onNext={() => {

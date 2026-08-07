@@ -42,11 +42,32 @@ export function computeChangePct(current: number, previous: number): number | nu
  * periodType=Tahunan/12), pembagi ikut jumlah data yang benar-benar ada,
  * supaya tidak mendeflasi rata-rata secara artifisial.
  */
+/** Bulatkan ke 2 angka desimal — dipakai `averageLastMonths`/`sumLastMonths`
+ * di titik sumber (bukan di tiap pemanggil) supaya SEMUA angka turunan
+ * konsisten maksimal 2 desimal (task025 §21, 2026-08-07 — laporan user:
+ * "banyak persentase yang angka dibelakang koma nya lebih dari 3"). Widget
+ * chart (RadialBarWidget/BulletChartWidget dkk) merender `value` APA ADANYA
+ * tanpa pembulatan internal — pemanggil WAJIB kirim angka yang sudah rapi,
+ * bukan hasil bagi mentah JS (mis. 45.66666666666667). */
+export function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}
+
 export function averageLastMonths<T>(trend: T[], months: number, field: (point: T) => number): number {
   const slice = trend.slice(-months)
   if (slice.length === 0) return 0
   const sum = slice.reduce((acc, point) => acc + field(point), 0)
-  return sum / slice.length
+  return round2(sum / slice.length)
+}
+
+/** Jumlah field numerik dari K titik TERAKHIR trend bulanan — pasangan
+ * `averageLastMonths` utk metrik ADITIF (revenue/nilai uang), dipakai saat
+ * caller butuh TOTAL K bulan (bukan rata-rata per bulan), mis. "Total
+ * Revenue" & "Total Revenue High Margin" di KPI5 (task025 §21). */
+export function sumLastMonths<T>(trend: T[], months: number, field: (point: T) => number): number {
+  const slice = trend.slice(-months)
+  const sum = slice.reduce((acc, point) => acc + field(point), 0)
+  return round2(sum)
 }
 
 // Growth % di atas ini tampilannya di-cap ("999%+") — nilai asli (Growth

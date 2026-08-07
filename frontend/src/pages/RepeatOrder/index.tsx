@@ -207,7 +207,8 @@ export default function RepeatOrder() {
     {
       field: 'changeValue',
       headerName: t('analisis.changeValue'),
-      width: 140,
+      minWidth: 160,
+      flex: 0.9,
       sortable: false,
       renderCell: ({ row }) => isEmptyPeriod ? (
         <Typography variant="body2" color="text.disabled" sx={{ py: 1 }}>—</Typography>
@@ -294,6 +295,7 @@ export default function RepeatOrder() {
           division={division || undefined}
           periodEnd={endDate}
           excludeIntercompany={excludeIntercompany}
+          trend={customerMetricsData?.trend}
         />
 
         {isEmptyPeriod && (
