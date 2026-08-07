@@ -233,6 +233,11 @@ export interface ReactivatedCustomerRow {
   months_was_dormant: number;
 }
 
+export interface DormantValueTrendPoint {
+  month: string;
+  value: number;
+}
+
 export interface DormantData {
   trend: DormantTrendPoint[];
   value_ranking: DormantValueRankingRow[];
@@ -241,4 +246,9 @@ export interface DormantData {
   value_ranking_total_current: number;
   value_ranking_total_comparison: number;
   reactivated_customers: ReactivatedCustomerRow[];
+  // Tren 12-bulan estimasi total nilai hilang SELURUH customer dormant
+  // (task025 §19, 2026-08-07) — dipakai averageLastMonths sama seperti
+  // dormant_rate/reactivation_rate, supaya dropdown Periode di halaman
+  // Nilai Hilang (KPI9) juga benar-benar mengubah data.
+  value_trend: DormantValueTrendPoint[];
 }
