@@ -7,9 +7,22 @@ import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditi
 
 export async function fetchGpBreakdown(
   p: SegmentParams,
+  // Rentang PENARIKAN DATA (SUM GP per customer) — task026 §8e koreksi user
+  // 2026-08-09: "window aktif utk parameter existing TIDAK BOLEH berubah,
+  // yang berubah PERIODE PENARIKAN DATANYA (end date dari filter, start
+  // date dari periode filter)". SENGAJA parameter TERPISAH dari `p.activeMonths`
+  // (dipakai `cteEstablishedCustomers` di bawah, TETAP dari business_configs,
+  // tidak disentuh sama sekali) — dua konsep beda: siapa yang qualify sbg
+  // "existing" (business rule, fixed) vs rentang tanggal invoice yang
+  // di-SUM utk existing customer itu (filter user, dinamis ikut periodType).
+  // Opsional — kalau kosong, fallback ke perilaku lama (activeMonths dari p).
+  dateFrom?: string,
 ): Promise<{ rows: GpBreakdownRow[]; total_gp: number; median_threshold: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
+  const rangeStartCond = dateFrom
+    ? sql`i.invoice_date >= ${dateFrom}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
@@ -19,14 +32,14 @@ export async function fetchGpBreakdown(
     WITH
     ${establishedCTE},
     inv_active AS (
-      SELECT i.customer_id, SUM(i.total_gp::numeric) AS gp
+      SELECT i.customer_id, SUM(i.total_gp::numeric) AS gp, SUM(i.total_revenue::numeric) AS revenue
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${rangeStartCond}
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
         AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
@@ -36,7 +49,7 @@ export async function fetchGpBreakdown(
       GROUP BY i.customer_id
     ),
     existing_gp AS (
-      SELECT ec.id, ec.customer_name, ec.customer_code, ia.gp
+      SELECT ec.id, ec.customer_name, ec.customer_code, ia.gp, ia.revenue
       FROM established_customers ec
       JOIN inv_active ia ON ia.customer_id = ec.id
     ),
@@ -56,6 +69,8 @@ export async function fetchGpBreakdown(
       eg.customer_name,
       ROUND(eg.gp)::bigint                                AS gp,
       ROUND(eg.gp * 100.0 / NULLIF(t.total_gp, 0), 1)   AS gp_pct,
+      ROUND(eg.revenue)::bigint                           AS revenue,
+      ROUND(eg.gp * 100.0 / NULLIF(eg.revenue, 0), 1)   AS margin_pct,
       CASE
         WHEN eg.gp >  mt.threshold        THEN 'Atas'
         WHEN eg.gp >  mt.threshold * 0.5  THEN 'Tengah'
@@ -93,6 +108,8 @@ export async function fetchGpBreakdown(
         customer_name: String(row.customer_name),
         gp:            Number(row.gp ?? 0),
         gp_pct:        Number(row.gp_pct ?? 0),
+        revenue:       Number(row.revenue ?? 0),
+        margin_pct:    Number(row.margin_pct ?? 0),
         tier:          String(row.tier) as 'Atas' | 'Tengah' | 'Bawah',
       }
     }),

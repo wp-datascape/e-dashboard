@@ -373,6 +373,19 @@ const defaultPageSettings = [
   // (task025 §14, 2026-08-07). Baris lama DIBIARKAN di DB (harmless, sudah
   // tidak dipakai route manapun, redirect statis di App.tsx).
   { page_key: 'avg-category-per-customer', ready: true },
+  // Report (task026 Fase 3, 2026-08-09) — tabel breakdown per KPI dipisah
+  // dari halaman chart (Statistik) di atas, route baru `/report/<slug>`,
+  // komponen SAMA (`mode="report"`), permission REUSE (lihat routeConstants.tsx).
+  { page_key: 'report-cross-selling', ready: true },
+  { page_key: 'report-avg-category-per-customer', ready: true },
+  { page_key: 'report-dormant-rate', ready: true },
+  { page_key: 'report-dormant-value', ready: true },
+  { page_key: 'report-reactivation-rate', ready: true },
+  { page_key: 'report-customer-revenue', ready: true },
+  { page_key: 'report-customer-gross-profit', ready: true },
+  { page_key: 'report-high-margin-penetration', ready: true },
+  { page_key: 'report-repeat-order', ready: true },
+  { page_key: 'report-customer-expansion', ready: true },
   { page_key: 'products', ready: true },
   { page_key: 'products-high-margin', ready: true },
   { page_key: 'transactions', ready: true },

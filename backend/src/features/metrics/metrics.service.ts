@@ -51,6 +51,16 @@ export async function resolveSegmentParams(
   branchId?: number,
   excludeIntercompany?: boolean,
 ): Promise<SegmentParams> {
+  // `activeMonths`/`dormantMonths` SELALU dari business_configs, TIDAK ADA
+  // jalur override dari filter periode apa pun (task026 §8e, koreksi user
+  // 2026-08-09: "window aktif utk parameter existing TIDAK BOLEH berubah").
+  // Ini SegmentParams dipakai buat nentuin SIAPA yang qualify sbg
+  // "existing"/tidak dormant (cteEstablishedCustomers) — business rule
+  // tetap, bukan pilihan user. Kalau suatu endpoint butuh rentang tanggal
+  // yang ikut filter periode (mis. GP breakdown ikut periodType), itu
+  // parameter TERPISAH (`dateFrom` dst) yang diteruskan langsung ke
+  // repository function-nya, BUKAN lewat activeMonths di sini — lihat
+  // `fetchGpBreakdown` utk contoh polanya.
   const { activeMonths, dormant } = await loadThresholds()
   const cid = companyId === 'all' ? 0 : companyId
   let dormantMonths: number
@@ -145,6 +155,8 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       expansion_rate:          row.expansion_rate,
       up_rate:                 row.expansion_rate,
       flat_down_rate:          parseFloat((100 - row.expansion_rate).toFixed(1)),
+      flat_rate:               row.flat_rate,
+      down_rate:               row.down_rate,
       active_existing_count:   row.active_existing_count,
       active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
@@ -199,10 +211,15 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchExpansionBreakdown(segParams)
+    // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
+    // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
+    // "existing", tetap fixed).
+    const result = await fetchExpansionBreakdown(segParams, params.date_from)
     return {
       period_end:     filterDate,
       up_count:       result.up_count,
+      flat_count:     result.flat_count,
+      down_count:     result.down_count,
       total_existing: result.total_existing,
       rows:           result.rows,
     }
@@ -216,7 +233,9 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchGpBreakdown(segParams)
+    // date_from = periode penarikan data (task026 §8e) — TERPISAH dari
+    // segParams.activeMonths (business config "existing", tetap fixed di atas).
+    const result = await fetchGpBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_gp:         result.total_gp,
@@ -293,6 +312,12 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         total_customers:  last?.total_customers ?? 0,
         alert_pct:        thresholds.dormantRateAlertPct,
         comparison_value: comparisonLast?.dormant_rate ?? 0,
+        active_count:                    last?.active_count ?? 0,
+        dormant_light_count:             last?.dormant_light_count ?? 0,
+        dormant_severe_count:            last?.dormant_severe_count ?? 0,
+        active_count_comparison:         comparisonLast?.active_count ?? 0,
+        dormant_light_count_comparison:  comparisonLast?.dormant_light_count ?? 0,
+        dormant_severe_count_comparison: comparisonLast?.dormant_severe_count ?? 0,
       },
       reactivation_current: {
         value:            last?.reactivation_rate ?? 0,

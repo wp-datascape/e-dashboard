@@ -17,6 +17,7 @@ import {
   LabelList,
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
+import { formatMonthTick } from '@/utils/date';
 
 // Marker shape per line (spec: Line1=circle, Line2=square, Line3=diamond) — Recharts
 // bawaan cuma bisa gambar circle lewat prop `dot` object, jadi shape lain (square/
@@ -211,6 +212,7 @@ export const ComboChartWidget = ({
           />
           <XAxis
             dataKey={xKey}
+            tickFormatter={formatMonthTick}
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}
@@ -251,6 +253,7 @@ export const ComboChartWidget = ({
               isAnimationActive={false}
               position={tooltipPosition}
               wrapperStyle={{ zIndex: 10 }}
+              labelFormatter={(label) => formatMonthTick(String(label))}
               contentStyle={{
                 backgroundColor: theme.palette.background.paper,
                 border: `1px solid ${theme.palette.divider}`,

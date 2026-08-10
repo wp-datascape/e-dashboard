@@ -234,7 +234,15 @@ export function sqlStatusWhere(
   switch (status) {
     case 'new':     return isNew
     case 'dormant': return and(notNew, sql`${lastInv}::date <= ${dormantCutoff}`)
-    case 'active':  return sql`${lastInv}::date >= ${activeCutoff}`
+    // BUG (ditemukan 2026-08-10 lewat audit silang DormantRate vs Customer
+    // Workbench — user: "aktif customer bulan Juni 357? di menu lain 329,
+    // mana yang benar?"): case ini SATU-SATUNYA yang tidak exclude customer
+    // baru (notNew), beda dari 'dormant'/'existing' di sekelilingnya —
+    // akibatnya customer yang baru transaksi pertama kali (harusnya masuk
+    // 'new') ikut ke-double-count sbg 'active' juga saat difilter
+    // `?status=active`. Kolom status per-baris (sqlStatusExpr di atas) TIDAK
+    // kena bug ini (CASE-nya cek 'new' duluan), cuma filter dropdown ini.
+    case 'active':  return and(notNew, sql`${lastInv}::date >= ${activeCutoff}`)
     case 'existing':
       return and(
         notNew,

@@ -1,4 +1,8 @@
 {
   "pageTitle": "Average Product Category per Customer",
-  "pageSubtitle": "KPI 2 · Window {{months}} months · Source: invoice + product category items"
+  "pageSubtitle": "KPI 2 · Window {{months}} months · Source: invoice + product category items",
+  "cardCaption": "of {{total}} active customers",
+  "distChartTitle": "Monthly Chart — Customer Penetration per Category Type",
+  "distChartSubtitle": "Active customers buying each category type in this period",
+  "distSeriesLabel": "Customers"
 }

@@ -27,6 +27,7 @@ import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
 
 import { useCan } from '@/hooks/useCan';
 import { ViewUserDialog } from './components/ViewUserDialog';
+import { formatDateDDMMYYYY } from '@/utils/date';
 import { CreateUserDialog } from './components/CreateUserDialog';
 import { EditUserDialog } from './components/EditUserDialog';
 import { DeleteUserDialog } from './components/DeleteUserDialog';
@@ -55,14 +56,7 @@ const isSystemUser = (user: User): boolean =>
 const isLocked = (user: User): boolean =>
   !!user.locked_until && new Date(user.locked_until).getTime() > Date.now();
 
-const fmtDate = (iso: string | null, fallback: string): string => {
-  if (!iso) return fallback;
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
+const fmtDate = formatDateDDMMYYYY;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

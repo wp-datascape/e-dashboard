@@ -14,6 +14,7 @@ import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useActivityLogs } from '@/hooks/useActivityLogs'
 import type { ActivityLog, ActivityLogFilters } from '@/types/activityLog'
 import { ViewActivityLogDialog } from './components/ViewActivityLogDialog'
+import { formatDateTimeDDMMYYYY } from '@/utils/date'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,15 +32,7 @@ const getMethodColor = (method: string): StatusChipColor => {
   return map[method] ?? 'default'
 }
 
-const fmtDate = (iso: string): string => {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const fmtDate = formatDateTimeDDMMYYYY
 
 // ─── Column Definitions ────────────────────────────────────────────────────────
 

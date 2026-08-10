@@ -8,7 +8,7 @@ import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditi
  * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
  */
 export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
-  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
+  const { cid, filterDate, activeMonths, dormantMonths, division, companyScopeIds } = p
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
@@ -51,6 +51,24 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
     ),
 
+    -- Transaksi PERTAMA per customer (global, tanpa filter divisi) — untuk
+    -- deteksi customer baru. Mirror PERSIS pola first_inv di
+    -- fetchCustomerMetricsTrend (m3m7.repository.ts) — koreksi user
+    -- 2026-08-10: "Aktif di DormantRate (357) harus sama dgn Total Existing
+    -- di Expansion/GP (329)". Sebelum ini scoped_cust cuma syarat "pernah
+    -- transaksi", TANPA exclude customer baru — beda populasi dgn
+    -- established_customers (m3m7/m4 repository) yang WAJIB customer sudah
+    -- py riwayat SEBELUM activeMonths terakhir. Selisihnya PERSIS jumlah
+    -- customer yang first-purchase-nya masih dalam activeMonths terakhir
+    -- (diverifikasi manual: 357-329=28, cocok dgn jumlah customer baru
+    -- Juni 2026).
+    first_inv AS (
+      SELECT customer_id, MIN(invoice_date) AS first_date
+      FROM invoices
+      WHERE deleted_at IS NULL
+      GROUP BY customer_id
+    ),
+
     -- Customer × bulan: hitung last invoice date per titik waktu
     -- me di-cap filterDate agar bulan berjalan tidak pakai month_end masa depan
     -- → dormant cutoff konsisten dengan customer page (pakai filterDate, bukan month_end)
@@ -61,6 +79,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
               ${filterDate}::date)                                              AS me,
         (m.ms - INTERVAL '1 day')::date                                        AS prev_me,
+        fi.first_date                                                           AS first_date,
         MAX(inv.invoice_date) FILTER (
           WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
                                          ${filterDate}::date)
@@ -76,38 +95,81 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       FROM scoped_cust sc
       CROSS JOIN months m
       LEFT JOIN inv ON inv.customer_id = sc.cid
-      GROUP BY sc.cid, m.ms
+      LEFT JOIN first_inv fi ON fi.customer_id = sc.cid
+      GROUP BY sc.cid, m.ms, fi.first_date
     )
 
     SELECT
       TO_CHAR(month_start, 'YYYY-MM') AS month,
-      COUNT(*) FILTER (WHERE last_at_me IS NOT NULL)::int                       AS total_customers,
+      -- "not new" (koreksi user 2026-08-10) ditambah ke SEMUA filter di
+      -- bawah — first_date < me - activeMonths (utk metrik berbasis me)
+      -- atau < prev_me - activeMonths (utk metrik berbasis prev_me),
+      -- PERSIS pola cteEstablishedCustomers/existing CTE.
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
+          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+      )::int                                                                     AS total_customers,
+      COUNT(*) FILTER (
+        WHERE last_at_me IS NOT NULL
+          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
           AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
       )::int                                                                     AS dormant_count,
+      -- Severity split (koreksi user 2026-08-10, "opsi A": 4 kartu Total/
+      -- Aktif/Dormant Ringan/Dormant Kronis) — partisi EKSAK dari populasi
+      -- yang SAMA (total_customers), pakai kelipatan dormantMonths yang
+      -- SUDAH dipakai di seluruh fitur ini (bukan threshold baru): Aktif =
+      -- belum lewat ambang, Ringan = 1x-2x ambang lewat, Kronis = >2x
+      -- ambang lewat. active_count + dormant_light_count +
+      -- dormant_severe_count SELALU persis total_customers, dan
+      -- dormant_light_count + dormant_severe_count SELALU persis
+      -- dormant_count (angka lama, TIDAK dihapus, tetap dihitung persis
+      -- sama, cuma sekarang ada pecahannya).
+      COUNT(*) FILTER (
+        WHERE last_at_me IS NOT NULL
+          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND last_at_me > me - ${dormantMonths}::int * INTERVAL '1 month'
+      )::int                                                                     AS active_count,
+      COUNT(*) FILTER (
+        WHERE last_at_me IS NOT NULL
+          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_me >  me - (${dormantMonths}::int * 2) * INTERVAL '1 month'
+      )::int                                                                     AS dormant_light_count,
+      COUNT(*) FILTER (
+        WHERE last_at_me IS NOT NULL
+          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND last_at_me <= me - (${dormantMonths}::int * 2) * INTERVAL '1 month'
+      )::int                                                                     AS dormant_severe_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
+            AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
             AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
-        )::numeric / NULLIF(COUNT(*) FILTER (WHERE last_at_me IS NOT NULL), 0) * 100, 1
+        )::numeric / NULLIF(COUNT(*) FILTER (
+          WHERE last_at_me IS NOT NULL
+            AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+        ), 0) * 100, 1
       )                                                                          AS dormant_rate,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
+          AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
           AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
       )::int                                                                     AS prev_dormant_count,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
+          AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
           AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
           AND active_in_month = true
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
+            AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
             AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
             AND active_in_month = true
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
+            AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
             AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate
@@ -122,6 +184,9 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       month:               String(row.month),
       total_customers:     Number(row.total_customers ?? 0),
       dormant_count:       Number(row.dormant_count ?? 0),
+      active_count:        Number(row.active_count ?? 0),
+      dormant_light_count: Number(row.dormant_light_count ?? 0),
+      dormant_severe_count: Number(row.dormant_severe_count ?? 0),
       dormant_rate:        Number(row.dormant_rate ?? 0),
       prev_dormant_count:  Number(row.prev_dormant_count ?? 0),
       reactivated_count:   Number(row.reactivated_count ?? 0),

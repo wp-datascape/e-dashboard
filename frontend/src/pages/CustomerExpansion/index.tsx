@@ -1,23 +1,27 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid';
+import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 
 import { useCustomerMetrics, useExpansionBreakdown } from '@/hooks/useMetrics';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import { M7Expansion } from '@/components/analisis/M7Expansion';
+import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { Card, StatusChip } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { computeChangePct } from '@/utils/analisisComparison';
 import type { ExpansionBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -27,6 +31,12 @@ function fmtRpDetail(v: number): string {
   return `Rp ${v.toLocaleString('id-ID')}`;
 }
 
+function statusLabel(status: 'up' | 'flat' | 'down', t: (k: string) => string): string {
+  if (status === 'up')   return t('customerMetrics.m7.statusUp');
+  if (status === 'flat') return t('customerMetrics.m7.statusFlat');
+  return t('customerMetrics.m7.statusDown');
+}
+
 // KPI 7 — Pelanggan dengan peningkatan nilai belanja (Customer Expansion
 // Rate, M7). GLOBAL apple-to-apple dgn halaman Revenue (task025 §12
 // lanjutan, 2026-08-07) — KpiFilterBar (periodType+YoY) + KpiSummaryStrip
@@ -34,24 +44,28 @@ function fmtRpDetail(v: number): string {
 // (bound ke endDate, bukan dialog drillDate lagi).
 export default function CustomerExpansion() {
   const { t } = useTranslation();
+  const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
   const currentRangeText = formatDateRange({ start: periodStart, end: endDate });
   const comparisonDate = shiftDateByYears(endDate, -1);
-  const comparisonRangeText = formatDateRange({
-    start: shiftDateByYears(periodStart, -1),
-    end: comparisonDate,
-  });
+  const comparisonPeriodStart = shiftDateByYears(periodStart, -1);
+  const comparisonRangeText = formatDateRange({ start: comparisonPeriodStart, end: comparisonDate });
 
+  // Fetch pembanding YoY (`useCustomerMetrics` di comparisonDate) DIHAPUS
+  // (koreksi user 2026-08-10) — kartu/banner sekarang semua dari
+  // `useExpansionBreakdown` (fixed cohort + date_from-aware, lihat di
+  // bawah), bukan rata-rata trend lagi. `data.trend` (current) TETAP
+  // dipakai M7Expansion (chart tren kanan, 2-way up_rate/flat_down_rate %,
+  // di luar scope perubahan ini).
   const { data, isLoading } = useCustomerMetrics({
     company_id: companyId,
     branch_id: branchId === 'all' ? undefined : branchId,
@@ -59,33 +73,56 @@ export default function CustomerExpansion() {
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
-  const { data: comparisonData } = useCustomerMetrics({
-    company_id: companyId,
-    branch_id: branchId === 'all' ? undefined : branchId,
-    period_end: comparisonDate,
-    division: division || undefined,
-    exclude_intercompany: excludeIntercompany,
-  });
 
   const trend = data?.trend ?? [];
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentRate = averageLastMonths(trend, periodMonths, (p) => p.up_rate);
-  const comparisonRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.up_rate);
-  const growthPct = computeChangePct(currentRate, comparisonRate);
-  const expansionLabel = t('customerMetrics.m7.sectionLabel');
 
   const [search, setSearch] = useState('');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 });
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
+
+  // ── Breakdown periode berjalan — date_from: periodStart (koreksi user
+  // 2026-08-10: "dari total customer dalam periode ini dicari establish-nya",
+  // "template standar KPI4") — established_customers TETAP fixed cohort
+  // (business rule activeMonths/dormantMonths di endDate, TIDAK ikut
+  // periodType, mirror `total_existing` GP breakdown), tapi window
+  // current-vs-previous yang dibandingkan (naik/flat/turun) MENGIKUTI
+  // periodStart..endDate — BUKAN rata-rata snapshot bulanan lagi (salah,
+  // ikut naik-turun tren existing_customers per bulan). Fetch KEDUA di
+  // titik pembanding (setahun lalu) — sama pola dgn semua halaman KPI lain,
+  // supaya growth% kartu beneran YoY, bukan cuma current vs 0. ──
   const { data: breakdown, isLoading: isBreakdownLoading } = useExpansionBreakdown({
     period_end: endDate,
+    date_from: periodStart,
     company_id: companyId,
     branch_id: branchId === 'all' ? undefined : branchId,
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
+  const { data: comparisonBreakdown } = useExpansionBreakdown({
+    period_end: comparisonDate,
+    date_from: comparisonPeriodStart,
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  });
+
+  const totalExistingCurrent = breakdown?.total_existing ?? 0;
+  const totalExistingComparison = comparisonBreakdown?.total_existing ?? 0;
+  const totalExistingGrowthPct = computeChangePct(totalExistingCurrent, totalExistingComparison);
+
+  const naikCountCurrent = breakdown?.up_count ?? 0;
+  const naikCountComparison = comparisonBreakdown?.up_count ?? 0;
+  const naikCountGrowthPct = computeChangePct(naikCountCurrent, naikCountComparison);
+
+  const flatCountCurrent = breakdown?.flat_count ?? 0;
+  const flatCountComparison = comparisonBreakdown?.flat_count ?? 0;
+  const flatCountGrowthPct = computeChangePct(flatCountCurrent, flatCountComparison);
+
+  const downCountCurrent = breakdown?.down_count ?? 0;
+  const downCountComparison = comparisonBreakdown?.down_count ?? 0;
+  const downCountGrowthPct = computeChangePct(downCountCurrent, downCountComparison);
+
   const rows = breakdown?.rows ?? [];
   const filteredRows = search
     ? rows.filter((r) => r.customer_name.toLowerCase().includes(search.toLowerCase()) || (r.customer_code ?? '').toLowerCase().includes(search.toLowerCase()))
@@ -108,7 +145,7 @@ export default function CustomerExpansion() {
     { field: 'status', headerName: t('customerMetrics.m7.colStatus'), minWidth: 140, flex: 0.8,
       renderCell: ({ row }) => (
         <StatusChip
-          label={row.status === 'up' ? t('customerMetrics.m7.statusUp') : t('customerMetrics.m7.statusFlatDown')}
+          label={statusLabel(row.status, t)}
           color={row.status === 'up' ? 'success' : 'default'}
         />
       ) },
@@ -116,9 +153,19 @@ export default function CustomerExpansion() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* ── Header: judul + kategori KPI + deskripsi — pola SAMA dgn KPI4
+          (koreksi user 2026-08-10: "terapkan pola yang sama di expansion").
+          Sebelumnya 1 baris gabungan (pageSubtitle = "KPI 7 — ... . Proporsi
+          ..."), sekarang dipecah 2 baris terpisah: kategori KPI dulu, baru
+          deskripsi di bawahnya. ── */}
       <Box>
         <Typography variant="pageTitle">{t('customerMetrics.m7.pageTitle')}</Typography>
-        <Typography variant="pageSubtitle" sx={{ mt: 0.5 }}>{t('customerMetrics.m7.pageSubtitle')}</Typography>
+        <Typography variant="pageSubtitle" sx={{ fontWeight: 700, mt: 0.5, display: 'block' }}>
+          {t('customerMetrics.m7.kpiCategoryLabel')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+          {t('customerMetrics.m7.pageDescription')}
+        </Typography>
       </Box>
 
       <KpiFilterBar
@@ -134,36 +181,128 @@ export default function CustomerExpansion() {
         }}
       />
 
-      <M7Expansion
-        trend={trend}
-        isLoading={isLoading}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        excludeIntercompany={excludeIntercompany}
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. Metrik banner
+          SEKARANG cerminan kartu Total (koreksi user 2026-08-10: "buat sama
+          dengan menu gross profit" — banner KPI4 mencerminkan kartu Total
+          Gross Profit-nya, bukan metrik lepas). Sebelumnya masih pakai
+          up_rate% dari trend (peninggalan sebelum kartu diubah ke count
+          breakdown) — sudah tidak nyambung lagi dgn 4 kartu di bawah. ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          label: t('customerMetrics.m7.totalExistingLabel'),
+          baselineValueText: totalExistingComparison.toLocaleString('id-ID'),
+          deltaValueText: Math.abs(totalExistingCurrent - totalExistingComparison).toLocaleString('id-ID'),
+          growthPct: totalExistingGrowthPct,
+        }]}
       />
 
-      {data && (
-        <KpiSummaryStrip
-          metrics={[{ label: expansionLabel, comparisonText: `${comparisonRate.toFixed(2)}%`, currentText: `${currentRate.toFixed(2)}%` }]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[{
-            metricLabel: expansionLabel,
-            pct: growthPct,
-            value: currentRate - comparisonRate,
-            currentIsZero: currentRate === 0,
-            formatValue: (v) => `${v.toFixed(2)}%`,
-          }]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
+      {/* ── 4 kartu — Total, Naik, Datar, Turun (koreksi user 2026-08-10:
+          "tambahkan card total, dan turun, pisahkan flat/turun jadi
+          masing-masing satu card"). Total = established customer TETAP
+          (fixed cohort, PERSIS pola total_existing GP breakdown — TIDAK
+          ikut naik-turun ganti periodType), Naik/Flat/Turun = partisi EKSAK
+          dari cohort tetap itu dlm window periodStart..endDate (bukan
+          rata-rata snapshot bulanan lagi — koreksi user: "bukankah dari
+          total customer dalam periode dicari establish-nya"). ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('customerMetrics.m7.totalExistingLabel')}
+            accentColor={theme.palette.primary.main}
+            value={totalExistingCurrent.toLocaleString('id-ID')}
+            growthPct={totalExistingGrowthPct}
+            deltaValueText={Math.abs(totalExistingCurrent - totalExistingComparison).toLocaleString('id-ID')}
+            comparisonValueText={totalExistingComparison.toLocaleString('id-ID')}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('customerMetrics.m7.seriesUp')}
+            accentColor={theme.palette.success.main}
+            value={naikCountCurrent.toLocaleString('id-ID')}
+            growthPct={naikCountGrowthPct}
+            deltaValueText={Math.abs(naikCountCurrent - naikCountComparison).toLocaleString('id-ID')}
+            comparisonValueText={naikCountComparison.toLocaleString('id-ID')}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('customerMetrics.m7.statusFlat')}
+            accentColor={theme.custom.data[1]}
+            value={flatCountCurrent.toLocaleString('id-ID')}
+            growthPct={flatCountGrowthPct}
+            deltaValueText={Math.abs(flatCountCurrent - flatCountComparison).toLocaleString('id-ID')}
+            comparisonValueText={flatCountComparison.toLocaleString('id-ID')}
+            // Naik = baik utk metrik ini, jadi "datar/turun naik" = buruk —
+            // inverse polarity spt dormant.
+            inversePolarity
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('customerMetrics.m7.statusDown')}
+            accentColor={theme.custom.data[2]}
+            value={downCountCurrent.toLocaleString('id-ID')}
+            growthPct={downCountGrowthPct}
+            deltaValueText={Math.abs(downCountCurrent - downCountComparison).toLocaleString('id-ID')}
+            comparisonValueText={downCountComparison.toLocaleString('id-ID')}
+            inversePolarity
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── 2 chart berdampingan — kiri: breakdown 3 balok Naik/Flat/Turun
+          (koreksi user 2026-08-10: "jadikan 3 balok naik, flat dan turun.
+          urutannya naik, flat, turun"), NILAI JUMLAH CUSTOMER EKSAK dari
+          breakdown (koreksi lanjutan: "harusnya berisi jumlah customer...
+          bukan hanya persentase", lalu "template standar KPI4" — fixed
+          cohort, SAMA angka dgn kartu di atas, BUKAN didekati/rata-rata
+          lagi). 3 SERIES beda warna, urutan array series MENENTUKAN urutan
+          balok kiri-ke-kanan di BarChartWidget, jadi urutan naik→flat→turun
+          HARUS persis begini, bukan asal. kanan: tren 12 bulan (M7Expansion,
+          SUDAH ada, TETAP 2-way up/flat_down % — di luar scope perubahan
+          ini). Grid 3/12 & 9/12 (koreksi user 2026-08-10: "chart kiri grid
+          1, kanan 3 grid, lurus dengan atas") — semula 6/12 & 6/12 (50/50),
+          disamakan dgn grid 4-kartu di atas (md:3 tiap kartu) supaya lurus
+          vertikal, SAMA pola dgn KPI4. ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 3 }}>
+          {isBreakdownLoading ? <Skeleton variant="rectangular" height={280} /> : (
+            <BarChartWidget
+              title={t('customerMetrics.m7.distChartTitle')}
+              subtitle={`${t('customerMetrics.m7.distChartSubtitle')} (${currentRangeText})`}
+              data={[{
+                category: t('customerMetrics.m4.periodChartCategoryLabel'),
+                up: naikCountCurrent,
+                flat: flatCountCurrent,
+                down: downCountCurrent,
+              }]}
+              series={[
+                { key: 'up',   label: t('customerMetrics.m7.statusUp'),   color: theme.palette.success.main },
+                { key: 'flat', label: t('customerMetrics.m7.statusFlat'), color: theme.custom.data[1] },
+                { key: 'down', label: t('customerMetrics.m7.statusDown'), color: theme.custom.data[2] },
+              ]}
+              xKey="category"
+              height={280}
+              yAxisFormatter={(v) => v.toLocaleString('id-ID')}
+              tooltipFormatter={(v, n) => [v.toLocaleString('id-ID'), n]}
+            />
+          )}
+        </Grid>
+        <Grid size={{ xs: 12, md: 9 }}>
+          <M7Expansion
+            trend={trend}
+            isLoading={isLoading}
+            companyId={companyId}
+            branchId={branchId === 'all' ? undefined : branchId}
+            division={division || undefined}
+            excludeIntercompany={excludeIntercompany}
+          />
+        </Grid>
+      </Grid>
 
       <Card>
         <KpiTableToolbar

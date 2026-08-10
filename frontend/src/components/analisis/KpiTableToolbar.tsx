@@ -1,4 +1,5 @@
 // frontend/src/components/analisis/KpiTableToolbar.tsx
+import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
@@ -24,6 +25,11 @@ export interface KpiTableToolbarProps {
    * tidak diisi — daripada tombol mati/disabled permanen yang membingungkan. */
   onExport?: () => void
   exportLabel?: string
+  /** Slot filter tambahan generik (mis. dropdown "Semua Tier" di KPI4,
+   * ditambah 2026-08-09) — ditaruh di antara search dan toggle prioritas.
+   * Caller yang bangun kontrolnya sendiri (TextField select, dll), komponen
+   * ini cuma nyediakan slot supaya tidak perlu hardcode per-kasus di sini. */
+  extraFilter?: ReactNode
   /** Teks jumlah baris SUDAH diformat oleh caller (mis. "952 pelanggan",
    * "120 transaksi") — komponen ini tidak tahu unit/pluralisasi per halaman. */
   totalCountText: string
@@ -43,6 +49,7 @@ export function KpiTableToolbar({
   search, onSearchChange, searchPlaceholder,
   onlyPriority, onOnlyPriorityChange, onlyPriorityLabel,
   onExport, exportLabel,
+  extraFilter,
   totalCountText,
 }: KpiTableToolbarProps) {
   return (
@@ -65,6 +72,8 @@ export function KpiTableToolbar({
         sx={{ minWidth: { xs: '100%', sm: 220 }, flex: { sm: '1 1 220px' } }}
         slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
       />
+
+      {extraFilter}
 
       {onOnlyPriorityChange && (
         <FormControlLabel

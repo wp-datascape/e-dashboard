@@ -2,24 +2,26 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import Grid from '@mui/material/Grid';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
+import { LineChartWidget } from '@/components/charts/LineChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiSectionLabel } from '@/components/analisis/KpiSectionLabel';
 import { Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
-import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { todayIsoDate, formatDateDDMMYYYY } from '@/utils/date';
+import { computeChangePct, averageMonthsInRange } from '@/utils/analisisComparison';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { DormantValueRankingRow } from '@/types/metrics';
 
@@ -44,13 +46,12 @@ export default function DormantValue() {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -69,8 +70,8 @@ export default function DormantValue() {
   });
   // Fetch kedua di tanggal pembanding (setahun lalu) — sama pola dgn
   // DormantRate/ReactivationRate (task025 §18/§19): butuh `value_trend`
-  // SENDIRI yang berakhir di comparisonDate, supaya averageLastMonths bisa
-  // dihitung independen utk sisi pembanding juga.
+  // SENDIRI yang berakhir di comparisonDate, supaya averageMonthsInRange
+  // bisa dihitung independen utk sisi pembanding juga.
   const comparisonDate = shiftDateByYears(endDate, -1);
   const { data: comparisonData } = useDormantCustomer({
     company_id: companyId,
@@ -80,14 +81,15 @@ export default function DormantValue() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  // Rata-rata K bulan terakhir (K = periodType) dari `value_trend` (SELURUH
-  // customer dormant, bukan cuma top-20 seperti `value_ranking_total_*`
-  // lama) — supaya dropdown Periode benar-benar mengubah angka, konsisten
-  // dgn KPI8/KPI10 (task025 §19). Parameter kalkulasi TIDAK berubah —
-  // formula/threshold dormant sama persis dgn sebelumnya.
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const totalCurrent = averageLastMonths(data?.value_trend ?? [], periodMonths, (p) => p.value);
-  const totalComparison = averageLastMonths(comparisonData?.value_trend ?? [], periodMonths, (p) => p.value);
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate dari
+  // `value_trend` (SELURUH customer dormant, bukan cuma top-20 seperti
+  // `value_ranking_total_*` lama) — BUKAN trailing-N-by-posisi-array lagi
+  // (bug §8g/KPI4, ditemukan lagi 2026-08-10 via laporan user "reactivation
+  // rate di dashboard dan di KPI tidak sama"), konsisten dgn KPI8/KPI10 &
+  // Dashboard Overview. Parameter kalkulasi TIDAK berubah — formula/
+  // threshold dormant sama persis dgn sebelumnya.
+  const totalCurrent = averageMonthsInRange(data?.value_trend ?? [], periodStart, endDate, (p) => p.value);
+  const totalComparison = averageMonthsInRange(comparisonData?.value_trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.value);
   const growthPct = data ? computeChangePct(totalCurrent, totalComparison) : null;
   const lostValueLabel = t('dormantValue.m9SeriesLabel');
 
@@ -136,7 +138,7 @@ export default function DormantValue() {
       headerName: t('dormantValue.colLastTransaction'),
       minWidth: 160,
       flex: 0.9,
-      valueFormatter: (v: string) => new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      valueFormatter: (v: string) => formatDateDDMMYYYY(v),
     },
     {
       field: 'months_dormant',
@@ -192,7 +194,52 @@ export default function DormantValue() {
         }}
       />
 
-      {/* ── M9: Horizontal Bar Ranking ── */}
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. Total lost value
+          (SELURUH dormant, bukan cuma top-20), current vs setahun lalu.
+          Dormant Value = inverse polarity (naik = buruk). ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          label: lostValueLabel,
+          baselineValueText: fmtRp(totalComparison),
+          deltaValueText: fmtRp(Math.abs(totalCurrent - totalComparison)),
+          growthPct,
+          inversePolarity: true,
+        }]}
+      />
+
+      {/* ── 2 kartu — Estimasi Nilai Hilang & Jumlah Customer Dormant ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <KpiMetricCard
+            label={lostValueLabel}
+            accentColor={theme.palette.error.main}
+            value={fmtRp(totalCurrent)}
+            growthPct={growthPct}
+            deltaValueText={fmtRp(Math.abs(totalCurrent - totalComparison))}
+            comparisonValueText={fmtRp(totalComparison)}
+            inversePolarity
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <KpiMetricCard
+            label={t('dormantRate.dormantCountLabel')}
+            accentColor={theme.custom.data[1]}
+            value={String(data?.dormant_rate_current.dormant_count ?? 0)}
+            caption={`${t('dormantRate.totalCustomerLabel')}: ${data?.dormant_rate_current.total_customers ?? 0}`}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── M9: 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+          executive-kpi-dashboard KPI9View) — kiri: ranking horizontal top-5
+          (dipangkas dari full top-20 supaya proporsional di kolom 50%,
+          daftar lengkap tetap ada di tabel di bawah), kanan: tren 12 bulan
+          total estimasi nilai hilang (`value_trend` — SUDAH ada di data,
+          BARU dipakai sbg chart di sini, sebelumnya cuma dipakai utk
+          hitung banner/kartu). ── */}
       <Box>
         <KpiSectionLabel
           label={t('dormantValue.m9SectionLabel')}
@@ -202,87 +249,82 @@ export default function DormantValue() {
             note: t('dormantValue.m9FormulaNote'),
           }}
         />
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={340} />
-        ) : (
-          <BarChartWidget
-            title={t('dormantValue.m9ChartTitle')}
-            subtitle={t('dormantValue.m9ChartSubtitle')}
-            data={data?.value_ranking ?? []}
-            series={[
-              {
-                key: 'estimated_lost_value',
-                label: t('dormantValue.m9SeriesLabel'),
-                color: theme.palette.error.main,
-              },
-            ]}
-            xKey="customer_name"
-            height={520}
-            layout="horizontal"
-            yAxisWidth={200}
-            showLabels
-            mobileNameInBar
-            labelFormatter={(v) => fmtRp(v)}
-            yAxisFormatter={(v) => fmtRp(v)}
-            tooltipFormatter={(v, n) => [fmtRp(v), n]}
-          />
-        )}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <BarChartWidget
+                title={t('dormantValue.m9ChartTitle')}
+                subtitle={t('dormantValue.m9ChartSubtitle')}
+                data={(data?.value_ranking ?? []).slice(0, 5)}
+                series={[
+                  {
+                    key: 'estimated_lost_value',
+                    label: t('dormantValue.m9SeriesLabel'),
+                    color: theme.palette.error.main,
+                  },
+                ]}
+                xKey="customer_name"
+                height={280}
+                layout="horizontal"
+                yAxisWidth={140}
+                showLabels
+                mobileNameInBar
+                labelFormatter={(v) => fmtRp(v)}
+                yAxisFormatter={(v) => fmtRp(v)}
+                tooltipFormatter={(v, n) => [fmtRp(v), n]}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <LineChartWidget
+                title={t('dormantValue.trendChartTitle')}
+                subtitle={t('dormantValue.trendChartSubtitle')}
+                data={data?.value_trend ?? []}
+                series={[
+                  { key: 'value', label: lostValueLabel, color: theme.palette.error.main, formatValue: (v) => fmtRp(v) },
+                ]}
+                xKey="month"
+                height={280}
+              />
+            )}
+          </Grid>
+        </Grid>
       </Box>
 
-      {/* ── Banner (KpiSummaryStrip) — total top-20 lost value, current vs
-          setahun lalu; di bawah chart, sama urutan dgn Revenue ── */}
-      {data && (
-        <KpiSummaryStrip
-          metrics={[
-            { label: lostValueLabel, comparisonText: fmtRp(totalComparison), currentText: fmtRp(totalCurrent) },
-          ]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[
-            {
-              metricLabel: lostValueLabel,
-              pct: growthPct,
-              value: totalCurrent - totalComparison,
-              currentIsZero: totalCurrent === 0,
-              // Dormant Value = inverse polarity (naik = buruk, lihat metricPolarity.ts)
-              inversePolarity: true,
-              formatValue: fmtRp,
-            },
-          ]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
-
-      {/* ── Tabel M9 — snapshot type (ux-menu-mapping.md §7 "Adaptasi snapshot
-          KPI 5/6/9") — TANPA kolom pembanding/Selisih/Status per-baris,
-          karena `value_ranking` memang cuma snapshot top-20 saat ini, bukan
-          pasangan periode current-vs-comparison seperti tabel Analisis
-          Revenue (beda dari TOTAL-nya di banner atas yang sudah punya YoY). ── */}
-      {!isLoading && (
-        <Card>
-          <KpiTableToolbar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder={t('dormantValue.searchPlaceholder')}
-            totalCountText={t('dormantValue.customerCountText', { count: filteredValueRanking.length })}
-          />
-          <ResponsiveListView
-            rows={filteredValueRanking.map((row) => ({ ...row, id: row.customer_id }))}
-            columns={columns}
-            emptyMessage={t('dormantValue.emptyTable')}
-            mobileFields={['customer_name', 'company_name', 'last_invoice_date', 'months_dormant', 'avg_monthly_revenue', 'estimated_lost_value']}
-            height={420}
-            pageSize={10}
-            pageSizeOptions={[10, 20]}
-          />
-        </Card>
-      )}
+      {/* ── Tabel ranking lengkap top-20 — daftar penuh tetap di sini,
+          chart di atas cuma preview top-5. ── */}
+      <Box>
+        <KpiSectionLabel label={t('dormantValue.rankingTableSectionLabel')} />
+        {/* Snapshot type (ux-menu-mapping.md §7 "Adaptasi snapshot KPI 5/6/9")
+            — TANPA kolom pembanding/Selisih/Status per-baris, karena
+            `value_ranking` memang cuma snapshot top-20 saat ini, bukan
+            pasangan periode current-vs-comparison seperti tabel Analisis
+            Revenue (beda dari TOTAL-nya di banner atas yang sudah punya YoY). */}
+        {!isLoading && (
+          <Card>
+            <KpiTableToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={t('dormantValue.searchPlaceholder')}
+              totalCountText={t('dormantValue.customerCountText', { count: filteredValueRanking.length })}
+            />
+            <ResponsiveListView
+              rows={filteredValueRanking.map((row) => ({ ...row, id: row.customer_id }))}
+              columns={columns}
+              emptyMessage={t('dormantValue.emptyTable')}
+              mobileFields={['customer_name', 'company_name', 'last_invoice_date', 'months_dormant', 'avg_monthly_revenue', 'estimated_lost_value']}
+              height={420}
+              pageSize={10}
+              pageSizeOptions={[10, 20]}
+            />
+          </Card>
+        )}
+      </Box>
     </Box>
   );
 }

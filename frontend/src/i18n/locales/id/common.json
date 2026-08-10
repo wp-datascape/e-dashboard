@@ -107,5 +107,13 @@
     "moreCount": "+{{count}} lainnya",
     "superadminBadge": "Superadmin — akses penuh",
     "allDivisions": "Semua divisi"
+  },
+  "periodBanner": {
+    "label": "Detail Periode & Pembanding YoY",
+    "activePeriod": "Periode Aktif",
+    "yoyComparison": "Pembanding YoY",
+    "yoyBaseline": "Baseline (Tahun Lalu)",
+    "yoyChange": "Perubahan YoY",
+    "comparisonValueCaption": "Tahun lalu: {{value}}"
   }
 }

@@ -17,6 +17,12 @@ export interface CustomerMetricsTrendPoint {
   expansion_rate: number
   up_rate: number
   flat_down_rate: number
+  // 3-way split (koreksi user 2026-08-10) — flat_down_rate TETAP ada
+  // (dipakai M7Expansion.tsx chart tren kanan, 2-way), flat_rate/down_rate
+  // BARU utk cards+chart kiri CustomerExpansion/index.tsx yang butuh pisah
+  // Flat (cur==prev) vs Turun (cur<prev) eksak.
+  flat_rate: number
+  down_rate: number
   // M3 enrichment
   active_existing_count: number
   active_new_count: number
@@ -65,12 +71,17 @@ export interface ExpansionBreakdownRow {
   cur_revenue: number
   prev_revenue: number
   change_pct: number | null
-  status: 'up' | 'flat_down'
+  // 3-way (koreksi user 2026-08-10) — dulu 'up' | 'flat_down', sekarang
+  // flat (cur_revenue === prev_revenue) dan down (cur_revenue < prev_revenue)
+  // dipisah eksak, bukan digabung.
+  status: 'up' | 'flat' | 'down'
 }
 
 export interface ExpansionBreakdownData {
   period_end: string
   up_count: number
+  flat_count: number
+  down_count: number
   total_existing: number
   rows: ExpansionBreakdownRow[]
 }
@@ -83,6 +94,12 @@ export interface GpBreakdownRow {
   customer_name: string
   gp: number
   gp_pct: number
+  /** Total revenue customer ini dalam window aktif — ditambah 2026-08-09
+   * (mockup "Revenue 30D") supaya margin_pct bisa dihitung, bukan cuma gp. */
+  revenue: number
+  /** gp/revenue*100 — BEDA dari gp_pct (gp/total_gp*100, porsi thd total GP
+   * semua existing customer). margin_pct = margin kotor customer ybs sendiri. */
+  margin_pct: number
   tier: 'Atas' | 'Tengah' | 'Bawah'
 }
 
@@ -135,6 +152,13 @@ export interface DormantTrendRow {
   month: string
   total_customers: number
   dormant_count: number
+  // Severity split (koreksi user 2026-08-10, opsi A: 4 kartu Total/Aktif/
+  // Dormant Ringan/Dormant Kronis) — active_count + dormant_light_count +
+  // dormant_severe_count SELALU persis total_customers; dormant_light_count
+  // + dormant_severe_count SELALU persis dormant_count (angka lama).
+  active_count: number
+  dormant_light_count: number
+  dormant_severe_count: number
   dormant_rate: number
   prev_dormant_count: number
   reactivated_count: number
@@ -196,6 +220,15 @@ export interface DormantMetricsData {
     // Dihitung dari fetchDormantTrend KEDUA dgn filterDate digeser -1 tahun,
     // BUKAN perubahan business rule apa pun (threshold dormant tetap sama).
     comparison_value: number
+    // Severity split (koreksi user 2026-08-10, opsi A) — snapshot current +
+    // comparison (setahun lalu), pola SAMA persis dgn dormant_count/
+    // comparison_value di atas.
+    active_count: number
+    dormant_light_count: number
+    dormant_severe_count: number
+    active_count_comparison: number
+    dormant_light_count_comparison: number
+    dormant_severe_count_comparison: number
   }
   reactivation_current: {
     value: number

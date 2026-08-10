@@ -1,30 +1,37 @@
-import { useState } from 'react';
+import type { ReactNode } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import TrendingDownOutlinedIcon from '@mui/icons-material/TrendingDownOutlined';
+import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
+import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
+import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
+import DonutSmallOutlinedIcon from '@mui/icons-material/DonutSmallOutlined';
+import RepeatOutlinedIcon from '@mui/icons-material/RepeatOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import MoneyOffOutlinedIcon from '@mui/icons-material/MoneyOffOutlined';
+import RestartAltOutlinedIcon from '@mui/icons-material/RestartAltOutlined';
 import { useTheme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Card } from '@/components/ui';
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
-import { FilterBarShell } from '@/components/filters/FilterBarShell';
-import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
+import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
+import { todayIsoDate } from '@/utils/date';
+import {
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
+} from '@/utils/analisisPeriod';
 
 import { StatCard } from '@/components/charts/StatCard';
-import { BarChartWidget } from '@/components/charts/BarChartWidget';
-import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
-import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
-import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
-import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
-import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
+import { Card, StatusChip } from '@/components/ui';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import { isInversePolarityMetric } from '@/utils/metricPolarity';
-import type { MetricCard } from '@/types/dashboard';
+import { useGlobalFilter } from '@/context/globalFilter.context';
+import { isInversePolarityMetric, isGoodTrend } from '@/utils/metricPolarity';
+import type { MetricCard, DashboardThresholds } from '@/types/dashboard';
 import { StatCardSkeleton } from './components/StatCardSkeleton';
-import { ChartSkeleton } from './components/ChartSkeleton';
 import { PeriodStrip } from './components/PeriodStrip';
-import { ClickableChart } from './components/ClickableChart';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,15 +53,40 @@ function metricTitle(card: MetricCard, t: TFunction): string {
   return keys ? t(keys.title) : card.title;
 }
 
+// Deskripsi kartu — pakai angka EXACT (`card.detail`) kalau tersedia, pola
+// persis referensi ("11 dari 18 customer aktif beli ≥2 kategori", dst),
+// fallback ke deskripsi generik kalau metric_key ini belum punya `detail`
+// (task026 §9 lanjutan, 2026-08-09, koreksi user "detail isi card referensi
+// juga tidak ada di dashboard ku"). Format angka currency pakai
+// formatValueByFormat yang SAMA dgn value utama kartu, biar konsisten.
 function metricSubtitle(card: MetricCard, t: TFunction): string {
+  const d = card.detail;
+  if (d) {
+    switch (card.metric_key) {
+      case 'cross_selling_ratio':
+        return t('dashboard.detailCrossSelling', { numerator: d.numerator, denominator: d.denominator });
+      case 'avg_category':
+        return t('dashboard.detailAvgCategory', { total: d.totalCategories, customers: d.activeCustomers });
+      case 'avg_gross_profit':
+        return t('dashboard.detailAvgGrossProfit', {
+          top: formatValueByFormat(d.topTierGp, 'currency'),
+          mid: formatValueByFormat(d.midTierGp, 'currency'),
+        });
+      case 'dormant_rate':
+        return t('dashboard.detailDormantRate', { count: d.dormantCount, total: d.totalCustomers });
+      case 'dormant_value':
+        return t('dashboard.detailDormantValue', { count: d.dormantCount });
+      case 'reactivation_rate':
+        return t('dashboard.detailReactivation', { reactivated: d.reactivatedCount, prior: d.priorDormantCount });
+    }
+  }
   const keys = METRIC_LABEL_KEYS[card.metric_key];
   return keys ? t(keys.desc) : card.subtitle;
 }
 
-function formatMetricValue(card: MetricCard): string {
-  const v = card.summary.current_value;
-  if (card.format === 'percent') return `${v.toFixed(1)}%`;
-  if (card.format === 'currency') {
+function formatValueByFormat(v: number, format: MetricCard['format']): string {
+  if (format === 'percent') return `${v.toFixed(1)}%`;
+  if (format === 'currency') {
     if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}M`;
     if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(1)}jt`;
     return `Rp ${v.toLocaleString('id-ID')}`;
@@ -62,36 +94,193 @@ function formatMetricValue(card: MetricCard): string {
   return v % 1 === 0 ? v.toString() : v.toFixed(2);
 }
 
+function formatMetricValue(card: MetricCard): string {
+  return formatValueByFormat(card.summary.current_value, card.format);
+}
+
+
+// Pill kategori pojok kanan atas tiap kartu — pola PERSIS referensi
+// executive-kpi-dashboard/OverviewView.tsx (koreksi user 2026-08-09,
+// "SAMAKAN RUBAH MENJADI SAMA DENGAN REFRENSI"), dipetakan per metric_key
+// (bukan per nomor KPI, urutan metric kita beda dari referensi — lihat
+// task026 §9). Warna TETAP token StatusChip (default/success/warning/error),
+// BUKAN 7 hue lepas hardcode spt referensi (purple/emerald/amber/dst) — itu
+// balik lagi ke pola "1 warna dipakai byk peran" yang sudah dibongkar di
+// task026 §8r/§8t. 'default' = label murni deskriptif, 'success'/'error' =
+// genuinely threshold-based (repeat_order_rate on-target/tidak).
+function metricBadge(card: MetricCard, thresholds: DashboardThresholds | undefined, t: TFunction): { label: string; color: 'default' | 'success' | 'warning' | 'error' } {
+  switch (card.metric_key) {
+    case 'cross_selling_ratio':
+      return { label: t('dashboard.badgeMultiProduct'), color: 'default' };
+    case 'avg_category':
+      return { label: t('dashboard.badgePenetration'), color: 'default' };
+    case 'avg_revenue':
+      return { label: t('dashboard.badgeRevenue'), color: 'default' };
+    case 'avg_gross_profit':
+      return { label: t('dashboard.badgeProfitability'), color: 'default' };
+    case 'high_margin_penetration':
+      return { label: t('dashboard.badgeMemoBase'), color: 'default' };
+    case 'repeat_order_rate': {
+      const target = thresholds?.repeat_order_target_pct ?? 0;
+      const onTarget = card.summary.current_value >= target;
+      return { label: t('dashboard.badgeTarget', { pct: target }), color: onTarget ? 'success' : 'error' };
+    }
+    case 'expansion_rate':
+      return { label: t('dashboard.badgeGrowth'), color: 'default' };
+    case 'dormant_rate':
+      return { label: t('dashboard.badgeThresholdDinamis'), color: 'default' };
+    case 'dormant_value':
+      return { label: t('dashboard.badgeEstimatedLoss'), color: 'default' };
+    case 'reactivation_rate':
+      return {
+        label: t('dashboard.badgeTargetRange', { low: thresholds?.reactivation_target_low_pct ?? 0, high: thresholds?.reactivation_target_high_pct ?? 0 }),
+        color: 'default',
+      };
+    default:
+      return { label: '', color: 'default' };
+  }
+}
+
+// Aksen warna per kartu overview — koreksi user 2026-08-09: "chart di
+// dashboard jenisnya sama kan dengan chart di halaman masing-masing KPI".
+// BUKAN skema kategori/bundel buatan sendiri lagi — tiap warna di sini
+// adalah warna LITERAL yang dipakai metrik ybs di chart utama halaman
+// KPI-nya sendiri (diaudit satu-satu, bukan tebakan):
+//   cross_selling_ratio      → CrossSelling (ComboChartWidget, seri "ratio")     → info
+//   avg_category              → AvgCategoryPerCustomer (AreaChartWidget)         → success
+//   avg_revenue                → CustomerRevenue/M3Revenue (ComboChartWidget bar) → primary
+//   high_margin_penetration  → M5HighMargin (LineChartWidget, "penetration_pct")  → info
+//   repeat_order_rate         → M6RepeatOrder (LineChartWidget tren "rate")        → primary
+//   expansion_rate             → M7Expansion (BarChartWidget, "up_rate")           → success
+//   dormant_rate                → DormantRate (LineAlertWidget)                      → error
+//   dormant_value               → DormantValue (BarChartWidget)                      → error
+// `avg_gross_profit` (stacked-bar) TIDAK butuh entri — StatCard abaikan
+// `color` utk chartType itu, selalu pakai `theme.custom.rank` (3-tier).
+function metricAccentColor(metric: MetricCard, theme: Theme): string {
+  switch (metric.metric_key) {
+    case 'cross_selling_ratio':
+    case 'high_margin_penetration':
+      return theme.palette.info.main;
+    case 'avg_category':
+    case 'expansion_rate':
+      return theme.palette.success.main;
+    case 'avg_revenue':
+    case 'repeat_order_rate':
+    case 'reactivation_rate':
+      return theme.palette.primary.main;
+    case 'dormant_rate':
+    case 'dormant_value':
+      return theme.palette.error.main;
+    default:
+      return theme.palette.primary.main;
+  }
+}
+
+// Garis threshold di mini chart — pola sama dgn LineAlertWidget di halaman
+// KPI (DormantRate/ReactivationRate), belum ada sebelumnya (koreksi user
+// 2026-08-10: "halaman KPI reactivation ada line threshold nya" — mini
+// chart Dashboard kelewat elemen ini). Cuma 2 metrik yang genuinely punya
+// garis threshold di halaman aslinya (LineAlertWidget dipakai KHUSUS di
+// situ, bukan semua metrik 'line').
+function metricThreshold(metricKey: string, thresholds: DashboardThresholds | undefined): number | undefined {
+  switch (metricKey) {
+    case 'dormant_rate':
+      return thresholds?.dormant_rate_alert_pct;
+    case 'reactivation_rate':
+      return thresholds?.reactivation_target_low_pct;
+    default:
+      return undefined;
+  }
+}
+
+// Ikon per kartu — pola referensi executive-kpi-dashboard (`<Grid/> KPI 1 •
+// Cross Selling`, dst), belum ada sebelumnya (koreksi user 2026-08-09).
+// 1 ikon per metric_key, tanpa warna sendiri (diwarnai lewat prop `color`
+// StatCard, lihat metricAccentColor).
+const METRIC_ICONS: Record<string, ReactNode> = {
+  cross_selling_ratio: <GridViewOutlinedIcon />,
+  avg_category: <LayersOutlinedIcon />,
+  avg_revenue: <PaidOutlinedIcon />,
+  avg_gross_profit: <SavingsOutlinedIcon />,
+  high_margin_penetration: <DonutSmallOutlinedIcon />,
+  repeat_order_rate: <RepeatOutlinedIcon />,
+  expansion_rate: <TrendingUpOutlinedIcon />,
+  dormant_rate: <ErrorOutlineOutlinedIcon />,
+  dormant_value: <MoneyOffOutlinedIcon />,
+  reactivation_rate: <RestartAltOutlinedIcon />,
+};
+
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const theme = useTheme();
   const { t } = useTranslation();
+  const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany } = scopeFilter;
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
 
-  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
+  // Awal rentang periode aktif dari dropdown Periode (Bulanan/Kuartalan/
+  // Semester/Tahunan) — pola SAMA PERSIS dgn 10 halaman KPI individual
+  // (task026 §9 lanjutan, 2026-08-09, koreksi user "kenapa filter periode
+  // ... tidak bekerja"). Dikirim ke backend via `period_start` supaya
+  // headline+YoY tiap kartu genuinely ikut dropdown ini, bukan cuma tampil
+  // di caption doang.
+  const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
+  const periodStart = getPeriodDateRange(periodType, periodKey).start;
+  const currentRangeText = formatDateRange({ start: periodStart, end: endDate });
+  const comparisonDate = shiftDateByYears(endDate, -1);
+  const comparisonRangeText = formatDateRange({
+    start: shiftDateByYears(periodStart, -1),
+    end: comparisonDate,
+  });
 
   const { data, isLoading } = useDashboard({
     company_id: companyFilter,
     branch_id: branchFilter === 'all' ? undefined : branchFilter,
     division: divisionFilter || undefined,
-    period_end: resolvePeriodEnd(periodMonth),
+    period_end: endDate,
+    period_start: periodStart,
     exclude_intercompany: excludeIntercompany,
   });
 
+  const todayStr = todayIsoDate();
+
   const metrics = data?.metrics ?? [];
 
-  const findMetric = (key: string) => metrics.find((x) => x.metric_key === key);
+  // ── Alert banner + hero callout (task026 §9, 2026-08-09, referensi
+  // executive-kpi-dashboard/OverviewView.tsx) — threshold sudah ada di
+  // `loadThresholds()` sejak awal, baru sekarang diekspos ke response &
+  // dipakai di sini. Teks alert dirender via i18n (BUKAN string hardcode
+  // di backend spt referensi — beda krn app ini ber-i18n). ──
+  const findMetric = (key: string) => metrics.find((m) => m.metric_key === key);
+  const repeatOrder = findMetric('repeat_order_rate');
+  const dormantRate = findMetric('dormant_rate');
+  const reactivation = findMetric('reactivation_rate');
+  const dormantValue = findMetric('dormant_value');
+  const thresholds = data?.thresholds;
 
-  const mCrossRatio      = findMetric('cross_selling_ratio');
-  const mAvgCategory     = findMetric('avg_category');
-  const mHighMargin      = findMetric('high_margin_penetration');
-  const mRepeatOrder     = findMetric('repeat_order_rate');
-  const mExpansion       = findMetric('expansion_rate');
-  const mDormantRate     = findMetric('dormant_rate');
-  const mReactivation    = findMetric('reactivation_rate');
+  // `has_data` guard (2026-08-09, ditemukan dari screenshot user) — company
+  // yang belum punya customer/invoice sama sekali selalu 0% di semua rate,
+  // yang matematis "di bawah target manapun" tapi menyesatkan kalau
+  // ditampilkan sbg peringatan performa (bukan performa jelek, memang
+  // belum ada data). Alert cuma dihitung kalau company ini PUNYA data.
+  const alerts: string[] = [];
+  if (data?.has_data) {
+    if (repeatOrder && thresholds && repeatOrder.summary.current_value < thresholds.repeat_order_target_pct) {
+      alerts.push(t('dashboard.alertRepeatOrder', { value: repeatOrder.summary.current_value.toFixed(1), target: thresholds.repeat_order_target_pct }));
+    }
+    if (dormantRate && thresholds && dormantRate.summary.current_value > thresholds.dormant_rate_alert_pct) {
+      alerts.push(t('dashboard.alertDormantRate', { value: dormantRate.summary.current_value.toFixed(1), target: thresholds.dormant_rate_alert_pct }));
+    }
+    if (reactivation && thresholds && reactivation.summary.current_value < thresholds.reactivation_target_low_pct) {
+      alerts.push(t('dashboard.alertReactivation', { value: reactivation.summary.current_value.toFixed(1), target: thresholds.reactivation_target_low_pct }));
+    }
+  }
+
+  const dormantValueGood = dormantValue ? isGoodTrend('dormant_value', dormantValue.summary.trend) : null;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -110,218 +299,138 @@ export default function Dashboard() {
         </Typography>
         {!isLoading && data && (
           <PeriodStrip
-            period={data.period_month}
+            // Rentang tanggal PENUH (ikut dropdown Periode), bukan
+            // `data.period_month` (1 bulan tetap) lagi — task026 §9 lanjutan,
+            // 2026-08-09: itu penyebab badge atas ("Periode: 2026-08") tidak
+            // pernah berubah walau dropdown Periode diganti Kuartalan dst.
+            period={currentRangeText}
+            comparisonPeriod={comparisonRangeText}
             activeWindow={data.active_window}
           />
         )}
       </Box>
 
-      {/* ── Filter Bar — template resmi FilterBarShell (task025 §16 lanjutan,
-          2026-08-07: user "filter... dipanggil ulang sebagai filter global
-          mulai halaman dashboard sampai halaman lainnya"). Baris 2 cuma
-          MonthYearPicker (bukan periodType+YoY) — Ringkasan genuinely
-          multi-KPI bulanan, bukan 1 metrik dgn pembanding YoY. ── */}
-      <FilterBarShell filter={scopeFilter} onResetExtra={() => setPeriodMonth(currentYearMonth())}>
-        <MonthYearPicker
-          size="small"
-          label={t('common.filters.period')}
-          value={periodMonth}
-          onChange={setPeriodMonth}
-          sx={{ width: { xs: '100%', sm: 180 } }}
-        />
-      </FilterBarShell>
+      {/* ── Filter Bar — KpiFilterBar (task026 Fase 2, 2026-08-09) —
+          sebelumnya baris 2 cuma MonthYearPicker (bulan tunggal, "Ringkasan
+          genuinely multi-KPI bulanan, bukan 1 metrik dgn pembanding YoY"),
+          sekarang diseragamkan ke periodType+tanggal seperti 10 halaman KPI
+          supaya filter KAPAN benar-benar 1 context global (bukan cuma
+          SIAPA) — lihat task026.md §0.4/§5. Backend `/dashboard` sudah
+          terima `period_end` sejak awal (bukan `period_month`), jadi tidak
+          ada perubahan endpoint. ── */}
+      <KpiFilterBar
+        filter={scopeFilter}
+        periodType={periodType}
+        onPeriodTypeChange={setPeriodType}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onResetExtra={() => {
+          setPeriodType('quarter');
+          setEndDate(todayStr);
+        }}
+      />
 
-      {/* ── Row 1: 10 Metric Stat Cards ── */}
+      {/* ── Hero callout (Dormant Value) + alert banner threshold-aware —
+          task026 §9 (2026-08-09), referensi executive-kpi-dashboard/
+          OverviewView.tsx. Digabung 1 Card (bukan 2 banner terpisah) biar
+          tidak menambah boilerplate. Alert cuma tampil kalau ADA metrik yg
+          melewati threshold (repeatOrderTargetPct/dormantRateAlertPct/
+          reactivationTargetLow dari business_configs, lihat
+          dashboard.service.ts). ── */}
+      {!isLoading && dormantValue && (
+        <Card sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+              <Box sx={{
+                width: 40, height: 40, borderRadius: 1.5, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                bgcolor: (t) => t.custom.soft(t.palette.error.main),
+                color: 'error.main',
+              }}>
+                <TrendingDownOutlinedIcon fontSize="small" />
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: 0.5, color: 'text.secondary', textTransform: 'uppercase', display: 'block' }}>
+                  {t('dashboard.heroLostValueLabel')}
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  {formatMetricValue(dormantValue)}
+                </Typography>
+              </Box>
+            </Box>
+            {dormantValueGood !== null && (
+              <StatusChip
+                label={`${dormantValueGood ? '▼' : '▲'} ${Math.abs(dormantValue.summary.change_percent).toFixed(1)}% ${t('dashboard.vs')}`}
+                color={dormantValueGood ? 'success' : 'error'}
+              />
+            )}
+          </Box>
+
+          {alerts.length > 0 && (
+            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderTopColor: 'divider', display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+              <WarningAmberOutlinedIcon fontSize="small" sx={{ color: 'warning.main', flexShrink: 0, mt: 0.25 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.main', display: 'block', mb: 0.5 }}>
+                  {t('dashboard.alertsTitle')}
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  {alerts.map((alertText, idx) => (
+                    <Typography key={idx} component="li" variant="caption" color="text.secondary">
+                      {alertText}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Card>
+      )}
+
+      {/* ── Row 1: 10 Metric Stat Cards — grid 3 kolom (xs:1/md:2/xl:3), PERSIS
+          referensi executive-kpi-dashboard (`grid-cols-1 md:grid-cols-2
+          xl:grid-cols-3`), BUKAN 5 kolom (lg:2.4) spt sebelumnya — itu murni
+          keputusan saya sendiri, bukan instruksi (koreksi user 2026-08-09,
+          "kamu membuat aturan sendiri atau mengikuti perintahku?"). Kartu
+          reactivation_rate full-width (xs/md/xl: 12), sama spt KPI10 di
+          referensi yang di-span 2/3 kolom (jadi 1 baris penuh sendiri). ── */}
       <Grid container spacing={2}>
         {isLoading
           ? Array.from({ length: 10 }).map((_, i) => (
-              <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}>
+              <Grid key={i} size={{ xs: 12, md: 6, xl: 4 }}>
                 <StatCardSkeleton />
               </Grid>
             ))
-          : metrics.map((metric) => (
-              <Grid
-                key={metric.metric_key}
-                size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}
-              >
-                <StatCard
-                  title={metricTitle(metric, t)}
-                  subtitle={metricSubtitle(metric, t)}
-                  value={formatMetricValue(metric)}
-                  change={metric.summary.change_percent}
-                  trend={metric.summary.trend}
-                  data={metric.monthly_trend}
-                  color={metric.color}
-                  link={metric.link}
-                  inversePolarity={isInversePolarityMetric(metric.metric_key)}
-                />
-              </Grid>
-            ))}
+          : metrics.map((metric) => {
+              const badge = metricBadge(metric, data?.thresholds, t);
+              const isFullWidth = metric.metric_key === 'reactivation_rate';
+              return (
+                <Grid
+                  key={metric.metric_key}
+                  size={isFullWidth ? { xs: 12, md: 12, xl: 12 } : { xs: 12, md: 6, xl: 4 }}
+                >
+                  <StatCard
+                    title={metricTitle(metric, t)}
+                    subtitle={metricSubtitle(metric, t)}
+                    value={formatMetricValue(metric)}
+                    change={metric.summary.change_percent}
+                    trend={metric.summary.trend}
+                    data={metric.monthly_trend}
+                    color={metricAccentColor(metric, theme)}
+                    icon={METRIC_ICONS[metric.metric_key]}
+                    chartType={metric.chart_type}
+                    link={metric.link}
+                    inversePolarity={isInversePolarityMetric(metric.metric_key)}
+                    periodLabel={data ? currentRangeText : undefined}
+                    comparisonLabel={data ? comparisonRangeText : undefined}
+                    comparisonValue={formatValueByFormat(metric.summary.previous_value, metric.format)}
+                    badgeLabel={badge.label}
+                    badgeColor={badge.color}
+                    threshold={metricThreshold(metric.metric_key, data?.thresholds)}
+                  />
+                </Grid>
+              );
+            })}
       </Grid>
-
-      {/* ── Row 2: Chart Widgets ── */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mCrossRatio ? (
-            <ClickableChart link={mCrossRatio.link}>
-              <BarChartWidget
-                title={metricTitle(mCrossRatio, t)}
-                subtitle={metricSubtitle(mCrossRatio, t)}
-                value={formatMetricValue(mCrossRatio)}
-                change={mCrossRatio.summary.change_percent}
-                data={mCrossRatio.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: mCrossRatio.color }]}
-                xKey="month"
-                height={180}
-                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mAvgCategory ? (
-            <ClickableChart link={mAvgCategory.link}>
-              <AreaChartWidget
-                title={metricTitle(mAvgCategory, t)}
-                subtitle={metricSubtitle(mAvgCategory, t)}
-                value={formatMetricValue(mAvgCategory)}
-                change={mAvgCategory.summary.change_percent}
-                data={mAvgCategory.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
-                xKey="month"
-                height={180}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mHighMargin ? (
-            <ClickableChart link={mHighMargin.link}>
-              <DonutChartWidget
-                title={metricTitle(mHighMargin, t)}
-                subtitle={metricSubtitle(mHighMargin, t)}
-                data={[
-                  { name: t('dashboard.charts.highMarginBought'), value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
-                  { name: t('dashboard.charts.highMarginNotBought'), value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
-                ]}
-                centerValue={formatMetricValue(mHighMargin)}
-                centerLabel={t('dashboard.charts.highMarginCenterLabel')}
-                height={200}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mRepeatOrder ? (
-            <ClickableChart link={mRepeatOrder.link}>
-              <RadialBarWidget
-                title={metricTitle(mRepeatOrder, t)}
-                subtitle={metricSubtitle(mRepeatOrder, t)}
-                value={parseFloat(mRepeatOrder.summary.current_value.toFixed(1))}
-                thresholdGreen={80}
-                height={200}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mExpansion ? (
-            <ClickableChart link={mExpansion.link}>
-              <BarChartWidget
-                title={metricTitle(mExpansion, t)}
-                subtitle={metricSubtitle(mExpansion, t)}
-                value={formatMetricValue(mExpansion)}
-                change={mExpansion.summary.change_percent}
-                data={mExpansion.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
-                xKey="month"
-                height={200}
-                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mDormantRate ? (
-            <ClickableChart link={mDormantRate.link}>
-              <LineAlertWidget
-                title={metricTitle(mDormantRate, t)}
-                subtitle={t('dashboard.charts.dormantSubtitle')}
-                data={mDormantRate.monthly_trend}
-                lineKey="value"
-                lineLabel={t('dashboard.charts.dormantRateLabel')}
-                xKey="month"
-                threshold={10}
-                thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
-                height={180}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mReactivation ? (
-            <ClickableChart link={mReactivation.link}>
-              <BulletChartWidget
-                title={metricTitle(mReactivation, t)}
-                subtitle={t('dashboard.charts.reactivationSubtitle')}
-                value={parseFloat(mReactivation.summary.current_value.toFixed(1))}
-                targetLow={15}
-                targetHigh={20}
-                max={30}
-                unit="%"
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-      </Grid>
-
-      {/* ── Row 3: Definitions Reference ── */}
-      <Card sx={{ p: 2 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
-          {t('dashboard.definitions.title')}
-        </Typography>
-        <Grid container spacing={1}>
-          {[
-            { term: t('dashboard.definitions.activeCustomer.term'), def: t('dashboard.definitions.activeCustomer.def', { months: data?.active_window ?? 6 }) },
-            { term: t('dashboard.definitions.existingCustomer.term'), def: t('dashboard.definitions.existingCustomer.def') },
-            { term: t('dashboard.definitions.newCustomer.term'), def: t('dashboard.definitions.newCustomer.def') },
-            { term: t('dashboard.definitions.dormantCustomer.term'), def: t('dashboard.definitions.dormantCustomer.def') },
-            { term: t('dashboard.definitions.productCategory.term'), def: t('dashboard.definitions.productCategory.def') },
-            { term: t('dashboard.definitions.highMarginProduct.term'), def: t('dashboard.definitions.highMarginProduct.def') },
-          ].map(({ term, def }) => (
-            <Grid key={term} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Box sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
-                  {term}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {def}
-                </Typography>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
-      </Card>
     </Box>
   );
 }

@@ -6,21 +6,23 @@ import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
+import Grid from '@mui/material/Grid';
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
+import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Card } from '@/components/ui';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import { useCrossSelling } from '@/hooks/useMetrics';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { computeChangePct, averageMonthsInRange } from '@/utils/analisisComparison';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtRp(v: number): string {
@@ -62,13 +64,12 @@ export default function AvgCategoryPerCustomer() {
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -94,16 +95,25 @@ export default function AvgCategoryPerCustomer() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentAvg = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.avg_category);
-  const comparisonAvg = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.avg_category);
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate (BUKAN
+  // trailing-N-by-posisi-array — bug §8g/KPI4, ditemukan lagi 2026-08-10 via
+  // laporan user "reactivation rate di dashboard dan di KPI tidak sama").
+  const currentAvg = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.avg_category);
+  const comparisonAvg = averageMonthsInRange(comparisonData?.trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.avg_category);
   const growthPct = computeChangePct(currentAvg, comparisonAvg);
-  const avgLabel = t('crossSelling.kpi2Label');
+
+  // ── 3 kartu — breakdown per tipe kategori (Unit/Consumable/Sparepart),
+  // koreksi user 2026-08-10 ("section card belum ada"): metrik ini rata-rata
+  // tunggal tanpa tier, jadi kartunya diambil dari breakdown 3 tipe kategori
+  // yang SUDAH ada di tabel di bawah (has_unit/has_consumable/has_sparepart),
+  // bukan tier baru yang dikarang. Tanpa growth YoY (breakdown per-tipe
+  // snapshot, bukan trend bulanan). ──
+  const rows = data?.detail ?? [];
+  const unitCount = rows.filter((r) => r.has_unit).length;
+  const consumableCount = rows.filter((r) => r.has_consumable).length;
+  const sparepartCount = rows.filter((r) => r.has_sparepart).length;
 
   const [search, setSearch] = useState('');
-  const rows = data?.detail ?? [];
   const filteredRows = search
     ? rows.filter((r) =>
         r.customer_name.toLowerCase().includes(search.toLowerCase())
@@ -185,46 +195,87 @@ export default function AvgCategoryPerCustomer() {
         }}
       />
 
-      {/* ── M2: Avg Category per Customer Trend ── */}
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          baselineValueText: comparisonAvg.toFixed(2),
+          deltaValueText: Math.abs(currentAvg - comparisonAvg).toFixed(2),
+          growthPct,
+        }]}
+      />
+
+      {/* ── 3 kartu breakdown per tipe kategori ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <KpiMetricCard
+            label={t('crossSelling.chipUnit')}
+            accentColor={theme.custom.data[0]}
+            value={String(unitCount)}
+            caption={t('avgCategoryPerCustomer.cardCaption', { total: data?.kpi1.active_count ?? 0 })}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <KpiMetricCard
+            label={t('crossSelling.chipConsumable')}
+            accentColor={theme.custom.data[1]}
+            value={String(consumableCount)}
+            caption={t('avgCategoryPerCustomer.cardCaption', { total: data?.kpi1.active_count ?? 0 })}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <KpiMetricCard
+            label={t('crossSelling.chipSparepart')}
+            accentColor={theme.custom.data[2]}
+            value={String(sparepartCount)}
+            caption={t('avgCategoryPerCustomer.cardCaption', { total: data?.kpi1.active_count ?? 0 })}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+          executive-kpi-dashboard KPI2View) — kiri: penetrasi customer per
+          tipe kategori periode berjalan, kanan: tren 12 bulan. ── */}
       <Box>
         <SectionLabel label={t('crossSelling.labelM2')} />
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={260} />
-        ) : (
-          <AreaChartWidget
-            title={t('crossSelling.m2ChartTitle')}
-            subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}`}
-            value={currentAvg.toFixed(2)}
-            data={data?.trend ?? []}
-            series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
-            xKey="month"
-            height={220}
-          />
-        )}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? <Skeleton variant="rectangular" height={220} /> : (
+              <BarChartWidget
+                title={t('avgCategoryPerCustomer.distChartTitle')}
+                subtitle={t('avgCategoryPerCustomer.distChartSubtitle')}
+                data={[
+                  { name: t('crossSelling.chipUnit'), value: unitCount },
+                  { name: t('crossSelling.chipConsumable'), value: consumableCount },
+                  { name: t('crossSelling.chipSparepart'), value: sparepartCount },
+                ]}
+                series={[{ key: 'value', label: t('avgCategoryPerCustomer.distSeriesLabel'), color: theme.custom.data[0] }]}
+                xKey="name"
+                layout="horizontal"
+                yAxisWidth={110}
+                height={220}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={220} />
+            ) : (
+              <AreaChartWidget
+                title={t('crossSelling.m2ChartTitle')}
+                subtitle={`${t('crossSelling.m2ChartSubtitle', { months: data?.period.active_months ?? '…' })}`}
+                value={currentAvg.toFixed(2)}
+                data={data?.trend ?? []}
+                series={[{ key: 'avg_category', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
+                xKey="month"
+                height={220}
+              />
+            )}
+          </Grid>
+        </Grid>
       </Box>
-
-      {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
-      {data && (
-        <KpiSummaryStrip
-          metrics={[{ label: avgLabel, comparisonText: comparisonAvg.toFixed(2), currentText: currentAvg.toFixed(2) }]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[{
-            metricLabel: avgLabel,
-            pct: growthPct,
-            value: currentAvg - comparisonAvg,
-            currentIsZero: currentAvg === 0,
-            formatValue: (v) => v.toFixed(2),
-          }]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
 
       {/* ── Tabel persisten — bound ke `endDate` filter ── */}
       <Card>

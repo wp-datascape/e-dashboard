@@ -10,21 +10,22 @@ import type { GridColDef } from '@mui/x-data-grid';
 import type { TFunction } from 'i18next';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
+import { BarChartWidget } from '@/components/charts/BarChartWidget';
 import { HeatmapWidget } from '@/components/charts/HeatmapWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
-import { Card, Dialog } from '@/components/ui';
+import { Dialog } from '@/components/ui';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { useCustomerProducts } from '@/hooks/useProducts';
 import { formatIDR } from '@/utils/format';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { computeChangePct, averageMonthsInRange } from '@/utils/analisisComparison';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /** Terjemahkan key item_type mentah ('unit'/'sparepart'/'consumable') ke label chip */
@@ -75,13 +76,12 @@ export default function CrossSelling() {
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -107,13 +107,39 @@ export default function CrossSelling() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentRatio = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.ratio);
-  const comparisonRatio = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.ratio);
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate (BUKAN
+  // trailing-N-by-posisi-array lagi — bug §8g/KPI4, ditemukan lagi 2026-08-10
+  // di metrik lain lewat laporan user "reactivation rate di dashboard dan di
+  // KPI tidak sama"), supaya dropdown Periode benar-benar mengubah angka
+  // (task025 §18) DAN konsisten dgn Dashboard Overview (metrik yg sama).
+  const currentRatio = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.ratio);
+  const comparisonRatio = averageMonthsInRange(comparisonData?.trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.ratio);
   const growthPct = computeChangePct(currentRatio, comparisonRatio);
-  const rateLabel = t('crossSelling.kpi1Label');
+
+  // ── 2 kartu — numerator/denominator dari ratio di atas (koreksi user
+  // 2026-08-10: "section card belum ada", tidak boleh dilewatkan cuma krn
+  // metrik ini ratio tunggal tanpa tier). YoY beneran (bukan snapshot) —
+  // `total_active`/`multi_product` SUDAH ada per bulan di trend yang sama. ──
+  const activeCurrent = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.total_active);
+  const activeComparison = averageMonthsInRange(comparisonData?.trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.total_active);
+  const activeGrowthPct = computeChangePct(activeCurrent, activeComparison);
+  const multiCurrent = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.multi_product);
+  const multiComparison = averageMonthsInRange(comparisonData?.trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.multi_product);
+  const multiGrowthPct = computeChangePct(multiCurrent, multiComparison);
+
+  // ── Chart "Periode Berjalan" — distribusi customer by jumlah kategori
+  // dibeli (1/2/3+), dari referensi executive-kpi-dashboard/KPI1View.tsx
+  // (koreksi user 2026-08-10, "@executive-kpi-dashboard/ ini adalah
+  // referensi layout setiap KPI" — pola 2-chart grid-cols-2 50/50, chart
+  // kiri = breakdown periode berjalan, kanan = tren 12 bulan yg sudah ada).
+  // Dihitung dari data.heatmap (SUDAH ada, bukan endpoint baru) — jumlah
+  // kategori per customer = berapa banyak values>0 di baris heatmap-nya.
+  const categoryDistData = [{
+    label: t('crossSelling.distLabel'),
+    cat1: (data?.heatmap ?? []).filter((r) => Object.values(r.values).filter((v) => v > 0).length === 1).length,
+    cat2: (data?.heatmap ?? []).filter((r) => Object.values(r.values).filter((v) => v > 0).length === 2).length,
+    cat3plus: (data?.heatmap ?? []).filter((r) => Object.values(r.values).filter((v) => v > 0).length >= 3).length,
+  }];
 
   // ─── M1.1 Drill-down (klik sel heatmap customer × kategori) ─────────────────
   const [productDrill, setProductDrill] = useState<{ customerId: number; customerName: string; itemType: string; itemLabel: string } | null>(null);
@@ -168,137 +194,166 @@ export default function CrossSelling() {
         }}
       />
 
-      {/* ── M1: Cross Selling Ratio + Active Count Trend ── */}
-      <Box>
-        <SectionLabel label={t('crossSelling.m1FullLabel')} />
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={280} />
-        ) : (
-          <ComboChartWidget
-            title={t('crossSelling.chart1Title')}
-            subtitle={t('crossSelling.chart1Subtitle', { months: data?.period.active_months ?? '…' })}
-            data={data?.trend ?? []}
-            barKey="total_active"
-            barLabel={t('crossSelling.seriesActiveCustomers')}
-            barColor={theme.palette.text.secondary}
-            bar2Key="multi_product"
-            bar2Label={t('crossSelling.seriesMultiCategory')}
-            bar2Color={theme.palette.primary.main}
-            lineKey="ratio"
-            lineLabel={t('crossSelling.seriesCrossSellRateShort')}
-            lineColor={theme.palette.info.main}
-            formatLine={(v) => `${v}%`}
-            xKey="month"
-            height={280}
-          />
-        )}
-      </Box>
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10, instruksi user "standar yang sama dari layout dan
+          filtering", mengikuti pola CustomerGrossProfit/KPI4). Menggantikan
+          KpiSummaryStrip (chevron prev/next dilepas — tidak ada di standar
+          KPI4). ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          baselineValueText: `${comparisonRatio.toFixed(2)}%`,
+          deltaValueText: `${Math.abs(currentRatio - comparisonRatio).toFixed(2)}%`,
+          growthPct,
+        }]}
+      />
 
-      {/* ── Banner ringkasan YoY (KpiSummaryStrip, task025 §16) ── */}
-      {data && (
-        <KpiSummaryStrip
-          metrics={[{ label: rateLabel, comparisonText: `${comparisonRatio.toFixed(2)}%`, currentText: `${currentRatio.toFixed(2)}%` }]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[{
-            metricLabel: rateLabel,
-            pct: growthPct,
-            value: currentRatio - comparisonRatio,
-            currentIsZero: currentRatio === 0,
-            formatValue: (v) => `${v.toFixed(2)}%`,
-          }]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
+      {/* ── M1: 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+          executive-kpi-dashboard) — kiri: distribusi periode berjalan,
+          kanan: tren 12 bulan (yang sudah ada sebelumnya). ── */}
+          <Box>
+            <SectionLabel label={t('crossSelling.m1FullLabel')} />
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                {isLoading ? <Skeleton variant="rectangular" height={280} /> : (
+                  <BarChartWidget
+                    title={t('crossSelling.distChartTitle')}
+                    subtitle={t('crossSelling.distChartSubtitle')}
+                    data={categoryDistData}
+                    series={[
+                      { key: 'cat1', label: t('crossSelling.dist1Cat'), color: theme.custom.rank[2] },
+                      { key: 'cat2', label: t('crossSelling.dist2Cat'), color: theme.custom.rank[1] },
+                      { key: 'cat3plus', label: t('crossSelling.dist3PlusCat'), color: theme.custom.rank[0] },
+                    ]}
+                    xKey="label"
+                    height={280}
+                  />
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                {isLoading ? (
+                  <Skeleton variant="rectangular" height={280} />
+                ) : (
+                  <ComboChartWidget
+                    title={t('crossSelling.chart1Title')}
+                    subtitle={t('crossSelling.chart1Subtitle', { months: data?.period.active_months ?? '…' })}
+                    data={data?.trend ?? []}
+                    barKey="total_active"
+                    barLabel={t('crossSelling.seriesActiveCustomers')}
+                    barColor={theme.palette.text.secondary}
+                    bar2Key="multi_product"
+                    bar2Label={t('crossSelling.seriesMultiCategory')}
+                    bar2Color={theme.palette.primary.main}
+                    lineKey="ratio"
+                    lineLabel={t('crossSelling.seriesCrossSellRateShort')}
+                    lineColor={theme.palette.info.main}
+                    formatLine={(v) => `${v}%`}
+                    xKey="month"
+                    height={280}
+                  />
+                )}
+              </Grid>
+            </Grid>
+          </Box>
 
-      {/* ── KPI Summary Card kedua — Customer Aktif (bukan pembanding YoY,
-          murni angka snapshot window aktif berjalan) ── */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          {isLoading ? <Skeleton variant="rectangular" height={90} /> : (
-            <Card sx={{ p: 2.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: '0.68rem' }}>
-                {t('crossSelling.activeCustomerLabel', { months: data?.period.active_months ?? '…' })}
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, color: theme.palette.success.main, lineHeight: 1.4 }}>
-                {data?.kpi1.active_count ?? 0}
-              </Typography>
+          {/* ── 2 kartu — Customer Aktif & Multi-Kategori (numerator/
+              denominator dari Cross Selling Ratio), pola sama dgn 3 kartu
+              tier KPI4. ── */}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              {isLoading ? <Skeleton variant="rectangular" height={140} /> : (
+                <KpiMetricCard
+                  label={t('crossSelling.activeCustomerLabel', { months: data?.period.active_months ?? '…' })}
+                  badgeLabel={t('crossSelling.seriesActiveCustomers')}
+                  accentColor={theme.custom.data[0]}
+                  value={String(data?.kpi1.active_count ?? 0)}
+                  caption={t('crossSelling.activeCustomerSub', { start: data?.period.start ?? '—', end: data?.period.end ?? '—' })}
+                  growthPct={activeGrowthPct}
+                  deltaValueText={Math.abs(activeCurrent - activeComparison).toFixed(0)}
+                  comparisonValueText={activeComparison.toFixed(0)}
+                />
+              )}
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              {isLoading ? <Skeleton variant="rectangular" height={140} /> : (
+                <KpiMetricCard
+                  label={t('crossSelling.seriesMultiCategory')}
+                  badgeLabel={t('crossSelling.chip2Plus')}
+                  accentColor={theme.custom.data[1]}
+                  value={String(data?.kpi1.multi_cat_count ?? 0)}
+                  caption={t('crossSelling.activeCustomerSub', { start: data?.period.start ?? '—', end: data?.period.end ?? '—' })}
+                  growthPct={multiGrowthPct}
+                  deltaValueText={Math.abs(multiCurrent - multiComparison).toFixed(0)}
+                  comparisonValueText={multiComparison.toFixed(0)}
+                />
+              )}
+            </Grid>
+          </Grid>
+
+          {/* ── M1.1: Heatmap — Customer × Product Category ("tabel detail"
+              KPI1 per task025 §3/§4) ── */}
+          <Box>
+            <SectionLabel label={t('crossSelling.labelM11')} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="caption" color="text.secondary">
-                {t('crossSelling.activeCustomerSub', { start: data?.period.start ?? '—', end: data?.period.end ?? '—' })}
+                {t('crossSelling.heatmapHelperText', { start: data?.period.start ?? '…', end: data?.period.end ?? '…' })}
               </Typography>
-            </Card>
-          )}
-        </Grid>
-      </Grid>
+              {data?.categories && data.categories.length > 0 && (
+                <Chip label={t('crossSelling.categoriesCountChip', { count: data.categories.length })} size="small" variant="outlined" />
+              )}
+            </Box>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={420} />
+            ) : (
+              <HeatmapWidget
+                title={t('crossSelling.heatmapMatrixTitleWithPeriod', { start: data?.period.start ?? '', end: data?.period.end ?? '' })}
+                subtitle={t('crossSelling.heatmapSubtitle2')}
+                xLabels={(data?.categories ?? []).map(relabelCategory(t))}
+                data={(data?.heatmap ?? []).map((row) => {
+                  const relabel = relabelCategory(t);
+                  return {
+                    customer: row.customer,
+                    customerId: row.customer_id,
+                    values:   Object.fromEntries(Object.entries(row.values).map(([k, v]) => [relabel(k), v])),
+                    revenues: Object.fromEntries(Object.entries(row.revenues).map(([k, v]) => [relabel(k), v])),
+                    totalRevenue: row.total_revenue,
+                  };
+                })}
+                onCellClick={(row, label) => {
+                  const rawKey = (data?.categories ?? []).find((c) => relabelCategory(t)(c) === label);
+                  if (!rawKey || row.customerId === undefined) return;
+                  setProductDrill({ customerId: row.customerId, customerName: row.customer, itemType: rawKey, itemLabel: label });
+                }}
+              />
+            )}
+          </Box>
 
-      {/* ── M1.1: Heatmap — Customer × Product Category ── */}
-      <Box>
-        <SectionLabel label={t('crossSelling.labelM11')} />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {t('crossSelling.heatmapHelperText', { start: data?.period.start ?? '…', end: data?.period.end ?? '…' })}
-          </Typography>
-          {data?.categories && data.categories.length > 0 && (
-            <Chip label={t('crossSelling.categoriesCountChip', { count: data.categories.length })} size="small" variant="outlined" />
-          )}
-        </Box>
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={420} />
-        ) : (
-          <HeatmapWidget
-            title={t('crossSelling.heatmapMatrixTitleWithPeriod', { start: data?.period.start ?? '', end: data?.period.end ?? '' })}
-            subtitle={t('crossSelling.heatmapSubtitle2')}
-            xLabels={(data?.categories ?? []).map(relabelCategory(t))}
-            data={(data?.heatmap ?? []).map((row) => {
-              const relabel = relabelCategory(t);
-              return {
-                customer: row.customer,
-                customerId: row.customer_id,
-                values:   Object.fromEntries(Object.entries(row.values).map(([k, v]) => [relabel(k), v])),
-                revenues: Object.fromEntries(Object.entries(row.revenues).map(([k, v]) => [relabel(k), v])),
-                totalRevenue: row.total_revenue,
-              };
-            })}
-            onCellClick={(row, label) => {
-              const rawKey = (data?.categories ?? []).find((c) => relabelCategory(t)(c) === label);
-              if (!rawKey || row.customerId === undefined) return;
-              setProductDrill({ customerId: row.customerId, customerName: row.customer, itemType: rawKey, itemLabel: label });
-            }}
-          />
-        )}
-      </Box>
-
-      {/* M1.1 Drill-down Dialog — detail produk per customer × kategori yang diklik di heatmap */}
-      <Dialog
-        open={!!productDrill}
-        onClose={() => setProductDrill(null)}
-        maxWidth="md"
-        title={`${productDrill?.customerName ?? '—'} · ${productDrill?.itemLabel ?? ''}`}
-        showCloseButton
-        contentSx={{ p: 1 }}
-        subtitle={
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-            {t('crossSelling.m11DialogSubtitle', { window: activeWindow })}
-          </Typography>
-        }
-      >
-        <ResponsiveListView
-          rows={(productData?.data ?? []).map((r) => ({ ...r, id: r.product_id }))}
-          columns={productColumns}
-          loading={productLoading}
-          height={420}
-          pageSize={25}
-          pageSizeOptions={[25, 50, 100]}
-          emptyMessage={t('crossSelling.m11EmptyMessage')}
-          mobileFields={['product_name', 'total_revenue', 'gp_margin_percent']}
-        />
-      </Dialog>
+          {/* M1.1 Drill-down Dialog — detail produk per customer × kategori yang diklik di heatmap */}
+          <Dialog
+            open={!!productDrill}
+            onClose={() => setProductDrill(null)}
+            maxWidth="md"
+            title={`${productDrill?.customerName ?? '—'} · ${productDrill?.itemLabel ?? ''}`}
+            showCloseButton
+            contentSx={{ p: 1 }}
+            subtitle={
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                {t('crossSelling.m11DialogSubtitle', { window: activeWindow })}
+              </Typography>
+            }
+          >
+            <ResponsiveListView
+              rows={(productData?.data ?? []).map((r) => ({ ...r, id: r.product_id }))}
+              columns={productColumns}
+              loading={productLoading}
+              height={420}
+              pageSize={25}
+              pageSizeOptions={[25, 50, 100]}
+              emptyMessage={t('crossSelling.m11EmptyMessage')}
+              mobileFields={['product_name', 'total_revenue', 'gp_margin_percent']}
+            />
+          </Dialog>
     </Box>
   );
 }

@@ -20,6 +20,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
 import { PALETTES } from '@/theme/palettes';
+import { formatMonthTick } from '@/utils/date';
 
 // M3 · Revenue existing customer — chart bar (total revenue) + 2 garis
 // (avg/median) + 1 garis Kontribusi High Margin (%). Dipusatkan di sini
@@ -114,7 +115,7 @@ function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
       fontSize: 12,
     }}>
       <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
-        {d.month}
+        {formatMonthTick(d.month)}
       </Typography>
       <Divider sx={{ mb: 1 }} />
       {/* fmtRpDetail (2 desimal) — BUKAN fmtRp (1 desimal) — supaya angka yang tampil di
@@ -209,10 +210,14 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
   const revenueColumns = useRevenueColumns(t);
 
   const mode = isDark ? 'dark' : 'light';
+  // 2 seri line HARUS beda warna dari `barColor` (primary) di bawah — pakai
+  // `theme.custom.data[1]/[2]` (companion terkurasi, dokumen "Sistem Triad
+  // Warna" 2026-08-09) LANGSUNG dari token tema, bukan re-derive manual dari
+  // PALETTES (`theme.custom.data[0]` = primary itu sendiri, jadi SENGAJA
+  // tidak dipakai di sini — akan sama persis dgn warna bar).
   const lineTemplate = {
-    line1: PALETTES[paletteKey].line1[mode],
-    line2: PALETTES[paletteKey].line2[mode],
-    line3: PALETTES[paletteKey].line3[mode],
+    line1: theme.custom.data[1],
+    line2: theme.custom.data[2],
   };
   const concentrationColor = PALETTES[paletteKey].warningComplement[mode];
 

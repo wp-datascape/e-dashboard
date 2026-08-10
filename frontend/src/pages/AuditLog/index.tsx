@@ -14,6 +14,7 @@ import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useAuditLogs, useAuditActions } from '@/hooks/useAuditLogs'
 import type { AuditLog, AuditLogFilters } from '@/types/audit'
 import { ViewAuditLogDialog } from './components/ViewAuditLogDialog'
+import { formatDateTimeDDMMYYYY } from '@/utils/date'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,15 +32,7 @@ const getActionColor = (action: string): StatusChipColor => {
   return map[verb] ?? 'default'
 }
 
-const fmtDate = (iso: string): string => {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const fmtDate = formatDateTimeDDMMYYYY
 
 // ─── Column Definitions ────────────────────────────────────────────────────────
 

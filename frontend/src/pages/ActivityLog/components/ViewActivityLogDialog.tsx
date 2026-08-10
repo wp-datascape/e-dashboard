@@ -10,6 +10,7 @@ import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { ActivityLog } from '@/types/activityLog'
 import { getApiErrorMessage } from '@/utils/apiError'
+import { formatDateTimeDDMMYYYY } from '@/utils/date'
 
 interface Props {
   open: boolean
@@ -29,10 +30,7 @@ const getMethodColor = (method: string): StatusChipColor => {
   return map[method] ?? 'default'
 }
 
-const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+const fmtDate = formatDateTimeDDMMYYYY
 
 function Field({ label, value }: { label: string; value: string }) {
   return (

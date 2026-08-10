@@ -6,22 +6,24 @@ import Alert from '@mui/material/Alert'
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
+import Grid from '@mui/material/Grid'
+import { useTheme } from '@mui/material/styles'
 import { Card, StatusChip } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar'
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip'
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner'
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard'
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar'
 import { M6RepeatOrder } from '@/components/analisis/M6RepeatOrder'
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { useGlobalFilter } from '@/context/globalFilter.context'
 import { useRetentionAnalisis } from '@/hooks/useAnalisis'
 import { useCustomerMetrics } from '@/hooks/useMetrics'
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod'
 import { todayIsoDate } from '@/utils/date'
 import { TrendChip } from '@/components/analisis/ComparisonMetrics'
-import { resolveTrendKind, trendKindColor, averageLastMonths } from '@/utils/analisisComparison'
+import { resolveTrendKind, trendKindColor, averageMonthsInRange, computeChangePct } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { RetentionRow, RetentionSummary } from '@/types/analisis'
 
@@ -57,12 +59,13 @@ function OrderCountCell({ text, color }: { text: string; color?: StatusChipColor
 
 export default function RepeatOrder() {
   const { t } = useTranslation()
+  const theme = useTheme()
 
-  const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter')
-  const [endDate, setEndDate] = useState<string>(todayIsoDate())
+  const scopeFilter = useGlobalFilter()
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter
   const [search, setSearch] = useState('')
   const [onlyPareto, setOnlyPareto] = useState(false)
   const [sortModel, setSortModel] = useState<GridSortModel>([])
@@ -72,7 +75,6 @@ export default function RepeatOrder() {
   const sortDir = sortModel[0]?.sort ?? 'desc'
 
   const todayStr = todayIsoDate()
-  const isViewingInProgress = endDate === todayStr
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate))
   const periodStart = getPeriodDateRange(periodType, periodKey).start
@@ -113,11 +115,23 @@ export default function RepeatOrder() {
     exclude_intercompany: excludeIntercompany,
   })
   const ror = customerMetricsData?.repeat_order_current
-  // Rata-rata K bulan terakhir (K = periodType) utk gauge M6 — supaya
-  // dropdown Periode benar-benar mengubah angka (task025 §18). Tanpa
-  // pembanding YoY di sini (RadialBar cuma current vs target, bukan
-  // current vs comparison).
-  const ror6Value = averageLastMonths(customerMetricsData?.trend ?? [], KPI_PERIOD_TYPE_MONTHS[periodType], (p) => p.repeat_order_rate)
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate utk
+  // gauge M6 (BUKAN trailing-N-by-posisi-array — bug §8g/KPI4, ditemukan
+  // lagi 2026-08-10 via laporan user "reactivation rate di dashboard dan di
+  // KPI tidak sama") — supaya dropdown Periode benar-benar mengubah angka
+  // (task025 §18) DAN konsisten dgn Dashboard Overview.
+  const ror6Value = averageMonthsInRange(customerMetricsData?.trend ?? [], periodStart, endDate, (p) => p.repeat_order_rate)
+  // Fetch kedua di tanggal pembanding — utk kartu Repeat Order Rate di
+  // bawah (koreksi user 2026-08-10, "section card belum ada").
+  const { data: customerMetricsComparisonData } = useCustomerMetrics({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: comparisonRange.end,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  })
+  const ror6Comparison = averageMonthsInRange(customerMetricsComparisonData?.trend ?? [], comparisonRange.start, comparisonRange.end, (p) => p.repeat_order_rate)
+  const ror6GrowthPct = computeChangePct(ror6Value, ror6Comparison)
 
   const hasAnyAlert = (row: RetentionRow) => row.comparison.invoice_count_alert
 
@@ -135,20 +149,6 @@ export default function RepeatOrder() {
 
   const orderLabel = t('analisis.metricOrderCount')
   const newBusinessLabel = t('analisis.newBusiness')
-
-  // Data pertumbuhan utk kartu 3 KpiSummaryStrip — 1 metrik saja (jumlah
-  // order), beda dari Revenue yang 2 (Revenue+GP). Komponennya generic,
-  // menerima array berapa pun panjangnya.
-  const summaryGrowth = summary ? [
-    {
-      metricLabel: orderLabel,
-      pct: summary.change_pct,
-      value: summary.change_value,
-      currentIsZero: summary.current_invoice_count === 0,
-      forceNoData: isEmptyPeriod,
-      formatValue: (v: number) => String(v),
-    },
-  ] : []
 
   const totalCountText = t('analisis.customerCountText', { count: data?.meta.total ?? 0 })
 
@@ -284,8 +284,53 @@ export default function RepeatOrder() {
           }}
         />
 
-        {/* ── M6 · RadialBar target 80% — di bawah filter, di atas banner
-            KpiSummaryStrip (task025 §12, 2026-08-07) ── */}
+        {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+            KPI (2026-08-10), menggantikan KpiSummaryStrip. ── */}
+        {summary && (
+          <PeriodYoyBanner
+            currentRangeText={currentRangeText}
+            comparisonRangeText={comparisonRangeText}
+            metrics={[{
+              baselineValueText: String(summary.comparison_invoice_count),
+              deltaValueText: String(Math.abs(summary.change_value)),
+              growthPct: isEmptyPeriod ? null : summary.change_pct,
+            }]}
+          />
+        )}
+
+        {isEmptyPeriod && (
+          <Alert severity="info">
+            {t('analisis.emptyPeriodBanner', { range: currentRangeText })}
+          </Alert>
+        )}
+
+        {/* ── 2 kartu — Jumlah Order & Repeat Order Rate (koreksi user
+            2026-08-10, "section card belum ada"). ── */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <KpiMetricCard
+              label={orderLabel}
+              accentColor={theme.custom.data[0]}
+              value={String(summary?.current_invoice_count ?? 0)}
+              growthPct={isEmptyPeriod ? null : (summary?.change_pct ?? null)}
+              deltaValueText={String(Math.abs(summary?.change_value ?? 0))}
+              comparisonValueText={String(summary?.comparison_invoice_count ?? 0)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <KpiMetricCard
+              label={t('customerMetrics.m6.seriesRate')}
+              badgeLabel={t('common.radialTargetLabel', { threshold: ror?.target_pct ?? 80 })}
+              accentColor={theme.custom.data[1]}
+              value={`${ror6Value.toFixed(2)}%`}
+              growthPct={ror6GrowthPct}
+              deltaValueText={`${Math.abs(ror6Value - ror6Comparison).toFixed(2)}%`}
+              comparisonValueText={`${ror6Comparison.toFixed(2)}%`}
+            />
+          </Grid>
+        </Grid>
+
+        {/* ── M6 · RadialBar target 80% (task025 §12, 2026-08-07) ── */}
         <M6RepeatOrder
           isLoading={isM6Loading}
           value={ror6Value}
@@ -297,30 +342,6 @@ export default function RepeatOrder() {
           excludeIntercompany={excludeIntercompany}
           trend={customerMetricsData?.trend}
         />
-
-        {isEmptyPeriod && (
-          <Alert severity="info">
-            {t('analisis.emptyPeriodBanner', { range: currentRangeText })}
-          </Alert>
-        )}
-
-        {summary && (
-          <KpiSummaryStrip
-            metrics={[
-              { label: orderLabel, comparisonText: String(summary.comparison_invoice_count), currentText: String(summary.current_invoice_count) },
-            ]}
-            comparisonRangeLabel={comparisonRangeText}
-            currentRangeLabel={currentRangeText}
-            isCurrentInProgress={isViewingInProgress}
-            growth={summaryGrowth}
-            onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-            onNext={() => {
-              const next = shiftEndDate(periodType, endDate, 1)
-              setEndDate(next > todayStr ? todayStr : next)
-            }}
-            nextDisabled={isViewingInProgress}
-          />
-        )}
       </Box>
 
       <Card>

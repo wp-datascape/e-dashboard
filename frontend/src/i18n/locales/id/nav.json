@@ -40,6 +40,11 @@
   "configFeatures": "Fitur",
   "groups": {
     "executiveDashboard": "Executive Dashboard",
+    "statistik": "Statistik",
+    "report": "Report",
+    "omsetRevenue": "Omset & Revenue",
+    "produkKategori": "Produk",
+    "transaksi": "Transaksi",
     "purchaseVariety": "Ragam Pembelian",
     "loyalCustomerValue": "Nilai Pelanggan Loyal",
     "purchaseGrowth": "Pertumbuhan Pembelian",

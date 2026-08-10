@@ -73,106 +73,72 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Rework kategori (task025 §6a → §15, 2026-08-07) — user: "klasifikasikan
-  // menu sesuai dokumen ux-menu-mapping.md". §6a menunda rework ini sampai
-  // "cukup banyak KPI individual selesai dibangun"; sekarang semua 10 KPI
-  // sudah punya halaman sendiri (§7a/§12/§14), jadi dieksekusi sekarang.
+  // GROUP: STATISTIK — 10 KPI, CHART SAJA (task026 Fase 3, 2026-08-09).
   //
-  // Grup lama "Customer Workbench" mengelompokkan 10 halaman KPI + menu
-  // "Customer" (list mentah) jadi satu — PER JENIS KONTEN (semua "berbau
-  // customer"). ux-menu-mapping.md §0/§2 eksplisit: kelompokkan per DOMAIN
-  // BISNIS (4 kategori + 1 afiliasi), bukan jenis konten. 10 KPI di bawah
-  // ini sekarang dipecah jadi 4 grup sesuai §2 dokumen (Afiliasi
-  // Antarperusahaan BELUM ditambahkan — fiturnya sendiri belum dibangun,
-  // §9 poin 10). Permission TIDAK berubah sama sekali, cuma pindah grup +
-  // urutan ikut §2 (1→10, bukan urutan lama).
+  // Menggantikan skema task025 (flat list, `groupLabelKey` per kategori
+  // PERILAKU pelanggan: Ragam Pembelian/Nilai Pelanggan Loyal/Pertumbuhan
+  // Pembelian/Pelanggan Tidak Aktif) — kategorinya sendiri diganti sumbu
+  // OMSET/PRODUK/TRANSAKSI (task026.md §1), DAN pola render-nya diganti
+  // collapsible per kategori (mirror Settings/Config di bawah, task026.md
+  // §2a) — bukan lagi flat list dengan divider doang. Tabel detail yang
+  // dulu 1 halaman dengan chart-nya sekarang pindah ke GROUP REPORT di
+  // bawah — halaman di sini render `mode="statistik"` (chart+filter saja,
+  // lihat pages/*/index.tsx). Permission TIDAK berubah dari task025.
   //
-  // Grup "Customer Workbench" TETAP ada (bukan dihapus) tapi isinya
-  // menyempit jadi cuma "Customer" (list mentah) — beda scope dari 10 KPI
-  // makro ini (CLAUDE.md: "mikro, siapa yang beli" vs "makro, 10 KPI").
+  // Afiliasi Antarperusahaan (kategori ke-4) SENGAJA belum ditambahkan di
+  // sini — fiturnya belum dibangun sama sekali (task025 §4), placeholder
+  // kosong tidak berguna (NavGroup children kosong -> otomatis hidden,
+  // lihat Sidebar.tsx) jadi tidak ada gunanya entry sampai halamannya ada.
   // ─────────────────────────────────────────────────────────────────────────
-
-  // ── RAGAM PEMBELIAN (KPI1-2) ──
   {
-    key: 'cross-selling',
-    path: '/cross-selling',
-    labelKey: 'nav.crossSellMatrix',
-    icon: <SwapHorizIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
-    groupLabelKey: 'nav.groups.purchaseVariety',
-  },
-  {
-    key: 'avg-category-per-customer',
-    path: '/avg-category-per-customer',
-    labelKey: 'nav.avgCategoryPerCustomer',
-    icon: <LayersIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
-  },
-
-  // ── NILAI PELANGGAN LOYAL (KPI3-4) ──
-  {
-    key: 'customer-revenue',
-    path: '/customer-revenue',
-    labelKey: 'nav.customerRevenue',
-    icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'customer.revenue:menu',
-    groupLabelKey: 'nav.groups.loyalCustomerValue',
-  },
-  {
-    key: 'customer-gross-profit',
+    key: 'statistik-omset-revenue',
     path: '/customer-gross-profit',
-    labelKey: 'nav.customerGrossProfit',
+    labelKey: 'nav.groups.omsetRevenue',
     icon: <PaidIcon fontSize="small" />,
-    permissionKey: 'customer.gross.profit:menu',
+    groupLabelKey: 'nav.groups.statistik',
+    children: [
+      { key: 'statistik-customer-gross-profit', path: '/customer-gross-profit', labelKey: 'nav.customerGrossProfit', icon: <PaidIcon fontSize="small" />, permissionKey: 'customer.gross.profit:menu' },
+      { key: 'statistik-customer-expansion',    path: '/customer-expansion',    labelKey: 'nav.customerExpansion',    icon: <TrendingUpIcon fontSize="small" />, permissionKey: 'customer.expansion:menu' },
+      { key: 'statistik-dormant-value',         path: '/dormant-value',         labelKey: 'nav.dormantValue',         icon: <MoneyOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+    ],
+  },
+  {
+    key: 'statistik-produk',
+    path: '/cross-selling',
+    labelKey: 'nav.groups.produkKategori',
+    icon: <InventoryIcon fontSize="small" />,
+    children: [
+      { key: 'statistik-cross-selling',             path: '/cross-selling',              labelKey: 'nav.crossSellMatrix',        icon: <SwapHorizIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
+      { key: 'statistik-avg-category-per-customer', path: '/avg-category-per-customer',  labelKey: 'nav.avgCategoryPerCustomer', icon: <LayersIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
+      { key: 'statistik-high-margin-penetration',   path: '/high-margin-penetration',    labelKey: 'nav.highMarginPenetration',  icon: <PieChartIcon fontSize="small" />, permissionKey: 'high.margin.penetration:menu' },
+    ],
+  },
+  {
+    key: 'statistik-transaksi',
+    path: '/customer-revenue',
+    labelKey: 'nav.groups.transaksi',
+    icon: <ReceiptLongIcon fontSize="small" />,
+    children: [
+      { key: 'statistik-customer-revenue',  path: '/customer-revenue',  labelKey: 'nav.customerRevenue',  icon: <AssessmentIcon fontSize="small" />, permissionKey: 'customer.revenue:menu' },
+      { key: 'statistik-repeat-order',      path: '/repeat-order',      labelKey: 'nav.repeatOrder',      icon: <ReplayIcon fontSize="small" />, permissionKey: 'repeat.order:menu' },
+      { key: 'statistik-dormant-rate',      path: '/dormant-rate',      labelKey: 'nav.dormantRate',      icon: <PersonOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+      { key: 'statistik-reactivation-rate', path: '/reactivation-rate', labelKey: 'nav.reactivationRate', icon: <AutorenewIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+    ],
   },
 
-  // ── PERTUMBUHAN PEMBELIAN (KPI5-7) ──
-  {
-    key: 'high-margin-penetration',
-    path: '/high-margin-penetration',
-    labelKey: 'nav.highMarginPenetration',
-    icon: <PieChartIcon fontSize="small" />,
-    permissionKey: 'high.margin.penetration:menu',
-    groupLabelKey: 'nav.groups.purchaseGrowth',
-  },
-  {
-    key: 'repeat-order',
-    path: '/repeat-order',
-    labelKey: 'nav.repeatOrder',
-    icon: <ReplayIcon fontSize="small" />,
-    permissionKey: 'repeat.order:menu',
-  },
-  {
-    key: 'customer-expansion',
-    path: '/customer-expansion',
-    labelKey: 'nav.customerExpansion',
-    icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'customer.expansion:menu',
-  },
-
-  // ── PELANGGAN TIDAK AKTIF (KPI8-10) ──
-  {
-    key: 'dormant-rate',
-    path: '/dormant-rate',
-    labelKey: 'nav.dormantRate',
-    icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
-    groupLabelKey: 'nav.groups.inactiveCustomers',
-  },
-  {
-    key: 'dormant-value',
-    path: '/dormant-value',
-    labelKey: 'nav.dormantValue',
-    icon: <MoneyOffIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
-  },
-  {
-    key: 'reactivation-rate',
-    path: '/reactivation-rate',
-    labelKey: 'nav.reactivationRate',
-    icon: <AutorenewIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
-  },
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP: REPORT — DIHAPUS (2026-08-10, instruksi user "standar yang sama
+  // dari layout dan filtering" utk 9 KPI lain, mengikuti pola
+  // CustomerGrossProfit/KPI4 yang SUDAH lebih dulu di-revert task026 §8: 1
+  // halaman gabungan chart+tabel, TANPA prop `mode` / route `/report/*`
+  // terpisah). 9 halaman KPI lain sekarang SAMA — `/report/*` jadi
+  // duplikat murni dari route Statistik (komponen sama persis, tidak ada
+  // lagi bedanya), jadi grup nav ini dibuang, bukan cuma disembunyikan.
+  // Route `/report/*` di routeConstants.tsx ikut dihapus (lihat komentar di
+  // sana). `page_settings` row `report-*` yang sudah ke-seed DIBIARKAN ada
+  // di DB (harmless, tidak match registry manapun lagi) — belum dibersihkan,
+  // sama persis preseden KPI4.
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────
   // GROUP 2: CUSTOMER WORKBENCH — mikro "siapa yang beli", beda scope dari
