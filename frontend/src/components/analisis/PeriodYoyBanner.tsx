@@ -2,7 +2,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@/components/ui';
 
 export interface PeriodYoyMetric {
   /** Label metrik — cuma dirender kalau `metrics.length > 1` (banner
@@ -76,12 +75,17 @@ function MetricBlock({ metric }: { metric: PeriodYoyMetric }) {
  * sama dgn `CustomerGrossProfit/index.tsx`. Blok kanan digeneralisasi jadi
  * array `metrics` (KPI4 cuma 1 metrik total, halaman lain spt Revenue butuh
  * 2 sekaligus — Revenue & Laba Kotor).
+ *
+ * Bukan `Card` lagi (critique 2026-08-18, P1) — dulu border 4-sisi + bgcolor
+ * bikin banner ini berbobot visual SAMA dengan kartu metrik & tabel di
+ * bawahnya, padahal ini murni ringkasan periode (chrome), bukan konten
+ * setara. Sekarang cuma garis bawah tipis, hierarki mengarah ke konten.
  */
 export function PeriodYoyBanner({ currentRangeText, comparisonRangeText, metrics }: PeriodYoyBannerProps) {
   const { t } = useTranslation();
 
   return (
-    <Card sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+    <Box sx={{ pb: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
       <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
         <Box sx={{
           width: 40, height: 40, borderRadius: 1.5, flexShrink: 0,
@@ -108,6 +112,6 @@ export function PeriodYoyBanner({ currentRangeText, comparisonRangeText, metrics
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'flex-end', width: { xs: '100%', sm: 'auto' } }}>
         {metrics.map((m, idx) => <MetricBlock key={m.label ?? idx} metric={m} />)}
       </Box>
-    </Card>
+    </Box>
   );
 }

@@ -8,7 +8,7 @@ export interface KpiMetricCardProps {
   label: string;
   badgeLabel?: string;
   badgeColor?: StatusChipColor;
-  /** Warna aksen border kiri + label — token tema (mis. `theme.custom.data[0]`,
+  /** Warna aksen label — token tema (mis. `theme.custom.data[0]`,
    * `theme.custom.rank[0]`), BUKAN hex baru. */
   accentColor: string;
   /** Nilai besar SUDAH diformat (mis. "Rp 542,0 Jt", "61.1%", "18"). */
@@ -27,14 +27,15 @@ export interface KpiMetricCardProps {
 }
 
 /**
- * Kartu metrik bordered-left — dipusatkan dari template 3-kartu-tier
+ * Kartu metrik — dipusatkan dari template 3-kartu-tier
  * `CustomerGrossProfit/index.tsx` (task026 §8k dst) supaya 9 halaman KPI
  * lain yang di-standarkan ke pola sama (2026-08-10, instruksi user "standar
  * yang sama dari layout dan filtering") tidak copy-paste JSX kartu yang
  * sama berkali-kali (lihat [[feedback_centralize_ui_no_duplication]]).
  * Beda dari 3 kartu tier asli KPI4 (khusus data berjenjang): komponen ini
  * generik, dipakai utk kartu metrik APA PUN (tier, kategori lepas, atau
- * kartu tunggal tanpa saudara).
+ * kartu tunggal tanpa saudara). Aksen border kiri 3px dihapus (critique
+ * 2026-08-18) — bukan lagi "bordered-left", cuma label yang diberi warna.
  */
 export function KpiMetricCard({
   label, badgeLabel, badgeColor = 'default', accentColor, value, caption,
@@ -46,8 +47,13 @@ export function KpiMetricCard({
   const isGood = inversePolarity ? !isUp : isUp;
 
   return (
-    <Card sx={{ p: 2, borderLeft: '3px solid', borderLeftColor: accentColor }}>
+    <Card sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+        {/* accentColor dipakai cuma di label (sinyal tipis) — border kiri
+            tebal dihapus (critique 2026-08-18, task028 P0): pola ini terdeteksi
+            sebagai "side-tab", tell paling dikenali dari AI-slop UI, dan di
+            kartu 9 halaman KPI berbarengan jadi terlalu banyak hue aktif
+            sekaligus. */}
         <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: accentColor }}>
           {label}
         </Typography>

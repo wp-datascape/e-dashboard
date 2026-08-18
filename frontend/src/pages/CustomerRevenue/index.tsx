@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Alert from '@mui/material/Alert'
 import Grid from '@mui/material/Grid'
+import MuiTooltip from '@mui/material/Tooltip'
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +17,6 @@ import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner'
 import { KpiMetricCard } from '@/components/analisis/KpiMetricCard'
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar'
 import { M3Revenue } from '@/components/analisis/M3Revenue'
-import { BarChartWidget } from '@/components/charts/BarChartWidget'
 import { useGlobalFilter } from '@/context/globalFilter.context'
 import { useAnalisis } from '@/hooks/useAnalisis'
 import { useCustomerMetrics } from '@/hooks/useMetrics'
@@ -33,15 +33,20 @@ import type { StatusChipColor } from '@/components/ui/StatusChip'
 
 // ─── Badge Pareto — mirror pola "highMarginBadge" di Product Ledger: chip kecil
 // di sebelah nama, customer yang di-flag tetap tampil dalam list lengkap ──────
+// Tooltip ditambahkan (critique 2026-08-18, P2) — istilah "Pareto" tidak
+// otomatis dipahami semua user eksekutif, pola InfoOutlinedIcon+tooltip
+// sudah ada di M3Revenue tapi tidak diterapkan merata ke badge ini.
 function ParetoBadge() {
   const { t } = useTranslation()
   return (
-    <StatusChip
-      size="small"
-      color="info"
-      icon={<WorkspacePremiumIcon />}
-      label={t('analisis.paretoBadge')}
-    />
+    <MuiTooltip title={t('analisis.paretoBadgeTooltip')} placement="top" arrow>
+      <StatusChip
+        size="small"
+        color="info"
+        icon={<WorkspacePremiumIcon />}
+        label={t('analisis.paretoBadge')}
+      />
+    </MuiTooltip>
   )
 }
 
@@ -411,12 +416,16 @@ export default function CustomerRevenue() {
         )}
 
         {/* ── 2 kartu — Avg/Median Revenue per existing customer (koreksi
-            user 2026-08-10, "section card belum ada"). ── */}
+            user 2026-08-10, "section card belum ada"). accentColor = data[1]/
+            data[2] (BUKAN data[0]/data[1] lagi, critique 2026-08-18 P1) —
+            disamakan persis dengan warna garis Avg/Median di M3Revenue di
+            bawah, supaya metrik yang sama tidak berganti warna antar-widget
+            yang berdekatan (pelanggaran "recognition rather than recall"). ── */}
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <KpiMetricCard
               label={t('analisis.metricAvgRevenue')}
-              accentColor={theme.custom.data[0]}
+              accentColor={theme.custom.data[1]}
               value={formatIDR(avgRevenueCurrent)}
               growthPct={avgRevenueGrowthPct}
               deltaValueText={formatIDR(Math.abs(avgRevenueCurrent - avgRevenueComparison))}
@@ -426,7 +435,7 @@ export default function CustomerRevenue() {
           <Grid size={{ xs: 12, sm: 6 }}>
             <KpiMetricCard
               label={t('analisis.metricMedianRevenue')}
-              accentColor={theme.custom.data[1]}
+              accentColor={theme.custom.data[2]}
               value={formatIDR(medianRevenueCurrent)}
               growthPct={medianRevenueGrowthPct}
               deltaValueText={formatIDR(Math.abs(medianRevenueCurrent - medianRevenueComparison))}
@@ -435,43 +444,21 @@ export default function CustomerRevenue() {
           </Grid>
         </Grid>
 
-        {/* ── 2 chart berdampingan (grid-cols-2 50/50, pola referensi
-            executive-kpi-dashboard KPI3View) — kiri: breakdown Avg vs Median
-            Revenue periode berjalan (adaptasi — reference KPI3 aslinya
-            "Existing Active Count", tidak ada padanan langsung di model data
-            kita; dipakai Avg/Median krn 2 kartu di atas SUDAH menghitungnya),
-            kanan: M3Revenue (tren 12 bulan, SUDAH ada). ── */}
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <BarChartWidget
-              title={t('analisis.distChartTitle')}
-              subtitle={t('analisis.distChartSubtitle')}
-              data={[{
-                label: currentRangeText,
-                avg: avgRevenueCurrent,
-                median: medianRevenueCurrent,
-              }]}
-              series={[
-                { key: 'avg', label: t('analisis.metricAvgRevenue'), color: theme.custom.data[0] },
-                { key: 'median', label: t('analisis.metricMedianRevenue'), color: theme.custom.data[1] },
-              ]}
-              xKey="label"
-              height={280}
-              yAxisFormatter={(v) => formatIDR(v)}
-              tooltipFormatter={(v, n) => [formatIDR(v), n]}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <M3Revenue
-              trend={m3Trend}
-              isLoading={isM3Loading}
-              companyId={companyId}
-              branchId={branchId === 'all' ? undefined : branchId}
-              division={division || undefined}
-              excludeIntercompany={excludeIntercompany}
-            />
-          </Grid>
-        </Grid>
+        {/* Chart breakdown Avg vs Median (BarChartWidget 1-kategori) DIHAPUS
+            (critique 2026-08-18, P0) — cuma menggambar ulang angka yang
+            sudah tampil besar di 2 KpiMetricCard persis di atas, tidak
+            menambah informasi (kode lama sendiri mengakui ini "adaptasi"
+            paksa dari referensi yang metriknya beda). M3Revenue (tren
+            12-bulan + drill-down) satu-satunya chart yang tersisa di sini,
+            sekarang full-width karena memang tidak ada lagi pasangannya. */}
+        <M3Revenue
+          trend={m3Trend}
+          isLoading={isM3Loading}
+          companyId={companyId}
+          branchId={branchId === 'all' ? undefined : branchId}
+          division={division || undefined}
+          excludeIntercompany={excludeIntercompany}
+        />
       </Box>
 
       <Card>

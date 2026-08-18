@@ -27,6 +27,11 @@ export const BulletChartWidget = ({
   const { t } = useTranslation();
   const clamp = (v: number) => Math.min(Math.max(v, 0), max);
   const pct = (v: number) => `${(clamp(v) / max) * 100}%`;
+  // Scale factor 0-1 (bukan string persen) — dipakai transform: scaleX(),
+  // BUKAN width, supaya animasi bar tidak memicu layout thrash (width/height
+  // reflow tiap frame). transform+opacity satu-satunya properti yang aman
+  // dianimasikan di compositor thread.
+  const scale = (v: number) => clamp(v) / max;
 
   const inTarget = value >= targetLow && value <= targetHigh;
   const barColor = inTarget ? theme.palette.success.main : value < targetLow ? theme.palette.warning.main : theme.palette.primary.main;
@@ -94,16 +99,19 @@ export const BulletChartWidget = ({
           }}
         />
 
-        {/* Actual value bar */}
+        {/* Actual value bar — width 100% statis, panjang bar sebenarnya
+            digambar lewat scaleX (compositor-only, bukan reflow). */}
         <Box
           sx={{
             position: 'absolute',
             left: 0,
-            width: pct(value),
+            width: '100%',
             top: '25%',
             height: '50%',
             bgcolor: barColor,
-            transition: 'width 0.5s ease',
+            transform: `scaleX(${scale(value)})`,
+            transformOrigin: 'left',
+            transition: 'transform 0.5s ease',
           }}
         />
       </Box>
