@@ -1,21 +1,29 @@
 /**
  * SSOT segmentasi customer.
  *
- * 4 kategori atomik:
- *   new_customer      = first_invoice dalam active window (customer baru)
- *   active_customer   = first_invoice SEBELUM active window
- *                       DAN last_invoice dalam active window
- *   existing_customer = first_invoice SEBELUM active window
- *                       DAN last_invoice dalam dormant window tapi SEBELUM active window
- *   dormant_customer  = last_invoice SEBELUM dormant window
+ * Definisi final (task028, 2026-08-18 — supersede model lama di task027 §4):
+ *   New      = first_invoice dalam active window (customer baru)
+ *   Existing = SEMUA customer KECUALI New (first_invoice SEBELUM active
+ *              window) — TERMASUK yang sudah dormant. Ini universe KPI
+ *              M3–M10 (dulu bernama "established", EXCLUDE dormant — sudah
+ *              tidak berlaku).
+ *   Active   = sub-status DI DALAM Existing: punya transaksi di periode yang
+ *              sedang dilihat.
+ *   Dormant  = sub-status DI DALAM Existing: tidak ada invoice dalam
+ *              dormant_threshold_months sesuai kategori bisnis customer
+ *              (tetap per-kategori, lihat task027 §1-3 — bug itu terpisah).
  *
- * Grup gabungan:
- *   active     = new_customer + active_customer   (semua yang beli di active window)
- *   existing   = active_customer + existing_customer (semua non-baru, non-dormant)
- *   established= active_customer + existing_customer (KPI universe M3–M7)
+ * New "graduasi" otomatis jadi Existing begitu first_invoice-nya lewat
+ * active window dari titik evaluasi berikutnya (mis. New Agustus → Existing
+ * September) — tidak perlu logic tambahan, karena tiap titik waktu
+ * dievaluasi independen dari nol (lihat CTE `months` di
+ * m3m7.repository.ts/m8m10.repository.ts).
+ *
+ * `cteEstablishedCustomers` di bawah tetap nama lama (hindari rename massal
+ * di 4 file pemanggil), tapi body-nya sekarang = "Existing" sesuai definisi
+ * final ini, BUKAN "established" (active+existing, exclude dormant) lagi.
  */
 
-import { db } from '@/config/db'
 import { sql, and, or } from 'drizzle-orm'
 import { divisionToDormantKey } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
@@ -67,119 +75,6 @@ export function buildSegmentParams(
     otherIdByBranch,
     intercompanyIdByCompany,
   }
-}
-
-export interface CustomerSegmentCount {
-  new_customer: number
-  active_customer: number
-  existing_customer: number
-  dormant_customer: number
-}
-
-// ─── Standalone query ─────────────────────────────────────────────────────────
-
-/**
- * Hitung 4 kategori customer dalam satu query.
- * Gunakan untuk menampilkan ringkasan jumlah per segmen.
- */
-export async function getCustomerSegments(
-  p: SegmentParams,
-): Promise<CustomerSegmentCount> {
-  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds, excludeIntercompany, otherIdByBranch, intercompanyIdByCompany } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope, otherIdByBranch)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  // Dipakai di WHERE clause final (bukan di dalam CTE) - alias 'i' TIDAK in-scope
-  // di situ (cuma exist di dalam CTE cust_dates/latest_channel), jadi harus pakai
-  // 'lc.company_id' (kolom company_id yang di-expose CTE latest_channel), bukan
-  // 'i.company_id' seperti sebelumnya (bug lama, query error kalau
-  // excludeIntercompany=true - ketahuan saat wiring override task013). alias 'ov'
-  // (override) - join customers baru khusus di final SELECT, terpisah dari alias
-  // 'c' di CTE cust_dates (scope-nya cuma di dalam CTE itu).
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('lc.company_id', 'COALESCE(ov.division_override_id, lc.division_id)', intercompanyIdByCompany, excludeIntercompany)
-
-  const rows = await db.execute(sql`
-    WITH
-    cust_dates AS (
-      SELECT
-        c.id AS customer_id,
-        MIN(i.invoice_date) AS first_invoice_date,
-        MAX(i.invoice_date) AS last_invoice_date
-      FROM customers c
-      JOIN invoices i ON i.customer_id = c.id
-      WHERE i.deleted_at IS NULL
-        AND c.is_placeholder = false
-        AND ${companyCondC}
-        AND i.invoice_date <= ${filterDate}::date
-        AND ${branchCond}
-      GROUP BY c.id
-    ),
-    latest_channel AS (
-      SELECT DISTINCT ON (i.customer_id)
-        i.customer_id,
-        i.branch_id,
-        i.company_id,
-        cd.division_id
-      FROM invoices i
-      LEFT JOIN channel_divisions cd
-        ON cd.channel_name = i.channel_name
-        AND cd.company_id = i.company_id
-      WHERE i.deleted_at IS NULL
-        AND ${companyCondI}
-        AND ${branchCond}
-        AND ${divisionScopeCond}
-      -- Tie-break i.id DESC — tanpa ini, customer dengan 2+ invoice di TANGGAL
-      -- SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
-      -- (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT.
-      ORDER BY i.customer_id, i.invoice_date DESC, i.id DESC
-    )
-    SELECT
-      COUNT(*) FILTER (
-        WHERE cd.first_invoice_date > ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
-      )::int AS new_customer,
-
-      COUNT(*) FILTER (
-        WHERE cd.first_invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
-          AND cd.last_invoice_date  >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
-      )::int AS active_customer,
-
-      COUNT(*) FILTER (
-        WHERE cd.first_invoice_date <= ${filterDate}::date - ${activeMonths}::int  * INTERVAL '1 month'
-          AND cd.last_invoice_date  >  ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
-          AND cd.last_invoice_date  <= ${filterDate}::date - ${activeMonths}::int  * INTERVAL '1 month'
-      )::int AS existing_customer,
-
-      COUNT(*) FILTER (
-        WHERE cd.last_invoice_date <= ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
-      )::int AS dormant_customer
-
-    FROM cust_dates cd
-    LEFT JOIN latest_channel lc ON lc.customer_id = cd.customer_id
-    LEFT JOIN customers ov ON ov.id = cd.customer_id
-    WHERE (${division}::int IS NULL OR COALESCE(lc.division_id, (SELECT id FROM divisions WHERE company_id = lc.company_id AND key = 'other')) = ${division}::int)
-      AND (${p.branchFilter}::int IS NULL OR lc.branch_id = ${p.branchFilter}::int)
-      AND ${excludeIntercompanyCond}
-  `)
-
-  const row = (rows as unknown[])[0] as Record<string, unknown> | undefined
-  return {
-    new_customer:      Number(row?.new_customer      ?? 0),
-    active_customer:   Number(row?.active_customer   ?? 0),
-    existing_customer: Number(row?.existing_customer ?? 0),
-    dormant_customer:  Number(row?.dormant_customer  ?? 0),
-  }
-}
-
-// Convenience — jumlah segmen gabungan
-export async function getActiveCount(p: SegmentParams): Promise<number> {
-  const seg = await getCustomerSegments(p)
-  return seg.new_customer + seg.active_customer
-}
-
-export async function getExistingCount(p: SegmentParams): Promise<number> {
-  const seg = await getCustomerSegments(p)
-  return seg.active_customer + seg.existing_customer
 }
 
 // ─── SQL expression (CASE WHEN) — SSOT per baris ─────────────────────────────
@@ -257,7 +152,9 @@ export function sqlStatusWhere(
 
 /**
  * CTE: established_customers
- * Universe KPI M3–M7 = active_customer ∪ existing_customer (non-dormant, non-new).
+ * Universe KPI M3–M10 = Existing (task028: semua customer KECUALI New,
+ * TERMASUK yang sudah dormant — bukan "active+existing exclude dormant"
+ * lagi, lihat docstring SSOT di atas).
  * - division filter: (${p.division}::text IS NULL OR cd.division = ${p.division}::text)
  *   → saat division=null, filter jadi TRUE (global); saat division diisi, filter spesifik.
  * Dipakai sebagai denominator dan base join di metrics query.
@@ -284,6 +181,10 @@ export function cteEstablishedCustomers(p: SegmentParams) {
             AND ${branchCond0}
             AND ${companyCondIx0}
         )
+        -- task028: lower-bound dormantMonths DILEPAS (dulu ada syarat
+        -- ix.invoice_date > filterDate minus dormantMonths, exclude customer
+        -- dormant dari universe). Existing sekarang TERMASUK dormant —
+        -- syarat tinggal "punya invoice apa pun s/d filterDate", scope sama.
         AND EXISTS (
           SELECT 1 FROM invoices ix
           LEFT JOIN channel_divisions cd
@@ -292,201 +193,7 @@ export function cteEstablishedCustomers(p: SegmentParams) {
           WHERE ix.customer_id = c.id
             AND ix.deleted_at IS NULL
             AND ${companyCondIx}
-            AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
-            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
-            AND ${branchCond}
-            AND ${divisionScopeCond}
-            AND ${excludeIntercompanyCond}
-        )
-    )
-  `
-}
-
-/**
- * CTE: new_customers
- * = new_customer: first_invoice dalam active window (customer baru).
- */
-export function cteNewCustomers(p: SegmentParams) {
-  const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
-  const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-  return sql`
-    new_customers AS (
-      SELECT DISTINCT c.id, c.customer_name, c.customer_code
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND ${companyCondC}
-        AND EXISTS (
-          SELECT 1 FROM invoices ix
-          LEFT JOIN channel_divisions cd
-            ON cd.channel_name = ix.channel_name
-            AND cd.company_id = ix.company_id
-          WHERE ix.customer_id = c.id
-            AND ix.deleted_at IS NULL
-            AND ${companyCondIx}
-            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
-            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
-            AND ${branchCond}
-            AND ${divisionScopeCond}
-            AND ${excludeIntercompanyCond}
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM invoices ix0
-          WHERE ix0.customer_id = c.id
-            AND ix0.deleted_at IS NULL
-            AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-            AND ${branchCond0}
-            AND ${companyCondIx0}
-        )
-    )
-  `
-}
-
-/**
- * CTE: active_customers
- * = active_customer: first_invoice SEBELUM active window, last_invoice dalam active window.
- */
-export function cteActiveCustomers(p: SegmentParams) {
-  const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
-  const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-  return sql`
-    active_customers AS (
-      SELECT DISTINCT c.id, c.customer_name, c.customer_code
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND ${companyCondC}
-        AND EXISTS (
-          SELECT 1 FROM invoices ix0
-          WHERE ix0.customer_id = c.id
-            AND ix0.deleted_at IS NULL
-            AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-            AND ${branchCond0}
-            AND ${companyCondIx0}
-        )
-        AND EXISTS (
-          SELECT 1 FROM invoices ix
-          LEFT JOIN channel_divisions cd
-            ON cd.channel_name = ix.channel_name
-            AND cd.company_id = ix.company_id
-          WHERE ix.customer_id = c.id
-            AND ix.deleted_at IS NULL
-            AND ${companyCondIx}
-            AND ix.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-            AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
-            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
-            AND ${branchCond}
-            AND ${divisionScopeCond}
-            AND ${excludeIntercompanyCond}
-        )
-    )
-  `
-}
-
-/**
- * CTE: existing_customers
- * = existing_customer: non-dormant, non-active, non-new (middle segment).
- * Satu query melayani global (division=null) dan filter divisi (division=isi).
- */
-export function cteExistingCustomers(p: SegmentParams) {
-  const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
-  const branchCond0 = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
-  const branchCond2 = buildBranchConditionRaw('ix2.company_id', 'ix2.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const divisionScopeCond2 = buildDivisionConditionRaw('ix2.branch_id', 'cd2.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx2 = buildCompanyConditionRaw('ix2.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-  const excludeIntercompanyCond2 = buildExcludeIntercompanyRaw('ix2.company_id', 'COALESCE(c.division_override_id, cd2.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-  return sql`
-    existing_customers AS (
-      SELECT DISTINCT c.id, c.customer_name, c.customer_code
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND ${companyCondC}
-        AND EXISTS (
-          SELECT 1 FROM invoices ix0
-          WHERE ix0.customer_id = c.id
-            AND ix0.deleted_at IS NULL
-            AND ix0.invoice_date < ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-            AND ${branchCond0}
-            AND ${companyCondIx0}
-        )
-        AND EXISTS (
-          SELECT 1 FROM invoices ix
-          LEFT JOIN channel_divisions cd
-            ON cd.channel_name = ix.channel_name
-            AND cd.company_id = ix.company_id
-          WHERE ix.customer_id = c.id
-            AND ix.deleted_at IS NULL
-            AND ${companyCondIx}
-            AND ix.invoice_date >  ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
-            AND ix.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
-            AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
-            AND ${branchCond}
-            AND ${divisionScopeCond}
-            AND ${excludeIntercompanyCond}
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM invoices ix2
-          LEFT JOIN channel_divisions cd2
-            ON cd2.channel_name = ix2.channel_name
-            AND cd2.company_id = ix2.company_id
-          WHERE ix2.customer_id = c.id
-            AND ix2.deleted_at IS NULL
-            AND ${companyCondIx2}
-            AND ix2.invoice_date >  ${p.filterDate}::date - ${p.activeMonths}::int * INTERVAL '1 month'
-            AND ix2.invoice_date <= ${p.filterDate}::date
-            AND (${p.division}::int IS NULL OR COALESCE(cd2.division_id, (SELECT id FROM divisions WHERE company_id = ix2.company_id AND key = 'other')) = ${p.division}::int)
-            AND (${p.branchFilter}::int IS NULL OR ix2.branch_id = ${p.branchFilter}::int)
-            AND ${branchCond2}
-            AND ${divisionScopeCond2}
-            AND ${excludeIntercompanyCond2}
-        )
-    )
-  `
-}
-
-/**
- * CTE: dormant_customers
- * = dormant_customer: tidak ada invoice dalam dormant window.
- */
-export function cteDormantCustomers(p: SegmentParams) {
-  const branchCond = buildBranchConditionRaw('ix.company_id', 'ix.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('ix.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
-  const companyCondIx = buildCompanyConditionRaw('ix.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('ix.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-  return sql`
-    dormant_customers AS (
-      SELECT c.id, c.customer_name, c.customer_code
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND ${companyCondC}
-        AND c.first_invoice_date IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM invoices ix
-          LEFT JOIN channel_divisions cd
-            ON cd.channel_name = ix.channel_name
-            AND cd.company_id = ix.company_id
-          WHERE ix.customer_id = c.id
-            AND ix.deleted_at IS NULL
-            AND ${companyCondIx}
-            AND ix.invoice_date > ${p.filterDate}::date - ${p.dormantMonths}::int * INTERVAL '1 month'
             AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = ix.company_id AND key = 'other')) = ${p.division}::int)
             AND (${p.branchFilter}::int IS NULL OR ix.branch_id = ${p.branchFilter}::int)
             AND ${branchCond}

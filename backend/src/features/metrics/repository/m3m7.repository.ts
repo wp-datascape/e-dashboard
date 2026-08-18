@@ -36,7 +36,7 @@ export type TrendRow = {
 /**
  * Tren 12 bulan untuk M3–M7.
  *
- * existing = ada invoice dalam dormantMonths sebelum akhir bulan, bukan customer baru
+ * existing = bukan customer baru (task028: TERMASUK yang sudah dormant)
  * active   = ada invoice dalam activeMonths sebelum akhir bulan (subset existing)
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
@@ -123,7 +123,15 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
                               - INTERVAL '1 day')
     ),
 
-    -- Existing customers per bulan: ada invoice dalam dormantMonths, bukan customer baru
+    -- Existing customers per bulan: bukan customer baru — TERMASUK yang
+    -- sudah dormant (task028, supersede task027 §4: Existing = semua
+    -- customer kecuali New). EXISTS di bawah query langsung ke tabel
+    -- invoices (bukan CTE raw_inv, yang lower-bound-nya sengaja dibatasi
+    -- dormantMonths untuk keperluan agregasi revenue/GP — beda kebutuhan
+    -- dari cek keanggotaan ini, yang perlu tembus ke invoice sejauh apa pun
+    -- ke belakang) — dulu ada lower-bound dormantMonths juga di sini,
+    -- sekarang dilepas, cuma sisa upper-bound (invoice <= akhir bulan ini)
+    -- + scope filter, mirror pola cteEstablishedCustomers.
     existing AS (
       SELECT DISTINCT c.id, m.ms
       FROM customers c
@@ -135,11 +143,21 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND fi.first_date < (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
                             - ${activeMonths}::int * INTERVAL '1 month'
         AND EXISTS (
-          SELECT 1 FROM raw_inv ri
-          WHERE ri.customer_id = c.id
-            AND ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                                   - ${dormantMonths}::int * INTERVAL '1 month'
-            AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+          SELECT 1
+          FROM invoices i
+          LEFT JOIN channel_divisions cd
+            ON cd.channel_name = i.channel_name
+            AND cd.company_id = i.company_id
+          LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+          WHERE i.customer_id = c.id
+            AND i.deleted_at IS NULL
+            AND ${companyCondI}
+            AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
+            AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+            AND ${branchCond}
+            AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
+            AND i.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
         )
     ),
 

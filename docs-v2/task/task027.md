@@ -1,5 +1,11 @@
 # Task 027 — Bug: Ambang Dormant Pakai 1 Threshold Dominan, Bukan Dinamis per Kategori Customer
 
+> **§4 di-supersede oleh [[task028]]** (2026-08-18) — model klasifikasi
+> "Existing exclude dormant" di §4 sudah tidak berlaku, diganti "Existing
+> = semua customer kecuali New, TERMASUK dormant". §1-3 (bug threshold
+> dormant per-kategori) TETAP valid dan belum diperbaiki — itu concern
+> terpisah dari definisi Existing.
+
 **Status: DITEMUKAN & DIDOKUMENTASIKAN, BELUM DIEKSEKUSI.** Ditemukan 2026-08-10
 lewat audit validasi klasifikasi customer (lanjutan [[task026]] — standardisasi
 halaman KPI). User eksplisit: "catat temuan bug, dokumentasikan" — task ini
