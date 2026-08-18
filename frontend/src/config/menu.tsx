@@ -60,7 +60,9 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 2: CUSTOMER WORKBENCH
+  // GROUP 2: CUSTOMER WORKBENCH — menyempit jadi cuma "Customer" (list
+  // mentah). expansion/churn-risk/cross-selling/analisis PINDAH ke
+  // Growth/Retention/Value di bawah (task029, 2026-08-19).
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'customer',
@@ -70,26 +72,54 @@ export const NAV_ITEMS: NavItem[] = [
     permissionKey: 'customer:menu',
     groupLabelKey: 'nav.groups.customerWorkbench',
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GROUP: GROWTH / RETENTION / VALUE (task029) — 10 KPI dikelompokkan per
+  // framework bisnis, GANTI pola lama (flat di bawah Customer Workbench).
+  // Sejajar dgn Overview, TANPA parent menu "Matrix" (docs-v2/task/
+  // task029.md §1-2, keputusan eksplisit user).
+  //
+  // CATATAN PENTING: halaman di bawah ini MASIH halaman lama main (belum
+  // dipecah per-KPI spt task029 §8-19 minta — itu kerjaan besar terpisah,
+  // belum dikerjakan sesi ini). Pemetaan sementara, pragmatis:
+  //   Growth    -> cross-selling (M1+M2, cocok persis) + customer-metrics
+  //                (bundel M3-M7, tapi labelnya "Expansion"/M7 = Growth)
+  //   Retention -> dormant-customer (bundel M8-M10, cocok persis)
+  //   Value     -> analisis (Revenue/Margin per customer, ~M3/M4)
+  // customer-metrics & analisis KONSEPTUAL tumpang tindih (customer-metrics
+  // juga punya M3-M6 di dalamnya) — belum ideal, follow-up: pecah jadi
+  // halaman per-KPI spt spec, baru pemetaan nav bisa 1:1 bersih.
+  // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'expansion',
-    path: '/customer-metrics',
-    labelKey: 'nav.expansionTargets',
-    icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'expansion:menu',
-  },
-  {
-    key: 'churn-risk',
-    path: '/dormant-customer',
-    labelKey: 'nav.churnRisk',
-    icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
-  },
-  {
-    key: 'cross-selling',
+    key: 'growth',
     path: '/cross-selling',
-    labelKey: 'nav.crossSellMatrix',
-    icon: <SwapHorizIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
+    labelKey: 'nav.groups.growth',
+    icon: <TrendingUpIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.growth',
+    children: [
+      { key: 'growth-cross-selling', path: '/cross-selling', labelKey: 'nav.crossSellMatrix', icon: <SwapHorizIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
+      { key: 'growth-expansion', path: '/customer-metrics', labelKey: 'nav.expansionTargets', icon: <TrendingUpIcon fontSize="small" />, permissionKey: 'expansion:menu' },
+    ],
+  },
+  {
+    key: 'retention',
+    path: '/dormant-customer',
+    labelKey: 'nav.groups.retention',
+    icon: <PersonOffIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.retention',
+    children: [
+      { key: 'retention-churn-risk', path: '/dormant-customer', labelKey: 'nav.churnRisk', icon: <PersonOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+    ],
+  },
+  {
+    key: 'value',
+    path: '/analisis',
+    labelKey: 'nav.groups.value',
+    icon: <AssessmentIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.value',
+    children: [
+      { key: 'value-analisis', path: '/analisis', labelKey: 'nav.analisis', icon: <AssessmentIcon fontSize="small" />, permissionKey: 'customer.revenue:menu' },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -128,13 +158,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <ReceiptLongIcon fontSize="small" />,
     permissionKey: 'transaction:menu',
     groupLabelKey: 'nav.groups.transactionRevenue',
-  },
-  {
-    key: 'analisis',
-    path: '/analisis',
-    labelKey: 'nav.analisis',
-    icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'analisis:menu',
   },
   {
     key: 'project',

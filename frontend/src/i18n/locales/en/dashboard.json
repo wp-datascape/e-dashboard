@@ -13,9 +13,26 @@
     "stable": "Stable"
   },
   "vs": "vs last month",
-  "overviewTitle": "Overview Metrics",
+  "overviewTitle": "Overview",
   "periodStripLabel": "Period: {{period}}",
   "activeWindowStripLabel": "Active Window: {{months}} months",
+  "execSummaryTitle": "Executive Summary",
+  "execSummarySubtitle": "The most important business KPIs this period",
+  "existingCustomersTitle": "Existing Customers",
+  "existingCustomersDesc": "All customers except New (including those already Dormant)",
+  "dormantCustomersTitle": "Dormant Customers",
+  "dormantCustomersDesc": "No transaction past the threshold, which varies by business category",
+  "growthSectionTitle": "Customer Growth",
+  "growthSectionSubtitle": "Cross-selling, category variety, and customer spending expansion",
+  "healthSectionTitle": "Customer Health",
+  "healthSectionSubtitle": "Repeat order, dormant rate, and reactivation",
+  "alertsTitle": "Key Alerts",
+  "alertDormantRate": "Dormant Rate {{value}}% — above the {{target}}% threshold",
+  "alertRepeatOrder": "Repeat Order Rate {{value}}% — below the {{target}}% target",
+  "alertReactivation": "Reactivation Rate {{value}}% — below the {{target}}% minimum target",
+  "alertGpDecline": "Average Gross Profit down {{value}}% YoY",
+  "alertExpansionGrowth": "Customer Expansion up {{value}}% YoY",
+  "definitionsSubtitle": "How each customer segment is calculated",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Category",
@@ -32,19 +49,19 @@
     "title": "Key Definitions",
     "activeCustomer": {
       "term": "Active Customer",
-      "def": "last_transaction_date ≥ period start − {{months}} months"
+      "def": "Existing customer with a transaction in this period"
     },
     "existingCustomer": {
       "term": "Existing Customer",
-      "def": "first_transaction_date < period start"
+      "def": "All customers except New — including those already Dormant"
     },
     "newCustomer": {
       "term": "New Customer",
-      "def": "first_transaction_date within this period"
+      "def": "Their first transaction just happened within this period"
     },
     "dormantCustomer": {
       "term": "Dormant Customer",
-      "def": "last_transaction_date < period start − 3 months (default)"
+      "def": "No transaction past the threshold, which varies by business category"
     },
     "productCategory": {
       "term": "Product Category",

@@ -1,5 +1,5 @@
 {
-  "dashboard": "Dashboard",
+  "dashboard": "Overview",
   "customers": "Customer",
   "expansionTargets": "Expansion",
   "churnRisk": "Churn Risk",
@@ -40,6 +40,9 @@
   "configFeatures": "Features",
   "groups": {
     "executiveDashboard": "Executive Dashboard",
+    "growth": "Growth",
+    "retention": "Retention",
+    "value": "Value",
     "customerWorkbench": "Customer Workbench",
     "productPortfolio": "Product & Portfolio",
     "transactionRevenue": "Transaction & Revenue",

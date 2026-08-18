@@ -13,9 +13,26 @@
     "stable": "Stabil"
   },
   "vs": "vs bulan lalu",
-  "overviewTitle": "Overview Metrics",
+  "overviewTitle": "Overview",
   "periodStripLabel": "Periode: {{period}}",
   "activeWindowStripLabel": "Window Aktif: {{months}} bulan",
+  "execSummaryTitle": "Ringkasan Eksekutif",
+  "execSummarySubtitle": "KPI bisnis paling penting periode ini",
+  "existingCustomersTitle": "Existing Customers",
+  "existingCustomersDesc": "Semua customer kecuali New (termasuk yang sudah Dormant)",
+  "dormantCustomersTitle": "Dormant Customers",
+  "dormantCustomersDesc": "Tidak transaksi melewati ambang per kategori bisnis",
+  "growthSectionTitle": "Customer Growth",
+  "growthSectionSubtitle": "Cross selling, ragam kategori, dan ekspansi belanja customer",
+  "healthSectionTitle": "Customer Health",
+  "healthSectionSubtitle": "Repeat order, tingkat dormant, dan reaktivasi",
+  "alertsTitle": "Key Alerts",
+  "alertDormantRate": "Dormant Rate {{value}}% — di atas ambang {{target}}%",
+  "alertRepeatOrder": "Repeat Order Rate {{value}}% — di bawah target {{target}}%",
+  "alertReactivation": "Reactivation Rate {{value}}% — di bawah target minimum {{target}}%",
+  "alertGpDecline": "Rata-rata Gross Profit turun {{value}}% YoY",
+  "alertExpansionGrowth": "Customer Expansion naik {{value}}% YoY",
+  "definitionsSubtitle": "Bagaimana tiap segmen customer dihitung",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Kategori",
@@ -32,19 +49,19 @@
     "title": "Definisi Kunci",
     "activeCustomer": {
       "term": "Customer Aktif",
-      "def": "last_transaction_date ≥ awal periode − {{months}} bulan"
+      "def": "Existing customer yang punya transaksi dalam periode ini"
     },
     "existingCustomer": {
       "term": "Existing Customer",
-      "def": "first_transaction_date < awal periode"
+      "def": "Semua customer kecuali New — termasuk yang sudah Dormant"
     },
     "newCustomer": {
       "term": "New Customer",
-      "def": "first_transaction_date dalam periode ini"
+      "def": "Transaksi pertamanya baru terjadi di dalam periode ini"
     },
     "dormantCustomer": {
       "term": "Dormant Customer",
-      "def": "last_transaction_date < awal periode − 3 bulan (default)"
+      "def": "Tidak transaksi melewati ambang, beda per kategori bisnis customer"
     },
     "productCategory": {
       "term": "Kategori Produk",

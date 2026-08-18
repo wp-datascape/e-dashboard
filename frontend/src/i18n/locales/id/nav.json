@@ -1,5 +1,5 @@
 {
-  "dashboard": "Dashboard",
+  "dashboard": "Overview",
   "customers": "Customer",
   "expansionTargets": "Ekspansi",
   "churnRisk": "Risiko Churn",
@@ -40,6 +40,9 @@
   "configFeatures": "Fitur",
   "groups": {
     "executiveDashboard": "Executive Dashboard",
+    "growth": "Growth",
+    "retention": "Retention",
+    "value": "Value",
     "customerWorkbench": "Customer Workbench",
     "productPortfolio": "Produk & Portofolio",
     "transactionRevenue": "Transaksi & Revenue",
