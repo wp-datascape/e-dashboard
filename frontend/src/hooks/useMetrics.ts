@@ -46,20 +46,20 @@ export function useRevenueBreakdown(params: { period_end: string | null; company
 }
 
 // ── M7 Expansion Drill-down ───────────────────────────────────────────────────
-export function useExpansionBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useExpansionBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; date_from?: string }) {
   return useQuery<ExpansionBreakdownData>({
     queryKey: ['metrics', 'expansion-breakdown', params],
-    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, date_from: params.date_from }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M4 GP Drill-down ─────────────────────────────────────────────────────────
-export function useGpBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useGpBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; date_from?: string }) {
   return useQuery<GpBreakdownData>({
     queryKey: ['metrics', 'gp-breakdown', params],
-    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, date_from: params.date_from }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });

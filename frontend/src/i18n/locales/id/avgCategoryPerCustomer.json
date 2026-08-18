@@ -1,4 +1,8 @@
 {
   "pageTitle": "Rata-rata Kategori Produk per Pelanggan",
-  "pageSubtitle": "KPI 2 · Window {{months}} bulan · Sumber: invoice + item kategori produk"
+  "pageSubtitle": "KPI 2 · Window {{months}} bulan · Sumber: invoice + item kategori produk",
+  "cardCaption": "dari {{total}} customer aktif",
+  "distChartTitle": "Chart Bulanan — Penetrasi Customer per Tipe Kategori",
+  "distChartSubtitle": "Jumlah customer aktif yang membeli tiap tipe kategori pada periode ini",
+  "distSeriesLabel": "Customer"
 }

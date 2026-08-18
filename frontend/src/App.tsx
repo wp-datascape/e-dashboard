@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider, ProtectedRoute } from './context/AuthContext'
 import { useAuth } from './context/auth.context'
+import { GlobalFilterProvider } from './context/GlobalFilterContext'
 import { usePageSettings } from './hooks/usePageSettings'
 import { api } from './api/axios'
 import { useThemeMode } from './theme/theme.context'
@@ -98,6 +99,12 @@ function AppRouter() {
 
   return (
     <Suspense fallback={<PageLoader />}>
+      {/* GlobalFilterProvider DI ATAS Routes (task026 Fase 1) — supaya
+          filter SIAPA (perusahaan/cabang/divisi/exclude-intercompany)
+          persist saat pindah halaman. Kalau dipasang di dalam DashboardLayout
+          (per-route via withLayout()), Provider ikut remount tiap navigasi
+          dan filter selalu reset — lihat catatan GlobalFilterContext.tsx. */}
+      <GlobalFilterProvider>
       <Routes>
         {/* Public Entry Route */}
         <Route 
@@ -187,6 +194,7 @@ function AppRouter() {
           element={isAuthenticated ? <NotFound /> : <Navigate to="/login" replace />}
         />
       </Routes>
+      </GlobalFilterProvider>
     </Suspense>
   )
 }

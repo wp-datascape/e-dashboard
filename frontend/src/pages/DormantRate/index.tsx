@@ -2,25 +2,28 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import Grid from '@mui/material/Grid';
+import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
+import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiSectionLabel } from '@/components/analisis/KpiSectionLabel';
 import { Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
-import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { todayIsoDate, formatDateDDMMYYYY } from '@/utils/date';
+import { computeChangePct } from '@/utils/analisisComparison';
 import type { CustomerRow } from '@/types/customers';
 
 function fmtRp(v: number): string {
@@ -49,14 +52,14 @@ function monthsDormant(lastInvoiceDate: string | null, asOfDate: string): number
 // — halaman ini cuma menampilkan slice M8-nya saja.
 export default function DormantRate() {
   const { t } = useTranslation();
+  const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -73,32 +76,49 @@ export default function DormantRate() {
     division: division || undefined,
     exclude_intercompany: excludeIntercompany,
   });
-  // Fetch kedua di tanggal pembanding (setahun lalu) — dibutuhkan supaya
-  // rata-rata K-bulan (di bawah) punya trend 12-bulan SENDIRI yang berakhir
-  // di comparisonDate, bukan cuma 1 scalar `comparison_value` (task025 §18,
-  // sama pola dgn CrossSelling/AvgCategoryPerCustomer).
-  const comparisonDate = shiftDateByYears(endDate, -1);
-  const { data: comparisonData } = useDormantCustomer({
-    company_id: companyId,
-    branch_id: branchId === 'all' ? undefined : branchId,
-    period_end: comparisonDate,
-    division: division || undefined,
-    exclude_intercompany: excludeIntercompany,
-  });
 
   const drc = data?.dormant_rate_current;
   const alertPct = drc?.alert_pct ?? 10;
 
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
-  // Parameter kalkulasi TIDAK berubah — tiap titik trend tetap dihitung
-  // backend dari business_configs + tanggal bulan itu, sama seperti
-  // sebelumnya, ini murni agregasi tampilan.
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentDormantRate = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.dormant_rate);
-  const comparisonDormantRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.dormant_rate);
+  // Dormant Rate — EOP (End of Period), BUKAN rata-rata (koreksi user
+  // 2026-08-10, spek formal "Customer Activity Snapshot & Period
+  // Aggregation" §5.1/6/7/8: Active/Dormant Customer untuk Quarterly/
+  // Semester/Annual WAJIB snapshot akhir periode, "Jangan menjumlahkan/
+  // merata-ratakan Active Customer antar bulan"). Sebelumnya pakai
+  // averageMonthsInRange (rata-rata dormant_rate sepanjang periodStart..
+  // endDate) — SALAH per spek ini, walau sempat "benar" menurut standar
+  // KPI4 (yang memang SUM/average utk metrik UANG, bukan utk status
+  // aktif/dormant). `drc.value`/`drc.comparison_value` SUDAH EOP dari
+  // sono-nya (trend.at(-1) di metrics.service.ts) — TIDAK perlu fetch
+  // comparisonData/averageMonthsInRange lagi sama sekali.
+  const currentDormantRate = drc?.value ?? 0;
+  const comparisonDormantRate = drc?.comparison_value ?? 0;
   const growthPct = computeChangePct(currentDormantRate, comparisonDormantRate);
   const dormantRateLabel = t('dormantRate.dormantRateCurrentLabel');
+
+  // ── 4 kartu — Total, Aktif, Dormant Ringan, Dormant Kronis (koreksi user
+  // 2026-08-10, opsi A: "pecah card jadi 4 info... severity dormant").
+  // SEMUA snapshot EOP di endDate (SAMA prinsip dgn currentDormantRate% di
+  // atas, spek §5.1/6/7/8) — active_count/dormant_light_count/
+  // dormant_severe_count SUDAH dihitung backend (m8m10.repository.ts),
+  // partisi EKSAK dari total_customers yang SAMA. Comparison-nya juga sudah
+  // ikut dikirim server (field _comparison, EOP dari trend setahun lalu) —
+  // TIDAK perlu fetch kedua sama sekali.
+  const totalCurrent = drc?.total_customers ?? 0;
+  const totalComparison = (drc?.active_count_comparison ?? 0) + (drc?.dormant_light_count_comparison ?? 0) + (drc?.dormant_severe_count_comparison ?? 0);
+  const totalGrowthPct = computeChangePct(totalCurrent, totalComparison);
+
+  const activeCurrent = drc?.active_count ?? 0;
+  const activeComparison = drc?.active_count_comparison ?? 0;
+  const activeGrowthPct = computeChangePct(activeCurrent, activeComparison);
+
+  const dormantLightCurrent = drc?.dormant_light_count ?? 0;
+  const dormantLightComparison = drc?.dormant_light_count_comparison ?? 0;
+  const dormantLightGrowthPct = computeChangePct(dormantLightCurrent, dormantLightComparison);
+
+  const dormantSevereCurrent = drc?.dormant_severe_count ?? 0;
+  const dormantSevereComparison = drc?.dormant_severe_count_comparison ?? 0;
+  const dormantSevereGrowthPct = computeChangePct(dormantSevereCurrent, dormantSevereComparison);
 
   // ── Tabel — daftar pelanggan tidak aktif (KPI8). REUSE endpoint /customers
   // (status=dormant) yang sudah ada, BUKAN endpoint baru — sama pola dgn
@@ -159,7 +179,7 @@ export default function DormantRate() {
       minWidth: 160,
       flex: 0.9,
       sortingOrder: ['asc', 'desc', null],
-      valueFormatter: (v: string | null) => v ? new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+      valueFormatter: (v: string | null) => formatDateDDMMYYYY(v),
     },
     {
       field: '_months_dormant',
@@ -209,7 +229,80 @@ export default function DormantRate() {
         }}
       />
 
-      {/* ── M8: Line Chart + Red Alert Shading ── */}
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. Dormant Rate =
+          inverse polarity (naik = buruk). ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          label: dormantRateLabel,
+          baselineValueText: `${comparisonDormantRate.toFixed(2)}%`,
+          deltaValueText: `${Math.abs(currentDormantRate - comparisonDormantRate).toFixed(2)}%`,
+          growthPct,
+          inversePolarity: true,
+        }]}
+      />
+
+      {/* ── 4 kartu — Total, Aktif, Dormant Ringan, Dormant Kronis (koreksi
+          user 2026-08-10, opsi A). Total = fixed cohort (SAMA pola dgn
+          template KPI4/KPI7), Aktif/Ringan/Kronis mem-partisi cohort itu
+          persis (sum-nya SELALU total_customers). ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('dormantRate.totalCustomerLabel')}
+            accentColor={theme.palette.primary.main}
+            value={totalCurrent.toLocaleString('id-ID')}
+            growthPct={totalGrowthPct}
+            deltaValueText={Math.abs(totalCurrent - totalComparison).toLocaleString('id-ID')}
+            comparisonValueText={totalComparison.toLocaleString('id-ID')}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('dormantRate.activeCountLabel')}
+            accentColor={theme.palette.success.main}
+            value={activeCurrent.toLocaleString('id-ID')}
+            growthPct={activeGrowthPct}
+            deltaValueText={Math.abs(activeCurrent - activeComparison).toLocaleString('id-ID')}
+            comparisonValueText={activeComparison.toLocaleString('id-ID')}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('dormantRate.dormantLightLabel')}
+            accentColor={theme.custom.data[1]}
+            value={dormantLightCurrent.toLocaleString('id-ID')}
+            caption={t('dormantRate.dormantLightCaption')}
+            growthPct={dormantLightGrowthPct}
+            deltaValueText={Math.abs(dormantLightCurrent - dormantLightComparison).toLocaleString('id-ID')}
+            comparisonValueText={dormantLightComparison.toLocaleString('id-ID')}
+            inversePolarity
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={t('dormantRate.dormantSevereLabel')}
+            accentColor={theme.palette.error.main}
+            value={dormantSevereCurrent.toLocaleString('id-ID')}
+            caption={t('dormantRate.dormantSevereCaption')}
+            growthPct={dormantSevereGrowthPct}
+            deltaValueText={Math.abs(dormantSevereCurrent - dormantSevereComparison).toLocaleString('id-ID')}
+            comparisonValueText={dormantSevereComparison.toLocaleString('id-ID')}
+            inversePolarity
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── M8: 2 chart berdampingan — kiri: donut proporsi Aktif/Dormant
+          Ringan/Dormant Kronis (koreksi user 2026-08-10, opsi A — sebelumnya
+          cuma 2 slice Dormant vs Aktif, sekarang 3-way SAMA persis dgn 4
+          kartu di atas, bukan breakdown per divisi — endpoint /customers
+          server-side paginated jadi tidak bisa diagregasi penuh di client
+          tanpa fetch semua baris), kanan: tren 12 bulan + red alert shading
+          (SUDAH ada). Grid 3/12 & 9/12 — disamakan dgn grid 4-kartu di atas
+          (md:3 tiap kartu), pola sama dgn KPI4/KPI7. ── */}
       <Box>
         <KpiSectionLabel
           label={t('dormantRate.m8SectionLabel')}
@@ -219,58 +312,44 @@ export default function DormantRate() {
             note: t('dormantRate.m8FormulaNote'),
           }}
         />
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={280} />
-        ) : (
-          <LineAlertWidget
-            title={t('dormantRate.m8ChartTitle')}
-            subtitle={t('dormantRate.m8ChartSubtitle', { alertPct })}
-            data={data?.trend ?? []}
-            lineKey="dormant_rate"
-            lineLabel={t('dormantRate.lineLabelDormantRate')}
-            xKey="month"
-            threshold={alertPct}
-            thresholdLabel={t('dormantRate.thresholdLabelPct', { alertPct })}
-            height={240}
-          />
-        )}
-        {drc && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            {t('dormantRate.dormantCountLabel')}: {t('dormantRate.customerCountValue', { count: drc.dormant_count })}
-            {' · '}
-            {t('dormantRate.totalCustomerLabel')}: {t('dormantRate.customerCountValue', { count: drc.total_customers })}
-          </Typography>
-        )}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 3 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <DonutChartWidget
+                title={t('dormantRate.distChartTitle')}
+                subtitle={t('dormantRate.distChartSubtitle')}
+                data={[
+                  { name: t('dormantRate.activeCountLabel'), value: activeCurrent, color: theme.palette.success.main },
+                  { name: t('dormantRate.dormantLightLabel'), value: dormantLightCurrent, color: theme.custom.data[1] },
+                  { name: t('dormantRate.dormantSevereLabel'), value: dormantSevereCurrent, color: theme.palette.error.main },
+                ]}
+                centerValue={`${currentDormantRate.toFixed(1)}%`}
+                centerLabel={dormantRateLabel}
+                height={280}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, md: 9 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <LineAlertWidget
+                title={t('dormantRate.m8ChartTitle')}
+                subtitle={t('dormantRate.m8ChartSubtitle', { alertPct })}
+                data={data?.trend ?? []}
+                lineKey="dormant_rate"
+                lineLabel={t('dormantRate.lineLabelDormantRate')}
+                xKey="month"
+                threshold={alertPct}
+                thresholdLabel={t('dormantRate.thresholdLabelPct', { alertPct })}
+                height={280}
+              />
+            )}
+          </Grid>
+        </Grid>
       </Box>
-
-      {/* ── Banner (KpiSummaryStrip) — di bawah chart, sama urutan dgn Revenue ── */}
-      {drc && (
-        <KpiSummaryStrip
-          metrics={[
-            { label: dormantRateLabel, comparisonText: `${comparisonDormantRate.toFixed(2)}%`, currentText: `${currentDormantRate.toFixed(2)}%` },
-          ]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[
-            {
-              metricLabel: dormantRateLabel,
-              pct: growthPct,
-              value: currentDormantRate - comparisonDormantRate,
-              currentIsZero: currentDormantRate === 0,
-              // Dormant Rate = inverse polarity (naik = buruk, lihat metricPolarity.ts)
-              inversePolarity: true,
-              formatValue: (v) => `${v.toFixed(2)}%`,
-            },
-          ]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
 
       {/* ── Tabel — daftar pelanggan tidak aktif (KPI8), reuse endpoint
           /customers status=dormant. Server-side pagination/sort/search

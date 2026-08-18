@@ -3,30 +3,29 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDormantCustomer } from '@/hooks/useMetrics';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiSectionLabel } from '@/components/analisis/KpiSectionLabel';
 import { Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
-import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths } from '@/utils/analisisComparison';
+import { todayIsoDate, formatDateDDMMYYYY } from '@/utils/date';
+import { computeChangePct, averageMonthsInRange } from '@/utils/analisisComparison';
 import type { ReactivatedCustomerRow } from '@/types/metrics';
 
-function fmtDate(v: string): string {
-  return new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+const fmtDate = formatDateDDMMYYYY;
 
 // KPI 10 — Customer Reactivation Rate. Sebelumnya bagian dari bundel
 // DormantCustomer (M8+M9+M10 1 route) — dipecah jadi halaman sendiri
@@ -39,14 +38,14 @@ function fmtDate(v: string): string {
 // — halaman ini cuma menampilkan slice M10-nya saja.
 export default function ReactivationRate() {
   const { t } = useTranslation();
+  const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -80,12 +79,14 @@ export default function ReactivationRate() {
   const targetHigh = rc?.target_high ?? 20;
   const bulletMax = Math.max(targetHigh * 2, 30);
 
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate (BUKAN
+  // trailing-N-by-posisi-array — bug §8g/KPI4, ditemukan lagi 2026-08-10 via
+  // laporan user "reactivation rate di dashboard dan di KPI tidak sama":
+  // Dashboard Overview sudah pakai agregasi rentang-kalender, halaman ini
+  // masih trailing-N, jadi 2 tempat beda angka utk metrik yang sama).
   // Parameter kalkulasi TIDAK berubah (business_configs + end_date tetap).
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentReactivationRate = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.reactivation_rate);
-  const comparisonReactivationRate = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.reactivation_rate);
+  const currentReactivationRate = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.reactivation_rate);
+  const comparisonReactivationRate = averageMonthsInRange(comparisonData?.trend ?? [], shiftDateByYears(periodStart, -1), comparisonDate, (p) => p.reactivation_rate);
   const growthPct = computeChangePct(currentReactivationRate, comparisonReactivationRate);
   const reactivationLabel = t('reactivationRate.m10ChartTitle');
 
@@ -175,6 +176,42 @@ export default function ReactivationRate() {
         }}
       />
 
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. Reactivation Rate
+          = polaritas normal (naik = baik). ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[{
+          label: reactivationLabel,
+          baselineValueText: `${comparisonReactivationRate.toFixed(2)}%`,
+          deltaValueText: `${Math.abs(currentReactivationRate - comparisonReactivationRate).toFixed(2)}%`,
+          growthPct,
+        }]}
+      />
+
+      {/* ── 2 kartu — Reactivation Rate & Jumlah Direaktivasi ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <KpiMetricCard
+            label={reactivationLabel}
+            badgeLabel={t('common.targetLabel', { low: targetLow, high: targetHigh, unit: '%' })}
+            accentColor={theme.palette.success.main}
+            value={`${currentReactivationRate.toFixed(2)}%`}
+            growthPct={growthPct}
+            deltaValueText={`${Math.abs(currentReactivationRate - comparisonReactivationRate).toFixed(2)}%`}
+            comparisonValueText={`${comparisonReactivationRate.toFixed(2)}%`}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <KpiMetricCard
+            label={t('reactivationRate.tableSectionLabel')}
+            accentColor={theme.custom.data[1]}
+            value={String(reactivatedList.length)}
+          />
+        </Grid>
+      </Grid>
+
       {/* ── M10: Bullet Chart + Trend ── */}
       <Box>
         <KpiSectionLabel label={t('reactivationRate.m10SectionLabel')} />
@@ -213,34 +250,6 @@ export default function ReactivationRate() {
           </Grid>
         </Grid>
       </Box>
-
-      {/* ── Banner (KpiSummaryStrip) — di bawah chart, sama urutan dgn Revenue ── */}
-      {rc && (
-        <KpiSummaryStrip
-          metrics={[
-            { label: reactivationLabel, comparisonText: `${comparisonReactivationRate.toFixed(2)}%`, currentText: `${currentReactivationRate.toFixed(2)}%` },
-          ]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[
-            {
-              metricLabel: reactivationLabel,
-              pct: growthPct,
-              value: currentReactivationRate - comparisonReactivationRate,
-              currentIsZero: currentReactivationRate === 0,
-              // Reactivation Rate = polaritas normal (naik = baik)
-              formatValue: (v) => `${v.toFixed(2)}%`,
-            },
-          ]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
 
       {/* ── Tabel — daftar pelanggan yang kembali aktif (KPI10) ── */}
       <Box>

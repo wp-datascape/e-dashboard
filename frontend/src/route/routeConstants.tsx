@@ -73,10 +73,17 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // spesifik per-KPI (rename dari expansion:*/analisis:*/analisis.retention:*,
   // lihat backend/src/db/seed.ts migrateRenamedPermissions()).
   'customer-revenue':       { path: '/customer-revenue',       element: withLayout(<CustomerRevenue />),       protected: true, permissionKey: 'customer.revenue:view' },
+  // CustomerGrossProfit (KPI4) — pilot pertama revert Fase 3 (task026 §8,
+  // 2026-08-09): 1 halaman gabungan chart+tabel lagi, TIDAK ada prop `mode`.
   'customer-gross-profit':  { path: '/customer-gross-profit',  element: withLayout(<CustomerGrossProfit />),   protected: true, permissionKey: 'customer.gross.profit:view' },
   'high-margin-penetration': { path: '/high-margin-penetration', element: withLayout(<HighMarginPenetration />), protected: true, permissionKey: 'high.margin.penetration:view' },
   'repeat-order':           { path: '/repeat-order',           element: withLayout(<RepeatOrder />),           protected: true, permissionKey: 'repeat.order:view' },
   'customer-expansion':     { path: '/customer-expansion',      element: withLayout(<CustomerExpansion />),     protected: true, permissionKey: 'customer.expansion:view' },
+  // ── Route `/report/*` DIHAPUS (2026-08-10) — 9 halaman KPI di atas
+  // sekarang 1 halaman gabungan chart+tabel spt CustomerGrossProfit/KPI4
+  // (tidak ada lagi prop `mode`), jadi `/report/*` cuma duplikat murni dari
+  // route Statistik di atas (komponen sama persis). Nav grup "Report" di
+  // config/menu.tsx ikut dihapus (lihat komentar di sana).
   // ── Product & Portfolio ──────────────────────────────────────────────────
   'products':             { path: '/products',               element: withLayout(<Products />),              protected: true, permissionKey: 'product:view' },
   'products-high-margin': { path: '/products/high-margin',   element: withLayout(<ProductsHighMargin />),    protected: true, permissionKey: 'high.margin:view' },

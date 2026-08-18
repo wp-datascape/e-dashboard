@@ -8,27 +8,30 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
+import { DatePicker } from '@/components/ui/DatePicker';
 import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
 import { formatIDR } from '@/utils/format';
-import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
+import { todayIsoDate } from '@/utils/date';
 
 export default function Customers() {
   const { t } = useTranslation();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany,
+    endDate, setEndDate,
+  } = scopeFilter;
+  const todayStr = todayIsoDate();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
-  const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -47,14 +50,16 @@ export default function Customers() {
   // render" (dibandingkan ref filterKey sebelumnya), BUKAN useEffect terpisah, karena
   // sumber perubahannya banyak (5 filter independen dari beberapa tempat berbeda,
   // termasuk hook useScopedCompanyFilter) - tidak praktis digabung ke satu handler.
-  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}|${periodMonth}|${excludeIntercompany}`;
+  const filterKey = `${debouncedSearch}|${statusFilter}|${divisionFilter}|${companyFilter}|${branchFilter}|${endDate}|${excludeIntercompany}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   }
 
-  const asOfDate = resolvePeriodEnd(periodMonth);
+  // as_of_date = endDate dari filter global langsung (task026 Fase 2) — endpoint
+  // ini snapshot per tanggal, periodType diabaikan (lihat task026.md §4).
+  const asOfDate = endDate;
 
   const queryParams = {
     company_id: companyFilter,
@@ -102,11 +107,17 @@ export default function Customers() {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3 }}>
         <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
-        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
-        <MonthYearPicker
-          size="small" label={t('common.filters.period')}
-          value={periodMonth}
-          onChange={setPeriodMonth}
+        {/* Tanggal dari filter global (task026 Fase 2) — menggantikan
+            MonthYearPicker lokal. Cuma tanggal (bukan periodType juga)
+            karena endpoint ini snapshot per tanggal, bukan window. */}
+        <DatePicker
+          size="small" label={t('common.filters.asOfDate')}
+          value={endDate}
+          onChange={(e) => {
+            const picked = e.target.value
+            setEndDate(picked && picked > todayStr ? todayStr : picked)
+          }}
+          sx={{ minWidth: { xs: '100%', sm: 170 } }}
         />
         <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: 140 } }}>
           <MenuItem value="">{t('common.all')}</MenuItem>

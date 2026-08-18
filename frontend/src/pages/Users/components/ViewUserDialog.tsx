@@ -8,6 +8,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import type { User } from '@/types/users';
+import { formatDateDDMMYYYY } from '@/utils/date';
 
 interface ViewUserDialogProps {
   open: boolean;
@@ -26,14 +27,7 @@ const getRoleColor = (roleName: string): StatusChipColor => {
   return map[roleName] ?? 'default';
 };
 
-const fmtDate = (iso: string | null, fallback: string): string => {
-  if (!iso) return fallback;
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
+const fmtDate = formatDateDDMMYYYY;
 
 export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
   const { t } = useTranslation();

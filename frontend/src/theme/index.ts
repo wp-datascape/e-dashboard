@@ -1,4 +1,4 @@
-import { createTheme, type Theme } from '@mui/material/styles'
+import { createTheme, alpha, type Theme } from '@mui/material/styles'
 import { PALETTES, DEFAULT_PALETTE, type PaletteKey } from './palettes'
 
 // ─── Custom Typography Variants ────────────────────────────────────────────────
@@ -25,6 +25,51 @@ declare module '@mui/material/Typography' {
   }
 }
 
+// ─── Custom Theme Tokens (data + soft tint) ────────────────────────────────────
+// Konsolidasi hasil audit warna 2026-08-09 (task026 §8r/§8s, disempurnakan
+// dokumen "Sistem Triad Warna" tgl sama): 1 warna = 1 peran, TAPI dashboard
+// jangan monokrom.
+// - `data`   : TRIAD 3 hue BEDA per-palette = [primary, companion.secondary,
+//              companion.tertiary] (companion di palettes.ts, dikurasi
+//              desainer via strategi analogous/triadic/split-complement per
+//              palet - lihat komentar tiap entri PALETTES) - utk metrik
+//              independen satu sama lain (mis. chart M3: Avg/Median/
+//              Kontribusi HM). `primary` SENDIRI jadi hue data pertama
+//              (bukan duplikat hex terpisah - dihitung dari `colors.primary`
+//              yang sama dipakai `palette.primary.main` di bawah, supaya
+//              TIDAK PERNAH bisa drift dari primary asli), 2 companion
+//              melengkapi jadi triad yg serasi tapi tidak monokrom (revisi
+//              dari "line1/2/3" lama: 3 hue lepas independen dari primary,
+//              kadang malah tabrakan sama warna semantik).
+// - `rank`   : 3 warna BERJENJANG (1 hue brand digradasi kuat→pudar) per-
+//              palette (field `rank` di palettes.ts) - khusus data yang
+//              punya URUTAN nilai (mis. tier Atas/Tengah/Bawah KPI4). Beda
+//              dari `data` di atas: `data` = kategori lepas, `rank` = kategori
+//              berjenjang - dipisah krn 3 hue lepas terasa "berisik"/tidak
+//              related kalau dipakai utk data yang seharusnya kebaca sbg
+//              1 skala kuat→lemah (audit 2026-08-09, task026 §8t).
+// - `soft`   : tint transparan DIHITUNG dari warna solid manapun (primary/success/
+//              error/data/rank/dst) via alpha(), bukan hex baru per-palette per-
+//              mode. Ini yang bikin tint TIDAK PERNAH bisa mismatch dgn versi
+//              solid-nya (satu sumber kebenaran) - dipakai utk background
+//              card/badge lembut.
+declare module '@mui/material/styles' {
+  interface Theme {
+    custom: {
+      data: [string, string, string]
+      rank: [string, string, string]
+      soft: (color: string, opacity?: number) => string
+    }
+  }
+  interface ThemeOptions {
+    custom?: {
+      data?: [string, string, string]
+      rank?: [string, string, string]
+      soft?: (color: string, opacity?: number) => string
+    }
+  }
+}
+
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const FONT_PRIMARY = '"Plus Jakarta Sans"'
 const FONT_MONO    = '"Plus Jakarta Sans"'
@@ -33,9 +78,22 @@ const BORDER_RADIUS = 10
 
 // Warna semantik (success/warning/error/info) SENGAJA tetap sama di semua palette
 // (Task003 §2.1) - cuma primary/secondary yang ikut ganti sesuai PALETTES.
+// Nilai diperbarui 2026-08-09 (dokumen "Rekomendasi Paduan Warna", task026
+// §8s/§8t) - success jadi emerald-600/400, error jadi rose-600/400 (bukan
+// red lagi, sengaja beda hue dari brand "Executive Red" - lihat
+// SEMANTIC_OVERRIDES di bawah), info jadi blue-600/400 (bukan cyan lagi).
 const SEMANTIC = {
-  light: { success: '#059669', warning: '#D97706', error: '#DC2626', info: '#0891B2' },
-  dark:  { success: '#10B981', warning: '#F59E0B', error: '#EF4444', info: '#06B6D4' },
+  light: { success: '#16A34A', warning: '#D97706', error: '#E11D48', info: '#2563EB' },
+  dark:  { success: '#4ADE80', warning: '#FBBF24', error: '#FB7185', info: '#60A5FA' },
+}
+
+// Pengecualian tabrakan hue brand vs semantik - SATU-SATUNYA tempat semantik
+// boleh beda dari SEMANTIC di atas, dan HANYA utk 2 palet yang brand-nya
+// sehue dgn salah satu semantik (hijau vs success, merah vs error). Palet
+// lain semantik tetap 100% seragam, prinsip Task003 tidak berubah.
+const SEMANTIC_OVERRIDES: Partial<Record<PaletteKey, { light?: Partial<typeof SEMANTIC.light>; dark?: Partial<typeof SEMANTIC.dark> }>> = {
+  green: { light: { success: '#15803D' } },                          // brand hijau vs success hijau
+  rose:  { light: { error: '#BE123C' }, dark: { error: '#FDA4AF' } }, // brand merah vs error merah
 }
 
 const TYPOGRAPHY = {
@@ -56,16 +114,19 @@ const TYPOGRAPHY = {
 export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = DEFAULT_PALETTE): Theme {
   const colors = PALETTES[paletteKey] ?? PALETTES[DEFAULT_PALETTE]
   const isDark = mode === 'dark'
+  const override = SEMANTIC_OVERRIDES[paletteKey]
+  const semanticLight = { ...SEMANTIC.light, ...override?.light }
+  const semanticDark  = { ...SEMANTIC.dark,  ...override?.dark }
 
-  return createTheme({
+  const theme = createTheme({
     palette: {
       mode,
       primary:   { main: isDark ? colors.primary.dark   : colors.primary.light,   contrastText: '#fff' },
       secondary: { main: isDark ? colors.secondary.dark : colors.secondary.light, contrastText: '#fff' },
-      success:   { main: isDark ? SEMANTIC.dark.success : SEMANTIC.light.success },
-      warning:   { main: isDark ? SEMANTIC.dark.warning : SEMANTIC.light.warning },
-      error:     { main: isDark ? SEMANTIC.dark.error   : SEMANTIC.light.error },
-      info:      { main: isDark ? SEMANTIC.dark.info    : SEMANTIC.light.info },
+      success:   { main: isDark ? semanticDark.success : semanticLight.success },
+      warning:   { main: isDark ? semanticDark.warning : semanticLight.warning },
+      error:     { main: isDark ? semanticDark.error   : semanticLight.error },
+      info:      { main: isDark ? semanticDark.info    : semanticLight.info },
       background: isDark
         ? { default: '#0B1120', paper: '#111827' } // hampir hitam / gray-900
         : { default: '#F8FAFC', paper: '#FFFFFF' }, // slate-50
@@ -179,4 +240,20 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
       },
     },
   })
+
+  theme.custom = {
+    data: [
+      isDark ? colors.primary.dark : colors.primary.light,
+      isDark ? colors.companion.secondary.dark : colors.companion.secondary.light,
+      isDark ? colors.companion.tertiary.dark  : colors.companion.tertiary.light,
+    ],
+    rank: [
+      isDark ? colors.rank.top.dark    : colors.rank.top.light,
+      isDark ? colors.rank.mid.dark    : colors.rank.mid.light,
+      isDark ? colors.rank.bottom.dark : colors.rank.bottom.light,
+    ],
+    soft: (color, opacity = 0.1) => alpha(color, opacity),
+  }
+
+  return theme
 }

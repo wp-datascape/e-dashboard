@@ -21,6 +21,8 @@ export type TrendRow = {
   high_margin_ratio: number
   repeat_order_rate: number
   expansion_rate: number
+  flat_rate: number
+  down_rate: number
   active_existing_count: number
   active_new_count: number
   median_revenue: number
@@ -34,7 +36,7 @@ export type TrendRow = {
 /**
  * Tren 12 bulan untuk M3–M7.
  *
- * existing = ada invoice dalam dormantMonths sebelum akhir bulan, bukan customer baru
+ * existing = bukan customer baru (task028: TERMASUK yang sudah dormant)
  * active   = ada invoice dalam activeMonths sebelum akhir bulan (subset existing)
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
@@ -121,7 +123,15 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
                               - INTERVAL '1 day')
     ),
 
-    -- Existing customers per bulan: ada invoice dalam dormantMonths, bukan customer baru
+    -- Existing customers per bulan: bukan customer baru — TERMASUK yang
+    -- sudah dormant (task028, supersede task027 §4: Existing = semua
+    -- customer kecuali New). EXISTS di bawah query langsung ke tabel
+    -- invoices (bukan CTE raw_inv, yang lower-bound-nya sengaja dibatasi
+    -- dormantMonths untuk keperluan agregasi revenue/GP — beda kebutuhan
+    -- dari cek keanggotaan ini, yang perlu tembus ke invoice sejauh apa pun
+    -- ke belakang) — dulu ada lower-bound dormantMonths juga di sini,
+    -- sekarang dilepas, cuma sisa upper-bound (invoice <= akhir bulan ini)
+    -- + scope filter, mirror pola cteEstablishedCustomers.
     existing AS (
       SELECT DISTINCT c.id, m.ms
       FROM customers c
@@ -133,11 +143,21 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND fi.first_date < (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
                             - ${activeMonths}::int * INTERVAL '1 month'
         AND EXISTS (
-          SELECT 1 FROM raw_inv ri
-          WHERE ri.customer_id = c.id
-            AND ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                                   - ${dormantMonths}::int * INTERVAL '1 month'
-            AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+          SELECT 1
+          FROM invoices i
+          LEFT JOIN channel_divisions cd
+            ON cd.channel_name = i.channel_name
+            AND cd.company_id = i.company_id
+          LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+          WHERE i.customer_id = c.id
+            AND i.deleted_at IS NULL
+            AND ${companyCondI}
+            AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
+            AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+            AND ${branchCond}
+            AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
+            AND i.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
         )
     ),
 
@@ -311,6 +331,27 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         / NULLIF(COUNT(DISTINCT e.id), 0), 1
       ) AS expansion_rate,
 
+      -- M7 3-way split (koreksi user 2026-08-10: "pisahkan flat/turun jadi
+      -- masing-masing 1 card, chart kiri 3 balok Naik/Flat/Turun") — dulu
+      -- cuma binary up vs flat_down (100-expansion_rate), sekarang flat
+      -- (cur == prev, TERMASUK sama-sama 0 kalau existing customer literally
+      -- tidak order di window manapun) dan turun (cur < prev) dipisah eksak,
+      -- bukan didekati. expansion_rate/flat_down_rate TIDAK dihapus (masih
+      -- dipakai M7Expansion.tsx chart tren kanan, 2-way, di luar scope
+      -- perubahan ini).
+      ROUND(
+        COUNT(DISTINCT CASE
+          WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0)
+          THEN e.id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+      ) AS flat_rate,
+      ROUND(
+        COUNT(DISTINCT CASE
+          WHEN COALESCE(cur.rev, 0) < COALESCE(prv.rev, 0)
+          THEN e.id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+      ) AS down_rate,
+
       COALESCE(MAX(me.active_existing_count), 0)::int AS active_existing_count,
       COALESCE(MAX(ncc.cnt), 0)::int                   AS active_new_count,
       COALESCE(MAX(me.median_revenue), 0)             AS median_revenue,
@@ -356,6 +397,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       high_margin_ratio:      Number(row.high_margin_ratio ?? 0),
       repeat_order_rate:      Number(row.repeat_order_rate ?? 0),
       expansion_rate:         Number(row.expansion_rate ?? 0),
+      flat_rate:              Number(row.flat_rate ?? 0),
+      down_rate:              Number(row.down_rate ?? 0),
       active_existing_count:  Number(row.active_existing_count ?? 0),
       active_new_count:       Number(row.active_new_count ?? 0),
       median_revenue:         Number(row.median_revenue ?? 0),
@@ -516,15 +559,36 @@ export async function fetchRevenueBreakdown(
   }
 }
 
-// ─── M7: Expansion Breakdown per Existing Customer (drill-down klik chart) ────
+// ─── M7: Expansion Breakdown per Existing Customer (drill-down klik chart +
+// kartu/chart kiri CustomerExpansion/index.tsx) ────────────────────────────
 // Mirror pola fetchRevenueBreakdown/fetchGpBreakdown - bedanya di sini butuh DUA window
-// (current vs previous activeMonths) buat tentuin status up/flat_down, sesuai definisi
+// (current vs previous) buat tentuin status naik/flat/turun, sesuai definisi
 // expansion_rate di fetchCustomerMetricsTrend (active_inv_agg vs prev_inv_agg di atas).
+//
+// dateFrom (koreksi user 2026-08-10, "template standar KPI4": Total = established
+// customer TETAP/fixed cohort seperti GP breakdown, Naik/Flat/Turun mem-partisi
+// cohort tetap itu berdasarkan window filter — BUKAN rata-rata snapshot bulanan,
+// yang keliru dipakai sebelumnya krn ikut naik-turun tren existing_customers per
+// bulan) — window CURRENT jadi [dateFrom, filterDate] (mengikuti periodType),
+// window PREVIOUS jadi periode SEPANJANG ITU JUGA persis sebelum dateFrom
+// (bukan activeMonths tetap lagi). established_customers (LEFT JOIN, combined
+// CTE) TETAP fixed cohort dari cteEstablishedCustomers (activeMonths/
+// dormantMonths business rule, TIDAK ikut dateFrom) — makanya total_existing
+// SELALU sama utk endDate yang sama, berapa pun lebar periodType-nya, PERSIS
+// pola total_existing GP breakdown. Opsional, fallback ke window activeMonths
+// tetap kalau kosong (backward-compat dialog drill-down di M7Expansion.tsx).
 export async function fetchExpansionBreakdown(
   p: SegmentParams,
-): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; total_existing: number }> {
+  dateFrom?: string,
+): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; down_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
+  const curRangeCond = dateFrom
+    ? sql`i.invoice_date >= ${dateFrom}::date AND i.invoice_date <= ${filterDate}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date`
+  const prevRangeCond = dateFrom
+    ? sql`i.invoice_date >= (${dateFrom}::date - (${filterDate}::date - ${dateFrom}::date)) AND i.invoice_date < ${dateFrom}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
   const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
   const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
@@ -541,8 +605,7 @@ export async function fetchExpansionBreakdown(
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
-        AND i.invoice_date <= ${filterDate}::date
+        AND ${curRangeCond}
         AND ${companyCondI}
         AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
@@ -558,8 +621,7 @@ export async function fetchExpansionBreakdown(
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month'
-        AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${prevRangeCond}
         AND ${companyCondI}
         AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
@@ -588,8 +650,14 @@ export async function fetchExpansionBreakdown(
         THEN ROUND((cur_revenue - prev_revenue) * 100.0 / prev_revenue, 1)
         ELSE NULL
       END                                                                   AS change_pct,
-      CASE WHEN cur_revenue > prev_revenue THEN 'up' ELSE 'flat_down' END   AS status,
+      CASE
+        WHEN cur_revenue > prev_revenue THEN 'up'
+        WHEN cur_revenue = prev_revenue THEN 'flat'
+        ELSE 'down'
+      END                                                                   AS status,
       COUNT(*) FILTER (WHERE cur_revenue > prev_revenue) OVER ()::int       AS up_count,
+      COUNT(*) FILTER (WHERE cur_revenue = prev_revenue) OVER ()::int       AS flat_count,
+      COUNT(*) FILTER (WHERE cur_revenue < prev_revenue) OVER ()::int       AS down_count,
       COUNT(*) OVER ()::int                                                 AS total_existing
     FROM combined
     ORDER BY (cur_revenue - prev_revenue) DESC
@@ -602,12 +670,14 @@ export async function fetchExpansionBreakdown(
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>
-    return { rows: [], up_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
+    return { rows: [], up_count: 0, flat_count: 0, down_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
   }
 
   const first = rawRows[0] as Record<string, unknown>
   return {
     up_count:       Number(first.up_count ?? 0),
+    flat_count:     Number(first.flat_count ?? 0),
+    down_count:     Number(first.down_count ?? 0),
     total_existing: Number(first.total_existing ?? 0),
     rows: rawRows.map((r) => {
       const row = r as Record<string, unknown>
@@ -618,7 +688,7 @@ export async function fetchExpansionBreakdown(
         cur_revenue:   Number(row.cur_revenue ?? 0),
         prev_revenue:  Number(row.prev_revenue ?? 0),
         change_pct:    row.change_pct != null ? Number(row.change_pct) : null,
-        status:        String(row.status) as 'up' | 'flat_down',
+        status:        String(row.status) as 'up' | 'flat' | 'down',
       }
     }),
   }

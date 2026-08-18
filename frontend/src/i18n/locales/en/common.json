@@ -107,5 +107,13 @@
     "moreCount": "+{{count}} more",
     "superadminBadge": "Superadmin — full access",
     "allDivisions": "All divisions"
+  },
+  "periodBanner": {
+    "label": "Period Detail & YoY Comparison",
+    "activePeriod": "Active Period",
+    "yoyComparison": "YoY Comparison",
+    "yoyBaseline": "Baseline (Last Year)",
+    "yoyChange": "YoY Change",
+    "comparisonValueCaption": "Last year: {{value}}"
   }
 }

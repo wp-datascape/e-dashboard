@@ -1,23 +1,26 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid';
+import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 
 import { useCustomerMetrics, useHmBreakdown } from '@/hooks/useMetrics';
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useGlobalFilter } from '@/context/globalFilter.context';
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar';
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip';
+import { BarChartWidget } from '@/components/charts/BarChartWidget';
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner';
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard';
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar';
 import { M5HighMargin } from '@/components/analisis/M5HighMargin';
 import { Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
-  KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
 } from '@/utils/analisisPeriod';
 import { todayIsoDate } from '@/utils/date';
-import { computeChangePct, averageLastMonths, sumLastMonths } from '@/utils/analisisComparison';
+import { computeChangePct, averageMonthsInRange, sumMonthsInRange } from '@/utils/analisisComparison';
 import type { HmBreakdownRow } from '@/types/metrics';
 
 function fmtRpDetail(v: number): string {
@@ -36,14 +39,14 @@ function fmtRpDetail(v: number): string {
 // (Kontribusi % + Penetrasi %) yang seharusnya pindah dari M3.
 export default function HighMarginPenetration() {
   const { t } = useTranslation();
+  const theme = useTheme();
 
-  const scopeFilter = useScopedCompanyFilter();
-  const { companyId, branchId, division, excludeIntercompany } = scopeFilter;
-
-  const [periodType, setPeriodType] = useState<KpiPeriodType>('quarter');
-  const [endDate, setEndDate] = useState<string>(todayIsoDate());
+  const scopeFilter = useGlobalFilter();
+  const {
+    companyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter;
   const todayStr = todayIsoDate();
-  const isViewingInProgress = endDate === todayStr;
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate));
   const periodStart = getPeriodDateRange(periodType, periodKey).start;
@@ -69,28 +72,29 @@ export default function HighMarginPenetration() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  // Rata-rata K bulan terakhir (K = periodType), BUKAN cuma titik terakhir
-  // — supaya dropdown Periode benar-benar mengubah angka (task025 §18).
-  const periodMonths = KPI_PERIOD_TYPE_MONTHS[periodType];
-  const currentHm = averageLastMonths(data?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
-  const comparisonHm = averageLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.high_margin_ratio);
+  // Rata-rata bulan yg genuinely masuk rentang periodStart..endDate (BUKAN
+  // trailing-N-by-posisi-array — bug §8g/KPI4, ditemukan lagi 2026-08-10 via
+  // laporan user "reactivation rate di dashboard dan di KPI tidak sama").
+  const comparisonPeriodStart = shiftDateByYears(periodStart, -1);
+  const currentHm = averageMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.high_margin_ratio);
+  const comparisonHm = averageMonthsInRange(comparisonData?.trend ?? [], comparisonPeriodStart, comparisonDate, (p) => p.high_margin_ratio);
   const growthPct = computeChangePct(currentHm, comparisonHm);
   const hmLabel = t('customerMetrics.m5.seriesPenetration');
 
   // Card Total Revenue/Total Revenue HM/Kontribusi % + growth (task025
   // §21, 2026-08-07 — user: "dalam card tambahkan total revenue pada
   // periode tersebut, total revenue high margin dan persentase
-  // kontribusinya, dan tambahkan info growth"). SUM (bukan rata-rata) K
-  // bulan terakhir — ini metrik ADITIF (uang), beda dari Penetrasi %
-  // (rata-rata rasio bulanan). Kontribusi % = rasio dari JUMLAH (bukan
-  // rata-rata dari rasio bulanan) — lebih akurat mewakili "total periode"
-  // yang diminta, formula sama dgn m4.repository.ts hm_pct per-baris.
-  const totalRevenueCurrent = sumLastMonths(data?.trend ?? [], periodMonths, (p) => p.total_revenue_existing);
-  const totalRevenueComparison = sumLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.total_revenue_existing);
+  // kontribusinya, dan tambahkan info growth"). SUM (bukan rata-rata) bulan
+  // dlm rentang — ini metrik ADITIF (uang), beda dari Penetrasi % (rata-rata
+  // rasio bulanan). Kontribusi % = rasio dari JUMLAH (bukan rata-rata dari
+  // rasio bulanan) — lebih akurat mewakili "total periode" yang diminta,
+  // formula sama dgn m4.repository.ts hm_pct per-baris.
+  const totalRevenueCurrent = sumMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.total_revenue_existing);
+  const totalRevenueComparison = sumMonthsInRange(comparisonData?.trend ?? [], comparisonPeriodStart, comparisonDate, (p) => p.total_revenue_existing);
   const totalRevenueGrowthPct = computeChangePct(totalRevenueCurrent, totalRevenueComparison);
 
-  const totalHmRevenueCurrent = sumLastMonths(data?.trend ?? [], periodMonths, (p) => p.hm_revenue);
-  const totalHmRevenueComparison = sumLastMonths(comparisonData?.trend ?? [], periodMonths, (p) => p.hm_revenue);
+  const totalHmRevenueCurrent = sumMonthsInRange(data?.trend ?? [], periodStart, endDate, (p) => p.hm_revenue);
+  const totalHmRevenueComparison = sumMonthsInRange(comparisonData?.trend ?? [], comparisonPeriodStart, comparisonDate, (p) => p.hm_revenue);
   const totalHmRevenueGrowthPct = computeChangePct(totalHmRevenueCurrent, totalHmRevenueComparison);
 
   const contributionPctCurrent = totalRevenueCurrent > 0 ? Math.round((totalHmRevenueCurrent / totalRevenueCurrent) * 10000) / 100 : 0;
@@ -150,60 +154,98 @@ export default function HighMarginPenetration() {
         }}
       />
 
-      <M5HighMargin
-        isLoading={isLoading}
-        trend={data?.trend}
+      {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+          KPI (2026-08-10), menggantikan KpiSummaryStrip. 2 metrik uang
+          (Total Revenue & Total Revenue HM) — Kontribusi%/Penetrasi% pindah
+          jadi 2 kartu tambahan di bawah (4 kartu total, semua metrik
+          KpiSummaryStrip lama tetap ada, cuma dipindah bentuk). ── */}
+      <PeriodYoyBanner
+        currentRangeText={currentRangeText}
+        comparisonRangeText={comparisonRangeText}
+        metrics={[
+          { label: totalRevenueLabel, baselineValueText: fmtRpDetail(totalRevenueComparison), deltaValueText: fmtRpDetail(Math.abs(totalRevenueCurrent - totalRevenueComparison)), growthPct: totalRevenueGrowthPct },
+          { label: totalHmRevenueLabel, baselineValueText: fmtRpDetail(totalHmRevenueComparison), deltaValueText: fmtRpDetail(Math.abs(totalHmRevenueCurrent - totalHmRevenueComparison)), growthPct: totalHmRevenueGrowthPct },
+        ]}
       />
 
-      {data && (
-        <KpiSummaryStrip
-          metrics={[
-            { label: totalRevenueLabel, comparisonText: fmtRpDetail(totalRevenueComparison), currentText: fmtRpDetail(totalRevenueCurrent) },
-            { label: totalHmRevenueLabel, comparisonText: fmtRpDetail(totalHmRevenueComparison), currentText: fmtRpDetail(totalHmRevenueCurrent) },
-            { label: contributionLabel, comparisonText: `${contributionPctComparison.toFixed(2)}%`, currentText: `${contributionPctCurrent.toFixed(2)}%` },
-            { label: hmLabel, comparisonText: `${comparisonHm.toFixed(2)}%`, currentText: `${currentHm.toFixed(2)}%` },
-          ]}
-          comparisonRangeLabel={comparisonRangeText}
-          currentRangeLabel={currentRangeText}
-          isCurrentInProgress={isViewingInProgress}
-          growth={[
-            {
-              metricLabel: totalRevenueLabel,
-              pct: totalRevenueGrowthPct,
-              value: totalRevenueCurrent - totalRevenueComparison,
-              currentIsZero: totalRevenueCurrent === 0,
-              formatValue: fmtRpDetail,
-            },
-            {
-              metricLabel: totalHmRevenueLabel,
-              pct: totalHmRevenueGrowthPct,
-              value: totalHmRevenueCurrent - totalHmRevenueComparison,
-              currentIsZero: totalHmRevenueCurrent === 0,
-              formatValue: fmtRpDetail,
-            },
-            {
-              metricLabel: contributionLabel,
-              pct: contributionGrowthPct,
-              value: contributionPctCurrent - contributionPctComparison,
-              currentIsZero: contributionPctCurrent === 0,
-              formatValue: (v) => `${v.toFixed(2)}%`,
-            },
-            {
-              metricLabel: hmLabel,
-              pct: growthPct,
-              value: currentHm - comparisonHm,
-              currentIsZero: currentHm === 0,
-              formatValue: (v) => `${v.toFixed(2)}%`,
-            },
-          ]}
-          onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-          onNext={() => {
-            const next = shiftEndDate(periodType, endDate, 1);
-            setEndDate(next > todayStr ? todayStr : next);
-          }}
-          nextDisabled={isViewingInProgress}
-        />
-      )}
+      {/* ── 4 kartu — Total Revenue/Total Revenue HM/Kontribusi%/Penetrasi%
+          (semua metrik KpiSummaryStrip lama, dipindah jadi kartu). ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={totalRevenueLabel}
+            accentColor={theme.custom.data[0]}
+            value={fmtRpDetail(totalRevenueCurrent)}
+            growthPct={totalRevenueGrowthPct}
+            deltaValueText={fmtRpDetail(Math.abs(totalRevenueCurrent - totalRevenueComparison))}
+            comparisonValueText={fmtRpDetail(totalRevenueComparison)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={totalHmRevenueLabel}
+            accentColor={theme.custom.data[1]}
+            value={fmtRpDetail(totalHmRevenueCurrent)}
+            growthPct={totalHmRevenueGrowthPct}
+            deltaValueText={fmtRpDetail(Math.abs(totalHmRevenueCurrent - totalHmRevenueComparison))}
+            comparisonValueText={fmtRpDetail(totalHmRevenueComparison)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={contributionLabel}
+            accentColor={theme.custom.data[2]}
+            value={`${contributionPctCurrent.toFixed(2)}%`}
+            growthPct={contributionGrowthPct}
+            deltaValueText={`${Math.abs(contributionPctCurrent - contributionPctComparison).toFixed(2)}%`}
+            comparisonValueText={`${contributionPctComparison.toFixed(2)}%`}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiMetricCard
+            label={hmLabel}
+            accentColor={theme.palette.secondary.main}
+            value={`${currentHm.toFixed(2)}%`}
+            growthPct={growthPct}
+            deltaValueText={`${Math.abs(currentHm - comparisonHm).toFixed(2)}%`}
+            comparisonValueText={`${comparisonHm.toFixed(2)}%`}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+          executive-kpi-dashboard KPI5View) — kiri: breakdown Revenue vs
+          Revenue HM periode berjalan, kanan: tren 12 bulan (SUDAH ada).
+          BUKAN donut (referensi pakai donut di sini) — donut di halaman
+          ini SUDAH dihapus eksplisit sebelumnya (task025 §21, "hapus donat
+          chart, sudah digantikan tren"), tidak dikembalikan lagi. ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <BarChartWidget
+            title={t('customerMetrics.m5.distChartTitle')}
+            subtitle={t('customerMetrics.m5.distChartSubtitle')}
+            data={[{
+              label: t('crossSelling.distLabel'),
+              total: totalRevenueCurrent,
+              hm: totalHmRevenueCurrent,
+            }]}
+            series={[
+              { key: 'total', label: totalRevenueLabel, color: theme.custom.data[0] },
+              { key: 'hm', label: totalHmRevenueLabel, color: theme.custom.data[1] },
+            ]}
+            xKey="label"
+            height={260}
+            yAxisFormatter={(v) => fmtRpDetail(v)}
+            tooltipFormatter={(v, n) => [fmtRpDetail(v), n]}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <M5HighMargin
+            isLoading={isLoading}
+            trend={data?.trend}
+          />
+        </Grid>
+      </Grid>
 
       <Card>
         <KpiTableToolbar

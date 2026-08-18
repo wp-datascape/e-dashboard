@@ -2,28 +2,36 @@ import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useInvoices } from '@/hooks/useTransactions'
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { useGlobalFilter } from '@/context/globalFilter.context'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
-import { RangeFilter } from '@/components/filters/RangeFilter'
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { getCurrentPeriodKey, getPeriodDateRange, type KpiPeriodType, KPI_PERIOD_TYPES } from '@/utils/analisisPeriod'
 import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
 import { InvoiceDetailDialog } from './components/InvoiceDetailDialog'
 import { formatIDR } from '@/utils/format'
-import { currentYearMonth, resolvePeriodEnd, windowStartDate } from '@/utils/date'
+import { todayIsoDate } from '@/utils/date'
 
 export default function Transactions() {
   const { t } = useTranslation()
   const [customerSearch, setCustomerSearch] = useState('')
-  const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division: buFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter
-  const [periodMonth, setPeriodMonth] = useState(currentYearMonth())
-  const [activeWindow, setActiveWindow] = useState(3)
+  const scopeFilter = useGlobalFilter()
+  const {
+    companyId, branchId, division: buFilter, excludeIntercompany, setExcludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter
+  const todayStr = todayIsoDate()
+  // date_from/date_to diturunkan dari filter global periodType+endDate (task026
+  // Fase 2) — menggantikan MonthYearPicker+RangeFilter lokal. Endpoint backend
+  // TIDAK berubah (sudah generic date_from/date_to, lihat task026.md §4).
+  const periodKey = getCurrentPeriodKey(periodType, new Date(endDate))
+  const dateFrom = getPeriodDateRange(periodType, periodKey).start
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [sortModel, setSortModel] = useState<GridSortModel>([])
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
@@ -35,7 +43,7 @@ export default function Transactions() {
   // user 2026-07-24 dengan screenshot: All Divisions tampil data, Project blank.
   // Di-adjust langsung saat render (pola resmi React utk "adjust state when props
   // change"), bukan useEffect — 1 key gabungan dibanding banyak prev-state terpisah.
-  const filterKey = JSON.stringify([companyId, branchId, buFilter, excludeIntercompany, customerSearch, periodMonth, activeWindow])
+  const filterKey = JSON.stringify([companyId, branchId, buFilter, excludeIntercompany, customerSearch, periodType, endDate])
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey)
@@ -48,8 +56,8 @@ export default function Transactions() {
     customer_search: customerSearch || undefined,
     business_unit: buFilter || undefined,
     exclude_intercompany: excludeIntercompany,
-    date_from: windowStartDate(periodMonth, activeWindow),
-    date_to: resolvePeriodEnd(periodMonth),
+    date_from: dateFrom,
+    date_to: endDate,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
     sort_by: sortModel[0]?.field as 'invoice_date' | 'total_revenue' | 'total_gp' | undefined,
@@ -85,14 +93,28 @@ export default function Transactions() {
         <TextField size="small" placeholder={t('transactions.searchPlaceholder')} value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
         <ScopeFilterFields filter={scopeFilter} />
 
-        {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
-        <MonthYearPicker
-          size="small" label={t('common.filters.period')}
-          value={periodMonth}
-          onChange={setPeriodMonth}
-        />
+        {/* periodType+tanggal dari filter global (task026 Fase 2) —
+            menggantikan MonthYearPicker+RangeFilter lokal. */}
+        <TextField
+          select size="small" label={t('common.filters.period')}
+          value={periodType}
+          onChange={(e) => setPeriodType(e.target.value as KpiPeriodType)}
+          sx={{ minWidth: { xs: '100%', sm: 150 } }}
+        >
+          {KPI_PERIOD_TYPES.map((p) => (
+            <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
+          ))}
+        </TextField>
 
-        <RangeFilter value={activeWindow} onChange={setActiveWindow} />
+        <DatePicker
+          size="small" label={t('common.filters.asOfDate')}
+          value={endDate}
+          onChange={(e) => {
+            const picked = e.target.value
+            setEndDate(picked && picked > todayStr ? todayStr : picked)
+          }}
+          sx={{ minWidth: { xs: '100%', sm: 170 } }}
+        />
 
         <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>

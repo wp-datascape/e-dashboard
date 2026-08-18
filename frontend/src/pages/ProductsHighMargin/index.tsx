@@ -7,14 +7,17 @@ import Tab from '@mui/material/Tab'
 import Stack from '@mui/material/Stack'
 import Chip from '@mui/material/Chip'
 import LinearProgress from '@mui/material/LinearProgress'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useHighMarginProductDetail, useUpsellTargets } from '@/hooks/useProducts'
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { useGlobalFilter } from '@/context/globalFilter.context'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
-import { RangeFilter } from '@/components/filters/RangeFilter'
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { todayIsoDate } from '@/utils/date'
+import { KPI_PERIOD_TYPES, KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType } from '@/utils/analisisPeriod'
 import type {
   HighMarginProductRow,
   HighMarginDetailParams,
@@ -30,11 +33,6 @@ import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
 import { ProductBreakdownDialog } from './components/ProductBreakdownDialog'
 import type { ProductBreakdownTarget } from './components/ProductBreakdownDialog'
-
-function todayMonth(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
 
 // ─── Penetration Bar ─────────────────────────────────────────────────────────
 function PenetrationBar({ value }: { value: number }) {
@@ -362,12 +360,17 @@ export default function ProductsHighMargin() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(0)
 
-  const [periodMonth,  setPeriodMonth]  = useState(todayMonth())
-  const [activeWindow, setActiveWindow] = useState(6)
+  const scopeFilter = useGlobalFilter()
+  const {
+    companyId, branchId, division, excludeIntercompany, setExcludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter
+  const todayStr = todayIsoDate()
 
-  const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
-
+  // period_month/active_window diturunkan dari filter global periodType+endDate
+  // (task026 Fase 2) — endpoint backend TIDAK berubah, lihat task026.md §4.
+  const periodMonth = endDate.slice(0, 7)
+  const activeWindow = KPI_PERIOD_TYPE_MONTHS[periodType]
   const filter: FilterState = { companyId, branchId, division, periodMonth, activeWindow, excludeIntercompany }
 
   // Ambil seluruh produk HM (bukan hanya 1 halaman grid) untuk hitung summary
@@ -416,14 +419,28 @@ export default function ProductsHighMargin() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <ScopeFilterFields filter={scopeFilter} />
 
-          {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
-          <MonthYearPicker
-            size="small" label={t('common.filters.period')}
-            value={periodMonth}
-            onChange={setPeriodMonth}
-          />
+          {/* periodType+tanggal dari filter global (task026 Fase 2) —
+              menggantikan MonthYearPicker+RangeFilter lokal. */}
+          <TextField
+            select size="small" label={t('common.filters.period')}
+            value={periodType}
+            onChange={(e) => setPeriodType(e.target.value as KpiPeriodType)}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+          >
+            {KPI_PERIOD_TYPES.map((p) => (
+              <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
+            ))}
+          </TextField>
 
-          <RangeFilter value={activeWindow} onChange={setActiveWindow} />
+          <DatePicker
+            size="small" label={t('common.filters.asOfDate')}
+            value={endDate}
+            onChange={(e) => {
+              const picked = e.target.value
+              setEndDate(picked && picked > todayStr ? todayStr : picked)
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 170 } }}
+          />
 
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
         </Box>

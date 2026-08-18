@@ -4,26 +4,30 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Alert from '@mui/material/Alert'
+import Grid from '@mui/material/Grid'
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium'
+import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { Card, StatusChip } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { KpiFilterBar } from '@/components/filters/KpiFilterBar'
-import { KpiSummaryStrip } from '@/components/analisis/KpiSummaryStrip'
+import { PeriodYoyBanner } from '@/components/analisis/PeriodYoyBanner'
+import { KpiMetricCard } from '@/components/analisis/KpiMetricCard'
 import { KpiTableToolbar } from '@/components/analisis/KpiTableToolbar'
 import { M3Revenue } from '@/components/analisis/M3Revenue'
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { BarChartWidget } from '@/components/charts/BarChartWidget'
+import { useGlobalFilter } from '@/context/globalFilter.context'
 import { useAnalisis } from '@/hooks/useAnalisis'
 import { useCustomerMetrics } from '@/hooks/useMetrics'
 import { formatIDR, formatIDRSigned } from '@/utils/format'
 import {
-  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears, shiftEndDate,
+  getCurrentPeriodKey, getPeriodDateRange, formatDateRange, shiftDateByYears,
   KPI_PERIOD_TYPES, type KpiPeriodType,
 } from '@/utils/analisisPeriod'
 import { todayIsoDate } from '@/utils/date'
 import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
-import { resolveTrendKind, trendKindColor, resolveRowStatusKind, rowStatusColor } from '@/utils/analisisComparison'
+import { resolveTrendKind, trendKindColor, resolveRowStatusKind, rowStatusColor, averageMonthsInRange, computeChangePct } from '@/utils/analisisComparison'
 import type { AnalisisRow, AnalisisSummary } from '@/types/analisis'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 
@@ -43,6 +47,7 @@ function ParetoBadge() {
 
 export default function CustomerRevenue() {
   const { t } = useTranslation()
+  const theme = useTheme()
 
   // Baca filter awal dari query string (SEKALI, saat mount) — dipakai tombol
   // "Lihat di Analisis" di popup detail notifikasi biar halaman ini kebuka
@@ -51,53 +56,61 @@ export default function CustomerRevenue() {
   // bawa period_key (histori dari notifikasi lama), endDate awal dihitung dari
   // akhir NATURAL periode itu — bukan hari ini.
   const [searchParams] = useSearchParams()
-  // Validasi terhadap KPI_PERIOD_TYPES (4 pilihan standar, task025 §0a) — deep-link
-  // lama yang bawa period_type=ytd otomatis fallback ke 'quarter' (ytd terverifikasi
-  // redundant dgn annual, lihat komentar di utils/analisisPeriod.ts).
-  const initialPeriodType = (KPI_PERIOD_TYPES as string[]).includes(searchParams.get('period_type') ?? '')
-    ? (searchParams.get('period_type') as KpiPeriodType)
-    : 'quarter'
-  const initialEndDate = (() => {
-    const explicit = searchParams.get('end_date')
-    if (explicit) return explicit
-    const deepLinkPeriodKey = searchParams.get('period_key')
-    if (deepLinkPeriodKey) {
-      try {
-        return getPeriodDateRange(initialPeriodType, deepLinkPeriodKey).end
-      } catch {
-        // period_key tidak valid utk periodType ini — abaikan, fallback hari ini.
-      }
-    }
-    return todayIsoDate()
-  })()
 
   // Filter Cabang & Divisi (task016 §27) — SSOT yang sama dipakai Customers/
   // Products/Transactions dkk (docs-v2/task/task001.md Task H), bukan implementasi
   // scope-aware terpisah lagi. Opsi branch/division SUDAH difilter sesuai hak
   // akses user (lihat useScopedCompanyFilter), jadi tidak perlu enforcement
-  // tambahan di sisi frontend.
-  const scopeFilter = useScopedCompanyFilter()
-  const { companyId, setCompanyId, branchId, division, excludeIntercompany } = scopeFilter
+  // tambahan di sisi frontend. periodType/endDate SEKARANG JUGA dari context
+  // global (task026 Fase 2) — dulu state lokal halaman ini
+  // ("Tanggal" = filter tunggal pengganti period_key+Pembanding, task016 §26,
+  // revisi 2026-08-01: user pilih TANGGAL PERSIS, start range selalu awal
+  // periode yang mengandung tanggal itu, end selalu tanggal itu sendiri;
+  // pembanding SELALU YoY, digeser -1 tahun — lihat currentRange/comparisonRange
+  // di bawah, MIRROR 1-ke-1 logic backend analisis.service.ts).
+  const scopeFilter = useGlobalFilter()
+  const {
+    companyId, setCompanyId, branchId, division, excludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter
 
-  // Deep-link company_id dari popup notifikasi (SEKALI saat mount) — hook
-  // useScopedCompanyFilter tidak terima initial value langsung, jadi di-apply
-  // via effect one-time, bukan reactive sync (sesuai catatan hook: hindari
-  // setState sinkron REAKTIF di effect, tapi inisialisasi sekali dari URL beda
-  // kasus — tidak ada dependency lain yang bisa berubah lagi setelah mount).
+  // Deep-link dari popup notifikasi (SEKALI saat mount) — company_id/periodType/
+  // endDate SEKARANG state GLOBAL (task026 Fase 2), tidak bisa lagi
+  // diinisialisasi lewat useState(lazy initializer) seperti sebelumnya, jadi
+  // diterapkan via effect one-time (hindari setState sinkron REAKTIF di
+  // effect, tapi inisialisasi sekali dari URL saat mount beda kasus — tidak
+  // ada dependency lain yang bisa berubah lagi setelah ini). URL TIDAK bawa
+  // param tertentu -> filter global TIDAK disentuh (persist dari navigasi
+  // sebelumnya, bukan direset paksa ke default). Validasi period_type
+  // terhadap KPI_PERIOD_TYPES (4 pilihan standar, task025 §0a) — deep-link
+  // lama yang bawa period_type=ytd otomatis fallback ke 'quarter' (ytd
+  // terverifikasi redundant dgn annual, lihat komentar di utils/analisisPeriod.ts).
   useEffect(() => {
     const v = searchParams.get('company_id')
     if (v) setCompanyId(Number(v))
+
+    const urlPeriodType = searchParams.get('period_type')
+    const resolvedPeriodType: KpiPeriodType | null = urlPeriodType
+      ? ((KPI_PERIOD_TYPES as string[]).includes(urlPeriodType) ? (urlPeriodType as KpiPeriodType) : 'quarter')
+      : null
+    if (resolvedPeriodType) setPeriodType(resolvedPeriodType)
+
+    const explicitEndDate = searchParams.get('end_date')
+    if (explicitEndDate) {
+      setEndDate(explicitEndDate)
+    } else {
+      const deepLinkPeriodKey = searchParams.get('period_key')
+      if (deepLinkPeriodKey) {
+        try {
+          setEndDate(getPeriodDateRange(resolvedPeriodType ?? periodType, deepLinkPeriodKey).end)
+        } catch {
+          // period_key tidak valid utk periodType ini — abaikan.
+        }
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [periodType, setPeriodType] = useState<KpiPeriodType>(initialPeriodType)
-  // "Tanggal" — filter tunggal pengganti period_key+Pembanding (task016 §26,
-  // revisi 2026-08-01): user pilih TANGGAL PERSIS (bukan bulan), start range
-  // selalu awal periode yang mengandung tanggal itu, end selalu tanggal itu
-  // sendiri. Pembanding SELALU YoY (dropdown-nya dihapus), digeser -1 tahun
-  // persis dari currentRange — lihat perhitungan currentRange/comparisonRange
-  // di bawah, MIRROR 1-ke-1 logic backend analisis.service.ts.
-  const [endDate, setEndDate] = useState<string>(initialEndDate)
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [onlyPareto, setOnlyPareto] = useState(false)
   const [sortModel, setSortModel] = useState<GridSortModel>([])
@@ -109,7 +122,6 @@ export default function CustomerRevenue() {
   const sortDir = sortModel[0]?.sort ?? 'desc'
 
   const todayStr = todayIsoDate()
-  const isViewingInProgress = endDate === todayStr
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate))
   const periodStart = getPeriodDateRange(periodType, periodKey).start
@@ -153,6 +165,22 @@ export default function CustomerRevenue() {
     exclude_intercompany: excludeIntercompany,
   })
   const m3Trend = customerMetricsData?.trend ?? []
+  // Fetch kedua di tanggal pembanding (setahun lalu) — dibutuhkan utk 2 kartu
+  // Avg/Median Revenue di bawah (koreksi user 2026-08-10, "section card
+  // belum ada"), pola sama dgn dual-fetch di halaman KPI lain.
+  const { data: customerMetricsComparisonData } = useCustomerMetrics({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    period_end: comparisonRange.end,
+    division: division || undefined,
+    exclude_intercompany: excludeIntercompany,
+  })
+  const avgRevenueCurrent = averageMonthsInRange(m3Trend, periodStart, endDate, (p) => p.avg_revenue)
+  const avgRevenueComparison = averageMonthsInRange(customerMetricsComparisonData?.trend ?? [], comparisonRange.start, comparisonRange.end, (p) => p.avg_revenue)
+  const avgRevenueGrowthPct = computeChangePct(avgRevenueCurrent, avgRevenueComparison)
+  const medianRevenueCurrent = averageMonthsInRange(m3Trend, periodStart, endDate, (p) => p.median_revenue)
+  const medianRevenueComparison = averageMonthsInRange(customerMetricsComparisonData?.trend ?? [], comparisonRange.start, comparisonRange.end, (p) => p.median_revenue)
+  const medianRevenueGrowthPct = computeChangePct(medianRevenueCurrent, medianRevenueComparison)
 
   // DataGrid butuh field `id` unik per baris
   const rows = (data?.data ?? []).map((row) => ({ ...row, id: row.customer_id }))
@@ -194,31 +222,6 @@ export default function CustomerRevenue() {
   const newBusinessLabel = t('analisis.newBusiness')
 
   // Data pertumbuhan utk kartu 3 KpiSummaryStrip — 1 entri per metrik
-  // (Revenue, GP), komponen SENDIRI yang menentukan state/warna/teks per
-  // baris. `forceNoData: isEmptyPeriod` — paksa "Belum ada data" abu-abu di
-  // KEDUA baris kalau SELURUH set terfilter kosong (bukan "Turun 100%"
-  // massal), TIDAK berlaku ke tabel per-baris (yang genuinely berhenti tetap
-  // valid tampil "Berhenti" merah). Revenue & GP BUKAN metrik inverse-polarity
-  // (naik = baik utk keduanya).
-  const summaryGrowth = summary ? [
-    {
-      metricLabel: revLabel,
-      pct: summary.revenue_change_pct,
-      value: summary.revenue_change_value,
-      currentIsZero: summary.current.revenue === 0,
-      forceNoData: isEmptyPeriod,
-      formatValue: formatIDR,
-    },
-    {
-      metricLabel: gpLabel,
-      pct: summary.margin_change_pct,
-      value: summary.margin_change_value,
-      currentIsZero: summary.current.margin === 0,
-      forceNoData: isEmptyPeriod,
-      formatValue: formatIDR,
-    },
-  ] : []
-
   const totalCountText = t('analisis.customerCountText', { count: data?.meta.total ?? 0 })
 
   const columns: GridColDef<AnalisisRow>[] = [
@@ -377,16 +380,29 @@ export default function CustomerRevenue() {
           }}
         />
 
-        {/* ── M3 · Tren Revenue 12 Bulan — di bawah filter, di atas banner
-            KpiSummaryStrip (task025 lanjutan 2026-08-07) ── */}
-        <M3Revenue
-          trend={m3Trend}
-          isLoading={isM3Loading}
-          companyId={companyId}
-          branchId={branchId === 'all' ? undefined : branchId}
-          division={division || undefined}
-          excludeIntercompany={excludeIntercompany}
-        />
+        {/* ── Banner "Detail Periode & Pembanding YoY" — standar 10 halaman
+            KPI (2026-08-10), menggantikan KpiSummaryStrip. 2 metrik
+            sekaligus (Revenue & Laba Kotor). ── */}
+        {summary && (
+          <PeriodYoyBanner
+            currentRangeText={currentRangeText}
+            comparisonRangeText={comparisonRangeText}
+            metrics={[
+              {
+                label: revLabel,
+                baselineValueText: formatIDR(summary.comparison.revenue),
+                deltaValueText: formatIDR(Math.abs(summary.revenue_change_value)),
+                growthPct: isEmptyPeriod ? null : summary.revenue_change_pct,
+              },
+              {
+                label: gpLabel,
+                baselineValueText: formatIDR(summary.comparison.margin),
+                deltaValueText: formatIDR(Math.abs(summary.margin_change_value)),
+                growthPct: isEmptyPeriod ? null : summary.margin_change_pct,
+              },
+            ]}
+          />
+        )}
 
         {isEmptyPeriod && (
           <Alert severity="info">
@@ -394,24 +410,68 @@ export default function CustomerRevenue() {
           </Alert>
         )}
 
-        {summary && (
-          <KpiSummaryStrip
-            metrics={[
-              { label: revLabel, comparisonText: formatIDR(summary.comparison.revenue), currentText: formatIDR(summary.current.revenue) },
-              { label: gpLabel, comparisonText: formatIDR(summary.comparison.margin), currentText: formatIDR(summary.current.margin) },
-            ]}
-            comparisonRangeLabel={comparisonRangeText}
-            currentRangeLabel={currentRangeText}
-            isCurrentInProgress={isViewingInProgress}
-            growth={summaryGrowth}
-            onPrev={() => setEndDate(shiftEndDate(periodType, endDate, -1))}
-            onNext={() => {
-              const next = shiftEndDate(periodType, endDate, 1)
-              setEndDate(next > todayStr ? todayStr : next)
-            }}
-            nextDisabled={isViewingInProgress}
-          />
-        )}
+        {/* ── 2 kartu — Avg/Median Revenue per existing customer (koreksi
+            user 2026-08-10, "section card belum ada"). ── */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <KpiMetricCard
+              label={t('analisis.metricAvgRevenue')}
+              accentColor={theme.custom.data[0]}
+              value={formatIDR(avgRevenueCurrent)}
+              growthPct={avgRevenueGrowthPct}
+              deltaValueText={formatIDR(Math.abs(avgRevenueCurrent - avgRevenueComparison))}
+              comparisonValueText={formatIDR(avgRevenueComparison)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <KpiMetricCard
+              label={t('analisis.metricMedianRevenue')}
+              accentColor={theme.custom.data[1]}
+              value={formatIDR(medianRevenueCurrent)}
+              growthPct={medianRevenueGrowthPct}
+              deltaValueText={formatIDR(Math.abs(medianRevenueCurrent - medianRevenueComparison))}
+              comparisonValueText={formatIDR(medianRevenueComparison)}
+            />
+          </Grid>
+        </Grid>
+
+        {/* ── 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+            executive-kpi-dashboard KPI3View) — kiri: breakdown Avg vs Median
+            Revenue periode berjalan (adaptasi — reference KPI3 aslinya
+            "Existing Active Count", tidak ada padanan langsung di model data
+            kita; dipakai Avg/Median krn 2 kartu di atas SUDAH menghitungnya),
+            kanan: M3Revenue (tren 12 bulan, SUDAH ada). ── */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <BarChartWidget
+              title={t('analisis.distChartTitle')}
+              subtitle={t('analisis.distChartSubtitle')}
+              data={[{
+                label: currentRangeText,
+                avg: avgRevenueCurrent,
+                median: medianRevenueCurrent,
+              }]}
+              series={[
+                { key: 'avg', label: t('analisis.metricAvgRevenue'), color: theme.custom.data[0] },
+                { key: 'median', label: t('analisis.metricMedianRevenue'), color: theme.custom.data[1] },
+              ]}
+              xKey="label"
+              height={280}
+              yAxisFormatter={(v) => formatIDR(v)}
+              tooltipFormatter={(v, n) => [formatIDR(v), n]}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <M3Revenue
+              trend={m3Trend}
+              isLoading={isM3Loading}
+              companyId={companyId}
+              branchId={branchId === 'all' ? undefined : branchId}
+              division={division || undefined}
+              excludeIntercompany={excludeIntercompany}
+            />
+          </Grid>
+        </Grid>
       </Box>
 
       <Card>

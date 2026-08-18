@@ -11,19 +11,15 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { useTranslation } from 'react-i18next'
 import { useProductPerformance, useProductCategoryOptions } from '@/hooks/useProducts'
 import { useItemTypeValues } from '@/hooks/useItemTypes'
-import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { useGlobalFilter } from '@/context/globalFilter.context'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
-import { RangeFilter } from '@/components/filters/RangeFilter'
-import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { todayIsoDate } from '@/utils/date'
+import { KPI_PERIOD_TYPES, KPI_PERIOD_TYPE_MONTHS, type KpiPeriodType } from '@/utils/analisisPeriod'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatIDR } from '@/utils/format'
-
-function todayMonth(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
 
 function MarginChip({ pct }: { pct: number }) {
   const color: 'success' | 'warning' | 'default' = pct >= 35 ? 'success' : pct >= 20 ? 'warning' : 'default'
@@ -33,10 +29,12 @@ function MarginChip({ pct }: { pct: number }) {
 export default function Products() {
   const { t } = useTranslation()
 
-  const scopeFilter = useScopedCompanyFilter()
-  const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
-  const [periodMonth,     setPeriodMonth]     = useState(todayMonth())
-  const [activeWindow,    setActiveWindow]    = useState(6)
+  const scopeFilter = useGlobalFilter()
+  const {
+    companyId, branchId, division, excludeIntercompany, setExcludeIntercompany,
+    periodType, setPeriodType, endDate, setEndDate,
+  } = scopeFilter
+  const todayStr = todayIsoDate()
   const [search,          setSearch]          = useState('')
   const [itemType,        setItemType]        = useState<string>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
@@ -70,8 +68,12 @@ export default function Products() {
     division:        division || undefined,
     item_type:       itemTypeFilter,
     category_id:     categoryId === 'all' ? undefined : categoryId,
-    period_month:    periodMonth,
-    active_window:   activeWindow,
+    // period_month/active_window diturunkan dari filter global periodType+endDate
+    // (task026 Fase 2) — endpoint backend TIDAK berubah, cuma dua sudut pandang
+    // parameter yang sama (lihat task026.md §4): period_month = bulan kalender
+    // dari endDate, active_window = jumlah bulan window dari periodType.
+    period_month:    endDate.slice(0, 7),
+    active_window:   KPI_PERIOD_TYPE_MONTHS[periodType],
     search:          search || undefined,
     high_margin_only: highMarginOnly || undefined,
     exclude_intercompany: excludeIntercompany,
@@ -215,14 +217,29 @@ export default function Products() {
 
           <ScopeFilterFields filter={scopeFilter} />
 
-          {/* Tanpa sx width override — lebar aman sudah default di komponen (task023 §5) */}
-          <MonthYearPicker
-            size="small" label={t('common.filters.period')}
-            value={periodMonth}
-            onChange={setPeriodMonth}
-          />
+          {/* periodType+tanggal dari filter global (task026 Fase 2) —
+              menggantikan MonthYearPicker+RangeFilter lokal, supaya filter
+              KAPAN halaman ini konsisten dengan Dashboard/Statistik/Report. */}
+          <TextField
+            select size="small" label={t('common.filters.period')}
+            value={periodType}
+            onChange={(e) => setPeriodType(e.target.value as KpiPeriodType)}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+          >
+            {KPI_PERIOD_TYPES.map((p) => (
+              <MenuItem key={p} value={p}>{t(`paretoThreshold.period.${p}`)}</MenuItem>
+            ))}
+          </TextField>
 
-          <RangeFilter value={activeWindow} onChange={setActiveWindow} sx={{ minWidth: { xs: '100%', sm: 130 } }} />
+          <DatePicker
+            size="small" label={t('common.filters.asOfDate')}
+            value={endDate}
+            onChange={(e) => {
+              const picked = e.target.value
+              setEndDate(picked && picked > todayStr ? todayStr : picked)
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 170 } }}
+          />
 
           <FormControlLabel
             control={

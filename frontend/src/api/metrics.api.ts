@@ -42,12 +42,12 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getExpansionBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
+  getExpansionBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; date_from?: string }): Promise<ExpansionBreakdownData> => {
     const res = await api.get<ApiResponse<ExpansionBreakdownData>>('/metrics/expansion-breakdown', { params });
     return res.data.data;
   },
 
-  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
+  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; date_from?: string }): Promise<GpBreakdownData> => {
     const res = await api.get<ApiResponse<GpBreakdownData>>('/metrics/gp-breakdown', { params });
     return res.data.data;
   },

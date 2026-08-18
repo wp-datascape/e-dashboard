@@ -53,6 +53,19 @@ export function round2(v: number): number {
   return Math.round(v * 100) / 100
 }
 
+/** @deprecated Trailing-N-BY-POSISI-ARRAY dari titik terakhir — BUKAN
+ * rentang kalender ("1 Juli – 9 Agustus" dst yang ditampilkan di caption).
+ * Bug ditemukan di KPI4 (§8g, task026): kalau `endDate` tidak persis di
+ * akhir bulan kalender, trailing-N-bulan-dari-HARI-INI beda dari
+ * rentang-kalender-quarter-ke-`endDate` — kartu/chart diam-diam
+ * menyertakan bulan yg TIDAK disebut caption (mis. Juni ikut kehitung
+ * padahal caption bilang "mulai Juli"). Ditemukan LAGI 2026-08-10 (laporan
+ * user "reactivation rate di dashboard dan di KPI tidak sama" — Dashboard
+ * Overview sudah pakai agregasi rentang-kalender via `averageInRange`
+ * backend, sedangkan halaman KPI individual di sini masih trailing-N).
+ * Ganti ke `averageMonthsInRange`/`sumMonthsInRange` di bawah — SEMUA
+ * pemanggil fungsi ini sudah dimigrasi (2026-08-10), tidak dihapus dulu
+ * biar histori diff kebaca, tapi JANGAN dipakai lagi di kode baru. */
 export function averageLastMonths<T>(trend: T[], months: number, field: (point: T) => number): number {
   const slice = trend.slice(-months)
   if (slice.length === 0) return 0
@@ -60,14 +73,50 @@ export function averageLastMonths<T>(trend: T[], months: number, field: (point: 
   return round2(sum / slice.length)
 }
 
-/** Jumlah field numerik dari K titik TERAKHIR trend bulanan — pasangan
- * `averageLastMonths` utk metrik ADITIF (revenue/nilai uang), dipakai saat
- * caller butuh TOTAL K bulan (bukan rata-rata per bulan), mis. "Total
- * Revenue" & "Total Revenue High Margin" di KPI5 (task025 §21). */
+/** @deprecated Sama seperti `averageLastMonths` — pasangan ADITIF (SUM,
+ * bukan rata-rata). Ganti ke `sumMonthsInRange` di bawah. */
 export function sumLastMonths<T>(trend: T[], months: number, field: (point: T) => number): number {
   const slice = trend.slice(-months)
   const sum = slice.reduce((acc, point) => acc + field(point), 0)
   return round2(sum)
+}
+
+/**
+ * Rata-rata field numerik dari titik trend yang BULANNYA (`'YYYY-MM'`)
+ * genuinely ada di antara `[startDate, endDate]` inklusif (banding kalender
+ * asli, BUKAN hitung mundur N posisi array) — pengganti `averageLastMonths`
+ * (lihat catatan @deprecated di atas). Dipindah dari versi page-local
+ * `CustomerGrossProfit/index.tsx` (task026 §8g) ke sini supaya dipakai
+ * SEMUA halaman KPI, bukan cuma KPI4 (task026 §9 lanjutan, 2026-08-10 —
+ * laporan user "reactivation rate di dashboard dan di KPI tidak sama").
+ * Sama pola dgn `averageInRange` backend (`dashboard.service.ts`) yang
+ * dipakai Dashboard Overview — supaya angka headline KPI4/9-halaman-lain
+ * genuinely sama dgn kartu Dashboard utk metrik yang sama.
+ */
+export function averageMonthsInRange<T extends { month: string }>(
+  trend: T[], startDate: string, endDate: string, field: (point: T) => number,
+): number {
+  const startMonth = startDate.slice(0, 7)
+  const endMonth = endDate.slice(0, 7)
+  const rows = trend.filter((p) => p.month >= startMonth && p.month <= endMonth)
+  if (rows.length === 0) return 0
+  return round2(rows.reduce((sum, p) => sum + field(p), 0) / rows.length)
+}
+
+/** Jumlah (SUM, bukan rata-rata) field numerik dari titik trend dlm rentang
+ * kalender `[startDate, endDate]` — pasangan aditif `averageMonthsInRange`,
+ * dipakai metrik uang/nilai kumulatif (mis. Total Revenue KPI5). Sama
+ * fungsi yang sebelumnya page-local di `CustomerGrossProfit/index.tsx`. */
+export function sumMonthsInRange<T extends { month: string }>(
+  trend: T[], startDate: string, endDate: string, field: (point: T) => number,
+): number {
+  const startMonth = startDate.slice(0, 7)
+  const endMonth = endDate.slice(0, 7)
+  return round2(
+    trend
+      .filter((p) => p.month >= startMonth && p.month <= endMonth)
+      .reduce((sum, p) => sum + field(p), 0),
+  )
 }
 
 // Growth % di atas ini tampilannya di-cap ("999%+") — nilai asli (Growth

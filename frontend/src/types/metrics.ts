@@ -71,12 +71,15 @@ export interface ExpansionBreakdownRow {
   cur_revenue: number;
   prev_revenue: number;
   change_pct: number | null;
-  status: 'up' | 'flat_down';
+  // 3-way (koreksi user 2026-08-10) — dulu 'up' | 'flat_down'.
+  status: 'up' | 'flat' | 'down';
 }
 
 export interface ExpansionBreakdownData {
   period_end: string;
   up_count: number;
+  flat_count: number;
+  down_count: number;
   total_existing: number;
   rows: ExpansionBreakdownRow[];
 }
@@ -89,6 +92,11 @@ export interface GpBreakdownRow {
   customer_name: string;
   gp: number;
   gp_pct: number;
+  /** Total revenue customer ini dalam window aktif (mockup "Revenue 30D"). */
+  revenue: number;
+  /** gp/revenue*100 — margin kotor customer ybs sendiri, BEDA dari gp_pct
+   * (porsi thd total GP semua existing customer). */
+  margin_pct: number;
   tier: 'Atas' | 'Tengah' | 'Bawah';
 }
 
@@ -156,6 +164,11 @@ export interface CustomerMetricsTrendPoint {
   expansion_rate: number;
   up_rate: number;
   flat_down_rate: number;
+  // 3-way split (koreksi user 2026-08-10) — flat_down_rate TETAP ada
+  // (M7Expansion.tsx chart tren kanan, 2-way), flat_rate/down_rate BARU
+  // utk cards+chart kiri CustomerExpansion/index.tsx.
+  flat_rate: number;
+  down_rate: number;
   // M3 enrichment
   active_existing_count: number;
   active_new_count: number;
@@ -191,6 +204,11 @@ export interface DormantTrendPoint {
   month: string;
   total_customers: number;
   dormant_count: number;
+  // Severity split (koreksi user 2026-08-10, opsi A: 4 kartu Total/Aktif/
+  // Dormant Ringan/Dormant Kronis).
+  active_count: number;
+  dormant_light_count: number;
+  dormant_severe_count: number;
   dormant_rate: number;
   prev_dormant_count: number;
   reactivated_count: number;
@@ -214,6 +232,13 @@ export interface DormantRateCurrent {
   total_customers: number;
   alert_pct: number;
   comparison_value: number;
+  // Severity split (koreksi user 2026-08-10, opsi A).
+  active_count: number;
+  dormant_light_count: number;
+  dormant_severe_count: number;
+  active_count_comparison: number;
+  dormant_light_count_comparison: number;
+  dormant_severe_count_comparison: number;
 }
 
 export interface ReactivationCurrent {

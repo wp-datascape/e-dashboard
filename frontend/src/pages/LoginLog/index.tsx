@@ -14,6 +14,7 @@ import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useLoginLogs } from '@/hooks/useLoginLogs'
 import type { LoginLog, LoginLogFilters } from '@/types/loginLog'
 import { ViewLoginLogDialog } from './components/ViewLoginLogDialog'
+import { formatDateTimeDDMMYYYY } from '@/utils/date'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,15 +32,7 @@ const getEventColor = (event: string): StatusChipColor => {
   return map[event] ?? 'default'
 }
 
-const fmtDate = (iso: string): string => {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const fmtDate = formatDateTimeDDMMYYYY
 
 // ─── Column Definitions ────────────────────────────────────────────────────────
 

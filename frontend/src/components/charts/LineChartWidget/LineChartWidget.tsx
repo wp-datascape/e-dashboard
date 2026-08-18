@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui';
 import { formatAxisTick } from '@/utils/format';
+import { formatMonthTick } from '@/utils/date';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
@@ -91,6 +92,7 @@ export const LineChartWidget = ({
           <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
           <XAxis
             dataKey={xKey}
+            tickFormatter={formatMonthTick}
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}
@@ -102,6 +104,7 @@ export const LineChartWidget = ({
             tickFormatter={formatAxisTick}
           />
           <Tooltip
+            labelFormatter={(label) => formatMonthTick(String(label))}
             contentStyle={{
               backgroundColor: theme.palette.background.paper,
               border: `1px solid ${theme.palette.divider}`,

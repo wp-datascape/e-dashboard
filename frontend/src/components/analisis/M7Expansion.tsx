@@ -2,9 +2,6 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import MuiTooltip from '@mui/material/Tooltip';
-import IconButton from '@mui/material/IconButton';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -33,23 +30,15 @@ function monthToEndDate(month: string): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-function SectionLabel({ label }: { label: string }) {
-  return (
-    <Typography
-      variant="body2"
-      sx={{ fontWeight: 700, mb: 0.5, color: 'text.secondary', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 }}
-    >
-      {label}
-    </Typography>
-  );
-}
-
+// 3-way (koreksi user 2026-08-10, dulu 'up' vs 'flat_down' digabung).
 function statusChipColor(status: string): 'success' | 'default' {
   return status === 'up' ? 'success' : 'default';
 }
 
 function statusLabel(status: string, t: TFunction): string {
-  return status === 'up' ? t('customerMetrics.m7.statusUp') : t('customerMetrics.m7.statusFlatDown');
+  if (status === 'up')   return t('customerMetrics.m7.statusUp');
+  if (status === 'flat') return t('customerMetrics.m7.statusFlat');
+  return t('customerMetrics.m7.statusDown');
 }
 
 // Kolom rank/customer/code reuse key m4.* (sudah pola yang sama dipakai M3Revenue.tsx)
@@ -96,19 +85,9 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-        <SectionLabel label={t('customerMetrics.m7.sectionLabel')} />
-        <MuiTooltip
-          title={t('customerMetrics.m7.tooltipInfo')}
-          placement="top"
-          arrow
-          slotProps={{ tooltip: { sx: { maxWidth: 300, fontSize: 12, lineHeight: 1.5 } } }}
-        >
-          <IconButton size="small" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
-            <InfoOutlinedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
-        </MuiTooltip>
-      </Box>
+      {/* Judul section "M7 · ..." DIHAPUS (koreksi user 2026-08-10) — chart
+          BarChartWidget di bawah sudah punya title sendiri, label M7 di atasnya
+          redundan/membingungkan di grid 2-kolom. */}
       {isLoading ? (
         <Skeleton variant="rectangular" height={340} />
       ) : (

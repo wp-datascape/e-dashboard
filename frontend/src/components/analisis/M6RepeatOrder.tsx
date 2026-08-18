@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
+import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import MuiTooltip from '@mui/material/Tooltip';
@@ -126,36 +127,43 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branc
             </IconButton>
           </MuiTooltip>
         </Box>
-        {/* Chart tren 12 bulan — sebelum RadialBar snapshot (pola sama dgn
-            KPI5: chart tren + kartu snapshot di bawahnya). */}
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={260} sx={{ mb: 2 }} />
-        ) : (
-          <Box sx={{ mb: 2 }}>
-            <LineChartWidget
-              title={t('customerMetrics.m6.trendChartTitle')}
-              subtitle={t('customerMetrics.m6.trendChartSubtitle')}
-              data={trendChartData}
-              series={[
-                { key: 'rate', label: t('customerMetrics.m6.seriesRate'), color: theme.palette.primary.main, formatValue: (v) => `${v}%` },
-              ]}
-              xKey="month"
-              height={220}
-            />
-          </Box>
-        )}
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={280} />
-        ) : (
-          <RadialBarWidget
-            title={t('customerMetrics.m6.chartTitle')}
-            subtitle={t('customerMetrics.m6.chartSubtitle', { thresholdPct })}
-            value={value}
-            thresholdGreen={thresholdPct}
-            height={240}
-            onChartClick={() => setDrillDate(monthToEndDate(periodEnd))}
-          />
-        )}
+        {/* 2 chart berdampingan (grid-cols-2 50/50, pola referensi
+            executive-kpi-dashboard KPI6View) — kiri: RadialBar snapshot
+            periode berjalan, kanan: tren 12 bulan. Sebelumnya ditumpuk
+            vertikal (tren di atas, radial di bawah) — koreksi user
+            2026-08-10, "referensi layout setiap KPI" pakai grid-cols-2. */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={260} />
+            ) : (
+              <RadialBarWidget
+                title={t('customerMetrics.m6.chartTitle')}
+                subtitle={t('customerMetrics.m6.chartSubtitle', { thresholdPct })}
+                value={value}
+                thresholdGreen={thresholdPct}
+                height={260}
+                onChartClick={() => setDrillDate(monthToEndDate(periodEnd))}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={260} />
+            ) : (
+              <LineChartWidget
+                title={t('customerMetrics.m6.trendChartTitle')}
+                subtitle={t('customerMetrics.m6.trendChartSubtitle')}
+                data={trendChartData}
+                series={[
+                  { key: 'rate', label: t('customerMetrics.m6.seriesRate'), color: theme.palette.primary.main, formatValue: (v) => `${v}%` },
+                ]}
+                xKey="month"
+                height={260}
+              />
+            )}
+          </Grid>
+        </Grid>
       </Box>
 
       {/* ROR Breakdown Dialog */}

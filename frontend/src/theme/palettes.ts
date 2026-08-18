@@ -22,11 +22,33 @@ export interface PaletteColors {
   // di semua palette (primary yang low-saturation seperti slate kalau di-komplemen
   // apa adanya jadi coklat pudar, kurang terasa "warning").
   warningComplement: { light: string; dark: string }
-  // Warna 3 line di chart M3 (Actual/Avg, Median, Kontribusi High Margin) - tiap
-  // line dipilih kontras terhadap warna bar (primary) & terhadap satu sama lain.
-  line1: { light: string; dark: string }
-  line2: { light: string; dark: string }
-  line3: { light: string; dark: string }
+  // 2 warna COMPANION per-palette (bukan 3 hue lepas independen lagi -
+  // "line1/2/3" lama dibuang, lihat dokumen "Sistem Triad Warna",
+  // 2026-08-09) - dikurasi desainer supaya berpasangan HARMONIS dgn
+  // `primary` via 1 strategi tetap (analogous/triadic/split-complement,
+  // beda per palet, lihat komentar di tiap entri PALETTES di bawah).
+  // `theme.custom.data` (theme/index.ts) = [primary, companion.secondary,
+  // companion.tertiary] - primary SENDIRI jadi hue data pertama (bukan
+  // duplikat hex terpisah, supaya tidak pernah drift dari primary asli),
+  // 2 companion di sini melengkapi jadi triad 3-hue-beda yg tidak monokrom
+  // tapi tetap serasi (bukan 3 warna acak). Dipakai utk data KATEGORIKAL
+  // (metrik independen satu sama lain, mis. chart M3) - beda dari `rank`
+  // di bawah (data BERJENJANG/urutan nilai, tetap 1 keluarga hue).
+  companion: {
+    secondary: { light: string; dark: string }
+    tertiary: { light: string; dark: string }
+  }
+  // 3 warna BERJENJANG (Atas/Tengah/Bawah, dst) per-palette - 1 keluarga hue
+  // digradasi kuat→pudar (light) / terang→dalam (dark, dibalik biar seri
+  // utama menonjol di latar gelap), BUKAN 3 hue lepas seperti line1/2/3 -
+  // ditambahkan 2026-08-09 (dokumen "Rekomendasi Paduan Warna", task026
+  // §8t) khusus utk data yang punya urutan nilai (mis. tier KPI4), diekspos
+  // lewat theme.custom.rank (lihat theme/index.ts).
+  rank: {
+    top: { light: string; dark: string }
+    mid: { light: string; dark: string }
+    bottom: { light: string; dark: string }
+  }
 }
 
 export const DEFAULT_PALETTE: PaletteKey = 'blue'
@@ -42,65 +64,104 @@ export const DEFAULT_PALETTE: PaletteKey = 'blue'
 // dark mode karena warnanya sudah pastel/terang jadi kontras baik di kedua mode tanpa
 // perlu lighten lagi (di-lighten lagi malah nyaris putih, jadi tidak terlihat).
 export const PALETTES: Record<PaletteKey, PaletteColors> = {
-  // "Enterprise Blue"
+  // "Enterprise Blue" - strategi analogous (companion ±30-40° dari primary)
   blue: {
     primary:   { light: '#2563EB', dark: '#5284EF' },
     secondary: { light: '#93C5FD', dark: '#93C5FD' },
     appBar:    { light: '#2563EB', dark: '#0B111E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-   line1: { light: '#06B6D4', dark: '#22D3EE' },
-  line2: { light: '#EC4899', dark: '#F472B6' },
-  line3: { light: '#8B5CF6', dark: '#A78BFA' },
+    companion: {
+      secondary: { light: '#0EA5E9', dark: '#38BDF8' }, // sky
+      tertiary:  { light: '#6366F1', dark: '#818CF8' }, // indigo
+    },
+  rank: {
+    top:    { light: '#1D4ED8', dark: '#60A5FA' },
+    mid:    { light: '#60A5FA', dark: '#3B82F6' },
+    bottom: { light: '#BFDBFE', dark: '#1E40AF' },
   },
-  // "Executive Green"
+  },
+  // "Executive Green" - strategi split-complement (companion +150°/+210°)
   green: {
     primary:   { light: '#059669', dark: '#06C689' },
     secondary: { light: '#6EE7B7', dark: '#6EE7B7' },
     appBar:    { light: '#059669', dark: '#0B1E18' },
     warningComplement: { light: '#FBBF24 ', dark: '#FBBF24 ' },
-    line1: { light: '#3B82F6', dark: '#60A5FA  ' },
-    line2: { light: '#EC4899', dark: '#F472B6 ' },
-    line3: { light: '#8B5CF6', dark: '#A78BFA  ' },
+    companion: {
+      secondary: { light: '#0D9488', dark: '#2DD4BF' }, // teal
+      tertiary:  { light: '#65A30D', dark: '#A3E635' }, // lime
+    },
+    rank: {
+      top:    { light: '#15803D', dark: '#4ADE80' },
+      mid:    { light: '#4ADE80', dark: '#22C55E' },
+      bottom: { light: '#BBF7D0', dark: '#166534' },
+    },
   },
-  // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
+  // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas) -
+  // strategi triadic (companion +120°/+240°)
   yellow: {
     primary:   { light: '#0F766E', dark: '#15A297' },
     secondary: { light: '#99F6E4', dark: '#99F6E4' },
     appBar:    { light: '#0F766E', dark: '#0B1E1C' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-    line1: { light: '#6366F1', dark: '#9395F6' },
-    line2: { light: '#06B6D4', dark: '#22D3EE' },
-    line3: { light: '#E11D48', dark: '#E84A6C' },
+    companion: {
+      secondary: { light: '#0891B2', dark: '#22D3EE' }, // cyan
+      tertiary:  { light: '#7C3AED', dark: '#A78BFA' }, // violet
+    },
+    rank: {
+      top:    { light: '#0F766E', dark: '#2DD4BF' },
+      mid:    { light: '#5EEAD4', dark: '#14B8A6' },
+      bottom: { light: '#99F6E4', dark: '#0F766E' },
+    },
   },
-  // "Premium Purple"
+  // "Premium Purple" - strategi triadic (companion +120°/+240°)
   purple: {
     primary:   { light: '#7C3AED', dark: '#9B6AF1' },
     secondary: { light: '#C4B5FD', dark: '#C4B5FD' },
     appBar:    { light: '#7C3AED', dark: '#120B1E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-    line1: { light: '#14B8A6', dark: '#19E6CE' },
-    line2: { light: '#3B82F6', dark: '#60A5FA' },
-    line3: { light: '#EF4444', dark: '#F37272' },
+    companion: {
+      secondary: { light: '#DB2777', dark: '#F472B6' }, // pink
+      tertiary:  { light: '#2563EB', dark: '#60A5FA' }, // biru
+    },
+    rank: {
+      top:    { light: '#6D28D9', dark: '#A78BFA' },
+      mid:    { light: '#A78BFA', dark: '#8B5CF6' },
+      bottom: { light: '#DDD6FE', dark: '#5B21B6' },
+    },
   },
-  // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas)
+  // "Executive Red" (key internal tetap 'rose' - lihat catatan di atas) -
+  // strategi analogous (companion ±30-40° dari primary)
   rose: {
     primary:   { light: '#DC2626', dark: '#E35454' },
     secondary: { light: '#FCA5A5', dark: '#FCA5A5' },
     appBar:    { light: '#DC2626', dark: '#1E0B0B' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-    line1: { light: '#2563EB', dark: '#5284EF' },
-    line2: { light: '#10B981', dark: '#14E6A0' },
-    line3: { light: '#8B5CF6', dark: '#A78BFA' },
+    companion: {
+      secondary: { light: '#EA580C', dark: '#FB923C' }, // oranye
+      tertiary:  { light: '#B45309', dark: '#FBBF24' }, // amber
+    },
+    rank: {
+      top:    { light: '#B91C1C', dark: '#F87171' },
+      mid:    { light: '#F87171', dark: '#EF4444' },
+      bottom: { light: '#FECACA', dark: '#991B1B' },
+    },
   },
   // "Enterprise Slate" (key internal tetap 'indigo' - lihat catatan di atas)
+  // - strategi slate + companion dingin (sky/teal, senada nuansa netral-nya)
   indigo: {
     primary:   { light: '#475569', dark: '#5D6F89' },
     secondary: { light: '#CBD5E1', dark: '#CBD5E1' },
     appBar:    { light: '#475569', dark: '#0B131E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-    line1: { light: '#2563EB', dark: '#6DA2F8' },
-    line2: { light: '#14B8A6', dark: '#19E6CE' },
-    line3: { light: '#E11D48', dark: '#F472B6' },
+    companion: {
+      secondary: { light: '#0EA5E9', dark: '#38BDF8' }, // sky
+      tertiary:  { light: '#14B8A6', dark: '#2DD4BF' }, // teal
+    },
+    rank: {
+      top:    { light: '#334155', dark: '#94A3B8' },
+      mid:    { light: '#94A3B8', dark: '#64748B' },
+      bottom: { light: '#CBD5E1', dark: '#475569' },
+    },
   },
 }
 
