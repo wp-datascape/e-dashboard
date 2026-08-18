@@ -1,12 +1,17 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, resolveDormantCategory, resolveDormantMonths } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
-import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchReactivatedCustomers, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+// Reuse fetchDormantValueTrend (task025 §19, 2026-08-07) — sebelumnya cuma
+// dipakai Dashboard summary card, sekarang dipakai juga halaman KPI9
+// (Nilai Hilang) supaya bisa averageLastMonths sama seperti KPI8/KPI10.
+// Formula/threshold PERSIS sama, cuma dipanggil dari 1 tempat lagi.
+import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repository'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
 import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, ProductTrendData } from './metrics.types'
+import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, ProductTrendData } from './metrics.types'
 
 // "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
 // sama sekali (bukan cuma angkanya, chip-nya juga) — beda dari data transaksi
@@ -46,6 +51,16 @@ export async function resolveSegmentParams(
   branchId?: number,
   excludeIntercompany?: boolean,
 ): Promise<SegmentParams> {
+  // `activeMonths`/`dormantMonths` SELALU dari business_configs, TIDAK ADA
+  // jalur override dari filter periode apa pun (task026 §8e, koreksi user
+  // 2026-08-09: "window aktif utk parameter existing TIDAK BOLEH berubah").
+  // Ini SegmentParams dipakai buat nentuin SIAPA yang qualify sbg
+  // "existing"/tidak dormant (cteEstablishedCustomers) — business rule
+  // tetap, bukan pilihan user. Kalau suatu endpoint butuh rentang tanggal
+  // yang ikut filter periode (mis. GP breakdown ikut periodType), itu
+  // parameter TERPISAH (`dateFrom` dst) yang diteruskan langsung ke
+  // repository function-nya, BUKAN lewat activeMonths di sini — lihat
+  // `fetchGpBreakdown` utk contoh polanya.
   const { activeMonths, dormant } = await loadThresholds()
   const cid = companyId === 'all' ? 0 : companyId
   let dormantMonths: number
@@ -140,6 +155,8 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       expansion_rate:          row.expansion_rate,
       up_rate:                 row.expansion_rate,
       flat_down_rate:          parseFloat((100 - row.expansion_rate).toFixed(1)),
+      flat_rate:               row.flat_rate,
+      down_rate:               row.down_rate,
       active_existing_count:   row.active_existing_count,
       active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
@@ -194,10 +211,15 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchExpansionBreakdown(segParams)
+    // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
+    // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
+    // "existing", tetap fixed).
+    const result = await fetchExpansionBreakdown(segParams, params.date_from)
     return {
       period_end:     filterDate,
       up_count:       result.up_count,
+      flat_count:     result.flat_count,
+      down_count:     result.down_count,
       total_existing: result.total_existing,
       rows:           result.rows,
     }
@@ -211,7 +233,9 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchGpBreakdown(segParams)
+    // date_from = periode penarikan data (task026 §8e) — TERPISAH dari
+    // segParams.activeMonths (business config "existing", tetap fixed di atas).
+    const result = await fetchGpBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_gp:         result.total_gp,
@@ -243,35 +267,68 @@ export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsSco
   }
 }
 
+/** Geser tanggal YYYY-MM-DD mundur/maju N tahun (kalender, bukan hitung hari) */
+function shiftDateByYears(dateStr: string, years: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(Date.UTC(y + years, m - 1, d))
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+}
+
 export async function getDormantCustomerMetrics(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantMetricsData> {
   try {
     const filterDate = params.period_end ?? todayDate()
+    // comparisonFilterDate (task025 lanjutan, 2026-08-07): tanggal yang sama
+    // setahun lalu — dipakai utk komponen KpiSummaryStrip (pola "apple to
+    // apple" dgn Revenue/Retention, SEMUA halaman KPI selalu YoY). Threshold
+    // dormant/scope TETAP dari segParams yang SAMA (resolusi 1x, di-reuse
+    // dgn filterDate di-override) — TIDAK ada aturan bisnis yang berubah,
+    // cuma dihitung ulang di 2 titik waktu.
+    const comparisonFilterDate = shiftDateByYears(filterDate, -1)
     const [segParams, thresholds] = await Promise.all([
       resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
       loadThresholds(),
     ])
+    const comparisonSegParams = { ...segParams, filterDate: comparisonFilterDate }
 
-    const [trend, valueRanking] = await Promise.all([
+    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, reactivatedCustomers, valueTrend] = await Promise.all([
       fetchDormantTrend(segParams),
       fetchDormantValueRanking(segParams),
+      fetchDormantTrend(comparisonSegParams),
+      fetchDormantValueRanking(comparisonSegParams),
+      fetchReactivatedCustomers(segParams),
+      fetchDormantValueTrend(segParams),
     ])
 
     const last = trend.at(-1)
+    const comparisonLast = comparisonTrend.at(-1)
+    const sumLostValue = (rows: DormantValueRow[]) => rows.reduce((acc, r) => acc + r.estimated_lost_value, 0)
 
     return {
       trend,
       value_ranking: valueRanking,
       dormant_rate_current: {
-        value:           last?.dormant_rate ?? 0,
-        dormant_count:   last?.dormant_count ?? 0,
-        total_customers: last?.total_customers ?? 0,
-        alert_pct:       thresholds.dormantRateAlertPct,
+        value:            last?.dormant_rate ?? 0,
+        dormant_count:    last?.dormant_count ?? 0,
+        total_customers:  last?.total_customers ?? 0,
+        alert_pct:        thresholds.dormantRateAlertPct,
+        comparison_value: comparisonLast?.dormant_rate ?? 0,
+        active_count:                    last?.active_count ?? 0,
+        dormant_light_count:             last?.dormant_light_count ?? 0,
+        dormant_severe_count:            last?.dormant_severe_count ?? 0,
+        active_count_comparison:         comparisonLast?.active_count ?? 0,
+        dormant_light_count_comparison:  comparisonLast?.dormant_light_count ?? 0,
+        dormant_severe_count_comparison: comparisonLast?.dormant_severe_count ?? 0,
       },
       reactivation_current: {
-        value:       last?.reactivation_rate ?? 0,
-        target_low:  thresholds.reactivationTargetLow,
-        target_high: thresholds.reactivationTargetHigh,
+        value:            last?.reactivation_rate ?? 0,
+        target_low:       thresholds.reactivationTargetLow,
+        target_high:      thresholds.reactivationTargetHigh,
+        comparison_value: comparisonLast?.reactivation_rate ?? 0,
       },
+      value_ranking_total_current:    sumLostValue(valueRanking),
+      value_ranking_total_comparison: sumLostValue(comparisonValueRanking),
+      reactivated_customers: reactivatedCustomers,
+      value_trend: valueTrend,
     }
   } catch (err) {
     if (err instanceof AppError) throw err

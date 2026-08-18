@@ -63,6 +63,14 @@ export const expansionBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  // Rentang PENARIKAN DATA — mirror `gpBreakdownQuerySchema.date_from`
+  // persis (koreksi user 2026-08-10: "standarnya KPI4 untuk layout, desain,
+  // DAN DATA"). Window current/previous yang dibandingkan (naik/turun)
+  // ikut periodStart..period_end, TERPISAH dari business_configs
+  // active_window_months (window "existing", tetap fixed — lihat
+  // resolveSegmentParams). Opsional, fallback ke activeMonths lama kalau
+  // kosong (backward-compat).
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
 })
 
 export type ExpansionBreakdownQuery = z.infer<typeof expansionBreakdownQuerySchema>
@@ -76,6 +84,13 @@ export const gpBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  // Rentang PENARIKAN DATA (task026 §8e, koreksi user 2026-08-09) — start
+  // date dari periode filter (periodType), end date TETAP `period_end` di
+  // atas. TERPISAH dari business_configs.active_window_months (window
+  // "existing", tidak boleh berubah ikut filter — lihat resolveSegmentParams
+  // di metrics.service.ts). Opsional, fallback ke activeMonths lama kalau
+  // kosong (backward-compat).
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
 })
 
 export type GpBreakdownQuery = z.infer<typeof gpBreakdownQuerySchema>
