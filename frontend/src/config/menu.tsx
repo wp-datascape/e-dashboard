@@ -73,56 +73,56 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP: STATISTIK — 10 KPI, CHART SAJA (task026 Fase 3, 2026-08-09).
-  //
-  // Menggantikan skema task025 (flat list, `groupLabelKey` per kategori
-  // PERILAKU pelanggan: Ragam Pembelian/Nilai Pelanggan Loyal/Pertumbuhan
-  // Pembelian/Pelanggan Tidak Aktif) — kategorinya sendiri diganti sumbu
-  // OMSET/PRODUK/TRANSAKSI (task026.md §1), DAN pola render-nya diganti
-  // collapsible per kategori (mirror Settings/Config di bawah, task026.md
-  // §2a) — bukan lagi flat list dengan divider doang. Tabel detail yang
-  // dulu 1 halaman dengan chart-nya sekarang pindah ke GROUP REPORT di
-  // bawah — halaman di sini render `mode="statistik"` (chart+filter saja,
-  // lihat pages/*/index.tsx). Permission TIDAK berubah dari task025.
-  //
-  // Afiliasi Antarperusahaan (kategori ke-4) SENGAJA belum ditambahkan di
-  // sini — fiturnya belum dibangun sama sekali (task025 §4), placeholder
-  // kosong tidak berguna (NavGroup children kosong -> otomatis hidden,
-  // lihat Sidebar.tsx) jadi tidak ada gunanya entry sampai halamannya ada.
+  // GROUP: GROWTH / RETENTION / VALUE — 10 KPI dikelompokkan ulang per
+  // framework bisnis (task029, 2026-08-19), GANTIKAN skema "Statistik"
+  // 3-grup by jenis-data (Omset&Revenue/Produk/Transaksi, task026 Fase 3)
+  // yang tidak disukai user ("terlalu ramai dan tidak terkesan profesional",
+  // hasil critique 2026-08-18) — pemetaan PERSIS docs-v2/task/task029.md §2:
+  //   Growth    = M1 Cross Selling, M2 Avg Category, M7 Customer Expansion
+  //   Retention = M6 Repeat Order, M8 Dormant Rate, M9 Dormant Value,
+  //               M10 Reactivation Rate
+  //   Value     = M3 Customer Revenue, M4 Customer Gross Profit,
+  //               M5 High Margin Penetration
+  // Tanpa parent menu "Matrix" — Growth/Retention/Value SEJAJAR dgn
+  // Overview (task029 §1, draft awal sempat pakai Matrix sbg parent,
+  // ditolak user). Path/permission tiap child TIDAK berubah dari skema
+  // lama — cuma pengelompokan grup yang berubah, routing & RBAC tetap.
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'statistik-omset-revenue',
-    path: '/customer-gross-profit',
-    labelKey: 'nav.groups.omsetRevenue',
-    icon: <PaidIcon fontSize="small" />,
-    groupLabelKey: 'nav.groups.statistik',
-    children: [
-      { key: 'statistik-customer-gross-profit', path: '/customer-gross-profit', labelKey: 'nav.customerGrossProfit', icon: <PaidIcon fontSize="small" />, permissionKey: 'customer.gross.profit:menu' },
-      { key: 'statistik-customer-expansion',    path: '/customer-expansion',    labelKey: 'nav.customerExpansion',    icon: <TrendingUpIcon fontSize="small" />, permissionKey: 'customer.expansion:menu' },
-      { key: 'statistik-dormant-value',         path: '/dormant-value',         labelKey: 'nav.dormantValue',         icon: <MoneyOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
-    ],
-  },
-  {
-    key: 'statistik-produk',
+    key: 'growth',
     path: '/cross-selling',
-    labelKey: 'nav.groups.produkKategori',
-    icon: <InventoryIcon fontSize="small" />,
+    labelKey: 'nav.groups.growth',
+    icon: <TrendingUpIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.growth',
     children: [
-      { key: 'statistik-cross-selling',             path: '/cross-selling',              labelKey: 'nav.crossSellMatrix',        icon: <SwapHorizIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
-      { key: 'statistik-avg-category-per-customer', path: '/avg-category-per-customer',  labelKey: 'nav.avgCategoryPerCustomer', icon: <LayersIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
-      { key: 'statistik-high-margin-penetration',   path: '/high-margin-penetration',    labelKey: 'nav.highMarginPenetration',  icon: <PieChartIcon fontSize="small" />, permissionKey: 'high.margin.penetration:menu' },
+      { key: 'growth-cross-selling',             path: '/cross-selling',             labelKey: 'nav.crossSellMatrix',        icon: <SwapHorizIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
+      { key: 'growth-avg-category-per-customer', path: '/avg-category-per-customer', labelKey: 'nav.avgCategoryPerCustomer', icon: <LayersIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
+      { key: 'growth-customer-expansion',        path: '/customer-expansion',        labelKey: 'nav.customerExpansion',      icon: <TrendingUpIcon fontSize="small" />, permissionKey: 'customer.expansion:menu' },
     ],
   },
   {
-    key: 'statistik-transaksi',
-    path: '/customer-revenue',
-    labelKey: 'nav.groups.transaksi',
-    icon: <ReceiptLongIcon fontSize="small" />,
+    key: 'retention',
+    path: '/repeat-order',
+    labelKey: 'nav.groups.retention',
+    icon: <AutorenewIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.retention',
     children: [
-      { key: 'statistik-customer-revenue',  path: '/customer-revenue',  labelKey: 'nav.customerRevenue',  icon: <AssessmentIcon fontSize="small" />, permissionKey: 'customer.revenue:menu' },
-      { key: 'statistik-repeat-order',      path: '/repeat-order',      labelKey: 'nav.repeatOrder',      icon: <ReplayIcon fontSize="small" />, permissionKey: 'repeat.order:menu' },
-      { key: 'statistik-dormant-rate',      path: '/dormant-rate',      labelKey: 'nav.dormantRate',      icon: <PersonOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
-      { key: 'statistik-reactivation-rate', path: '/reactivation-rate', labelKey: 'nav.reactivationRate', icon: <AutorenewIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+      { key: 'retention-repeat-order',      path: '/repeat-order',      labelKey: 'nav.repeatOrder',      icon: <ReplayIcon fontSize="small" />, permissionKey: 'repeat.order:menu' },
+      { key: 'retention-dormant-rate',      path: '/dormant-rate',      labelKey: 'nav.dormantRate',      icon: <PersonOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+      { key: 'retention-dormant-value',     path: '/dormant-value',     labelKey: 'nav.dormantValue',     icon: <MoneyOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+      { key: 'retention-reactivation-rate', path: '/reactivation-rate', labelKey: 'nav.reactivationRate', icon: <AutorenewIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
+    ],
+  },
+  {
+    key: 'value',
+    path: '/customer-revenue',
+    labelKey: 'nav.groups.value',
+    icon: <PaidIcon fontSize="small" />,
+    groupLabelKey: 'nav.groups.value',
+    children: [
+      { key: 'value-customer-revenue',      path: '/customer-revenue',      labelKey: 'nav.customerRevenue',      icon: <AssessmentIcon fontSize="small" />, permissionKey: 'customer.revenue:menu' },
+      { key: 'value-customer-gross-profit', path: '/customer-gross-profit', labelKey: 'nav.customerGrossProfit', icon: <PaidIcon fontSize="small" />, permissionKey: 'customer.gross.profit:menu' },
+      { key: 'value-high-margin-penetration', path: '/high-margin-penetration', labelKey: 'nav.highMarginPenetration', icon: <PieChartIcon fontSize="small" />, permissionKey: 'high.margin.penetration:menu' },
     ],
   },
 
