@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
@@ -6,6 +6,8 @@ import Skeleton from '@mui/material/Skeleton';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -143,6 +145,28 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     { field: 'total_revenue', headerName: t('crossSelling.colTotalRevenue'), width: 160, type: 'number', valueFormatter: (v: number) => formatIDR(v) },
   ];
 
+  // Table Filter (task029.md §28.9/§24) — Search + Sort, di atas TABLE,
+  // BEDA dari Global Filter (Company/Branch/Division/Channel/Period, di
+  // luar komponen ini). Client-side saja, data.detail sudah full di tangan
+  // (bukan server-side search, tidak ada endpoint baru). "Status" filter
+  // (§28.9 contoh) belum dipasang — Cross Sell Status butuh data YoY yg
+  // sama belum-tersedia-nya dgn kolom breakdown lain, lihat m1BreakdownNote.
+  const [breakdownSearch, setBreakdownSearch] = useState('');
+  const [breakdownSort, setBreakdownSort] = useState<'name' | 'category_desc' | 'revenue_desc'>('name');
+
+  const breakdownRows = useMemo(() => {
+    const rows = data?.detail ?? [];
+    const q = breakdownSearch.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter((r) => r.customer_name.toLowerCase().includes(q) || (r.customer_code ?? '').toLowerCase().includes(q))
+      : rows;
+    const sorted = [...filtered];
+    if (breakdownSort === 'category_desc') sorted.sort((a, b) => b.category_count - a.category_count);
+    else if (breakdownSort === 'revenue_desc') sorted.sort((a, b) => b.total_revenue - a.total_revenue);
+    else sorted.sort((a, b) => a.customer_name.localeCompare(b.customer_name));
+    return sorted;
+  }, [data?.detail, breakdownSearch, breakdownSort]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <SectionLabel label={t('crossSelling.m1FullLabel')} />
@@ -242,11 +266,35 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
 
       {tab === 'breakdown' && (
         <Box sx={{ pt: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
             {t('crossSelling.m1BreakdownNote')}
           </Typography>
+
+          {/* Table Filter (§28.7/§28.9) — Search + Sort, di atas table */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
+            <TextField
+              size="small"
+              placeholder={t('crossSelling.m1SearchPlaceholder')}
+              value={breakdownSearch}
+              onChange={(e) => setBreakdownSearch(e.target.value)}
+              sx={{ width: { xs: '100%', sm: 240 } }}
+            />
+            <TextField
+              select
+              size="small"
+              label={t('crossSelling.m1SortLabel')}
+              value={breakdownSort}
+              onChange={(e) => setBreakdownSort(e.target.value as typeof breakdownSort)}
+              sx={{ width: { xs: '100%', sm: 200 } }}
+            >
+              <MenuItem value="name">{t('crossSelling.m1SortName')}</MenuItem>
+              <MenuItem value="category_desc">{t('crossSelling.m1SortCategoryDesc')}</MenuItem>
+              <MenuItem value="revenue_desc">{t('crossSelling.m1SortRevenueDesc')}</MenuItem>
+            </TextField>
+          </Box>
+
           <ResponsiveListView
-            rows={(data?.detail ?? []).map((r) => ({ ...r, id: r.customer_id }))}
+            rows={breakdownRows.map((r) => ({ ...r, id: r.customer_id }))}
             columns={breakdownColumns}
             loading={isLoading}
             height={480}

@@ -71,5 +71,10 @@
   "m1TooltipCrossSellRate": "Cross Sell Rate",
   "m1TooltipAvgCategories": "Avg Categories/Customer",
   "m1BreakdownNote": "Kolom Branch, Division, Channel, YoY Category Count, Category Change, Revenue YoY, dan Cross Sell Status belum tersedia — butuh perubahan backend (task029.md §28.10), belum ditampilkan dulu.",
-  "colCurrentCategoryCount": "Category Count Saat Ini"
+  "colCurrentCategoryCount": "Category Count Saat Ini",
+  "m1SearchPlaceholder": "Cari Customer",
+  "m1SortLabel": "Urutkan",
+  "m1SortName": "Nama (A-Z)",
+  "m1SortCategoryDesc": "Category Count Tertinggi",
+  "m1SortRevenueDesc": "Revenue Tertinggi"
 }
