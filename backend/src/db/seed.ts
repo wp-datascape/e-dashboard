@@ -65,6 +65,22 @@ const defaultPermissions = [
   { name: 'dashboard:menu',   description: 'Menu Dashboard',   category: 'Dashboard' },
   { name: 'dashboard:view',   description: 'View Dashboard',   category: 'Dashboard' },
 
+  // ── Growth / Retention / Value (task029, 2026-08-19) ────────────────────
+  // Gate ROUTE/menu level utk 3 halaman baru (1 menu, 1 halaman per grup).
+  // CATATAN: ini BUKAN permission tunggal yang menggantikan permission
+  // data yang sudah ada — tiap halaman reuse chart & endpoint lama, yang
+  // masing-masing TETAP dicek sendiri (mis. Growth manggil /metrics/
+  // cross-selling [cross.selling:view] + /metrics/customer-metrics
+  // [expansion:view]). growth:view/retention:view/value:view cuma gerbang
+  // "boleh buka halaman ini", bukan pengganti gerbang data yang sudah ada
+  // di endpoint masing-masing — lihat routeConstants.tsx utk detail.
+  { name: 'growth:menu',      description: 'Menu Growth',      category: 'Growth' },
+  { name: 'growth:view',      description: 'View Growth',      category: 'Growth' },
+  { name: 'retention:menu',   description: 'Menu Retention',   category: 'Retention' },
+  { name: 'retention:view',   description: 'View Retention',   category: 'Retention' },
+  { name: 'value:menu',       description: 'Menu Value',       category: 'Value' },
+  { name: 'value:view',       description: 'View Value',       category: 'Value' },
+
   // ── Customer Workbench ─────────────────────────────────────────────────
   { name: 'customer:menu',        description: 'Menu Customer List',        category: 'Customer' },
   { name: 'customer:view',        description: 'View Customer List',        category: 'Customer' },
@@ -266,6 +282,9 @@ const defaultPermissions = [
 // lihat tapi tidak bisa memanipulasi data.
 const ADMIN_PERMISSION_NAMES = [
   'dashboard:menu', 'dashboard:view',
+  'growth:menu', 'growth:view',
+  'retention:menu', 'retention:view',
+  'value:menu', 'value:view',
   'customer:menu', 'customer:view',
   'expansion:menu', 'expansion:view', 'expansion:export',
   'churn.risk:menu', 'churn.risk:view', 'churn.risk:export',
@@ -305,6 +324,9 @@ const ADMIN_PERMISSION_NAMES = [
 // (Settings/Configuration/Access Control/Audit Log semuanya di luar jangkauan).
 const USER_PERMISSION_NAMES = [
   'dashboard:menu', 'dashboard:view',
+  'growth:menu', 'growth:view',
+  'retention:menu', 'retention:view',
+  'value:menu', 'value:view',
   'customer:menu', 'customer:view',
   'expansion:menu', 'expansion:view', 'expansion:export',
   // KPI4/5/7 (task025 §12) — role 'user' py2 punya expansion:view (yg dulu

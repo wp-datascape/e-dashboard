@@ -55,14 +55,30 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Executive Dashboard ─────────────────────────────────────────────────
   'dashboard':            { path: '/dashboard',              element: withLayout(<Dashboard />),             protected: true, permissionKey: 'dashboard:view' },
   // Growth/Retention/Value (task029, 2026-08-19) — 1 menu, 1 halaman per
-  // grup, render subset KPI-nya masing-masing (task029.md §2) lewat
-  // KpiGroupPage. Sama persis data/permission dgn /dashboard (satu-satunya
-  // endpoint backend yg dipakai, requirePermission('dashboard:view') di
-  // dashboard.route.ts) — bukan permission baru, krn datanya memang cuma
-  // filter klien dari response /dashboard yang sama.
-  'growth':               { path: '/growth',                 element: withLayout(<Growth />),                protected: true, permissionKey: 'dashboard:view' },
-  'retention':            { path: '/retention',               element: withLayout(<Retention />),             protected: true, permissionKey: 'dashboard:view' },
-  'value':                { path: '/value',                   element: withLayout(<Value />),                 protected: true, permissionKey: 'dashboard:view' },
+  // grup, reuse LANGSUNG komponen chart M1-M10 yg sudah ada di
+  // cross-selling/customer-metrics/dormant-customer (bukan chart baru dari
+  // /dashboard — percobaan pertama salah, sudah dikoreksi user).
+  //
+  // permissionKey pakai permission baru khusus per grup (growth:view/
+  // retention:view/value:view, lihat backend/src/db/seed.ts) mengikuti pola
+  // menu+view yang sudah ada di tiap halaman lain (bukan reuse dashboard:view
+  // — itu punya Overview, endpoint beda).
+  //
+  // CATATAN: ini gerbang ROUTE level doang. Data yang benar-benar dipanggil
+  // tiap halaman TETAP dicek independen oleh permission endpoint aslinya —
+  // Growth: /metrics/cross-selling (cross.selling:view) + /metrics/
+  // customer-metrics (expansion:view). Retention: /metrics/customer-metrics
+  // + /metrics/dormant-customer (churn.risk:view). Value: /metrics/
+  // customer-metrics. growth:view/dst tidak menggantikan pengecekan itu —
+  // kalau user py2 growth:view tapi TIDAK py2 cross.selling:view/
+  // expansion:view, halaman kebuka tapi chart-nya 403. ADMIN_PERMISSION_NAMES/
+  // USER_PERMISSION_NAMES di seed.ts sudah include keduanya sekaligus jadi
+  // tidak kejadian utk role default, tapi role custom bisa saja timpang —
+  // belum ditangani di UI (misal: sembunyikan chart yang usernya tidak
+  // berhak, bukan biarkan 403 polos), follow-up.
+  'growth':               { path: '/growth',                 element: withLayout(<Growth />),                protected: true, permissionKey: 'growth:view' },
+  'retention':            { path: '/retention',               element: withLayout(<Retention />),             protected: true, permissionKey: 'retention:view' },
+  'value':                { path: '/value',                   element: withLayout(<Value />),                 protected: true, permissionKey: 'value:view' },
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },

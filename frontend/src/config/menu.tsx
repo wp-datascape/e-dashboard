@@ -78,29 +78,33 @@ export const NAV_ITEMS: NavItem[] = [
   // (docs-v2/task/task029.md §1-2, keputusan eksplisit user).
   //
   // 1 menu, 1 halaman per grup (2026-08-19, instruksi eksplisit user —
-  // BUKAN lagi children/collapsible ke halaman lama cross-selling/
-  // customer-metrics/dormant-customer/analisis spt sebelumnya). Tiap
-  // halaman (/growth, /retention, /value) pakai KpiGroupPage
-  // (components/dashboard/), render StatCard + chart cuma utk metric_key
-  // grupnya (task029.md §2) — sama persis pola pengelompokan yg sudah
-  // dipakai di Row 2 Overview. Data dari endpoint /dashboard yg sama,
-  // permission direuse 'dashboard:menu'/'dashboard:view' (bukan permission
-  // baru — lihat routeConstants.tsx).
+  // BUKAN lagi children/collapsible ke halaman lama). Tiap halaman
+  // (/growth, /retention, /value) REUSE LANGSUNG komponen chart M1-M10 yang
+  // sudah ada di cross-selling/customer-metrics/dormant-customer (M1CrossSelling,
+  // M2AvgCategory, M3Revenue, dst) — BUKAN chart baru dari data ringkas
+  // /dashboard (percobaan pertama salah, koreksi user: "chart lama sudah
+  // ada, jangan dibuat ulang versi simpel"). Data-fetching juga reuse hook
+  // asli tiap KPI (useCrossSelling/useCustomerMetrics/useDormantCustomer),
+  // BUKAN useDashboard. Permission PAKAI permission baru khusus per grup
+  // (growth:menu/retention:menu/value:menu — lihat seed.ts) sesuai arsitektur
+  // menu+view per halaman yang sudah ada, BUKAN reuse dashboard:menu (itu
+  // punya Overview). CATATAN: ini gerbang level menu/route doang — endpoint
+  // data yang dipanggil tiap halaman (cross.selling:view, expansion:view,
+  // churn.risk:view) TETAP dicek independen oleh backend-nya
+  // masing-masing, lihat routeConstants.tsx utk detail.
   //
   // Halaman lama (cross-selling/customer-metrics/dormant-customer) TIDAK
-  // dihapus & TETAP kereachable — tiap chart di /growth /retention /value
-  // klik-able (metric.link) nyambung ke halaman detail/breakdown lamanya,
-  // cuma sudah tidak ada entry langsung di sidebar. /analisis idem (lihat
-  // §17, bakal jadi tab Breakdown M3 Revenue ke depannya) — belum ada
-  // chart yg link ke situ krn belum ada metric_key yg metric.link-nya
-  // diarahkan ke sana.
+  // dihapus — isinya sama, cuma sudah tidak ada entry langsung di sidebar
+  // (komponennya sekarang dipakai bareng dari pages/Growth /Retention
+  // /Value). /analisis idem, tetap ada (lihat §17, bakal jadi tab
+  // Breakdown M3 Revenue ke depannya).
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'growth',
     path: '/growth',
     labelKey: 'nav.groups.growth',
     icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'dashboard:menu',
+    permissionKey: 'growth:menu',
     groupLabelKey: 'nav.groups.growth',
   },
   {
@@ -108,7 +112,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/retention',
     labelKey: 'nav.groups.retention',
     icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'dashboard:menu',
+    permissionKey: 'retention:menu',
     groupLabelKey: 'nav.groups.retention',
   },
   {
@@ -116,7 +120,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/value',
     labelKey: 'nav.groups.value',
     icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'dashboard:menu',
+    permissionKey: 'value:menu',
     groupLabelKey: 'nav.groups.value',
   },
 
