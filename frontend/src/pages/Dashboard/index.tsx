@@ -2,50 +2,43 @@ import { useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { Card } from '@/components/ui';
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
 
 import { StatCard } from '@/components/charts/StatCard';
-import { StatusChip } from '@/components/ui';
+import { BarChartWidget } from '@/components/charts/BarChartWidget';
+import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
+import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
+import { RadialBarWidget } from '@/components/charts/RadialBarWidget';
+import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
+import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
-import type { MetricCard, DashboardThresholds } from '@/types/dashboard';
+import type { MetricCard } from '@/types/dashboard';
 import { StatCardSkeleton } from './components/StatCardSkeleton';
+import { ChartSkeleton } from './components/ChartSkeleton';
 import { PeriodStrip } from './components/PeriodStrip';
+import { ClickableChart } from './components/ClickableChart';
 
 // ─── Halaman Overview (task029) ────────────────────────────────────────────
 //
-// Rebuild di atas basis `main` (bukan lanjutan Dashboard/index.tsx versi
-// `dev` — itu sengaja ditinggalkan, sumber keluhan UI "ramai": FilterBarShell/
-// PeriodYoyBanner/KpiMetricCard yang berbingkai Card di mana-mana). Chrome
-// minim ala main asli dipertahankan: filter TANPA Card wrapper, tiap section
-// cuma dipisah label + Divider tipis, bukan kotak.
-//
-// Struktur ikut docs-v2/task/task029.md §3-7 + §27: Executive KPI Summary →
-// Customer Growth (M1/M2/M7) → Customer Health (M6/M8/M10) → Key Alerts →
-// Customer Definitions. Overview TIDAK menampilkan seluruh 10 KPI sbg chart
-// besar sekaligus (prinsip §3) — cuma "signal", analisis lanjut ada di menu
-// Growth/Retention/Value.
-//
-// Data SEMUA dari endpoint /dashboard yang sudah ada (backend dibawa dari
-// dev-legacy). "Existing Customers"/"Dormant Customers" (Executive Summary)
-// dari `detail` kartu dormant_rate (totalCustomers/dormantCount) — sudah
-// ikut definisi task028 (Existing = bukan New, termasuk Dormant), bukan
-// hitungan baru.
-//
-// CATATAN: "Revenue"/"Gross Profit" di draft spec aslinya contoh angka
-// TOTAL perusahaan (Rp 12.4B) — belum ada endpoint agregasinya (lihat
-// task029.md). Sementara dipakai avg_revenue/avg_gross_profit (M3/M4, rata-
-// rata per existing customer) yang SUDAH akurat tersedia — dilabeli jujur
-// via metricSubtitle (existing i18n metrics.avgRevenueDesc dst), bukan
-// menyamar sbg total. Follow-up: endpoint total revenue/GP kalau memang
-// dibutuhkan sbg headline utama nanti.
+// Tata letak PERSIS versi `main` (Row 1: 10 StatCard · Row 2: 7 chart
+// widget · Row 3: Definitions dalam Card berbingkai) — dikembalikan atas
+// instruksi user (2026-08-19), redesign Executive Summary/Growth/Health/
+// Key Alerts sebelumnya di commit 48bc443 DIBATALKAN, bukan arah yang
+// dipakai. Cuma satu penyesuaian wajib: field `color` sudah dihapus dari
+// backend (docs-v2/task/task029.md, dashboard.types.ts) — API sekarang
+// kirim `chart_type` per metric, warna murni urusan frontend. Warna di sini
+// dipetakan lokal per metric_key (METRIC_COLOR_KEY), targetnya sedekat
+// mungkin dgn hex lama backend (biru/ungu/hijau/cyan/amber/merah).
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const METRIC_LABEL_KEYS: Record<string, { title: string; desc: string }> = {
   cross_selling_ratio: { title: 'metrics.crossSelling', desc: 'metrics.crossSellingDesc' },
@@ -58,6 +51,21 @@ const METRIC_LABEL_KEYS: Record<string, { title: string; desc: string }> = {
   dormant_rate: { title: 'metrics.dormantRate', desc: 'metrics.dormantRateDesc' },
   dormant_value: { title: 'metrics.dormantValue', desc: 'metrics.dormantValueDesc' },
   reactivation_rate: { title: 'metrics.reactivation', desc: 'metrics.reactivationDesc' },
+};
+
+// Pengganti `metric.color` (dihapus dari backend) — dipetakan ke key palet
+// tema, dipilih sedekat mungkin dgn hex lama tiap metric_key.
+const METRIC_COLOR_KEY: Record<string, 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error'> = {
+  cross_selling_ratio: 'primary',
+  avg_category: 'secondary',
+  avg_revenue: 'success',
+  avg_gross_profit: 'info',
+  high_margin_penetration: 'warning',
+  repeat_order_rate: 'primary',
+  expansion_rate: 'success',
+  dormant_rate: 'error',
+  dormant_value: 'warning',
+  reactivation_rate: 'secondary',
 };
 
 function metricTitle(card: MetricCard, t: TFunction): string {
@@ -81,69 +89,7 @@ function formatMetricValue(card: MetricCard): string {
   return v % 1 === 0 ? v.toString() : v.toFixed(2);
 }
 
-function formatCount(n: number): string {
-  return n.toLocaleString('id-ID');
-}
-
-// Label section (§25) — bukan Card, cuma teks + Divider tipis di bawah blok
-// (pola main asli), BUKAN PeriodYoyBanner/FilterBarShell dev yang full-Card.
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <Box sx={{ mb: 1.5 }}>
-      <Typography variant="body1" sx={{ fontWeight: 700 }}>{title}</Typography>
-      {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
-    </Box>
-  );
-}
-
-// Key Alerts (§7) — perluas alert repeat_order/dormant_rate/reactivation yang
-// sudah dirintis (belum pernah dipakai di UI main, murni logic baru di sini)
-// + 2 aturan tambahan (GP turun YoY, Expansion naik YoY) sesuai contoh spec.
-interface AlertItem {
-  severity: 'critical' | 'warning' | 'good';
-  text: string;
-}
-
-function buildAlerts(
-  metrics: MetricCard[],
-  thresholds: DashboardThresholds | undefined,
-  hasData: boolean,
-  t: TFunction,
-): AlertItem[] {
-  if (!hasData || !thresholds) return [];
-  const find = (key: string) => metrics.find((m) => m.metric_key === key);
-  const alerts: AlertItem[] = [];
-
-  const dormantRate = find('dormant_rate');
-  if (dormantRate && dormantRate.summary.current_value > thresholds.dormant_rate_alert_pct) {
-    alerts.push({ severity: 'critical', text: t('dashboard.alertDormantRate', { value: dormantRate.summary.current_value.toFixed(1), target: thresholds.dormant_rate_alert_pct }) });
-  }
-  const repeatOrder = find('repeat_order_rate');
-  if (repeatOrder && repeatOrder.summary.current_value < thresholds.repeat_order_target_pct) {
-    alerts.push({ severity: 'critical', text: t('dashboard.alertRepeatOrder', { value: repeatOrder.summary.current_value.toFixed(1), target: thresholds.repeat_order_target_pct }) });
-  }
-  const reactivation = find('reactivation_rate');
-  if (reactivation && reactivation.summary.current_value < thresholds.reactivation_target_low_pct) {
-    alerts.push({ severity: 'warning', text: t('dashboard.alertReactivation', { value: reactivation.summary.current_value.toFixed(1), target: thresholds.reactivation_target_low_pct }) });
-  }
-  const gp = find('avg_gross_profit');
-  if (gp && gp.summary.change_percent < 0) {
-    alerts.push({ severity: 'warning', text: t('dashboard.alertGpDecline', { value: Math.abs(gp.summary.change_percent).toFixed(1) }) });
-  }
-  const expansion = find('expansion_rate');
-  if (expansion && expansion.summary.change_percent > 0) {
-    alerts.push({ severity: 'good', text: t('dashboard.alertExpansionGrowth', { value: expansion.summary.change_percent.toFixed(1) }) });
-  }
-  return alerts;
-}
-
-const ALERT_COLOR: Record<AlertItem['severity'], 'error' | 'warning' | 'success'> = {
-  critical: 'error',
-  warning: 'warning',
-  good: 'success',
-};
-
-// ─── Halaman ────────────────────────────────────────────────────────────────
+// ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const theme = useTheme();
@@ -163,51 +109,42 @@ export default function Dashboard() {
   });
 
   const metrics = data?.metrics ?? [];
-  const findMetric = (key: string) => metrics.find((m) => m.metric_key === key);
 
-  const mCrossRatio   = findMetric('cross_selling_ratio');
-  const mAvgCategory  = findMetric('avg_category');
-  const mExpansion    = findMetric('expansion_rate');
-  const mAvgRevenue   = findMetric('avg_revenue');
-  const mAvgGp        = findMetric('avg_gross_profit');
-  const mRepeatOrder  = findMetric('repeat_order_rate');
-  const mDormantRate  = findMetric('dormant_rate');
-  const mReactivation = findMetric('reactivation_rate');
+  const findMetric = (key: string) => metrics.find((x) => x.metric_key === key);
+  const metricColor = (key: string) => theme.palette[METRIC_COLOR_KEY[key] ?? 'primary'].main;
 
-  const existingCount = mDormantRate?.detail?.totalCustomers;
-  const dormantCount = mDormantRate?.detail?.dormantCount;
-
-  const alerts = buildAlerts(metrics, data?.thresholds, data?.has_data ?? false, t);
-
-  const renderStat = (m: MetricCard | undefined, colorKey: 'primary' | 'success' | 'info' | 'error' = 'primary') =>
-    m ? (
-      <StatCard
-        title={metricTitle(m, t)}
-        subtitle={metricSubtitle(m, t)}
-        value={formatMetricValue(m)}
-        change={m.summary.change_percent}
-        trend={m.summary.trend}
-        data={m.monthly_trend}
-        color={theme.palette[colorKey].main}
-        link={m.link}
-      />
-    ) : <StatCardSkeleton />;
-
-  const definitionEntries: { key: string; term: string; def: string }[] = [
-    { key: 'newCustomer', term: t('dashboard.definitions.newCustomer.term'), def: t('dashboard.definitions.newCustomer.def') },
-    { key: 'activeCustomer', term: t('dashboard.definitions.activeCustomer.term'), def: t('dashboard.definitions.activeCustomer.def', { months: data?.active_window ?? 1 }) },
-    { key: 'existingCustomer', term: t('dashboard.definitions.existingCustomer.term'), def: t('dashboard.definitions.existingCustomer.def') },
-    { key: 'dormantCustomer', term: t('dashboard.definitions.dormantCustomer.term'), def: t('dashboard.definitions.dormantCustomer.def') },
-  ];
+  const mCrossRatio      = findMetric('cross_selling_ratio');
+  const mAvgCategory     = findMetric('avg_category');
+  const mHighMargin      = findMetric('high_margin_penetration');
+  const mRepeatOrder     = findMetric('repeat_order_rate');
+  const mExpansion       = findMetric('expansion_rate');
+  const mDormantRate     = findMetric('dormant_rate');
+  const mReactivation    = findMetric('reactivation_rate');
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* ── Header + Filter — tanpa Card, pola main asli ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-        <Typography variant="pageTitle">{t('dashboard.overviewTitle')}</Typography>
-        {!isLoading && data && <PeriodStrip period={data.period_month} activeWindow={data.active_window} />}
+      {/* ── Page Header ── */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
+        <Typography variant="pageTitle">
+          {t('dashboard.overviewTitle')}
+        </Typography>
+        {!isLoading && data && (
+          <PeriodStrip
+            period={data.period_month}
+            activeWindow={data.active_window}
+          />
+        )}
       </Box>
 
+      {/* ── Filter Bar ── */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
         <ScopeFilterFields filter={scopeFilter} />
         <MonthYearPicker
@@ -220,100 +157,196 @@ export default function Dashboard() {
         <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
 
-      {/* ── Executive KPI Summary (§3.1) ── */}
-      <Box>
-        <SectionHeader title={t('dashboard.execSummaryTitle')} subtitle={t('dashboard.execSummarySubtitle')} />
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>{renderStat(mAvgRevenue, 'primary')}</Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>{renderStat(mAvgGp, 'success')}</Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            {!isLoading && existingCount !== undefined ? (
-              <StatCard
-                title={t('dashboard.existingCustomersTitle')}
-                subtitle={t('dashboard.existingCustomersDesc')}
-                value={formatCount(existingCount)}
-                change={0}
-                trend="stable"
-                data={[]}
-                color={theme.palette.info.main}
-              />
-            ) : <StatCardSkeleton />}
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            {!isLoading && dormantCount !== undefined ? (
-              <StatCard
-                title={t('dashboard.dormantCustomersTitle')}
-                subtitle={t('dashboard.dormantCustomersDesc')}
-                value={formatCount(dormantCount)}
-                change={0}
-                trend="stable"
-                data={[]}
-                color={theme.palette.error.main}
-              />
-            ) : <StatCardSkeleton />}
-          </Grid>
-        </Grid>
-      </Box>
-
-      <Divider />
-
-      {/* ── Customer Growth (§6 — M1, M2, M7) ── */}
-      <Box>
-        <SectionHeader title={t('dashboard.growthSectionTitle')} subtitle={t('dashboard.growthSectionSubtitle')} />
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mCrossRatio, 'info')}</Grid>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mAvgCategory, 'success')}</Grid>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mExpansion, 'success')}</Grid>
-        </Grid>
-      </Box>
-
-      {/* ── Customer Health (§5 — M6, M8, M10) ── */}
-      <Box>
-        <SectionHeader title={t('dashboard.healthSectionTitle')} subtitle={t('dashboard.healthSectionSubtitle')} />
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mRepeatOrder, 'primary')}</Grid>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mDormantRate, 'error')}</Grid>
-          <Grid size={{ xs: 12, md: 4 }}>{renderStat(mReactivation, 'primary')}</Grid>
-        </Grid>
-      </Box>
-
-      <Divider />
-
-      {/* ── Key Alerts (§7) ── */}
-      {!isLoading && alerts.length > 0 && (
-        <Box>
-          <SectionHeader title={t('dashboard.alertsTitle')} />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {alerts.map((a, idx) => (
-              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <StatusChip label="●" color={ALERT_COLOR[a.severity]} size="small" />
-                <Typography variant="body2" color="text.secondary">{a.text}</Typography>
-              </Box>
+      {/* ── Row 1: 10 Metric Stat Cards ── */}
+      <Grid container spacing={2}>
+        {isLoading
+          ? Array.from({ length: 10 }).map((_, i) => (
+              <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}>
+                <StatCardSkeleton />
+              </Grid>
+            ))
+          : metrics.map((metric) => (
+              <Grid
+                key={metric.metric_key}
+                size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}
+              >
+                <StatCard
+                  title={metricTitle(metric, t)}
+                  subtitle={metricSubtitle(metric, t)}
+                  value={formatMetricValue(metric)}
+                  change={metric.summary.change_percent}
+                  trend={metric.summary.trend}
+                  data={metric.monthly_trend}
+                  color={metricColor(metric.metric_key)}
+                  link={metric.link}
+                />
+              </Grid>
             ))}
-          </Box>
-        </Box>
-      )}
+      </Grid>
 
-      <Divider />
+      {/* ── Row 2: Chart Widgets ── */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          {isLoading ? (
+            <ChartSkeleton />
+          ) : mCrossRatio ? (
+            <ClickableChart link={mCrossRatio.link}>
+              <BarChartWidget
+                title={metricTitle(mCrossRatio, t)}
+                subtitle={metricSubtitle(mCrossRatio, t)}
+                value={formatMetricValue(mCrossRatio)}
+                change={mCrossRatio.summary.change_percent}
+                data={mCrossRatio.monthly_trend}
+                series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: metricColor('cross_selling_ratio') }]}
+                xKey="month"
+                height={180}
+                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
 
-      {/* ── Customer Definitions (§27.1) — ringkas, bukan tabel besar. Teks
-          IKUT SSOT task028 (segment.helper.ts docstring), bukan tebakan.
-          Reuse key i18n dashboard.definitions.* yang sudah ada di main
-          (bukan bikin key baru) — cuma teks existingCustomer/dormantCustomer
-          diperbarui biar akurat vs definisi baru. ── */}
-      <Box>
-        <SectionHeader title={t('dashboard.definitions.title')} subtitle={t('dashboard.definitionsSubtitle')} />
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {definitionEntries.map(({ key, term, def }) => (
-            <Box key={key} sx={{ flex: '1 1 200px', minWidth: 180 }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                {term}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">{def}</Typography>
-            </Box>
+        <Grid size={{ xs: 12, md: 6 }}>
+          {isLoading ? (
+            <ChartSkeleton />
+          ) : mAvgCategory ? (
+            <ClickableChart link={mAvgCategory.link}>
+              <AreaChartWidget
+                title={metricTitle(mAvgCategory, t)}
+                subtitle={metricSubtitle(mAvgCategory, t)}
+                value={formatMetricValue(mAvgCategory)}
+                change={mAvgCategory.summary.change_percent}
+                data={mAvgCategory.monthly_trend}
+                series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
+                xKey="month"
+                height={180}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 4 }}>
+          {isLoading ? (
+            <ChartSkeleton height={260} />
+          ) : mHighMargin ? (
+            <ClickableChart link={mHighMargin.link}>
+              <DonutChartWidget
+                title={metricTitle(mHighMargin, t)}
+                subtitle={metricSubtitle(mHighMargin, t)}
+                data={[
+                  { name: t('dashboard.charts.highMarginBought'), value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
+                  { name: t('dashboard.charts.highMarginNotBought'), value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
+                ]}
+                centerValue={formatMetricValue(mHighMargin)}
+                centerLabel={t('dashboard.charts.highMarginCenterLabel')}
+                height={200}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 4 }}>
+          {isLoading ? (
+            <ChartSkeleton height={260} />
+          ) : mRepeatOrder ? (
+            <ClickableChart link={mRepeatOrder.link}>
+              <RadialBarWidget
+                title={metricTitle(mRepeatOrder, t)}
+                subtitle={metricSubtitle(mRepeatOrder, t)}
+                value={parseFloat(mRepeatOrder.summary.current_value.toFixed(1))}
+                thresholdGreen={80}
+                height={200}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 4 }}>
+          {isLoading ? (
+            <ChartSkeleton height={260} />
+          ) : mExpansion ? (
+            <ClickableChart link={mExpansion.link}>
+              <BarChartWidget
+                title={metricTitle(mExpansion, t)}
+                subtitle={metricSubtitle(mExpansion, t)}
+                value={formatMetricValue(mExpansion)}
+                change={mExpansion.summary.change_percent}
+                data={mExpansion.monthly_trend}
+                series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
+                xKey="month"
+                height={200}
+                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          {isLoading ? (
+            <ChartSkeleton />
+          ) : mDormantRate ? (
+            <ClickableChart link={mDormantRate.link}>
+              <LineAlertWidget
+                title={metricTitle(mDormantRate, t)}
+                subtitle={t('dashboard.charts.dormantSubtitle')}
+                data={mDormantRate.monthly_trend}
+                lineKey="value"
+                lineLabel={t('dashboard.charts.dormantRateLabel')}
+                xKey="month"
+                threshold={10}
+                thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
+                height={180}
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          {isLoading ? (
+            <ChartSkeleton />
+          ) : mReactivation ? (
+            <ClickableChart link={mReactivation.link}>
+              <BulletChartWidget
+                title={metricTitle(mReactivation, t)}
+                subtitle={t('dashboard.charts.reactivationSubtitle')}
+                value={parseFloat(mReactivation.summary.current_value.toFixed(1))}
+                targetLow={15}
+                targetHigh={20}
+                max={30}
+                unit="%"
+              />
+            </ClickableChart>
+          ) : null}
+        </Grid>
+      </Grid>
+
+      {/* ── Row 3: Definitions Reference ── */}
+      <Card sx={{ p: 2 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+          {t('dashboard.definitions.title')}
+        </Typography>
+        <Grid container spacing={1}>
+          {[
+            { term: t('dashboard.definitions.activeCustomer.term'), def: t('dashboard.definitions.activeCustomer.def', { months: data?.active_window ?? 6 }) },
+            { term: t('dashboard.definitions.existingCustomer.term'), def: t('dashboard.definitions.existingCustomer.def') },
+            { term: t('dashboard.definitions.newCustomer.term'), def: t('dashboard.definitions.newCustomer.def') },
+            { term: t('dashboard.definitions.dormantCustomer.term'), def: t('dashboard.definitions.dormantCustomer.def') },
+            { term: t('dashboard.definitions.productCategory.term'), def: t('dashboard.definitions.productCategory.def') },
+            { term: t('dashboard.definitions.highMarginProduct.term'), def: t('dashboard.definitions.highMarginProduct.def') },
+          ].map(({ term, def }) => (
+            <Grid key={term} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Box sx={{ p: 1.5, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
+                  {term}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {def}
+                </Typography>
+              </Box>
+            </Grid>
           ))}
-        </Box>
-      </Box>
+        </Grid>
+      </Card>
     </Box>
   );
 }
