@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 
@@ -64,25 +65,22 @@ export default function Growth() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'stretch', sm: 'flex-start' },
-        justifyContent: 'space-between',
-        gap: 2,
-      }}>
-        <Typography variant="pageTitle">{t('nav.groups.growth')}</Typography>
+      {/* Baris 1: judul saja. Baris 2: semua filter sejajar, toggle dipisah
+          divider vertikal dari dropdown (beda jenis kontrol) — perbaikan
+          tata letak dari review UX user 2026-08-19 (sebelumnya judul+filter
+          numpuk 1 baris yg sama di desktop, toggle nempel tanpa pemisah). */}
+      <Typography variant="pageTitle">{t('nav.groups.growth')}</Typography>
 
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
-          <ScopeFilterFields filter={scopeFilter} />
-          <DatePicker
-            size="small" label={t('common.filters.periodDate')}
-            value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
-            sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          />
-          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
-        </Box>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+        <ScopeFilterFields filter={scopeFilter} />
+        <DatePicker
+          size="small" label={t('common.filters.periodDate')}
+          value={periodEnd}
+          onChange={(e) => setPeriodEnd(e.target.value)}
+          sx={{ minWidth: { xs: '100%', sm: 160 } }}
+        />
+        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, my: 0.5 }} />
+        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
 
       {canCrossSelling ? (

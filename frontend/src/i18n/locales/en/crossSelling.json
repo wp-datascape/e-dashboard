@@ -76,5 +76,7 @@
   "m1SortLabel": "Sort",
   "m1SortName": "Name (A-Z)",
   "m1SortCategoryDesc": "Highest Category Count",
-  "m1SortRevenueDesc": "Highest Revenue"
+  "m1SortRevenueDesc": "Highest Revenue",
+  "chart1TitleShort": "Cross-Selling Trend (12 Months)",
+  "chart1SubtitleShort": "Bar = customer count · Line = cross-sell rate (%)"
 }

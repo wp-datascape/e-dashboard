@@ -76,5 +76,7 @@
   "m1SortLabel": "Urutkan",
   "m1SortName": "Nama (A-Z)",
   "m1SortCategoryDesc": "Category Count Tertinggi",
-  "m1SortRevenueDesc": "Revenue Tertinggi"
+  "m1SortRevenueDesc": "Revenue Tertinggi",
+  "chart1TitleShort": "Tren Cross-Selling (12 Bulan)",
+  "chart1SubtitleShort": "Bar = jumlah customer · Line = cross-sell rate (%)"
 }

@@ -79,7 +79,8 @@
   "kpiHeader": {
     "current": "Current",
     "yoy": "YoY",
-    "change": "Change"
+    "change": "Change",
+    "vsPeriod": "vs {{period}}"
   },
   "trendSummary": {
     "average": "{{count}}M Average",

@@ -79,7 +79,8 @@
   "kpiHeader": {
     "current": "Saat Ini",
     "yoy": "YoY",
-    "change": "Perubahan"
+    "change": "Perubahan",
+    "vsPeriod": "vs {{period}}"
   },
   "trendSummary": {
     "average": "Rata-rata {{count}}M",

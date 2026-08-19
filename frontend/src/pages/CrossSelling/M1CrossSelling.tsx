@@ -8,6 +8,9 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
+import MuiTooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -22,7 +25,7 @@ import { TrendSummary } from '@/components/dashboard/TrendSummary';
 import { useCustomerProducts } from '@/hooks/useProducts';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { formatIDR } from '@/utils/format';
-import { shiftDateByYears } from '@/utils/analisisPeriod';
+import { shiftDateByYears, formatPeriodLabel } from '@/utils/analisisPeriod';
 import type { CrossSellingData, CrossSellingTrendPoint } from '@/types/metrics';
 import { SectionLabel } from './HelperComponents';
 import { relabelCategory } from './helpers';
@@ -97,13 +100,15 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
 
   const periodMonth = periodEnd.slice(0, 7);
   const activeWindow = data?.period.active_months ?? 1;
+  const yoyPeriodEnd = shiftDateByYears(periodEnd, -1);
+  const yoyComparisonLabel = formatPeriodLabel('monthly', yoyPeriodEnd.slice(0, 7));
 
   // Header Current/YoY/Change (task029.md §28.2) — fetch terpisah, endpoint
   // sama cuma period_end digeser -1 tahun (pola sama dgn drill-down dialog).
   const { data: yoyData } = useCrossSelling({
     company_id: companyId,
     branch_id: branchId,
-    period_end: shiftDateByYears(periodEnd, -1),
+    period_end: yoyPeriodEnd,
     division,
     exclude_intercompany: excludeIntercompany,
   });
@@ -169,7 +174,19 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <SectionLabel label={t('crossSelling.m1FullLabel')} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <SectionLabel label={t('crossSelling.m1FullLabel')} />
+        <MuiTooltip
+          title={t('crossSelling.chart1Subtitle', { months: data?.period.active_months ?? '…' })}
+          placement="top"
+          arrow
+          slotProps={{ tooltip: { sx: { maxWidth: 300, fontSize: 12, lineHeight: 1.5 } } }}
+        >
+          <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+            <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </MuiTooltip>
+      </Box>
 
       {isLoading ? (
         <Skeleton variant="rectangular" height={80} />
@@ -178,13 +195,25 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
           current={data?.kpi1.rate ?? 0}
           yoy={yoyData?.kpi1.rate ?? 0}
           kpiType="rate"
+          comparisonLabel={yoyComparisonLabel}
         />
       )}
 
+      {/* sx eksplisit: pastikan cuma underline indicator standar, TIDAK ada
+          fill/background di tab aktif (temuan review UX user 2026-08-19:
+          "tab ANALYSIS terlihat seperti tombol") — walau default MUI Tab
+          sebenarnya sudah begini (tanpa override tema MuiTab di app ini),
+          dipertegas eksplisit di sini spy tidak ambigu. */}
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
-        sx={{ minHeight: 36, borderBottom: 1, borderColor: 'divider' }}
+        sx={{
+          minHeight: 36,
+          borderBottom: 1,
+          borderColor: 'divider',
+          '& .MuiTab-root': { bgcolor: 'transparent', textTransform: 'none' },
+          '& .MuiTab-root.Mui-selected': { bgcolor: 'transparent' },
+        }}
       >
         <Tab value="analysis" label={t('crossSelling.m1TabAnalysis')} sx={{ minHeight: 36, py: 0.5 }} />
         <Tab value="breakdown" label={t('crossSelling.m1TabBreakdown')} sx={{ minHeight: 36, py: 0.5 }} />
@@ -198,12 +227,12 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
             ) : (
               <>
                 <ComboChartWidget
-                  title={t('crossSelling.chart1Title')}
-                  subtitle={t('crossSelling.chart1Subtitle', { months: data?.period.active_months ?? '…' })}
+                  title={t('crossSelling.chart1TitleShort')}
+                  subtitle={t('crossSelling.chart1SubtitleShort')}
                   data={data?.trend ?? []}
                   barKey="total_active"
                   barLabel={t('crossSelling.seriesActiveCustomers')}
-                  barColor={theme.palette.text.secondary}
+                  barColor={theme.palette.mode === 'dark' ? 'rgba(148,163,184,0.35)' : 'rgba(100,116,139,0.30)'}
                   bar2Key="multi_product"
                   bar2Label={t('crossSelling.seriesMultiCategory')}
                   bar2Color={theme.palette.primary.main}
