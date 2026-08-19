@@ -398,6 +398,14 @@ Chart, Tooltip, Target/threshold (kalau ada).
 **Tab Breakdown** berisi: detail customer/product, Search, Filter, Sorting,
 Pagination, Comparison value kalau relevan.
 
+**UPDATE (2026-08-19) — lihat §28.** Ringkasan di atas dielaborasi jauh
+lebih detail (Header 3 tipe KPI, isi persis Analysis/Breakdown per bagian,
+aturan chart per KPI, tooltip vs summary, dst). §28 JUGA menggantikan
+daftar kolom breakdown yang sempat disebut inline di tiap section KPI di
+atas (§8.1, §9, §12-19) — kolom yang benar dipakai adalah yang di §28.10,
+bukan yang di section masing-masing KPI di atas (beda, lebih detail: ada
+Branch/Division/Channel, YoY per kolom, status enum, dst).
+
 ## 26. Prinsip Utama Dashboard
 
 ```
@@ -577,3 +585,420 @@ Opsi 3 (mulai 1 halaman) direkomendasikan mengingat skala pekerjaan (nav
 restructure + 10 halaman KPI + halaman Overview baru + kemungkinan endpoint
 backend baru utk Key Alerts/Customer Health/Customer Growth aggregation) —
 tapi keputusan akhir tetap di tangan user.
+
+---
+
+## 28. Struktur Final KPI Analysis & Breakdown (tambahan user, 2026-08-19)
+
+Elaborasi detail dari §25 (Pola UI Setiap KPI) — dokumen ini yang jadi
+acuan final implementasi tab Analysis/Breakdown per KPI, MENGGANTIKAN
+ringkasan singkat di §25 dan daftar kolom breakdown yang sempat disebut
+inline di §8.1/§9/§12-19 (lihat §28.10 utk kolom yang benar).
+
+### 28.1 Prinsip Utama
+
+Setiap KPI memiliki 3 level informasi:
+
+```
+KPI
+ │
+ ├── HEADER
+ │   ├── Current
+ │   ├── YoY
+ │   └── Change
+ │
+ ├── ANALYSIS
+ │   ├── 12-Period Trend Chart
+ │   ├── Tooltip → detail setiap periode
+ │   └── Trend Summary → ringkasan keseluruhan trend
+ │
+ └── BREAKDOWN
+     ├── Filter
+     ├── Table
+     ├── Sorting
+     └── Pagination
+```
+
+### 28.2 KPI Header
+
+Header harus selalu konsisten untuk seluruh KPI — 3 tipe KPI, aturan beda:
+
+**Value KPI** (contoh M3):
+
+```
+M3 · Average Revenue / Existing Customer
+
+Rp 151.1K          Rp 142.8K          +Rp 8.3K (+5.8%)
+Current             YoY                Change
+```
+
+**Rate KPI** (contoh M8):
+
+```
+M8 · Dormant Customer Rate
+
+62.6%              54.9%              +7.7pp
+Current             YoY                Change
+```
+
+**Count KPI**:
+
+```
+326                298                +28 (+9.4%)
+Current             YoY                Change
+```
+
+**Aturan:**
+
+| Jenis KPI | Current | YoY | Change |
+|---|---|---|---|
+| Value | Nilai periode terpilih | Nilai periode sama tahun lalu | Absolute + % |
+| Rate | Rate periode terpilih | Rate periode sama tahun lalu | Percentage point |
+| Count | Jumlah periode terpilih | Jumlah periode sama tahun lalu | Absolute + % |
+
+### 28.3 Analysis Tab
+
+Setiap KPI memiliki:
+
+```
+[ Analysis ] [ Breakdown ]
+─────────────
+```
+
+Analysis menjawab: **"Bagaimana KPI ini bergerak?"**
+
+**Trend Chart** — 12 periode terakhir, mengikuti granularitas filter:
+
+| Filter | Trend |
+|---|---|
+| Monthly | 12 bulan |
+| Quarterly | 12 kuartal |
+| Semester | 12 semester |
+| Annual | 12 tahun |
+
+Contoh Monthly: `Sep 2025 → Oct → Nov → ... → Jul → Aug 2026`
+Contoh Quarterly: `Q4 2023 → Q1 2024 → ... → Q2 2026 → Q3 2026`
+
+Periode yang dipilih SELALU jadi titik terakhir trend.
+
+### 28.4 Jenis Chart
+
+Tidak semua KPI harus pakai line chart — pilih berdasarkan karakteristik KPI:
+
+| KPI | Chart Utama |
+|---|---|
+| M1 Cross Selling | Line / Area |
+| M2 Average Product Category | Line |
+| M3 Average Revenue / Existing Customer | Line / Area |
+| M4 Average Gross Profit / Existing Customer | Line / Area |
+| M5 High Margin Product Penetration | Line |
+| M6 Repeat Order Rate | Line |
+| M7 Customer Expansion Rate | Line |
+| M8 Dormant Customer Rate | Line |
+| M9 Dormant Customer Value | Area / Line |
+| M10 Customer Reactivation Rate | Line |
+
+**Prinsip:**
+- **Line** → perubahan KPI dari waktu ke waktu.
+- **Area** → cocok ketika ingin menekankan magnitude/value.
+- **Bar** → dipakai kalau yang dibandingkan adalah kategori/periode secara
+  diskrit, bukan sebagai default trend.
+
+### 28.5 Tooltip
+
+Tooltip menjawab: **"Apa yang terjadi pada periode yang saya hover?"**
+
+Contoh M3:
+
+```
+Revenue Breakdown — August 2026
+
+Average Revenue / Existing Customer   Rp 151.1K
+Existing Customer Revenue             Rp 4.93M
+Existing Customers                    326
+Median Revenue                        Rp 630K
+High Margin Contribution              Rp 531.54M
+Contribution                          10.8%
+```
+
+Tooltip boleh menampilkan info detail karena punya konteks jelas (periode
+yang di-hover, mis. "August 2026") — beda dengan summary (§28.6), yang
+tidak boleh diam-diam ambil 1 titik.
+
+### 28.6 Trend Summary
+
+Summary TIDAK mengambil data dari satu titik terakhir secara diam-diam —
+harus punya konteks yang jelas.
+
+Contoh 12M Summary:
+
+```
+12M SUMMARY
+
+12M Average          Highest           Lowest
+Rp 128.6K            Rp 151.1K         Rp 102.4K
+                      Aug 2026          Feb 2026
+```
+
+Atau kalau KPI lebih cocok YTD:
+
+```
+YTD PERFORMANCE
+
+YTD 2026             YTD 2025          Change
+Rp 1.11M             Rp 1.04M          +Rp 70K (+6.7%)
+```
+
+**Prinsip:**
+
+| Informasi | Makna |
+|---|---|
+| Current | Kondisi periode yang dipilih |
+| YoY | Periode yang sama tahun sebelumnya |
+| Change | Perubahan Current vs YoY |
+| 12M Average | Rata-rata seluruh periode yang tampil |
+| Highest | Nilai tertinggi dalam trend |
+| Lowest | Nilai terendah dalam trend |
+| YTD | Ringkasan Januari sampai periode terpilih |
+
+Tidak semua KPI wajib punya semua jenis summary di atas.
+
+### 28.7 Breakdown Tab
+
+Breakdown menjawab: **"Siapa atau apa yang menyebabkan KPI tersebut
+berubah?"**
+
+Struktur:
+
+```
+[ Analysis ] [ Breakdown ]
+                 ─────────
+
+Table Filter
+────────────────────────────────────────────
+
+TABLE
+
+────────────────────────────────────────────
+
+Pagination
+```
+
+Breakdown tidak dibatasi setinggi chart, tapi tetap punya batas tinggi
+supaya halaman tidak jadi tak terkendali.
+
+**Rekomendasi ukuran container:** `min-height: ±500px`, `max-height:
+±700px`. Table body boleh pakai internal scroll.
+
+### 28.8 Global Filter
+
+Berlaku untuk seluruh halaman. Level akses menentukan filter yang
+tersedia:
+
+- **Holding**: Company, Branch, Division, Channel, Period
+- **Company**: Branch, Division, Channel, Period (Company sudah jadi
+  context, tidak ditampilkan lagi — konsisten dgn §22)
+- **Period type**: Monthly, Quarterly, Semester, Annual
+
+Semua pakai **YoY sebagai standar comparison** (§20/§21) — TIDAK perlu
+tambah Previous Period sebagai default.
+
+### 28.9 Table Filter (beda dari Global Filter)
+
+- **Global filter** → menentukan konteks data dashboard (Company, Branch,
+  Division, Channel, Period).
+- **Table filter** → menentukan data yang ingin dilihat DALAM breakdown
+  (Search Customer, Status, Sort, KPI-specific filter).
+
+Pola generic ini sama dgn §24.
+
+### 28.10 Breakdown Masing-Masing KPI
+
+Ini yang MENGGANTIKAN daftar kolom breakdown lama di §8.1/§9/§12-19.
+
+#### M1 — Cross Selling
+
+**Tujuan:** mengetahui customer yang membeli lebih dari satu kategori.
+
+**Kolom:** Customer · Branch · Division · Channel · Current Category
+Count · YoY Category Count · Category Change · Revenue · Revenue YoY ·
+Cross Sell Status
+
+**Status:** New / Increased / Stable / Decreased
+
+#### M2 — Average Product Category
+
+**Tujuan:** mengetahui perubahan jumlah kategori produk yang dibeli
+customer.
+
+**Kolom:** Customer · Branch · Division · Channel · Current Category
+Count · YoY Category Count · Change · Revenue · Revenue YoY
+
+#### M3 — Average Revenue / Existing Customer
+
+**Tujuan:** mengetahui customer yang menghasilkan revenue terbesar dan
+perubahan revenue mereka.
+
+**Kolom:** Customer · Branch · Division · Channel · Current Revenue ·
+YoY Revenue · Revenue Change · Revenue Growth % · Category Count ·
+Revenue Share
+
+**Sorting:** Highest Revenue · Largest Growth · Largest Decline
+
+#### M4 — Average Gross Profit / Existing Customer
+
+**Tujuan:** mengetahui customer berdasarkan kontribusi Gross Profit.
+
+**Kolom:** Customer · Branch · Division · Channel · Current GP · YoY GP
+· GP Change · GP Growth % · Revenue · GP Margin · Category Count
+
+#### M5 — High Margin Product Penetration
+
+**Tujuan:** mengetahui customer dan produk yang berhubungan dengan
+high-margin product. Punya 2 breakdown terpisah:
+
+**Customer Breakdown — Kolom:** Customer · Branch · Division · Channel ·
+High Margin Product Count · Total Product Count · Penetration % · High
+Margin Revenue · Total Revenue · Contribution %
+
+**Product Breakdown — Kolom:** Product · Category · Division · Revenue ·
+Gross Profit · Margin % · High Margin Status · Customer Count · Revenue
+Contribution
+
+#### M6 — Repeat Order Rate
+
+**Tujuan:** mengetahui customer yang kembali melakukan order.
+
+**Kolom:** Customer · Branch · Division · Channel · Previous Order Date
+· Current Order Date · Days Since Previous Order · Order Count · Revenue
+· Repeat Status
+
+**Status:** Repeat / Non-repeat
+
+#### M8 — Dormant Customer Rate
+
+**Tujuan:** mengetahui customer yang sudah tidak melakukan order.
+
+**Kolom:** Customer · Branch · Division · Channel · Last Order Date ·
+Days Inactive · Previous Revenue · YoY Revenue · Customer Value ·
+Dormant Status
+
+**Sorting:** Longest Inactive · Highest Revenue at Risk
+
+#### M9 — Dormant Customer Value
+
+**Tujuan:** mengetahui nilai bisnis yang sedang dormant/berisiko hilang.
+
+**Kolom:** Customer · Branch · Division · Channel · Last Order · Days
+Inactive · Previous Revenue · Previous Gross Profit · Revenue at Risk ·
+GP at Risk · Dormant Duration
+
+**Fokus utama:** Revenue at Risk · GP at Risk
+
+#### M10 — Customer Reactivation Rate
+
+**Tujuan:** mengetahui customer dormant yang berhasil kembali aktif.
+
+**Kolom:** Customer · Branch · Division · Channel · Previous Last Order
+· Reactivation Date · Dormant Duration · Previous Revenue ·
+Reactivation Revenue · Revenue Change · Reactivation Status
+
+### 28.11 Struktur Final Setiap KPI Card
+
+Tampilan Analysis:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ M3 · Average Revenue / Existing Customer                     │
+│                                                              │
+│ Rp 151.1K          Rp 142.8K          +Rp 8.3K (+5.8%)      │
+│ Current             YoY                Change                │
+│                                                              │
+│ [ Analysis ]        [ Breakdown ]                            │
+│ ─────────────                                               │
+│                                                              │
+│                 12-PERIOD TREND                              │
+│                                                              │
+│                       CHART                                  │
+│                                                              │
+│                                                              │
+├──────────────────────────────────────────────────────────────┤
+│ 12M AVERAGE          HIGHEST             LOWEST              │
+│ Rp 128.6K             Rp 151.1K           Rp 102.4K          │
+│                       Aug 2026             Feb 2026           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Tampilan Breakdown:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ M3 · Average Revenue / Existing Customer                     │
+│                                                              │
+│ Rp 151.1K          Rp 142.8K          +Rp 8.3K (+5.8%)      │
+│ Current             YoY                Change                │
+│                                                              │
+│ [ Analysis ]        [ Breakdown ]                            │
+│                      ───────────                              │
+├──────────────────────────────────────────────────────────────┤
+│ Search Customer   Status ▼   Sort ▼   ...                    │
+├──────────────────────────────────────────────────────────────┤
+│ CUSTOMER TABLE                                                 │
+│                                                              │
+│ Customer | Revenue | YoY | Change | Growth | Share | ...   │
+│ ──────────────────────────────────────────────────────────── │
+│ ...                                                          │
+│ ...                                                          │
+│ ...                                                          │
+├──────────────────────────────────────────────────────────────┤
+│ Showing 1–25 of 326                         ← 1 2 3 4 →      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 28.12 Hirarki Informasi Final
+
+```
+                  OVERVIEW
+                     │
+                     ▼
+              "Apa kondisinya?"
+                     │
+                     ▼
+              KPI CATEGORY
+                     │
+                     ▼
+               KPI HEADER
+           Current / YoY / Change
+                     │
+                     ▼
+                 ANALYSIS
+               12-Period Trend
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+       Tooltip             Trend Summary
+     Point Detail          12M / YTD
+          │
+          ▼
+       BREAKDOWN
+          │
+     ┌────┼────┐
+     ▼    ▼    ▼
+   Filter Table Pagination
+          │
+          ▼
+   Customer / Product Detail
+```
+
+### 28.13 Prinsip Akhir
+
+- Header menjawab **"sekarang bagaimana?"**
+- Chart menjawab **"perubahannya bagaimana?"**
+- Tooltip menjawab **"apa detail pada periode ini?"**
+- Summary menjawab **"bagaimana performa keseluruhan trend?"**
+- Breakdown menjawab **"siapa/apa yang menyebabkan perubahan?"**
+
+Dengan struktur ini, 3–4 KPI dalam satu menu (Growth/Retention/Value)
+tetap bisa berada dalam satu halaman, tanpa membuat tiap KPI harus
+memuat chart, tabel, dan informasi detail sekaligus (Analysis vs
+Breakdown dipisah tab, bukan ditumpuk).
