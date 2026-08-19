@@ -368,6 +368,14 @@ const defaultPageSettings = [
   { page_key: 'dormant-value', ready: true },
   { page_key: 'reactivation-rate', ready: true },
   { page_key: 'cross-selling', ready: true },
+  // Growth/Retention/Value (task029, 2026-08-19) — 1 menu, 1 halaman baru
+  // per grup KPI (lihat frontend routeConstants.tsx + config/menu.tsx).
+  // Route di App.tsx cuma ter-render kalau page_key-nya ADA di tabel ini
+  // (lihat pageSettings?.map di App.tsx) — baris ini WAJIB supaya
+  // /growth /retention /value bisa diakses, bukan permission RBAC.
+  { page_key: 'growth', ready: true },
+  { page_key: 'retention', ready: true },
+  { page_key: 'value', ready: true },
   // 'products-trend' (`/products/trend`, ProductsTrend) DIHAPUS — redundan,
   // digantikan `avg-category-per-customer` hasil pembelahan cross-selling
   // (task025 §14, 2026-08-07). Baris lama DIBIARKAN di DB (harmless, sudah
