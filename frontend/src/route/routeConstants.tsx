@@ -2,6 +2,9 @@ import { ReactNode } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import {
   Dashboard,
+  Growth,
+  Retention,
+  Value,
   Customers,
   CustomerMetrics,
   CrossSelling,
@@ -51,6 +54,15 @@ export interface RouteRegistryItem {
 export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Executive Dashboard ─────────────────────────────────────────────────
   'dashboard':            { path: '/dashboard',              element: withLayout(<Dashboard />),             protected: true, permissionKey: 'dashboard:view' },
+  // Growth/Retention/Value (task029, 2026-08-19) — 1 menu, 1 halaman per
+  // grup, render subset KPI-nya masing-masing (task029.md §2) lewat
+  // KpiGroupPage. Sama persis data/permission dgn /dashboard (satu-satunya
+  // endpoint backend yg dipakai, requirePermission('dashboard:view') di
+  // dashboard.route.ts) — bukan permission baru, krn datanya memang cuma
+  // filter klien dari response /dashboard yang sama.
+  'growth':               { path: '/growth',                 element: withLayout(<Growth />),                protected: true, permissionKey: 'dashboard:view' },
+  'retention':            { path: '/retention',               element: withLayout(<Retention />),             protected: true, permissionKey: 'dashboard:view' },
+  'value':                { path: '/value',                   element: withLayout(<Value />),                 protected: true, permissionKey: 'dashboard:view' },
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },

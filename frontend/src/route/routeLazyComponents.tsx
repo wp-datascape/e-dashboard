@@ -8,6 +8,9 @@ export const UnderMaintenance = lazy(() => import('../pages/UnderMaintenance/ind
 
 // ─── Lazy Protected Pages ────────────────────────────────────────────────────
 export const Dashboard = lazy(() => import('../pages/Dashboard/index'))
+export const Growth = lazy(() => import('../pages/Growth/index'))
+export const Retention = lazy(() => import('../pages/Retention/index'))
+export const Value = lazy(() => import('../pages/Value/index'))
 export const Customers = lazy(() => import('../pages/Customers/index'))
 export const CrossSelling = lazy(() => import('../pages/CrossSelling/index'))
 export const CustomerMetrics = lazy(() => import('../pages/CustomerMetrics/index'))

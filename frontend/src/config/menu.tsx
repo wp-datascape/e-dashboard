@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 
 // Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -75,61 +74,50 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─────────────────────────────────────────────────────────────────────────
   // GROUP: GROWTH / RETENTION / VALUE (task029) — 10 KPI dikelompokkan per
-  // framework bisnis, GANTI pola lama (flat di bawah Customer Workbench).
-  // Sejajar dgn Overview, TANPA parent menu "Matrix" (docs-v2/task/
-  // task029.md §1-2, keputusan eksplisit user).
+  // framework bisnis. Sejajar dgn Overview, TANPA parent menu "Matrix"
+  // (docs-v2/task/task029.md §1-2, keputusan eksplisit user).
   //
-  // CATATAN PENTING: halaman di bawah ini MASIH halaman lama main (belum
-  // dipecah per-KPI spt task029 §8-19 minta — itu kerjaan besar terpisah,
-  // belum dikerjakan sesi ini). Pemetaan sementara, pragmatis:
-  //   Growth    -> cross-selling (M1+M2, cocok persis) + customer-metrics
-  //                (bundel M3-M7, tapi labelnya "Expansion"/M7 = Growth)
-  //   Retention -> dormant-customer (bundel M8-M10, cocok persis)
-  //   Value     -> analisis
-  // customer-metrics & analisis KONSEPTUAL tumpang tindih (customer-metrics
-  // juga render kartu M3-M5 sekaligus M6/M7 di halaman yang sama) — belum
-  // ideal, follow-up: pecah jadi halaman per-KPI spt spec, baru pemetaan
-  // nav bisa 1:1 bersih.
+  // 1 menu, 1 halaman per grup (2026-08-19, instruksi eksplisit user —
+  // BUKAN lagi children/collapsible ke halaman lama cross-selling/
+  // customer-metrics/dormant-customer/analisis spt sebelumnya). Tiap
+  // halaman (/growth, /retention, /value) pakai KpiGroupPage
+  // (components/dashboard/), render StatCard + chart cuma utk metric_key
+  // grupnya (task029.md §2) — sama persis pola pengelompokan yg sudah
+  // dipakai di Row 2 Overview. Data dari endpoint /dashboard yg sama,
+  // permission direuse 'dashboard:menu'/'dashboard:view' (bukan permission
+  // baru — lihat routeConstants.tsx).
   //
-  // KENAPA analisis (bukan customer-metrics) yang dipilih utk Value: analisis
-  // BUKAN kartu KPI M3/M4/M5 (itu di customer-metrics) — isinya tabel
-  // breakdown revenue/GP per customer (Pareto badge, komparasi periode).
-  // Placement-nya benar krn ke depan dia MELEBUR jadi tab "Breakdown" di
-  // halaman M3 Revenue (task029.md §17 "Customer Revenue Breakdown": Customer
-  // · Revenue · Avg Revenue · Share · Orders · Δ YoY — pola Analysis/
-  // Breakdown tab per §25), bukan cuma "temanya mirip". Dikonfirmasi user
-  // (2026-08-19).
+  // Halaman lama (cross-selling/customer-metrics/dormant-customer) TIDAK
+  // dihapus & TETAP kereachable — tiap chart di /growth /retention /value
+  // klik-able (metric.link) nyambung ke halaman detail/breakdown lamanya,
+  // cuma sudah tidak ada entry langsung di sidebar. /analisis idem (lihat
+  // §17, bakal jadi tab Breakdown M3 Revenue ke depannya) — belum ada
+  // chart yg link ke situ krn belum ada metric_key yg metric.link-nya
+  // diarahkan ke sana.
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'growth',
-    path: '/cross-selling',
+    path: '/growth',
     labelKey: 'nav.groups.growth',
     icon: <TrendingUpIcon fontSize="small" />,
+    permissionKey: 'dashboard:menu',
     groupLabelKey: 'nav.groups.growth',
-    children: [
-      { key: 'growth-cross-selling', path: '/cross-selling', labelKey: 'nav.crossSellMatrix', icon: <SwapHorizIcon fontSize="small" />, permissionKey: 'cross.selling:menu' },
-      { key: 'growth-expansion', path: '/customer-metrics', labelKey: 'nav.expansionTargets', icon: <TrendingUpIcon fontSize="small" />, permissionKey: 'expansion:menu' },
-    ],
   },
   {
     key: 'retention',
-    path: '/dormant-customer',
+    path: '/retention',
     labelKey: 'nav.groups.retention',
     icon: <PersonOffIcon fontSize="small" />,
+    permissionKey: 'dashboard:menu',
     groupLabelKey: 'nav.groups.retention',
-    children: [
-      { key: 'retention-churn-risk', path: '/dormant-customer', labelKey: 'nav.churnRisk', icon: <PersonOffIcon fontSize="small" />, permissionKey: 'churn.risk:menu' },
-    ],
   },
   {
     key: 'value',
-    path: '/analisis',
+    path: '/value',
     labelKey: 'nav.groups.value',
     icon: <AssessmentIcon fontSize="small" />,
+    permissionKey: 'dashboard:menu',
     groupLabelKey: 'nav.groups.value',
-    children: [
-      { key: 'value-analisis', path: '/analisis', labelKey: 'nav.analisis', icon: <AssessmentIcon fontSize="small" />, permissionKey: 'customer.revenue:menu' },
-    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
