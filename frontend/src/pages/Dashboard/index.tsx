@@ -33,16 +33,20 @@ import { MetricChartSlot } from '@/components/dashboard/MetricChartSlot';
 //    (main cuma charting 7 dari 10 — M3/M4/M9 dulu cuma StatCard). Cuma
 //    label section (Typography bold, bukan Card/Divider tebal) di atas
 //    tiap grup, chrome tetap minim.
-// 3. Grouping yang sama (StatCard + chart per metric_key) juga dipakai
-//    utuh sbg halaman sendiri di /growth, /retention, /value (1 menu, 1
-//    halaman — task029, 2026-08-19) via komponen bersama
-//    components/dashboard/KpiGroupPage.tsx. Overview di sini tetap tampil
-//    SEMUA 10 KPI sekaligus (preview lengkap); 3 halaman itu isinya cuma
-//    subset grupnya masing-masing. Rendering per-metric (StatCard & chart
-//    widget mana utk metric_key mana) DIPUSATKAN di components/dashboard/
-//    (MetricStatCard, renderMetricWidget, MetricChartSlot) — jangan
-//    duplikat mapping itu di sini atau di halaman grup, edit di satu
-//    tempat itu saja.
+// 3. Halaman /growth /retention /value (1 menu, 1 halaman — task029,
+//    2026-08-19) TIDAK pakai StatCard/chart ringkas dari data /dashboard —
+//    itu percobaan pertama yang SALAH (koreksi user: chart lama yg sudah
+//    detail di /cross-selling, /customer-metrics, /dormant-customer malah
+//    ditimpa versi baru yg lebih simpel). Sekarang ketiganya reuse LANGSUNG
+//    komponen chart M1-M10 yang sudah ada (M1CrossSelling/M2AvgCategory,
+//    M3Revenue/M4GrossProfit/M5HighMargin/M6RepeatOrder/M7Expansion,
+//    M8DormantRate/M9DormantValue/M10ReactivationRate — lihat pages/Growth,
+//    pages/Retention, pages/Value). Overview di sini TETAP pakai StatCard +
+//    chart ringkas dari /dashboard (cukup utk level "preview", §3 — bukan
+//    dobel data-fetch M1-M10 penuh). Rendering per-metric ringkas itu
+//    (MetricStatCard, renderMetricWidget, MetricChartSlot) dipusatkan di
+//    components/dashboard/ — cuma dipakai di sini (Overview), TIDAK
+//    dipakai lagi oleh /growth /retention /value (lihat poin 3 di atas).
 
 const GROWTH_KEYS = ['cross_selling_ratio', 'avg_category', 'expansion_rate'];
 const RETENTION_KEYS = ['repeat_order_rate', 'dormant_rate', 'dormant_value', 'reactivation_rate'];
