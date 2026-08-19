@@ -6,16 +6,20 @@ import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdo
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
 
 // ── M1, M1.1, M2 — Cross Selling ─────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Growth (task029) supaya query
+// TIDAK fire sama sekali kalau user tidak punya cross.selling:view, bukan
+// fire lalu 403 dari backend (lihat pages/Growth/index.tsx).
 export function useCrossSelling(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling', params],
     queryFn: () => metricsApi.getCrossSelling(params),
+    enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });
 }
@@ -42,16 +46,19 @@ export function useCrossSellingDetail(params: {
 }
 
 // ── M3–M7 — Customer Metrics ──────────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Growth/Retention/Value (task029)
+// supaya query TIDAK fire kalau user tidak punya expansion:view.
 export function useCustomerMetrics(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery<CustomerMetricsData>({
     queryKey: ['metrics', 'customer-metrics', params],
     queryFn: () => metricsApi.getCustomerMetrics(params),
+    enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });
 }
@@ -107,16 +114,19 @@ export function useRorBreakdown(params: { period_end: string | null; company_id?
 }
 
 // ── M8–M10 — Dormant Customer ─────────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Retention (task029) supaya
+// query TIDAK fire kalau user tidak punya churn.risk:view.
 export function useDormantCustomer(params?: {
   company_id?: number | 'all';
   period_end?: string;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery<DormantData>({
     queryKey: ['metrics', 'dormant-customer', params],
     queryFn: () => metricsApi.getDormantCustomer(params),
+    enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });
 }

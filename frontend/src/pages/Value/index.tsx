@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next';
 
 import { useCustomerMetrics } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useCan } from '@/hooks/useCan';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { todayIsoDate } from '../CustomerMetrics/helpers';
 import { M3Revenue } from '../CustomerMetrics/M3Revenue';
 import { M4GrossProfit } from '../CustomerMetrics/M4GrossProfit';
@@ -22,19 +24,29 @@ import { M5HighMargin } from '../CustomerMetrics/M5HighMargin';
 // /dashboard (percobaan pertama yang salah, 2026-08-19 — koreksi user: chart
 // lama sudah ada, jangan dibuat ulang versi simpel). Data-fetching (useCustomerMetrics)
 // juga reuse persis punya CustomerMetrics/index.tsx, bukan useDashboard.
+//
+// Permission (2026-08-19, perbaikan temuan routeConstants.tsx): route ini
+// digate value:view, tapi M3/M4/M5 semuanya dari 1 sumber yang sama
+// (expansion:view di /metrics/customer-metrics) — jadi cuma 1 gate, bukan
+// per-KPI spt Growth/Retention (yang datanya benar dari 2 endpoint beda).
 export default function Value() {
   const { t } = useTranslation();
+  const can = useCan();
+  const canExpansion = can('expansion:view');
+
   const [periodEnd, setPeriodEnd] = useState(todayIsoDate());
   const scopeFilter = useScopedCompanyFilter();
   const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
+  const resolvedBranchId = branchId === 'all' ? undefined : branchId;
+  const resolvedDivision = division || undefined;
 
   const { data, isLoading } = useCustomerMetrics({
     company_id: companyId,
-    branch_id: branchId === 'all' ? undefined : branchId,
+    branch_id: resolvedBranchId,
     period_end: periodEnd,
-    division: division || undefined,
+    division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
-  });
+  }, { enabled: canExpansion });
 
   const trend = data?.trend ?? [];
   const hm = data?.high_margin_current;
@@ -62,33 +74,39 @@ export default function Value() {
         </Box>
       </Box>
 
-      <M3Revenue
-        trend={trend}
-        isLoading={isLoading}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        excludeIntercompany={excludeIntercompany}
-      />
+      {canExpansion ? (
+        <>
+          <M3Revenue
+            trend={trend}
+            isLoading={isLoading}
+            companyId={companyId}
+            branchId={resolvedBranchId}
+            division={resolvedDivision}
+            excludeIntercompany={excludeIntercompany}
+          />
 
-      <M4GrossProfit
-        trend={trend}
-        isLoading={isLoading}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        excludeIntercompany={excludeIntercompany}
-      />
+          <M4GrossProfit
+            trend={trend}
+            isLoading={isLoading}
+            companyId={companyId}
+            branchId={resolvedBranchId}
+            division={resolvedDivision}
+            excludeIntercompany={excludeIntercompany}
+          />
 
-      <M5HighMargin
-        isLoading={isLoading}
-        hm={hm}
-        companyId={companyId}
-        branchId={branchId === 'all' ? undefined : branchId}
-        division={division || undefined}
-        periodEnd={periodEnd}
-        excludeIntercompany={excludeIntercompany}
-      />
+          <M5HighMargin
+            isLoading={isLoading}
+            hm={hm}
+            companyId={companyId}
+            branchId={resolvedBranchId}
+            division={resolvedDivision}
+            periodEnd={periodEnd}
+            excludeIntercompany={excludeIntercompany}
+          />
+        </>
+      ) : (
+        <NoSectionAccess />
+      )}
     </Box>
   );
 }

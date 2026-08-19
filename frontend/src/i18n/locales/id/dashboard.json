@@ -33,6 +33,7 @@
   "alertGpDecline": "Rata-rata Gross Profit turun {{value}}% YoY",
   "alertExpansionGrowth": "Customer Expansion naik {{value}}% YoY",
   "definitionsSubtitle": "Bagaimana tiap segmen customer dihitung",
+  "noSectionAccess": "Anda tidak punya izin untuk melihat bagian ini. Hubungi administrator kalau butuh akses.",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Kategori",

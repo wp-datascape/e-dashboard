@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next';
 
 import { useCrossSelling, useCustomerMetrics } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useCan } from '@/hooks/useCan';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { todayStr } from '../CrossSelling/helpers';
 import { M1CrossSelling } from '../CrossSelling/M1CrossSelling';
 import { M2AvgCategory } from '../CrossSelling/M2AvgCategory';
@@ -24,8 +26,20 @@ import { M7Expansion } from '../CustomerMetrics/M7Expansion';
 // simpel). M1/M2 dan M7 datang dari 2 hook berbeda (useCrossSelling vs
 // useCustomerMetrics, mengikuti sumber data asli masing-masing di halaman
 // lamanya) — TIDAK dipaksa jadi 1 fetch.
+//
+// Permission per-section (2026-08-19, perbaikan temuan routeConstants.tsx):
+// route ini digate growth:view, TAPI data M1/M2 & M7 masing-masing tetap
+// dicek independen oleh cross.selling:view/expansion:view di endpoint
+// aslinya. Kalau user cuma punya growth:view tanpa salah satunya, section
+// itu SEKARANG disembunyikan + NoSectionAccess (bukan diam-diam fire
+// query lalu 403) — query-nya sendiri juga di-`enabled: false` biar tidak
+// nembak API yang memang bakal ditolak.
 export default function Growth() {
   const { t } = useTranslation();
+  const can = useCan();
+  const canCrossSelling = can('cross.selling:view');
+  const canExpansion = can('expansion:view');
+
   const [periodEnd, setPeriodEnd] = useState(todayStr());
   const scopeFilter = useScopedCompanyFilter();
   const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
@@ -38,7 +52,7 @@ export default function Growth() {
     period_end: periodEnd,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
-  });
+  }, { enabled: canCrossSelling });
 
   const { data: cmData, isLoading: cmLoading } = useCustomerMetrics({
     company_id: companyId,
@@ -46,7 +60,7 @@ export default function Growth() {
     period_end: periodEnd,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
-  });
+  }, { enabled: canExpansion });
 
   const periodMonth = periodEnd.slice(0, 7);
   const activeWindow = csData?.period.active_months ?? 1;
@@ -74,34 +88,44 @@ export default function Growth() {
         </Box>
       </Box>
 
-      <M1CrossSelling
-        data={csData}
-        isLoading={csLoading}
-        companyId={companyId}
-        branchId={resolvedBranchId}
-        division={resolvedDivision}
-        periodMonth={periodMonth}
-        activeWindow={activeWindow}
-        excludeIntercompany={excludeIntercompany}
-      />
+      {canCrossSelling ? (
+        <>
+          <M1CrossSelling
+            data={csData}
+            isLoading={csLoading}
+            companyId={companyId}
+            branchId={resolvedBranchId}
+            division={resolvedDivision}
+            periodMonth={periodMonth}
+            activeWindow={activeWindow}
+            excludeIntercompany={excludeIntercompany}
+          />
 
-      <M2AvgCategory
-        data={csData}
-        isLoading={csLoading}
-        companyId={companyId}
-        branchId={resolvedBranchId}
-        division={resolvedDivision}
-        excludeIntercompany={excludeIntercompany}
-      />
+          <M2AvgCategory
+            data={csData}
+            isLoading={csLoading}
+            companyId={companyId}
+            branchId={resolvedBranchId}
+            division={resolvedDivision}
+            excludeIntercompany={excludeIntercompany}
+          />
+        </>
+      ) : (
+        <NoSectionAccess />
+      )}
 
-      <M7Expansion
-        trend={cmData?.trend ?? []}
-        isLoading={cmLoading}
-        companyId={companyId}
-        branchId={resolvedBranchId}
-        division={resolvedDivision}
-        excludeIntercompany={excludeIntercompany}
-      />
+      {canExpansion ? (
+        <M7Expansion
+          trend={cmData?.trend ?? []}
+          isLoading={cmLoading}
+          companyId={companyId}
+          branchId={resolvedBranchId}
+          division={resolvedDivision}
+          excludeIntercompany={excludeIntercompany}
+        />
+      ) : (
+        <NoSectionAccess />
+      )}
     </Box>
   );
 }

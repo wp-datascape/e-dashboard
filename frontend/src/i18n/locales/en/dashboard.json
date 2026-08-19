@@ -33,6 +33,7 @@
   "alertGpDecline": "Average Gross Profit down {{value}}% YoY",
   "alertExpansionGrowth": "Customer Expansion up {{value}}% YoY",
   "definitionsSubtitle": "How each customer segment is calculated",
+  "noSectionAccess": "You don't have permission to view this section. Contact your administrator if you need access.",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Category",
