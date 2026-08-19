@@ -43,7 +43,10 @@
     "dormantSubtitle": "Area merah = di atas ambang batas 10% (kondisi kritis)",
     "dormantRateLabel": "Dormant Rate (%)",
     "dormantThresholdLabel": "Ambang 10%",
-    "reactivationSubtitle": "Target KPI: 15%–20% · Latar berubah warna saat ketercapaian"
+    "reactivationSubtitle": "Target KPI: 15%–20% · Latar berubah warna saat ketercapaian",
+    "avgRevenueLabel": "Avg Revenue/Customer",
+    "avgGrossProfitLabel": "Avg Gross Profit/Customer",
+    "dormantValueLabel": "Dormant Customer Value"
   },
   "definitions": {
     "title": "Definisi Kunci",

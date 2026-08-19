@@ -43,7 +43,10 @@
     "dormantSubtitle": "Red area = above the 10% threshold (critical condition)",
     "dormantRateLabel": "Dormant Rate (%)",
     "dormantThresholdLabel": "Threshold 10%",
-    "reactivationSubtitle": "KPI Target: 15%–20% · Background color changes when achieved"
+    "reactivationSubtitle": "KPI Target: 15%–20% · Background color changes when achieved",
+    "avgRevenueLabel": "Avg Revenue/Customer",
+    "avgGrossProfitLabel": "Avg Gross Profit/Customer",
+    "dormantValueLabel": "Dormant Customer Value"
   },
   "definitions": {
     "title": "Key Definitions",

@@ -28,15 +28,29 @@ import { ClickableChart } from './components/ClickableChart';
 
 // ─── Halaman Overview (task029) ────────────────────────────────────────────
 //
-// Tata letak PERSIS versi `main` (Row 1: 10 StatCard · Row 2: 7 chart
-// widget · Row 3: Definitions dalam Card berbingkai) — dikembalikan atas
-// instruksi user (2026-08-19), redesign Executive Summary/Growth/Health/
-// Key Alerts sebelumnya di commit 48bc443 DIBATALKAN, bukan arah yang
-// dipakai. Cuma satu penyesuaian wajib: field `color` sudah dihapus dari
-// backend (docs-v2/task/task029.md, dashboard.types.ts) — API sekarang
-// kirim `chart_type` per metric, warna murni urusan frontend. Warna di sini
-// dipetakan lokal per metric_key (METRIC_COLOR_KEY), targetnya sedekat
-// mungkin dgn hex lama backend (biru/ungu/hijau/cyan/amber/merah).
+// Tata letak PERSIS versi `main` (Row 1: 10 StatCard · Row 3: Definitions
+// dalam Card berbingkai) — dikembalikan atas instruksi user (2026-08-19),
+// redesign Executive Summary/Growth/Health/Key Alerts sebelumnya di commit
+// 48bc443 DIBATALKAN, bukan arah yang dipakai. Dua penyesuaian yang tetap
+// dipakai:
+// 1. Field `color` sudah dihapus dari backend (docs-v2/task/task029.md,
+//    dashboard.types.ts) — API sekarang kirim `chart_type` per metric,
+//    warna murni urusan frontend. Dipetakan lokal per metric_key
+//    (METRIC_COLOR_KEY), sedekat mungkin dgn hex lama backend.
+// 2. Row 2 (chart widget) DIKELOMPOKKAN Growth/Retention/Value sesuai
+//    task029.md §2 (2026-08-19, instruksi user) — beda dari main yang
+//    urutannya flat tanpa pengelompokan, DAN semua 10 KPI sekarang punya
+//    chart widget sendiri (main cuma charting 7 dari 10 — M3/M4/M9 dulu
+//    cuma StatCard). Cuma label section (Typography bold, bukan Card/
+//    Divider tebal) di atas tiap grup, chrome tetap minim. Pemetaan §2:
+//    Growth = M1 Cross Selling (Bar) + M2 Avg Category (Area) + M7
+//    Expansion (Bar) · Retention = M6 Repeat Order (RadialBar) + M8
+//    Dormant Rate (LineAlert) + M9 Dormant Value (Area, BARU) + M10
+//    Reactivation (Bullet) · Value = M3 Avg Revenue (Area, BARU) + M4 Avg
+//    Gross Profit (Area, BARU) + M5 High Margin (Donut). M3/M4/M9 dipilih
+//    AreaChartWidget spy konsisten sama M2 (bukan ComboChartWidget spt di
+//    /customer-metrics M3Revenue.tsx — itu butuh 2 series bar+line
+//    terpisah yg tidak ada di monthly_trend Overview yg cuma 1 `value`).
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -115,10 +129,13 @@ export default function Dashboard() {
 
   const mCrossRatio      = findMetric('cross_selling_ratio');
   const mAvgCategory     = findMetric('avg_category');
+  const mAvgRevenue      = findMetric('avg_revenue');
+  const mAvgGrossProfit  = findMetric('avg_gross_profit');
   const mHighMargin      = findMetric('high_margin_penetration');
   const mRepeatOrder     = findMetric('repeat_order_rate');
   const mExpansion       = findMetric('expansion_rate');
   const mDormantRate     = findMetric('dormant_rate');
+  const mDormantValue    = findMetric('dormant_value');
   const mReactivation    = findMetric('reactivation_rate');
 
   return (
@@ -184,141 +201,222 @@ export default function Dashboard() {
             ))}
       </Grid>
 
-      {/* ── Row 2: Chart Widgets ── */}
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mCrossRatio ? (
-            <ClickableChart link={mCrossRatio.link}>
-              <BarChartWidget
-                title={metricTitle(mCrossRatio, t)}
-                subtitle={metricSubtitle(mCrossRatio, t)}
-                value={formatMetricValue(mCrossRatio)}
-                change={mCrossRatio.summary.change_percent}
-                data={mCrossRatio.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: metricColor('cross_selling_ratio') }]}
-                xKey="month"
-                height={180}
-                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+      {/* ── Row 2: Chart Widgets — dikelompokkan Growth/Retention/Value (task029.md §2) ── */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {/* Growth — M1 Cross Selling, M2 Avg Category, M7 Expansion */}
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            {t('nav.groups.growth')}
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mCrossRatio ? (
+                <ClickableChart link={mCrossRatio.link}>
+                  <BarChartWidget
+                    title={metricTitle(mCrossRatio, t)}
+                    subtitle={metricSubtitle(mCrossRatio, t)}
+                    value={formatMetricValue(mCrossRatio)}
+                    change={mCrossRatio.summary.change_percent}
+                    data={mCrossRatio.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: metricColor('cross_selling_ratio') }]}
+                    xKey="month"
+                    height={180}
+                    tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mAvgCategory ? (
-            <ClickableChart link={mAvgCategory.link}>
-              <AreaChartWidget
-                title={metricTitle(mAvgCategory, t)}
-                subtitle={metricSubtitle(mAvgCategory, t)}
-                value={formatMetricValue(mAvgCategory)}
-                change={mAvgCategory.summary.change_percent}
-                data={mAvgCategory.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
-                xKey="month"
-                height={180}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mAvgCategory ? (
+                <ClickableChart link={mAvgCategory.link}>
+                  <AreaChartWidget
+                    title={metricTitle(mAvgCategory, t)}
+                    subtitle={metricSubtitle(mAvgCategory, t)}
+                    value={formatMetricValue(mAvgCategory)}
+                    change={mAvgCategory.summary.change_percent}
+                    data={mAvgCategory.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
+                    xKey="month"
+                    height={180}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mHighMargin ? (
-            <ClickableChart link={mHighMargin.link}>
-              <DonutChartWidget
-                title={metricTitle(mHighMargin, t)}
-                subtitle={metricSubtitle(mHighMargin, t)}
-                data={[
-                  { name: t('dashboard.charts.highMarginBought'), value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
-                  { name: t('dashboard.charts.highMarginNotBought'), value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
-                ]}
-                centerValue={formatMetricValue(mHighMargin)}
-                centerLabel={t('dashboard.charts.highMarginCenterLabel')}
-                height={200}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mExpansion ? (
+                <ClickableChart link={mExpansion.link}>
+                  <BarChartWidget
+                    title={metricTitle(mExpansion, t)}
+                    subtitle={metricSubtitle(mExpansion, t)}
+                    value={formatMetricValue(mExpansion)}
+                    change={mExpansion.summary.change_percent}
+                    data={mExpansion.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
+                    xKey="month"
+                    height={180}
+                    tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
+          </Grid>
+        </Box>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mRepeatOrder ? (
-            <ClickableChart link={mRepeatOrder.link}>
-              <RadialBarWidget
-                title={metricTitle(mRepeatOrder, t)}
-                subtitle={metricSubtitle(mRepeatOrder, t)}
-                value={parseFloat(mRepeatOrder.summary.current_value.toFixed(1))}
-                thresholdGreen={80}
-                height={200}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+        {/* Retention — M6 Repeat Order, M8 Dormant Rate, M9 Dormant Value, M10 Reactivation */}
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            {t('nav.groups.retention')}
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              {isLoading ? (
+                <ChartSkeleton height={260} />
+              ) : mRepeatOrder ? (
+                <ClickableChart link={mRepeatOrder.link}>
+                  <RadialBarWidget
+                    title={metricTitle(mRepeatOrder, t)}
+                    subtitle={metricSubtitle(mRepeatOrder, t)}
+                    value={parseFloat(mRepeatOrder.summary.current_value.toFixed(1))}
+                    thresholdGreen={80}
+                    height={200}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          {isLoading ? (
-            <ChartSkeleton height={260} />
-          ) : mExpansion ? (
-            <ClickableChart link={mExpansion.link}>
-              <BarChartWidget
-                title={metricTitle(mExpansion, t)}
-                subtitle={metricSubtitle(mExpansion, t)}
-                value={formatMetricValue(mExpansion)}
-                change={mExpansion.summary.change_percent}
-                data={mExpansion.monthly_trend}
-                series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
-                xKey="month"
-                height={200}
-                tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mDormantRate ? (
+                <ClickableChart link={mDormantRate.link}>
+                  <LineAlertWidget
+                    title={metricTitle(mDormantRate, t)}
+                    subtitle={t('dashboard.charts.dormantSubtitle')}
+                    data={mDormantRate.monthly_trend}
+                    lineKey="value"
+                    lineLabel={t('dashboard.charts.dormantRateLabel')}
+                    xKey="month"
+                    threshold={10}
+                    thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
+                    height={180}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mDormantRate ? (
-            <ClickableChart link={mDormantRate.link}>
-              <LineAlertWidget
-                title={metricTitle(mDormantRate, t)}
-                subtitle={t('dashboard.charts.dormantSubtitle')}
-                data={mDormantRate.monthly_trend}
-                lineKey="value"
-                lineLabel={t('dashboard.charts.dormantRateLabel')}
-                xKey="month"
-                threshold={10}
-                thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
-                height={180}
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mDormantValue ? (
+                <ClickableChart link={mDormantValue.link}>
+                  <AreaChartWidget
+                    title={metricTitle(mDormantValue, t)}
+                    subtitle={metricSubtitle(mDormantValue, t)}
+                    value={formatMetricValue(mDormantValue)}
+                    change={mDormantValue.summary.change_percent}
+                    data={mDormantValue.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.dormantValueLabel'), color: metricColor('dormant_value') }]}
+                    xKey="month"
+                    height={180}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          {isLoading ? (
-            <ChartSkeleton />
-          ) : mReactivation ? (
-            <ClickableChart link={mReactivation.link}>
-              <BulletChartWidget
-                title={metricTitle(mReactivation, t)}
-                subtitle={t('dashboard.charts.reactivationSubtitle')}
-                value={parseFloat(mReactivation.summary.current_value.toFixed(1))}
-                targetLow={15}
-                targetHigh={20}
-                max={30}
-                unit="%"
-              />
-            </ClickableChart>
-          ) : null}
-        </Grid>
-      </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              {isLoading ? (
+                <ChartSkeleton height={260} />
+              ) : mReactivation ? (
+                <ClickableChart link={mReactivation.link}>
+                  <BulletChartWidget
+                    title={metricTitle(mReactivation, t)}
+                    subtitle={t('dashboard.charts.reactivationSubtitle')}
+                    value={parseFloat(mReactivation.summary.current_value.toFixed(1))}
+                    targetLow={15}
+                    targetHigh={20}
+                    max={30}
+                    unit="%"
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Value — M3 Avg Revenue, M4 Avg Gross Profit, M5 High Margin */}
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            {t('nav.groups.value')}
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mAvgRevenue ? (
+                <ClickableChart link={mAvgRevenue.link}>
+                  <AreaChartWidget
+                    title={metricTitle(mAvgRevenue, t)}
+                    subtitle={metricSubtitle(mAvgRevenue, t)}
+                    value={formatMetricValue(mAvgRevenue)}
+                    change={mAvgRevenue.summary.change_percent}
+                    data={mAvgRevenue.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.avgRevenueLabel'), color: metricColor('avg_revenue') }]}
+                    xKey="month"
+                    height={180}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton />
+              ) : mAvgGrossProfit ? (
+                <ClickableChart link={mAvgGrossProfit.link}>
+                  <AreaChartWidget
+                    title={metricTitle(mAvgGrossProfit, t)}
+                    subtitle={metricSubtitle(mAvgGrossProfit, t)}
+                    value={formatMetricValue(mAvgGrossProfit)}
+                    change={mAvgGrossProfit.summary.change_percent}
+                    data={mAvgGrossProfit.monthly_trend}
+                    series={[{ key: 'value', label: t('dashboard.charts.avgGrossProfitLabel'), color: metricColor('avg_gross_profit') }]}
+                    xKey="month"
+                    height={180}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 4 }}>
+              {isLoading ? (
+                <ChartSkeleton height={260} />
+              ) : mHighMargin ? (
+                <ClickableChart link={mHighMargin.link}>
+                  <DonutChartWidget
+                    title={metricTitle(mHighMargin, t)}
+                    subtitle={metricSubtitle(mHighMargin, t)}
+                    data={[
+                      { name: t('dashboard.charts.highMarginBought'), value: parseFloat(mHighMargin.summary.current_value.toFixed(1)), color: theme.palette.warning.main },
+                      { name: t('dashboard.charts.highMarginNotBought'), value: parseFloat((100 - mHighMargin.summary.current_value).toFixed(1)), color: theme.palette.action.hover },
+                    ]}
+                    centerValue={formatMetricValue(mHighMargin)}
+                    centerLabel={t('dashboard.charts.highMarginCenterLabel')}
+                    height={200}
+                  />
+                </ClickableChart>
+              ) : null}
+            </Grid>
+          </Grid>
+        </Box>
+      </Box>
 
       {/* ── Row 3: Definitions Reference ── */}
       <Card sx={{ p: 2 }}>
