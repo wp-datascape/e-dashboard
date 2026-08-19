@@ -85,10 +85,20 @@ export const NAV_ITEMS: NavItem[] = [
   //   Growth    -> cross-selling (M1+M2, cocok persis) + customer-metrics
   //                (bundel M3-M7, tapi labelnya "Expansion"/M7 = Growth)
   //   Retention -> dormant-customer (bundel M8-M10, cocok persis)
-  //   Value     -> analisis (Revenue/Margin per customer, ~M3/M4)
+  //   Value     -> analisis
   // customer-metrics & analisis KONSEPTUAL tumpang tindih (customer-metrics
-  // juga punya M3-M6 di dalamnya) — belum ideal, follow-up: pecah jadi
-  // halaman per-KPI spt spec, baru pemetaan nav bisa 1:1 bersih.
+  // juga render kartu M3-M5 sekaligus M6/M7 di halaman yang sama) — belum
+  // ideal, follow-up: pecah jadi halaman per-KPI spt spec, baru pemetaan
+  // nav bisa 1:1 bersih.
+  //
+  // KENAPA analisis (bukan customer-metrics) yang dipilih utk Value: analisis
+  // BUKAN kartu KPI M3/M4/M5 (itu di customer-metrics) — isinya tabel
+  // breakdown revenue/GP per customer (Pareto badge, komparasi periode).
+  // Placement-nya benar krn ke depan dia MELEBUR jadi tab "Breakdown" di
+  // halaman M3 Revenue (task029.md §17 "Customer Revenue Breakdown": Customer
+  // · Revenue · Avg Revenue · Share · Orders · Δ YoY — pola Analysis/
+  // Breakdown tab per §25), bukan cuma "temanya mirip". Dikonfirmasi user
+  // (2026-08-19).
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'growth',
