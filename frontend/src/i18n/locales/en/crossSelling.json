@@ -61,5 +61,15 @@
   "m2DialogAvgCategories": "Avg Categories/Customer",
   "m2DialogDistinctCats": "Distinct Categories Sold",
   "m2DialogActiveCount": "Active Customers",
-  "m2EmptyMessage": "No active customer data for this month"
+  "m2EmptyMessage": "No active customer data for this month",
+  "m1TabAnalysis": "Analysis",
+  "m1TabBreakdown": "Breakdown",
+  "m1TooltipTitle": "Cross Selling — {{month}}",
+  "m1TooltipCrossSellingCustomers": "Cross-Selling Customers",
+  "m1TooltipSingleCategory": "Single-Category Customers",
+  "m1TooltipExistingCustomers": "Active Customers",
+  "m1TooltipCrossSellRate": "Cross Sell Rate",
+  "m1TooltipAvgCategories": "Avg Categories/Customer",
+  "m1BreakdownNote": "Branch, Division, Channel, YoY Category Count, Category Change, Revenue YoY, and Cross Sell Status columns are not available yet — needs a backend change (task029.md §28.10), not shown for now.",
+  "colCurrentCategoryCount": "Current Category Count"
 }

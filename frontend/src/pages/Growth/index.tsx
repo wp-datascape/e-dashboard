@@ -62,9 +62,6 @@ export default function Growth() {
     exclude_intercompany: excludeIntercompany,
   }, { enabled: canExpansion });
 
-  const periodMonth = periodEnd.slice(0, 7);
-  const activeWindow = csData?.period.active_months ?? 1;
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box sx={{
@@ -96,8 +93,7 @@ export default function Growth() {
             companyId={companyId}
             branchId={resolvedBranchId}
             division={resolvedDivision}
-            periodMonth={periodMonth}
-            activeWindow={activeWindow}
+            periodEnd={periodEnd}
             excludeIntercompany={excludeIntercompany}
           />
 

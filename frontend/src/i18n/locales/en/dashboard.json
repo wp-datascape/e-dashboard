@@ -75,5 +75,15 @@
       "term": "High Margin Product",
       "def": "product_categories.is_high_margin = true"
     }
+  },
+  "kpiHeader": {
+    "current": "Current",
+    "yoy": "YoY",
+    "change": "Change"
+  },
+  "trendSummary": {
+    "average": "{{count}}M Average",
+    "highest": "Highest",
+    "lowest": "Lowest"
   }
 }

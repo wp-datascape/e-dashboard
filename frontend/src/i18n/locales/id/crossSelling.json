@@ -61,5 +61,15 @@
   "m2DialogAvgCategories": "Rata-rata Kategori/Customer",
   "m2DialogDistinctCats": "Jenis Kategori Terjual",
   "m2DialogActiveCount": "Customer Aktif",
-  "m2EmptyMessage": "Tidak ada data customer aktif bulan ini"
+  "m2EmptyMessage": "Tidak ada data customer aktif bulan ini",
+  "m1TabAnalysis": "Analysis",
+  "m1TabBreakdown": "Breakdown",
+  "m1TooltipTitle": "Cross Selling — {{month}}",
+  "m1TooltipCrossSellingCustomers": "Cross-Selling Customers",
+  "m1TooltipSingleCategory": "Single-Category Customers",
+  "m1TooltipExistingCustomers": "Active Customers",
+  "m1TooltipCrossSellRate": "Cross Sell Rate",
+  "m1TooltipAvgCategories": "Avg Categories/Customer",
+  "m1BreakdownNote": "Kolom Branch, Division, Channel, YoY Category Count, Category Change, Revenue YoY, dan Cross Sell Status belum tersedia — butuh perubahan backend (task029.md §28.10), belum ditampilkan dulu.",
+  "colCurrentCategoryCount": "Category Count Saat Ini"
 }

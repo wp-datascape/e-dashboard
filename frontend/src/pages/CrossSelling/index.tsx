@@ -35,8 +35,6 @@ export default function CrossSelling() {
     exclude_intercompany: excludeIntercompany,
   });
 
-  const periodMonth = periodEnd.slice(0, 7);
-  const activeWindow = data?.period.active_months ?? 1;
   const resolvedBranchId = branchId === 'all' ? undefined : branchId;
   const resolvedDivision = division || undefined;
 
@@ -117,8 +115,7 @@ export default function CrossSelling() {
         companyId={companyId}
         branchId={resolvedBranchId}
         division={resolvedDivision}
-        periodMonth={periodMonth}
-        activeWindow={activeWindow}
+        periodEnd={periodEnd}
         excludeIntercompany={excludeIntercompany}
       />
 
