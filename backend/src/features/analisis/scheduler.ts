@@ -247,7 +247,21 @@ async function evaluateAndNotify(params: {
       margin: String(agg?.margin ?? 0),
     }
   })
-  await db.insert(pareto_period_snapshots).values(snapshotRows).onConflictDoNothing()
+  // Batch per SNAPSHOT_INSERT_CHUNK_SIZE baris — Postgres punya limit KERAS 65535
+  // parameter per statement. snapshotRows 7 kolom/baris, company dgn puluhan ribu
+  // customer (ditemukan 2026-08-20: company_id=2 = 32.000 customer x 7 = 224.000
+  // parameter) SELALU lewat limit itu kalau di-insert sekaligus — INSERT ini
+  // SELALU gagal utk company itu, hasSnapshotForPeriod jadi tidak pernah true,
+  // scheduler retry TIAP kali jalan, tiap retry gagal lagi dgn error message
+  // RAKSASA (isi seluruh parameter yg gagal di-bind) yg ke-log berulang-ulang —
+  // ini pemicu utama backend production nempel di 3,8GB RAM setelah 14 hari
+  // jalan (audit performa, laporan swap terpakai di VPS). 5000 baris x 7 kolom =
+  // 35.000 parameter/batch, aman di bawah limit.
+  const SNAPSHOT_INSERT_CHUNK_SIZE = 5000
+  for (let i = 0; i < snapshotRows.length; i += SNAPSHOT_INSERT_CHUNK_SIZE) {
+    const chunk = snapshotRows.slice(i, i + SNAPSHOT_INSERT_CHUNK_SIZE)
+    await db.insert(pareto_period_snapshots).values(chunk).onConflictDoNothing()
+  }
 
   const thresholdMap = new Map<string, number>()
   for (const t of thresholdRows) {

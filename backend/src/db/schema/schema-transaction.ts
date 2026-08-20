@@ -53,7 +53,13 @@ export const customers = pgTable('customers', {
   division_override_id: integer('division_override_id').references(() => divisions.id, { onDelete: 'set null' }),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => ({
+  // Menopang filter scope RBAC (company_id=X atau IN scopeIds) di findCustomers
+  // dst — sebelumnya tidak ada index sama sekali di kolom ini selain PK id,
+  // ditemukan lewat audit performa query List Customer (2026-08-20, timeout
+  // Task G2/G5 di test suite pada beban concurrent).
+  idxCompanyId: index('idx_customers_company_id').on(table.company_id),
+}))
 
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
@@ -202,6 +208,17 @@ export const pareto_period_snapshots = pgTable('pareto_period_snapshots', {
     table.period_key,
     table.checkpoint,
   ),
+  // Menopang hasSnapshotForPeriod (scheduler.ts) — cek "sudah dievaluasi belum"
+  // per company (BUKAN per customer), dipanggil belasan kali tiap scheduler
+  // jalan. Index unique di atas leading customer_id, tidak menopang query ini
+  // (Seq Scan 165rb+ baris, 11ms/panggilan, tabel APPEND-ONLY terus membesar —
+  // ditemukan 2026-08-20 lewat audit performa).
+  idxCompanyPeriodCheckpoint: index('idx_pareto_snapshots_company_period').on(
+    table.company_id,
+    table.period_type,
+    table.period_key,
+    table.checkpoint,
+  ),
 }))
 
 export type ParetoPeriodSnapshot = typeof pareto_period_snapshots.$inferSelect
@@ -327,7 +344,16 @@ export const invoice_items = pgTable('invoice_items', {
   gross_profit: numeric('gross_profit', { precision: 15, scale: 2 }).notNull().default('0'),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => ({
+  // Menopang JOIN invoices→invoice_items yang dipakai HAMPIR SEMUA query metrics
+  // (M1-M7, avg-category, high-margin-penetration) + List Customer — sebelumnya
+  // tidak ada index sama sekali selain PK id, JOIN 300rb+ baris selalu Seq Scan.
+  // Composite (bukan invoice_id saja) karena product_category_id SELALU dipakai
+  // langsung setelah JOIN (COUNT DISTINCT/GROUP BY) di semua pemanggil — index
+  // ini bisa index-only-scan utk pola itu, ditemukan lewat audit performa
+  // 2026-08-20 (timeout Task G2/G5 test suite pada beban concurrent).
+  idxInvoiceIdCategory: index('idx_invoice_items_invoice_id').on(table.invoice_id, table.product_category_id),
+}))
 
 export type InvoiceItem = typeof invoice_items.$inferSelect
 export type NewInvoiceItem = typeof invoice_items.$inferInsert

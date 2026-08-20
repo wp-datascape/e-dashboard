@@ -60,7 +60,22 @@ export async function createNotification(data: NewNotification) {
   return row
 }
 
+// Batch per NOTIFICATIONS_INSERT_CHUNK_SIZE baris — Postgres punya limit KERAS
+// 65535 parameter per statement. Dipanggil scheduler.ts dgn 1 baris per alert
+// (bisa ribuan sekaligus utk company besar) — tanpa chunking, company dgn
+// puluhan ribu customer/alert bikin insert ini SELALU gagal (ditemukan
+// 2026-08-20, bug sama persis dgn pareto_period_snapshots di scheduler.ts,
+// pemicu utama leak RAM production: gagal terus -> retry terus -> error
+// message raksasa ke-log berulang). 5000 baris x ~7 kolom = 35.000 parameter/
+// batch, aman di bawah limit.
+const NOTIFICATIONS_INSERT_CHUNK_SIZE = 5000
+
 export async function createNotifications(data: NewNotification[]) {
   if (data.length === 0) return []
-  return db.insert(notifications).values(data).returning()
+  const inserted: (typeof notifications.$inferSelect)[] = []
+  for (let i = 0; i < data.length; i += NOTIFICATIONS_INSERT_CHUNK_SIZE) {
+    const chunk = data.slice(i, i + NOTIFICATIONS_INSERT_CHUNK_SIZE)
+    inserted.push(...await db.insert(notifications).values(chunk).returning())
+  }
+  return inserted
 }
