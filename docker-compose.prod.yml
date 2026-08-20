@@ -7,6 +7,18 @@ services:
     image: postgres:15-alpine
     container_name: e-dashboard-prod-db
     restart: unless-stopped
+    # Tuning performa (audit 2026-08-20 — query metrics/customer list lambat,
+    # default Postgres 4MB work_mem/128MB shared_buffers bikin sort spill ke
+    # disk). VPS 8GB dibagi ke OS/aaPanel/mail server + Postgres prod DAN dev
+    # sekaligus (task019.md), jadi TIDAK asal dikasih besar — angka ini bisa
+    # dinaikkan pelan-pelan sambil dipantau (bukan patokan final mati). Override
+    # via .env kalau perlu ubah tanpa sentuh file ini lagi.
+    command: >
+      postgres
+      -c shared_buffers=${PG_SHARED_BUFFERS:-1536MB}
+      -c work_mem=${PG_WORK_MEM:-32MB}
+      -c maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+      -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-3GB}
     environment:
       POSTGRES_USER: dashboard
       POSTGRES_PASSWORD: ${DB_PASSWORD}
