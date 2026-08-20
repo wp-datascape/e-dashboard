@@ -16,6 +16,7 @@ services:
       -c work_mem=${PG_WORK_MEM:-16MB}
       -c maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-128MB}
       -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-768MB}
+      -c jit=${PG_JIT:-off}
     environment:
       POSTGRES_USER: dashboard
       POSTGRES_PASSWORD: ${DB_PASSWORD}
