@@ -1,8 +1,9 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '@/features/metrics/segment.helper'
+import { resolveInvoiceScopeConditions } from '@/features/metrics/segment.helper'
 import type { MonthlyTrendPoint } from './dashboard.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan estimasi total nilai (revenue) yang berpotensi hilang dari
@@ -15,11 +16,8 @@ import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditi
  */
 export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyTrendPoint[]> {
   const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
 
   const rawRows = await db.execute(sql`
     WITH

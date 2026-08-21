@@ -1,19 +1,15 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { cteEstablishedCustomers } from '../segment.helper'
+import { cteEstablishedCustomers, resolveInvoiceScopeConditions } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RorBreakdownRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 export async function fetchRorBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: RorBreakdownRow[]; repeat_count: number; total_existing: number }> {
-  const { cid, filterDate, activeMonths, division, companyScopeIds } = p
+  const { filterDate, activeMonths, division } = p
   const establishedCTE = cteEstablishedCustomers(p)
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH

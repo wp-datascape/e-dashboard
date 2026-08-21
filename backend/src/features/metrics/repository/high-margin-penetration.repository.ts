@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw } from '@/utils/scope'
+import { resolveInvoiceScopeConditions } from '../segment.helper'
 
 // ─── Params ───────────────────────────────────────────────────────────────────
 
@@ -160,10 +161,7 @@ function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | u
 
 export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -268,10 +266,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
 // angka konsisten dgn baris kategori (kalau kategori jadi opsi sekunder).
 export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmProductDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 
@@ -400,10 +395,7 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
 
 export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<UpsellTargetDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
   const branchFilter = p.branchFilter ?? null
 
   const rows = await db.execute(sql`

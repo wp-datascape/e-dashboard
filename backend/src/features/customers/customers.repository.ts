@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions } from '@/db/schema'
 import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { loadThresholds, resolveDormantMonths, resolveDormantCategory } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantCategory, getDormantCategoryMap, buildDormantCaseSql } from '@/features/config/threshold'
 import {
   buildBranchCondition,
   buildDivisionCondition,
@@ -27,7 +27,19 @@ export async function findCustomers(
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
-  const dormantMonths = await resolveDormantMonths(cid, dormant, scopeIds)
+  // Threshold dormant PER-CUSTOMER (task027 fix, 2026-08-21) — dulu 1 angka
+  // dominan company-wide (resolveDormantMonths) dipakai ke SEMUA baris,
+  // sekarang per baris sesuai kategori bisnis divisi customer itu sendiri
+  // (pola sama m8m10.repository.ts). channel_divisions.division_id yang
+  // dipakai di sini SUDAH di-JOIN di query total/rows di bawah lewat
+  // latestSalespersonSq (divisi dari invoice TERBARU customer) — reuse,
+  // bukan JOIN baru.
+  const dormantCategoryMap = await getDormantCategoryMap(cid !== 0 ? cid : undefined)
+  const dormantThresholdExpr = buildDormantCaseSql(
+    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
+    dormant,
+    dormantCategoryMap,
+  )
 
   // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
   // dari urutan lama yang baru dihitung dekat akhir function.
@@ -115,7 +127,7 @@ export async function findCustomers(
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
   const statusCond = status
-    ? sqlStatusWhere(status, refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
+    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
     : undefined
   if (statusCond) conditions.push(statusCond)
 
@@ -142,7 +154,7 @@ export async function findCustomers(
     }
   })()
 
-  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
+  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -243,7 +255,7 @@ export async function findCustomers(
       // invoice terbaru customer), khusus dipakai invCountExpr/catCountExpr.
       .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),

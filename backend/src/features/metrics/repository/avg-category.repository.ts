@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { resolveInvoiceScopeConditions } from '../segment.helper'
 
 export interface AvgCategoryRepoParams {
   cid: number          // 0 = semua company
@@ -24,10 +24,7 @@ export interface AvgCategoryTrendRow {
 // Rolling avg jumlah kategori produk berbeda per customer aktif, per titik bulan (12 bulan terakhir).
 // Pola sama dengan fetchCrossSellingTrend (m1.repository.ts).
 export async function fetchAvgCategoryTrend(p: AvgCategoryRepoParams): Promise<AvgCategoryTrendRow[]> {
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
 

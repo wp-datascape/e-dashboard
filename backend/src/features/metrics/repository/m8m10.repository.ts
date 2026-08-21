@@ -1,22 +1,22 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
+import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql } from '../segment.helper'
 import type { DormantTrendRow, DormantValueRow, ReactivatedCustomerRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw } from '@/utils/scope'
 
 /**
  * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
  */
 export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
-  const { cid, filterDate, activeMonths, dormantMonths, division, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const { cid, filterDate, activeMonths, division, companyScopeIds } = p
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const dormantThresholdSql = dormantThresholdCaseSql(p)
 
   const rawRows = await db.execute(sql`
     WITH
+    ${cteCustDivision(p)},
     months AS (
       SELECT generate_series(
         date_trunc('month', ${filterDate}::date) - INTERVAL '11 months',
@@ -42,31 +42,27 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         AND ${excludeIntercompanyCond}
     ),
 
-    -- Customer dalam scope (ada minimal 1 invoice)
+    -- Customer dalam scope (ada minimal 1 invoice). first_invoice_date ikut
+    -- diambil di sini langsung dari kolom customers (bukan CTE first_inv/MIN
+    -- scan semua invoice terpisah lagi, dihapus 2026-08-21 — kolom ini SUDAH
+    -- dipelihara akurat tiap import, diverifikasi 0 baris beda dari MIN()
+    -- langsung, scope SAMA/global per customer seperti sebelumnya). Dipakai
+    -- utk deteksi customer baru — koreksi user 2026-08-10: "Aktif di
+    -- DormantRate (357) harus sama dgn Total Existing di Expansion/GP
+    -- (329)". Sebelum ini scoped_cust cuma syarat "pernah transaksi", TANPA
+    -- exclude customer baru — beda populasi dgn established_customers
+    -- (m3m7/m4 repository) yang WAJIB customer sudah py riwayat SEBELUM
+    -- activeMonths terakhir. Selisihnya PERSIS jumlah customer yang
+    -- first-purchase-nya masih dalam activeMonths terakhir (diverifikasi
+    -- manual: 357-329=28, cocok dgn jumlah customer baru Juni 2026).
     scoped_cust AS (
-      SELECT DISTINCT c.id AS cid
+      SELECT DISTINCT c.id AS cid, c.first_invoice_date AS first_date,
+        ${dormantThresholdSql} AS dormant_threshold
       FROM customers c
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false
         AND ${companyCondC}
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
-    ),
-
-    -- Transaksi PERTAMA per customer (global, tanpa filter divisi) — untuk
-    -- deteksi customer baru. Mirror PERSIS pola first_inv di
-    -- fetchCustomerMetricsTrend (m3m7.repository.ts) — koreksi user
-    -- 2026-08-10: "Aktif di DormantRate (357) harus sama dgn Total Existing
-    -- di Expansion/GP (329)". Sebelum ini scoped_cust cuma syarat "pernah
-    -- transaksi", TANPA exclude customer baru — beda populasi dgn
-    -- established_customers (m3m7/m4 repository) yang WAJIB customer sudah
-    -- py riwayat SEBELUM activeMonths terakhir. Selisihnya PERSIS jumlah
-    -- customer yang first-purchase-nya masih dalam activeMonths terakhir
-    -- (diverifikasi manual: 357-329=28, cocok dgn jumlah customer baru
-    -- Juni 2026).
-    first_inv AS (
-      SELECT customer_id, MIN(invoice_date) AS first_date
-      FROM invoices
-      WHERE deleted_at IS NULL
-      GROUP BY customer_id
     ),
 
     -- Customer × bulan: hitung last invoice date per titik waktu
@@ -79,7 +75,8 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
               ${filterDate}::date)                                              AS me,
         (m.ms - INTERVAL '1 day')::date                                        AS prev_me,
-        fi.first_date                                                           AS first_date,
+        sc.first_date                                                           AS first_date,
+        sc.dormant_threshold                                                    AS dormant_threshold,
         MAX(inv.invoice_date) FILTER (
           WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
                                          ${filterDate}::date)
@@ -95,8 +92,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       FROM scoped_cust sc
       CROSS JOIN months m
       LEFT JOIN inv ON inv.customer_id = sc.cid
-      LEFT JOIN first_inv fi ON fi.customer_id = sc.cid
-      GROUP BY sc.cid, m.ms, fi.first_date
+      GROUP BY sc.cid, m.ms, sc.first_date, sc.dormant_threshold
     )
 
     SELECT
@@ -112,7 +108,7 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS dormant_count,
       -- Severity split (koreksi user 2026-08-10, "opsi A": 4 kartu Total/
       -- Aktif/Dormant Ringan/Dormant Kronis) — partisi EKSAK dari populasi
@@ -127,24 +123,24 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_me > me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_me > me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS active_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
-          AND last_at_me >  me - (${dormantMonths}::int * 2) * INTERVAL '1 month'
+          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+          AND last_at_me >  me - (dormant_threshold * 2) * INTERVAL '1 month'
       )::int                                                                     AS dormant_light_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_me <= me - (${dormantMonths}::int * 2) * INTERVAL '1 month'
+          AND last_at_me <= me - (dormant_threshold * 2) * INTERVAL '1 month'
       )::int                                                                     AS dormant_severe_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
-            AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
@@ -153,24 +149,24 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
           AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS prev_dormant_count,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
           AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
-          AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+          AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
           AND active_in_month = true
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
             AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
-            AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
             AND active_in_month = true
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
             AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
-            AND last_at_prev_me <= prev_me - ${dormantMonths}::int * INTERVAL '1 month'
+            AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate
     FROM cxm
@@ -199,15 +195,14 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
  * Top 20 dormant customer diranking berdasarkan estimated lost value (M9).
  */
 export async function fetchDormantValueRanking(p: SegmentParams): Promise<DormantValueRow[]> {
-  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const { cid, filterDate, division, companyScopeIds } = p
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const dormantThresholdSql = dormantThresholdCaseSql(p)
 
   const rawRows = await db.execute(sql`
     WITH
+    ${cteCustDivision(p)},
     inv AS (
       SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
       FROM invoices i
@@ -234,10 +229,11 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
       FROM customers c
       JOIN inv ON inv.customer_id = c.id
       JOIN companies co ON co.id = c.company_id
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-      GROUP BY c.id, c.customer_name, c.customer_code, co.name
-      HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantMonths}::int * INTERVAL '1 month'
+      GROUP BY c.id, c.customer_name, c.customer_code, co.name, c.division_override_id, cdv.division_id
+      HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantThresholdSql} * INTERVAL '1 month'
     ),
     -- avg_monthly_revenue dibatasi 12 bulan kalender terakhir SEBELUM customer dormant
     -- (bukan total_rev all-time dibagi jumlah bulan yang ada transaksi saja) - dulu
@@ -296,15 +292,14 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
  * Top 20 by tanggal reaktivasi terbaru.
  */
 export async function fetchReactivatedCustomers(p: SegmentParams): Promise<ReactivatedCustomerRow[]> {
-  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+  const { cid, filterDate, division, companyScopeIds } = p
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const dormantThresholdSql = dormantThresholdCaseSql(p)
 
   const rawRows = await db.execute(sql`
     WITH
+    ${cteCustDivision(p)},
     bounds AS (
       SELECT
         date_trunc('month', ${filterDate}::date)::date AS month_start,
@@ -343,13 +338,15 @@ export async function fetchReactivatedCustomers(p: SegmentParams): Promise<React
         MAX(inv.invoice_date) FILTER (WHERE inv.invoice_date <= b.prev_me) AS last_before,
         MIN(inv.invoice_date) FILTER (
           WHERE inv.invoice_date > b.prev_me AND inv.invoice_date <= b.me
-        )                                                                  AS reactivation_date
+        )                                                                  AS reactivation_date,
+        ${dormantThresholdSql}                                             AS dormant_threshold
       FROM scoped_cust sc
       JOIN customers c ON c.id = sc.cid
       JOIN companies co ON co.id = c.company_id
       CROSS JOIN bounds b
       LEFT JOIN inv ON inv.customer_id = c.id
-      GROUP BY c.id, c.customer_name, c.customer_code, co.name, b.prev_me, b.me
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
+      GROUP BY c.id, c.customer_name, c.customer_code, co.name, b.prev_me, b.me, c.division_override_id, cdv.division_id
     )
     SELECT
       customer_id,
@@ -361,7 +358,7 @@ export async function fetchReactivatedCustomers(p: SegmentParams): Promise<React
       GREATEST(ROUND(((SELECT prev_me FROM bounds) - last_before) / 30.0)::int, 1) AS months_was_dormant
     FROM cust_agg
     WHERE last_before IS NOT NULL
-      AND last_before <= (SELECT prev_me FROM bounds) - ${dormantMonths}::int * INTERVAL '1 month'
+      AND last_before <= (SELECT prev_me FROM bounds) - dormant_threshold * INTERVAL '1 month'
       AND reactivation_date IS NOT NULL
     ORDER BY reactivation_date DESC
     LIMIT 20

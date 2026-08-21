@@ -24,8 +24,8 @@
  * final ini, BUKAN "established" (active+existing, exclude dormant) lagi.
  */
 
-import { sql, and, or } from 'drizzle-orm'
-import { divisionToDormantKey } from '@/features/config/threshold'
+import { sql, and, or, type SQL } from 'drizzle-orm'
+import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,7 +35,11 @@ export interface SegmentParams {
   companyScopeIds?: number[] // hasil resolveCompanyScope() — undefined=bypass, []=default deny, selainnya=IN-list
   filterDate: string     // YYYY-MM-DD
   activeMonths: number   // active_window_months dari business_config
-  dormantMonths: number  // dormant_threshold_months.{type} dari business_config
+  dormantMonths: number  // dormant_threshold_months.{type} dari business_config — scalar 1-divisi-dominan
+                          // (task027 BUG, dipertahankan demi backward-compat caller lama; caller BARU
+                          // pakai `dormant`+`dormantCategoryMap` di bawah utk threshold PER-CUSTOMER)
+  dormant: ThresholdConfig['dormant']  // semua kategori dormant sekaligus (b2b_dc/b2b_project/b2c/manufacturing)
+  dormantCategoryMap: Map<number, keyof ThresholdConfig['dormant']> // division_id → kategori dormant
   division: number | null // filter laporan (business_unit param, division_id — task012 v2) - beda dari divisionScope (RBAC)
   branchFilter: number | null // filter laporan (branch_id param) - beda dari branchScope (RBAC)
   excludeIntercompany?: boolean // toggle laporan - exclude division 'intercompany', lihat utils/scope.ts
@@ -54,6 +58,8 @@ export function buildSegmentParams(
   dormantMonths: number,
   otherIdByBranch: Map<number, number>,
   intercompanyIdByCompany: Map<number, number>,
+  dormant: ThresholdConfig['dormant'],
+  dormantCategoryMap: Map<number, keyof ThresholdConfig['dormant']>,
   division?: number,
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, number[]>,
@@ -67,6 +73,8 @@ export function buildSegmentParams(
     filterDate,
     activeMonths,
     dormantMonths,
+    dormant,
+    dormantCategoryMap,
     division: division ?? null,
     branchFilter: branchFilter ?? null,
     excludeIntercompany,
@@ -82,11 +90,18 @@ export function buildSegmentParams(
 /**
  * CASE WHEN expression untuk kolom status per customer.
  * Dipakai di SELECT agar setiap baris punya label status-nya.
+ *
+ * `dormantMonths` boleh scalar (1 angka, dipakai kalau caller sudah tahu
+ * SATU customer/SATU divisi spesifik — mis. findCustomerDetail) ATAU
+ * ekspresi SQL per-baris dari `buildDormantCaseSql()` (dipakai kalau caller
+ * query banyak customer lintas divisi sekaligus — mis. findCustomers,
+ * task027 fix 2026-08-21). Widget interpolasi `sql` tag menangani keduanya
+ * sama — angka jadi bound param, SQL fragment di-splice apa adanya.
  */
 export function sqlStatusExpr(
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
-  dormantMonths: number,
+  dormantMonths: number | SQL,
   lastInv: unknown,
   firstInv: unknown,
 ) {
@@ -113,7 +128,7 @@ export function sqlStatusWhere(
   status: string,
   refDate: ReturnType<typeof sql>,
   activeMonths: number,
-  dormantMonths: number,
+  dormantMonths: number | SQL,
   lastInv: unknown,
   firstInv: unknown,
 ) {
@@ -202,6 +217,178 @@ export function cteEstablishedCustomers(p: SegmentParams) {
         )
     )
   `
+}
+
+// ─── New/Existing RELATIF PERIODE (task029 §30.10, 2026-08-20) ────────────────
+//
+// BEDA dari `cteEstablishedCustomers` di atas (activeMonths mundur, dipakai
+// M3-M10, task026 §8e — TIDAK disentuh/diganti). Ini definisi TERPISAH,
+// khusus laporan granularitas Monthly/Quarterly/Semester/Annual (task029
+// §30) di mana "periode" itu sendiri (batas kalender) yang jadi acuan New/
+// Existing, BUKAN window bulan tetap:
+//   New      = transaksi pertama (SEPANJANG HIDUP customer) jatuh DI DALAM
+//              periode yang sedang dilihat.
+//   Existing = transaksi pertama SEBELUM AWAL periode ini — otomatis
+//              "graduasi" begitu periode berganti (Juli→Agustus), tanpa
+//              logic tambahan, cukup dari posisi tanggal transaksi pertama
+//              vs batas periode yang dipilih.
+// Pilot: M1 Cross Selling (m1.repository.ts). Metrics lain menyusul —
+// lihat task029.md §30.9.
+
+/**
+ * CTE: first_invoice_date(customer_id, first_date) — tanggal transaksi
+ * PERTAMA seorang customer SEPANJANG HIDUP, di-scope company+branch RBAC
+ * SAJA (BUKAN division/branch filter laporan, BUKAN exclude_intercompany —
+ * sama seperti `cteEstablishedCustomers` ix0 di atas: status New/Existing
+ * customer itu properti GLOBAL customer, tidak boleh berubah cuma karena
+ * laporan sedang difilter ke divisi/cabang tertentu).
+ */
+export function cteFirstInvoiceDate(p: SegmentParams) {
+  const branchCond = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
+  const companyCondIx0 = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  return sql`
+    first_invoice_date AS (
+      SELECT ix0.customer_id, MIN(ix0.invoice_date) AS first_date
+      FROM invoices ix0
+      WHERE ix0.deleted_at IS NULL
+        AND ${branchCond}
+        AND ${companyCondIx0}
+      GROUP BY ix0.customer_id
+    )
+  `
+}
+
+/**
+ * CTE: existing_customers(id) — populasi "Existing" utk SATU periode
+ * (`periodStart` = awal kalender periode itu, task029 §30.10). Caller
+ * (mis. inv CTE di m1.repository.ts) yang menambah syarat "punya transaksi
+ * DI DALAM periode" via JOIN ke invoices dengan range [periodStart,
+ * periodEnd] sendiri — supaya tidak dobel logic dgn `first_invoice_date`.
+ */
+export function cteExistingCustomersByPeriod(p: SegmentParams, periodStart: string) {
+  const companyCondC = buildCompanyConditionRaw('c.company_id', p.cid, p.companyScopeIds)
+  return sql`
+    ${cteFirstInvoiceDate(p)},
+    existing_customers AS (
+      SELECT c.id
+      FROM customers c
+      JOIN first_invoice_date fid ON fid.customer_id = c.id
+      WHERE c.is_placeholder = false
+        AND ${companyCondC}
+        AND fid.first_date < ${periodStart}::date
+    )
+  `
+}
+
+// ─── Dormant threshold PER-CUSTOMER (task027, 2026-08-21) ─────────────────────
+//
+// BUG: resolveDormantMonths() (config/threshold.ts) cari SATU divisi paling
+// dominan company-wide lalu pakai ambang divisi ITU SAJA utk SEMUA customer
+// (dormantMonths scalar di atas). Customer kategori bisnis lain (mis.
+// b2b_project, ambang 12bln) ikut dicek pakai ambang divisi dominan (mis.
+// b2b_dc, 3bln) — salah cap Dormant. Infrastruktur fix (getDormantCategoryMap/
+// buildDormantCaseSql, config/threshold.ts) SUDAH ADA tapi belum pernah
+// disambungkan (dead code) — 2 builder di bawah menyambungkannya.
+
+/**
+ * CTE: cust_division(cid, division_id) — divisi customer dari invoice
+ * TERBARU, pattern SAMA PERSIS `latestSalespersonSq` (customers.repository.ts).
+ * Di-scope company+branch RBAC SAJA (BUKAN filter laporan division/branchFilter/
+ * exclude_intercompany) — filosofi SAMA `cteFirstInvoiceDate`: "kategori bisnis"
+ * customer itu properti GLOBAL, tidak boleh berubah cuma karena laporan sedang
+ * difilter ke divisi/cabang tertentu.
+ */
+export function cteCustDivision(p: SegmentParams) {
+  const branchCond = buildBranchConditionRaw('ix2.company_id', 'ix2.branch_id', p.branchScope)
+  const companyCondIx2 = buildCompanyConditionRaw('ix2.company_id', p.cid, p.companyScopeIds)
+  return sql`
+    cust_division AS (
+      SELECT DISTINCT ON (ix2.customer_id)
+        ix2.customer_id AS cid,
+        cd2.division_id AS division_id
+      FROM invoices ix2
+      LEFT JOIN channel_divisions cd2
+        ON cd2.channel_name = ix2.channel_name
+        AND cd2.company_id = ix2.company_id
+      WHERE ix2.deleted_at IS NULL
+        AND ${companyCondIx2}
+        AND ${branchCond}
+      ORDER BY ix2.customer_id, ix2.invoice_date DESC, ix2.id DESC
+    )
+  `
+}
+
+/**
+ * CASE WHEN division_id → ambang dormant (bulan), per-customer. Wrapper tipis
+ * di atas buildDormantCaseSql() (config/threshold.ts) — nge-bundle
+ * COALESCE(division_override_id, cust_division.division_id) (task013 pattern,
+ * sama seperti excludeIntercompanyCond) supaya caller tidak perlu tulis ulang
+ * COALESCE-nya. Wajib JOIN cteCustDivision() dulu dengan alias yang sama
+ * dengan `divisionAlias` (default 'cdv') sebelum dipakai.
+ */
+export function dormantThresholdCaseSql(p: SegmentParams, customerAlias = 'c', divisionAlias = 'cdv'): SQL {
+  return buildDormantCaseSql(
+    sql`COALESCE(${sql.raw(customerAlias)}.division_override_id, ${sql.raw(divisionAlias)}.division_id)`,
+    p.dormant,
+    p.dormantCategoryMap,
+  )
+}
+
+// ─── Bundel kondisi scope invoice (refactor, 2026-08-21) ───────────────────────
+
+/**
+ * Bundel 4 kondisi scope isolasi data invoice sekaligus (branch RBAC, division
+ * RBAC, company scope, exclude-intercompany filter) — REFACTOR MURNI (bukan
+ * restrukturisasi, lihat task029.md §30.10-adjacent audit isolasi 2026-08-21):
+ * memanggil 4 fungsi builder yang SAMA PERSIS dengan parameter yang SAMA PERSIS
+ * seperti sebelumnya, cuma dibungkus 1 pemanggilan — TIDAK ada logic isolasi
+ * baru, hasilnya provably identik dengan 4 baris terpisah yang digantikannya.
+ *
+ * Ditemukan lewat audit: pola "const branchCond = buildBranchConditionRaw(...);
+ * const divisionScopeCond = ...; const companyCondI = ...; const
+ * excludeIntercompanyCond = ..." ditulis ulang identik di 13+ file repository
+ * metrics (beberapa sampai 3x dalam 1 file) — total ~30 blok duplikat.
+ *
+ * Alias tabel BOLEH beda per query (mis. join customers pakai alias `c` di
+ * sebagian file, `c_ov` di sebagian lain) — makanya alias eksplisit sbg
+ * parameter opsional, BUKAN di-hardcode, supaya tetap 100% setara dgn kode
+ * yang digantikan di tiap file (bukan asumsi 1 alias untuk semua).
+ */
+export interface InvoiceScopeConditions {
+  branchCond: SQL
+  divisionScopeCond: SQL
+  companyCondI: SQL
+  excludeIntercompanyCond: SQL
+}
+
+// Tipe STRUKTURAL (subset field), bukan `SegmentParams` penuh — beberapa file
+// repository metrics pakai interface param sendiri (`AvgCategoryRepoParams`,
+// `HmDetailRepoParams`, dst, field sama tapi tipe beda nominal) alih-alih
+// `SegmentParams`. `SegmentParams` otomatis cocok ke tipe ini (structural
+// typing), begitu juga tipe ad-hoc lain selama field-nya ada.
+export interface InvoiceScopeParams {
+  cid: number
+  companyScopeIds?: number[]
+  branchScope?: Map<number, number[]>
+  divisionScope?: Map<number, number[]>
+  otherIdByBranch?: Map<number, number>
+  intercompanyIdByCompany?: Map<number, number>
+  excludeIntercompany?: boolean
+}
+
+export function resolveInvoiceScopeConditions(
+  p: InvoiceScopeParams,
+  aliases: { invoice?: string; customer?: string; division?: string } = {},
+): InvoiceScopeConditions {
+  const i = aliases.invoice ?? 'i'
+  const c = aliases.customer ?? 'c'
+  const cd = aliases.division ?? 'cd'
+  return {
+    branchCond: buildBranchConditionRaw(`${i}.company_id`, `${i}.branch_id`, p.branchScope),
+    divisionScopeCond: buildDivisionConditionRaw(`${i}.branch_id`, `${cd}.division_id`, p.divisionScope, p.otherIdByBranch),
+    companyCondI: buildCompanyConditionRaw(`${i}.company_id`, p.cid, p.companyScopeIds),
+    excludeIntercompanyCond: buildExcludeIntercompanyRaw(`${i}.company_id`, `COALESCE(${c}.division_override_id, ${cd}.division_id)`, p.intercompanyIdByCompany, p.excludeIntercompany),
+  }
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
