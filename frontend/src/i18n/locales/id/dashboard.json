@@ -77,14 +77,20 @@
     }
   },
   "kpiHeader": {
-    "current": "Saat Ini",
-    "yoy": "YoY",
+    "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
     "change": "Perubahan",
-    "vsPeriod": "vs {{period}}"
+    "ppValue": "{{value}} poin persentase"
   },
   "trendSummary": {
-    "average": "Rata-rata {{count}}M",
+    "sectionLabel": "{{metric}} — ringkasan {{count}} {{unit}} terakhir yang tampil di chart",
+    "average": "Rata-rata",
     "highest": "Tertinggi",
     "lowest": "Terendah"
+  },
+  "periodUnit": {
+    "monthly": "bulan",
+    "quarter": "kuartal",
+    "semester": "semester",
+    "annual": "tahun"
   }
 }

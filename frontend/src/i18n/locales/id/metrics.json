@@ -1,7 +1,9 @@
 {
   "crossSelling": "Rasio Cross Selling",
+  "crossSellingShort": "Cross Selling",
   "crossSellingDesc": "Pelanggan yang membeli >1 kategori produk",
   "avgCategory": "Rata-rata Kategori Produk",
+  "avgCategoryShort": "Kategori",
   "avgCategoryDesc": "Rata-rata kategori unik per pelanggan aktif",
   "avgRevenue": "Rata-rata Revenue",
   "avgRevenueDesc": "Rata-rata revenue per pelanggan existing",
@@ -12,6 +14,7 @@
   "repeatOrder": "Tingkat Pesanan Ulang",
   "repeatOrderDesc": "Pelanggan existing dengan transaksi berulang",
   "expansion": "Tingkat Ekspansi Pelanggan",
+  "expansionShort": "Ekspansi",
   "expansionDesc": "Pelanggan dengan peningkatan belanja vs periode sebelumnya",
   "dormantRate": "Tingkat Pelanggan Dorman",
   "dormantRateDesc": "Pelanggan existing yang menjadi dormant",

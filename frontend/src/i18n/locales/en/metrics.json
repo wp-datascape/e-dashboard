@@ -1,7 +1,9 @@
 {
   "crossSelling": "Cross Selling Ratio",
+  "crossSellingShort": "Cross Selling",
   "crossSellingDesc": "Customers buying more than 1 product category",
   "avgCategory": "Avg. Product Category",
+  "avgCategoryShort": "Category",
   "avgCategoryDesc": "Average unique categories per active customer",
   "avgRevenue": "Avg. Revenue",
   "avgRevenueDesc": "Average revenue per existing customer",
@@ -12,6 +14,7 @@
   "repeatOrder": "Repeat Order Rate",
   "repeatOrderDesc": "Existing customers with repeat transactions",
   "expansion": "Customer Expansion Rate",
+  "expansionShort": "Expansion",
   "expansionDesc": "Customers with increased spending vs prior period",
   "dormantRate": "Dormant Customer Rate",
   "dormantRateDesc": "Existing customers who have gone dormant",

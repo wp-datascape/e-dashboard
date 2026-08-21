@@ -77,14 +77,20 @@
     }
   },
   "kpiHeader": {
-    "current": "Current",
-    "yoy": "YoY",
+    "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
     "change": "Change",
-    "vsPeriod": "vs {{period}}"
+    "ppValue": "{{value}} percentage points"
   },
   "trendSummary": {
-    "average": "{{count}}M Average",
+    "sectionLabel": "{{metric}} — summary across the last {{count}} {{unit}} shown in the chart",
+    "average": "Average",
     "highest": "Highest",
     "lowest": "Lowest"
+  },
+  "periodUnit": {
+    "monthly": "months",
+    "quarter": "quarters",
+    "semester": "semesters",
+    "annual": "years"
   }
 }
