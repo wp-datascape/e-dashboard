@@ -125,6 +125,7 @@ export default function CrossSelling() {
         companyId={companyId}
         branchId={resolvedBranchId}
         division={resolvedDivision}
+        periodEnd={periodEnd}
         excludeIntercompany={excludeIntercompany}
       />
     </Box>

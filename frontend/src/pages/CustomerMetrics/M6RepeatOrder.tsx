@@ -15,7 +15,8 @@ import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
-import { fmtRp, monthToEndDate } from './helpers';
+import { monthToEndDate } from './helpers';
+import { formatRupiah } from '@/utils/format';
 import { SectionLabel } from './HelperComponents';
 
 function orderCountColor(n: number): StatusChipColor {
@@ -39,7 +40,7 @@ function useRorColumns(t: TFunction): GridColDef[] {
         />
       ) },
     { field: 'total_revenue', headerName: t('customerMetrics.m6.colTotalRevenue'), width: 140, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRp(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
   ]
 }
 

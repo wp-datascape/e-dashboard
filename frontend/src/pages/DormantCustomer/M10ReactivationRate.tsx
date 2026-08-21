@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget';
+import { formatMonthLabel } from '@/utils/date';
 import type { DormantData } from '@/types/metrics';
 import { SectionLabel } from './HelperComponents';
 
@@ -56,6 +57,7 @@ export function M10ReactivationRate({ data, isLoading }: Props) {
               threshold={targetLow}
               thresholdLabel={t('dormantCustomer.targetMinLabel', { targetLow })}
               height={180}
+              xAxisFormatter={formatMonthLabel}
             />
           )}
         </Grid>

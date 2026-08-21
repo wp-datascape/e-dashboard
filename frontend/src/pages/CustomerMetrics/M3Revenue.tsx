@@ -20,8 +20,10 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
 import { PALETTES } from '@/theme/palettes';
-import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
+import { fmtRp, monthToEndDate } from './helpers';
 import { SectionLabel, Row } from './HelperComponents';
+import { formatRupiah } from '@/utils/format';
+import { formatMonthLabel } from '@/utils/date';
 
 function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();
@@ -41,25 +43,23 @@ function M3Tooltip({ active, payload }: TooltipContentProps<number, string>) {
         {d.month}
       </Typography>
       <Divider sx={{ mb: 1 }} />
-      {/* fmtRpDetail (2 desimal) — BUKAN fmtRp (1 desimal) — supaya angka yang tampil di
-          tooltip chart ini PERSIS SAMA dengan yang tampil di dialog drill-down (subtitle
-          dialogRevenueExisting/dialogAvgRevenue/dialogMedianThreshold di bawah pakai
-          fmtRpDetail juga). Nilainya sudah identik di backend (total_revenue_existing ===
-          breakdown.total_revenue, dst - sudah diverifikasi by direct API call), tapi
-          fmtRp membulatkan ke 1 desimal jadi keliatan beda ("2,4M" vs "2,35M") padahal
-          angka aslinya sama - laporan user 2026-07-23: "validasi data itu penting". */}
+      {/* formatRupiah (angka rupiah penuh, 2026-08-19) — tooltip chart ini PERSIS SAMA
+          dengan dialog drill-down (dialogRevenueExisting/dialogAvgRevenue/dialogMedianThreshold
+          di bawah pakai formatRupiah juga), karena keduanya sumbernya dibulatkan identik.
+          Nilainya sudah diverifikasi identik di backend (total_revenue_existing ===
+          breakdown.total_revenue, dst - laporan user 2026-07-23: "validasi data itu penting"). */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Row label={t('customerMetrics.m3.rowTotalRevenue')} value={fmtRpDetail(d.total_revenue_existing)} />
+        <Row label={t('customerMetrics.m3.rowTotalRevenue')} value={formatRupiah(d.total_revenue_existing)} />
         <Row label={t('customerMetrics.m3.rowTotalExisting')} value={String(d.existing_customers)} />
-        <Row label={t('customerMetrics.m3.rowAvgRevenue')} value={fmtRpDetail(d.avg_revenue)} />
+        <Row label={t('customerMetrics.m3.rowAvgRevenue')} value={formatRupiah(d.avg_revenue)} />
         <Row
           label={t('customerMetrics.m3.rowMedianRevenue')}
-          value={fmtRpDetail(d.median_revenue)}
+          value={formatRupiah(d.median_revenue)}
           highlight={d.median_revenue < d.avg_revenue * 0.7}
         />
         <Row
           label={t('customerMetrics.m3.rowHmContribution')}
-          value={fmtRpDetail(d.hm_revenue)}
+          value={formatRupiah(d.hm_revenue)}
         />
         <Row
           label={t('customerMetrics.m3.rowHmContributionPct')}
@@ -105,11 +105,11 @@ function useRevenueColumns(t: TFunction): GridColDef[] {
     { field: 'customer_code', headerName: t('customerMetrics.m4.colCode'),     width: 110, sortable: false,
       renderCell: (p) => p.value ?? '—' },
     { field: 'revenue',     headerName: t('customerMetrics.m3.colRevenue'),     width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRpDetail(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
     { field: 'revenue_pct', headerName: t('customerMetrics.m3.colRevenuePct'), width: 90,  align: 'right', headerAlign: 'right',
       renderCell: (p) => `${p.value}%` },
     { field: 'hm_revenue', headerName: t('customerMetrics.m3.colHmRevenue'), width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRpDetail(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
     { field: 'hm_pct', headerName: t('customerMetrics.m3.colHmPct'), width: 90, align: 'right', headerAlign: 'right',
       renderCell: (p) => `${p.value}%` },
     { field: 'tier', headerName: t('customerMetrics.m4.colTier'), width: 100, align: 'center', headerAlign: 'center', sortable: false,
@@ -197,6 +197,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           concentrationColor={concentrationColor}
           xKey="month"
           height={260}
+          xAxisFormatter={formatMonthLabel}
           formatBar={(v) => fmtRp(v)}
           formatLine={(v) => fmtRp(v)}
           renderTooltip={(props) => <M3Tooltip {...props} />}
@@ -228,11 +229,11 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
         subtitle={breakdown && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             {([
-              [t('customerMetrics.m3.dialogRevenueExisting'), fmtRpDetail(breakdown.total_revenue)],
+              [t('customerMetrics.m3.dialogRevenueExisting'), formatRupiah(breakdown.total_revenue)],
               [t('customerMetrics.m3.dialogTotalExisting'),    String(breakdown.total_existing)],
-              [t('customerMetrics.m3.dialogAvgRevenue'),       fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_revenue / breakdown.total_existing : 0)],
-              [t('customerMetrics.m3.dialogMedianThreshold'),  fmtRpDetail(breakdown.median_threshold)],
-              [t('customerMetrics.m3.dialogHmContribution'),   fmtRpDetail(breakdown.hm_revenue)],
+              [t('customerMetrics.m3.dialogAvgRevenue'),       formatRupiah(breakdown.total_existing > 0 ? breakdown.total_revenue / breakdown.total_existing : 0)],
+              [t('customerMetrics.m3.dialogMedianThreshold'),  formatRupiah(breakdown.median_threshold)],
+              [t('customerMetrics.m3.dialogHmContribution'),   formatRupiah(breakdown.hm_revenue)],
               [t('customerMetrics.m3.dialogHmContributionPct'), `${breakdown.total_revenue > 0 ? ((breakdown.hm_revenue / breakdown.total_revenue) * 100).toFixed(1) : '0'}%`],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>

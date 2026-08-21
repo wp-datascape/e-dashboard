@@ -5,6 +5,7 @@ import Skeleton from '@mui/material/Skeleton';
 import { useTranslation } from 'react-i18next';
 
 import { LineAlertWidget } from '@/components/charts/LineAlertWidget';
+import { formatMonthLabel } from '@/utils/date';
 import type { DormantData } from '@/types/metrics';
 import { SectionLabel } from './HelperComponents';
 
@@ -39,6 +40,7 @@ export function M8DormantRate({ data, isLoading }: Props) {
               threshold={alertPct}
               thresholdLabel={t('dormantCustomer.thresholdLabelPct', { alertPct })}
               height={240}
+              xAxisFormatter={formatMonthLabel}
             />
           )}
         </Grid>

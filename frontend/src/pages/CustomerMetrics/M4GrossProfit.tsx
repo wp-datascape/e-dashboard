@@ -20,8 +20,10 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useGpBreakdown } from '@/hooks/useMetrics';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
-import { fmtRp, fmtRpDetail, monthToEndDate } from './helpers';
+import { fmtRp, monthToEndDate } from './helpers';
 import { SectionLabel, Row } from './HelperComponents';
+import { formatRupiah } from '@/utils/format';
+import { formatMonthLabel } from '@/utils/date';
 
 function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
   const theme = useTheme();
@@ -42,24 +44,24 @@ function M4Tooltip({ active, payload }: TooltipContentProps<number, string>) {
         {d.month}
       </Typography>
       <Divider sx={{ mb: 1 }} />
-      {/* fmtRpDetail (2 desimal) — samakan presisi dengan dialog drill-down di bawah
-          (dialogGpExisting/dialogAvgGp pakai fmtRpDetail juga). Sudah diverifikasi
+      {/* formatRupiah (angka rupiah penuh, 2026-08-19) — samakan dengan dialog drill-down
+          di bawah (dialogGpExisting/dialogAvgGp pakai formatRupiah juga). Sudah diverifikasi
           totalGp (gp_tier1+2+3 dari trend) === breakdown.total_gp identik di backend -
           lihat catatan sama di M3Revenue.tsx M3Tooltip. */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Row label={t('customerMetrics.m4.tooltipTotalGp')} value={fmtRpDetail(totalGp)} />
-        <Row label={t('customerMetrics.m4.tooltipAvgGp')} value={fmtRpDetail(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
+        <Row label={t('customerMetrics.m4.tooltipTotalGp')} value={formatRupiah(totalGp)} />
+        <Row label={t('customerMetrics.m4.tooltipAvgGp')} value={formatRupiah(d.existing_customers > 0 ? totalGp / d.existing_customers : 0)} />
         <Divider sx={{ my: 0.75 }} />
-        <Row label={t('customerMetrics.m4.tierTop')}    value={fmtRpDetail(d.gp_tier1)} />
-        <Row label={t('customerMetrics.m4.tierMid')}    value={fmtRpDetail(d.gp_tier2)} />
-        <Row label={t('customerMetrics.m4.tierBottom')} value={fmtRpDetail(d.gp_tier3)} />
+        <Row label={t('customerMetrics.m4.tierTop')}    value={formatRupiah(d.gp_tier1)} />
+        <Row label={t('customerMetrics.m4.tierMid')}    value={formatRupiah(d.gp_tier2)} />
+        <Row label={t('customerMetrics.m4.tierBottom')} value={formatRupiah(d.gp_tier3)} />
       </Box>
       {d.top_gp_customer_name && (
         <>
           <Divider sx={{ my: 1 }} />
           <Row
             label={t('customerMetrics.m4.topLabel', { name: d.top_gp_customer_name })}
-            value={t('customerMetrics.m4.topValue', { revenue: fmtRp(d.top_gp_revenue), pct: d.top_gp_pct })}
+            value={t('customerMetrics.m4.topValue', { revenue: formatRupiah(d.top_gp_revenue), pct: d.top_gp_pct })}
             highlight={d.is_gp_concentrated}
             icon={d.is_gp_concentrated ? '⚠ ' : undefined}
           />
@@ -92,7 +94,7 @@ function useGpColumns(t: TFunction): GridColDef[] {
     { field: 'customer_code', headerName: t('customerMetrics.m4.colCode'),     width: 110, sortable: false,
       renderCell: (p) => p.value ?? '—' },
     { field: 'gp',     headerName: t('customerMetrics.m4.colGp'),     width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRpDetail(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
     { field: 'gp_pct', headerName: t('customerMetrics.m4.colGpPct'), width: 90,  align: 'right', headerAlign: 'right',
       renderCell: (p) => `${p.value}%` },
     { field: 'tier', headerName: t('customerMetrics.m4.colTier'), width: 100, align: 'center', headerAlign: 'center', sortable: false,
@@ -154,6 +156,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, branchId, division,
             xKey="month"
             height={240}
             stacked
+            xAxisFormatter={formatMonthLabel}
             yAxisFormatter={(v) => fmtRp(v)}
             renderTooltip={(props) => <M4Tooltip {...props} />}
             concentrationKey="top_gp_pct"
@@ -174,10 +177,10 @@ export function M4GrossProfit({ trend, isLoading, companyId, branchId, division,
         subtitle={breakdown && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             {([
-              [t('customerMetrics.m4.dialogGpExisting'),  fmtRpDetail(breakdown.total_gp)],
+              [t('customerMetrics.m4.dialogGpExisting'),  formatRupiah(breakdown.total_gp)],
               [t('customerMetrics.m4.dialogTotalExisting'), String(breakdown.total_existing)],
-              [t('customerMetrics.m4.dialogAvgGp'),                  fmtRpDetail(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
-              [t('customerMetrics.m4.dialogMedianThreshold'),                 fmtRpDetail(breakdown.median_threshold)],
+              [t('customerMetrics.m4.dialogAvgGp'),                  formatRupiah(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
+              [t('customerMetrics.m4.dialogMedianThreshold'),                 formatRupiah(breakdown.median_threshold)],
               [t('customerMetrics.m4.dialogExistingTx'),  String(breakdown.rows.length)],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>

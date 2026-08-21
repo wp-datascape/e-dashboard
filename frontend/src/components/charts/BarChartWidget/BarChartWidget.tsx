@@ -14,6 +14,7 @@ import {
   Tooltip,
   Legend,
   LabelList,
+  ReferenceLine,
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 
@@ -47,6 +48,8 @@ export interface BarChartWidgetProps {
   concentrationThreshold?: number;
   /** Formatter Y-axis (misal fmtRp) */
   yAxisFormatter?: (v: number) => string;
+  /** Formatter axis kategori/xKey (mis. formatMonthLabel) — XAxis di layout vertical, YAxis di layout horizontal */
+  xAxisFormatter?: (v: string) => string;
   /** Lebar Y-axis untuk horizontal layout (default 120) */
   yAxisWidth?: number;
   /** Mobile: sembunyikan Y-axis label, tampilkan nama di dalam bar */
@@ -57,6 +60,19 @@ export interface BarChartWidgetProps {
   showLabels?: boolean;
   /** Formatter label (default: tampilkan nilai apa adanya) */
   labelFormatter?: (value: number) => string;
+  /** Ambang skip-label: bar dengan |value| di bawah ini tidak dikasih label
+   * (default 5, biar tidak numpuk di bar sangat kecil). Set 0 buat SELALU
+   * tampilkan label di semua bar (2026-08-21, koreksi user "ada angka yang
+   * hilang di beberapa chart yang pendek" — chart diverging M7Expansion
+   * butuh SEMUA bar berlabel, bar pendek justru paling penting dibaca
+   * angkanya karena visualnya kecil). */
+  labelMinValue?: number;
+  /** Garis tegas di nilai 0 (2026-08-21, chart diverging M7Expansion — user:
+   * "bedakan warna positif dan negatif nya agar garis pemisahnya terlihat")
+   * — axisLine sumbu default disembunyikan (`axisLine={false}`), tanpa ini
+   * bar hijau (positif) dan merah (negatif) cuma nempel tanpa batas yang
+   * kelihatan jelas di mana titik 0-nya. */
+  showZeroLine?: boolean;
 }
 
 export const BarChartWidget = ({
@@ -75,11 +91,14 @@ export const BarChartWidget = ({
   concentrationKey,
   concentrationThreshold = 25,
   yAxisFormatter,
+  xAxisFormatter,
   onBarClick,
   showLabels = false,
   labelFormatter,
+  labelMinValue = 5,
   yAxisWidth = 120,
   mobileNameInBar = false,
+  showZeroLine = false,
 }: BarChartWidgetProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -125,6 +144,18 @@ export const BarChartWidget = ({
         <BarChart
           data={data}
           layout={isHorizontal ? 'vertical' : 'horizontal'}
+          // stackOffset="sign" (2026-08-21, bug ditemukan lewat screenshot —
+          // chart diverging M7Expansion semua bar kepaint merah, hijaunya
+          // ketutup) — default stackOffset recharts ("none") cumsum apa
+          // adanya: series kedua (nilai negatif) MULAI dari TOP series
+          // pertama (bukan dari 0), jadi rect-nya melebar nutupin balik ke
+          // area series pertama juga. "sign" bikin nilai positif numpuk ke
+          // atas dari 0 dan negatif numpuk ke bawah dari 0 SECARA TERPISAH —
+          // exact use-case resminya (lihat link BarChartStackedBySign di
+          // recharts types/util/types.d.ts). Aman buat stacked chart lama
+          // yang semua nilainya positif (hasil "sign" == "none" kalau tidak
+          // ada nilai negatif sama sekali).
+          stackOffset="sign"
           margin={{ top: concentrationKey ? 16 : 4, right: 4, left: isHorizontal ? 4 : (yAxisFormatter ? 0 : -20), bottom: 0 }}
         >
           <CartesianGrid
@@ -150,6 +181,7 @@ export const BarChartWidget = ({
                 axisLine={false}
                 tickLine={false}
                 width={effectiveYAxisWidth}
+                tickFormatter={xAxisFormatter}
               />
             </>
           ) : (
@@ -159,6 +191,7 @@ export const BarChartWidget = ({
                 tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                 axisLine={false}
                 tickLine={false}
+                tickFormatter={xAxisFormatter}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
@@ -168,6 +201,11 @@ export const BarChartWidget = ({
                 width={yAxisFormatter ? 62 : undefined}
               />
             </>
+          )}
+          {showZeroLine && (
+            isHorizontal
+              ? <ReferenceLine x={0} stroke={theme.palette.text.primary} strokeOpacity={0.4} strokeWidth={1.5} />
+              : <ReferenceLine y={0} stroke={theme.palette.text.primary} strokeOpacity={0.4} strokeWidth={1.5} />
           )}
           {renderTooltip ? (
             <Tooltip
@@ -233,7 +271,12 @@ export const BarChartWidget = ({
                   dataKey={s.key}
                   content={(props) => {
                     const val = Number(props.value ?? 0);
-                    if (val < 5) return null;
+                    // Math.abs (bukan `val < labelMinValue`) — nilai negatif
+                    // (mis. chart diverging M7Expansion, down_rate
+                    // ditampilkan sbg bar negatif) HARUS tetap kena threshold
+                    // skip-nilai-kecil yang sama, bukan selalu ke-skip krn
+                    // `val < N` selalu true buat semua bilangan negatif.
+                    if (Math.abs(val) < labelMinValue) return null;
                     const x = Number(props.x ?? 0);
                     const y = Number(props.y ?? 0);
                     const w = Number(props.width ?? 0);

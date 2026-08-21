@@ -7,6 +7,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { formatIDR } from '@/utils/format';
 
 export interface HeatmapRow {
   customer: string;
@@ -19,20 +20,21 @@ export interface HeatmapRow {
   totalRevenue?: number;
 }
 
-function fmtRp(v: number): string {
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}M`;
-  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(2)}jt`;
-  if (v >= 1_000)         return `${(v / 1_000).toFixed(1)}rb`;
-  return `Rp ${v.toLocaleString('id-ID')}`;
-}
-
 export interface HeatmapWidgetProps {
-  title: string;
+  // Opsional (2026-08-21, koreksi user: "tampilan terlalu sesak dengan
+  // text text tersebut" — title widget dulu WAJIB, sering dobel dgn
+  // SectionLabel di luar widget, mis. "Matriks Cross Selling Pelanggan
+  // (periode)" dobel persis dgn SectionLabel "Heatmap Cross Selling
+  // Pelanggan" + helper text periode di atasnya).
+  title?: string;
   subtitle?: string;
   xLabels: string[];
   data: HeatmapRow[];
   /** Klik sel yang sudah ada transaksi (bought) — untuk drill-down detail produk */
   onCellClick?: (row: HeatmapRow, label: string) => void;
+  /** Ikon kecil di depan title (2026-08-21, permintaan user: "terapkan di
+   * semua matrix" — ganti prefix teks jadi ikon, BUKAN emoji). Opsional. */
+  icon?: React.ElementType;
 }
 
 // ─── Mobile: Per-Customer Card List ───────────────────────────────────────────
@@ -115,7 +117,7 @@ function MobileCustomerListView({
                 )}
                 {row.totalRevenue !== undefined && (
                   <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.main' }}>
-                    {t('common.heatmap.totalRevenue', { value: fmtRp(row.totalRevenue) })}
+                    {t('common.heatmap.totalRevenue', { value: formatIDR(row.totalRevenue) })}
                   </Typography>
                 )}
               </Box>
@@ -215,7 +217,7 @@ function DesktopHeatmapView({
                   customer: row.customer,
                   label,
                   status: bought
-                    ? t('common.heatmap.statusYes', { count: val, revenue: fmtRp(revenue) })
+                    ? t('common.heatmap.statusYes', { count: val, revenue: formatIDR(revenue) })
                     : t('common.heatmap.statusNo'),
                 })}
                 arrow
@@ -250,7 +252,7 @@ function DesktopHeatmapView({
           {hasRevenue && (
             <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH, textAlign: 'center' }}>
               <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'success.main' }}>
-                {fmtRp(row.totalRevenue ?? 0)}
+                {formatIDR(row.totalRevenue ?? 0)}
               </Typography>
             </Box>
           )}
@@ -277,26 +279,34 @@ function DesktopHeatmapView({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export const HeatmapWidget = ({ title, subtitle, xLabels, data, onCellClick }: HeatmapWidgetProps) => {
+export const HeatmapWidget = ({ title, subtitle, xLabels, data, onCellClick, icon: Icon }: HeatmapWidgetProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <Card sx={{ p: 2 }}>
-      {/* Header */}
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {isMobile
-              ? t('common.heatmap.mobileSubtitle')
-              : subtitle}
-          </Typography>
-        )}
-      </Box>
+      {/* Header — title/subtitle keduanya opsional (2026-08-21, koreksi user:
+          tampilan sesak, dobel dgn SectionLabel+helper text di luar widget). */}
+      {(title || subtitle) && (
+        <Box sx={{ mb: 2 }}>
+          {title && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {Icon && <Icon sx={{ fontSize: 16, color: 'text.primary' }} />}
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                {title}
+              </Typography>
+            </Box>
+          )}
+          {subtitle && (
+            <Typography variant="caption" color="text.secondary">
+              {isMobile
+                ? t('common.heatmap.mobileSubtitle')
+                : subtitle}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* Responsive: Mobile = per-customer card list, Desktop = full matrix */}
       {isMobile ? (

@@ -26,6 +26,8 @@ export interface LineAlertWidgetProps {
   threshold?: number;
   thresholdLabel?: string;
   height?: number;
+  /** Formatter tick sumbu X (mis. formatMonthLabel utk 'YYYY-MM' -> "Jan 26") */
+  xAxisFormatter?: (v: string) => string;
 }
 
 export const LineAlertWidget = ({
@@ -38,6 +40,7 @@ export const LineAlertWidget = ({
   threshold = 10,
   thresholdLabel,
   height = 220,
+  xAxisFormatter,
 }: LineAlertWidgetProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -76,6 +79,7 @@ export const LineAlertWidget = ({
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}
+            tickFormatter={xAxisFormatter}
           />
           <YAxis
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}

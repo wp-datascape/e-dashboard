@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Bar,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -16,7 +17,7 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
-import type { TooltipContentProps } from 'recharts';
+import type { TooltipContentProps, MouseHandlerDataParam } from 'recharts';
 
 // Marker shape per line (spec: Line1=circle, Line2=square, Line3=diamond) — Recharts
 // bawaan cuma bisa gambar circle lewat prop `dot` object, jadi shape lain (square/
@@ -63,6 +64,14 @@ export interface ComboChartWidgetProps {
   bar2Key?: string;
   bar2Label?: string;
   bar2Color?: string;
+  /** Tumpuk bar+bar2 jadi 1 stacked bar (tinggi total = bar+bar2), BUKAN 2 bar
+   * sejajar (default lama) — dipakai kalau bar/bar2 itu PARTISI dari 1 total
+   * (mis. Single Category + Multi Category = Total Customer), 2026-08-21. */
+  stacked?: boolean;
+  /** Render bar/bar2 sbg Area (gradient fill) alih-alih Bar (kotak) — data &
+   * stacking SAMA PERSIS, cuma bentuk visual beda (user: "biar tidak monoton
+   * semuanya bar chart combo"). Default 'bar' (perilaku lama). 2026-08-21. */
+  barVariant?: 'bar' | 'area';
   lineKey: string;
   lineLabel: string;
   lineColor: string;
@@ -70,10 +79,13 @@ export interface ComboChartWidgetProps {
   height?: number;
   formatBar?: (v: number) => string;
   formatLine?: (v: number) => string;
-  // Garis kedua (misal median) — dashed
+  /** Formatter tick sumbu X (mis. formatMonthLabel utk 'YYYY-MM' -> "Jan 26") */
+  xAxisFormatter?: (v: string) => string;
+  // Garis kedua (misal median, atau benchmark/rata-rata periode) — dashed
   line2Key?: string;
   line2Label?: string;
   line2Color?: string;
+  formatLine2?: (v: number) => string;
   // Garis ketiga — SKALA BEDA dari line/line2 (persentase 0-100, bukan Rupiah), makanya
   // pakai axis tersendiri (yAxisId="pct", domain tetap [0,100], disembunyikan biar chart
   // tidak makin padat — nilai presisi tetap kebaca lewat tooltip).
@@ -101,6 +113,8 @@ export const ComboChartWidget = ({
   bar2Key,
   bar2Label,
   bar2Color,
+  stacked,
+  barVariant = 'bar',
   lineKey,
   lineLabel,
   lineColor,
@@ -108,9 +122,11 @@ export const ComboChartWidget = ({
   height = 220,
   formatBar,
   formatLine,
+  xAxisFormatter,
   line2Key,
   line2Label,
   line2Color,
+  formatLine2,
   line3Key,
   line3Label,
   line3Color,
@@ -179,9 +195,30 @@ export const ComboChartWidget = ({
     if (n === barLabel && formatBar) return [formatBar(v), n];
     if (n === bar2Label && formatBar) return [formatBar(v), n];
     if (n === lineLabel && formatLine) return [formatLine(v), n];
+    if (n === line2Label && formatLine2) return [formatLine2(v), n];
     if (n === line3Label && formatLine3) return [formatLine3(v), n];
     return [v.toLocaleString('id-ID'), n];
   };
+
+  // Klik (2026-08-21, bug ditemukan — user lapor "pop up error"): onClick
+  // PER-ELEMEN beda payload antara Bar dan Area di recharts v3 — Bar kirim
+  // data BARIS aslinya (`BarRectangleItem`, ada field xKey dst), Area kirim
+  // props geometri KURVA-nya sendiri (titik-titik path, BUKAN data), lihat
+  // `RechartsMouseEventHandler<Props, SVGPathElement>` di
+  // node_modules/recharts/types/shape/Curve.d.ts. Waktu `barVariant="area"`
+  // dipakai (M2), handler klik dpt objek salah bentuk → field xKey
+  // undefined → error di downstream (parse tanggal invalid). Fix: pindah
+  // klik ke level `<ComposedChart>` (chart container) pakai `activeLabel`
+  // dari recharts sendiri — SAMA PERSIS mekanisme yang sudah diperbaiki &
+  // terbukti jalan di `AreaChartWidget.tsx` — bekerja SERAGAM utk Bar
+  // MAUPUN Area, tidak bergantung shape payload per-elemen yang beda-beda.
+  const handleChartClick = onBarClick
+    ? (state: MouseHandlerDataParam) => {
+        if (state.activeLabel == null) return;
+        const row = (data as Record<string, unknown>[]).find((d) => d[xKey] === state.activeLabel);
+        if (row) onBarClick(row);
+      }
+    : undefined;
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
@@ -203,7 +240,26 @@ export const ComboChartWidget = ({
             sendiri sudah reserve ruang buat label ("14.8jt" dst), 28px ekstra di
             atas itu berlebihan. right:4 (samakan dgn BarChartWidget/M4 yang tidak
             ada keluhan sama) - laporan user: gap kanan chart M3 kebesaran. */}
-        <ComposedChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 16, right: 4, left: -20, bottom: 0 }}
+          onClick={handleChartClick}
+          style={onBarClick ? { cursor: 'pointer' } : undefined}
+        >
+          {barVariant === 'area' && (
+            <defs>
+              <linearGradient id="combo-area-grad-bar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={barColor} stopOpacity={0.5} />
+                <stop offset="95%" stopColor={barColor} stopOpacity={0.05} />
+              </linearGradient>
+              {bar2Key && (
+                <linearGradient id="combo-area-grad-bar2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={bar2Color ?? theme.palette.secondary.main} stopOpacity={0.5} />
+                  <stop offset="95%" stopColor={bar2Color ?? theme.palette.secondary.main} stopOpacity={0.05} />
+                </linearGradient>
+              )}
+            </defs>
+          )}
           <CartesianGrid
             strokeDasharray="3 3"
             stroke={theme.palette.divider}
@@ -214,6 +270,7 @@ export const ComboChartWidget = ({
             tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
             axisLine={false}
             tickLine={false}
+            tickFormatter={xAxisFormatter}
           />
           <YAxis
             yAxisId="left"
@@ -262,47 +319,76 @@ export const ComboChartWidget = ({
           )}
           <Legend wrapperStyle={{ fontSize: legendFontSize }} iconSize={legendIconSize} />
 
-          <Bar
-            yAxisId="left"
-            dataKey={barKey}
-            name={barLabel}
-            fill={barColor}
-            radius={0}
-            cursor={onBarClick ? 'pointer' : undefined}
-            onClick={onBarClick ? (data) => onBarClick(data as unknown as Record<string, unknown>) : undefined}
-          >
-            {concentrationKey && (data as Record<string, number>[]).map((entry, i) => (
-              <Cell
-                key={i}
-                fill={(entry[concentrationKey] ?? 0) > concentrationThreshold ? warnColor : barColor}
+          {barVariant === 'area' ? (
+            <>
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey={barKey}
+                name={barLabel}
+                stroke={barColor}
+                fill="url(#combo-area-grad-bar)"
+                strokeWidth={2}
+                stackId={stacked ? 'stack' : undefined}
               />
-            ))}
-            {concentrationKey && (
-              <LabelList
-                dataKey={concentrationKey}
-                content={(props) => {
-                  const val = Number(props.value ?? 0);
-                  if (val <= concentrationThreshold) return null;
-                  const cx = Number(props.x ?? 0) + Number(props.width ?? 0) / 2;
-                  const cy = Number(props.y ?? 0) - 6;
-                  return (
-                    <text x={cx} y={cy} textAnchor="middle" fontSize={11} fill={theme.palette.warning.dark}>
-                      ⚠
-                    </text>
-                  );
-                }}
-              />
-            )}
-          </Bar>
+              {bar2Key && (
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey={bar2Key}
+                  name={bar2Label ?? bar2Key}
+                  stroke={bar2Color ?? theme.palette.secondary.main}
+                  fill="url(#combo-area-grad-bar2)"
+                  strokeWidth={2}
+                  stackId={stacked ? 'stack' : undefined}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Bar
+                yAxisId="left"
+                dataKey={barKey}
+                name={barLabel}
+                fill={barColor}
+                radius={0}
+                stackId={stacked ? 'stack' : undefined}
+              >
+                {concentrationKey && (data as Record<string, number>[]).map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={(entry[concentrationKey] ?? 0) > concentrationThreshold ? warnColor : barColor}
+                  />
+                ))}
+                {concentrationKey && (
+                  <LabelList
+                    dataKey={concentrationKey}
+                    content={(props) => {
+                      const val = Number(props.value ?? 0);
+                      if (val <= concentrationThreshold) return null;
+                      const cx = Number(props.x ?? 0) + Number(props.width ?? 0) / 2;
+                      const cy = Number(props.y ?? 0) - 6;
+                      return (
+                        <text x={cx} y={cy} textAnchor="middle" fontSize={11} fill={theme.palette.warning.dark}>
+                          ⚠
+                        </text>
+                      );
+                    }}
+                  />
+                )}
+              </Bar>
 
-          {bar2Key && (
-            <Bar
-              yAxisId="left"
-              dataKey={bar2Key}
-              name={bar2Label ?? bar2Key}
-              fill={bar2Color ?? theme.palette.secondary.main}
-              radius={0}
-            />
+              {bar2Key && (
+                <Bar
+                  yAxisId="left"
+                  dataKey={bar2Key}
+                  name={bar2Label ?? bar2Key}
+                  fill={bar2Color ?? theme.palette.secondary.main}
+                  radius={0}
+                  stackId={stacked ? 'stack' : undefined}
+                />
+              )}
+            </>
           )}
 
           <Line
