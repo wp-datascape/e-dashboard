@@ -1,9 +1,10 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { cteEstablishedCustomers } from '../segment.helper'
+import { cteEstablishedCustomers, resolveInvoiceScopeConditions } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RevenueBreakdownRow, ExpansionBreakdownRow } from '../metrics.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw } from '@/utils/scope'
+import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 
 export type TrendRow = {
   month: string
@@ -22,7 +23,16 @@ export type TrendRow = {
   repeat_order_rate: number
   expansion_rate: number
   flat_rate: number
+  inactive_rate: number
   down_rate: number
+  // Jumlah customer mentah per kategori (2026-08-22, user: "Aku butuh data
+  // jumlah nya selain dari persentase") — dihitung dari CASE WHEN yang
+  // SAMA PERSIS dgn up_rate/flat_rate/inactive_rate/down_rate di atas,
+  // cuma tanpa dibagi/dikali 100 (COUNT DISTINCT e.id mentah).
+  up_count: number
+  flat_count: number
+  inactive_count: number
+  down_count: number
   active_existing_count: number
   active_new_count: number
   median_revenue: number
@@ -34,38 +44,58 @@ export type TrendRow = {
 }
 
 /**
- * Tren 12 bulan untuk M3–M7.
+ * Tren 12 titik (Bulanan/Kuartalan/Semesteran/Tahunan, task029.md §30.9
+ * poin 1, 2026-08-22) untuk M3–M7 — generalisasi dari versi lama yang
+ * hardcode 12 bulan kalender (`generate_series`). Pola bucket VALUES-list
+ * SAMA PERSIS `fetchCrossSellingTrend` (M1, `m1.repository.ts`) — REUSE,
+ * bukan tulis ulang. Service layer (`getCustomerMetrics`) yang menghitung
+ * tanggal 12 bucket (`buildTrailingPeriods`) — repository ini TIDAK
+ * menghitung tanggal periode sendiri (pembagian layer, CRITICAL_RULES.md).
  *
  * existing = bukan customer baru (task028: TERMASUK yang sudah dormant)
- * active   = ada invoice dalam activeMonths sebelum akhir bulan (subset existing)
+ * active   = ada invoice DALAM BUCKET itu sendiri (subset existing)
+ *
+ * 2 keputusan desain generalisasi (task029.md §30.9, plan 2026-08-22,
+ * TIDAK mengubah makna bisnis "siapa existing" — task026 §8e):
+ * 1. Kualifikasi "Existing" (first_invoice_date < X) di-anchor ke AWAL
+ *    bucket (`b.ps`), BUKAN akhir bucket spt sebelumnya — supaya tidak
+ *    melonggar liar utk bucket lebar (Kuartal/Semester/Tahun). Formula
+ *    date_trunc-anchored (pola SAMA fix M1 §30.7) SEKALIAN
+ *    memperbaiki bug off-by-one lama (`bucket_end - activeMonths bulan`
+ *    mentah, §30.9 poin 4) — utk bucket BULANAN & activeMonths=1 (default
+ *    config saat ini), hasilnya PERSIS SAMA dgn perilaku lama (diverifikasi
+ *    numerik).
+ * 2. Window "current"/"previous" agregasi (revenue M3/M4, rate M7) SEKARANG
+ *    IKUT LEBAR BUCKET ITU SENDIRI (whole bucket), bukan lagi fixed
+ *    activeMonths — sesuai keputusan §30.3 ("Rate KPI: recompute dari
+ *    total se-periode" + "SUM murni aman dijumlah [across periode]"). Utk
+ *    granularitas BULANAN (activeMonths=1 = lebar bucket bulanan), hasilnya
+ *    JUGA identik dgn sebelumnya — bedanya cuma kelihatan di kuartal/
+ *    semester/tahun (baru, belum pernah ada).
  */
-export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<TrendRow[]> {
-  const { cid, filterDate, activeMonths, dormantMonths, division, branchScope, divisionScope, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
+export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
+  const { cid, activeMonths, division, companyScopeIds } = p
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+
+  const bucketValues = sql.join(
+    buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
+  const prevBucketValues = sql.join(
+    prevBuckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
+  const earliestStart = prevBuckets[0]!.start
+  const latestEnd = buckets[buckets.length - 1]!.end
 
   const rows = await db.execute(sql`
     WITH
-    months AS (
-      SELECT generate_series(
-        date_trunc('month', ${filterDate}::date) - INTERVAL '11 months',
-        date_trunc('month', ${filterDate}::date),
-        INTERVAL '1 month'
-      )::date AS ms
-    ),
+    buckets(label, ps, pe) AS (VALUES ${bucketValues}),
+    prev_buckets(label, ps, pe) AS (VALUES ${prevBucketValues}),
 
-    -- First invoice per customer (global, tanpa filter divisi) — untuk deteksi customer baru
-    first_inv AS (
-      SELECT customer_id, MIN(invoice_date) AS first_date
-      FROM invoices
-      WHERE deleted_at IS NULL
-      GROUP BY customer_id
-    ),
-
-    -- Semua invoice relevan: dari 11 bulan lalu - dormantMonths, sampai akhir bulan filter
+    -- Semua invoice relevan: dari awal bucket "previous" paling lama
+    -- (dibutuhkan prev_inv_agg titik pertama) sampai akhir bucket terakhir.
     raw_inv AS (
       SELECT i.id AS invoice_id, i.customer_id, i.invoice_date,
              i.total_revenue::numeric AS rev,
@@ -82,18 +112,14 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
-        AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
-                              - INTERVAL '11 months'
-                              - ${dormantMonths}::int * INTERVAL '1 month'
-        AND i.invoice_date <= (date_trunc('month', ${filterDate}::date)
-                              + INTERVAL '1 month'
-                              - INTERVAL '1 day')
+        AND i.invoice_date >= ${earliestStart}::date
+        AND i.invoice_date <= ${latestEnd}::date
     ),
 
-    -- Invoice HM relevan: dari 11 bulan lalu - activeMonths, sampai akhir bulan filter.
-    -- Tidak DISTINCT (beda dari sebelumnya) - butuh revenue per invoice_item utk SUM
-    -- di hm_inv_agg (tooltip hover M3); CTE hm di bawah tetap aman karena cuma project
-    -- ms+customer_id dengan DISTINCT-nya sendiri, tidak peduli row hm_raw dobel.
+    -- Invoice HM relevan, rentang SAMA dgn raw_inv. Tidak DISTINCT (beda
+    -- dari sebelumnya) - butuh revenue per invoice_item utk SUM di
+    -- hm_inv_agg (tooltip hover M3); CTE hm di bawah tetap aman karena cuma
+    -- project label+customer_id dengan DISTINCT-nya sendiri.
     hm_raw AS (
       SELECT i.customer_id, i.invoice_date, ii.revenue::numeric AS revenue
       FROM invoices i
@@ -115,33 +141,33 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
-        AND i.invoice_date >= date_trunc('month', ${filterDate}::date)
-                              - INTERVAL '11 months'
-                              - ${activeMonths}::int * INTERVAL '1 month'
-        AND i.invoice_date <= (date_trunc('month', ${filterDate}::date)
-                              + INTERVAL '1 month'
-                              - INTERVAL '1 day')
+        AND i.invoice_date >= ${earliestStart}::date
+        AND i.invoice_date <= ${latestEnd}::date
     ),
 
-    -- Existing customers per bulan: bukan customer baru — TERMASUK yang
+    -- Existing customers per bucket: bukan customer baru — TERMASUK yang
     -- sudah dormant (task028, supersede task027 §4: Existing = semua
     -- customer kecuali New). EXISTS di bawah query langsung ke tabel
-    -- invoices (bukan CTE raw_inv, yang lower-bound-nya sengaja dibatasi
-    -- dormantMonths untuk keperluan agregasi revenue/GP — beda kebutuhan
-    -- dari cek keanggotaan ini, yang perlu tembus ke invoice sejauh apa pun
-    -- ke belakang) — dulu ada lower-bound dormantMonths juga di sini,
-    -- sekarang dilepas, cuma sisa upper-bound (invoice <= akhir bulan ini)
-    -- + scope filter, mirror pola cteEstablishedCustomers.
+    -- invoices (bukan CTE raw_inv, yang lower-bound-nya dibatasi ke rentang
+    -- 13-bucket saja) — cek keanggotaan ini perlu tembus ke invoice sejauh
+    -- apa pun ke belakang, cuma upper-bound (invoice <= akhir bucket ini) +
+    -- scope filter, mirror pola cteEstablishedCustomers.
     existing AS (
-      SELECT DISTINCT c.id, m.ms
+      SELECT DISTINCT c.id, b.label
       FROM customers c
-      CROSS JOIN months m
-      JOIN first_inv fi ON fi.customer_id = c.id
+      CROSS JOIN buckets b
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-        -- not new: first invoice sebelum active cutoff bulan ini
-        AND fi.first_date < (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                            - ${activeMonths}::int * INTERVAL '1 month'
+        -- not new: first invoice sebelum ambang activeMonths, di-anchor ke
+        -- AWAL bucket (bukan akhir spt versi lama) — date_trunc-anchored,
+        -- kalender-benar (bug off-by-one lama diperbaiki sekalian, pola
+        -- sama fix M1 §30.7). Baca langsung customers.first_invoice_date
+        -- (bukan CTE first_inv/MIN scan 246rb+ invoice lagi) — kolom ini
+        -- SUDAH dipelihara akurat tiap import (upsertCustomer,
+        -- import.repository.ts).
+        AND c.first_invoice_date < (date_trunc('month', b.ps)
+                            - (${activeMonths}::int - 1) * INTERVAL '1 month'
+                            - INTERVAL '1 day')
         AND EXISTS (
           SELECT 1
           FROM invoices i
@@ -157,149 +183,126 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
             AND ${branchCond}
             AND ${divisionScopeCond}
             AND ${excludeIntercompanyCond}
-            AND i.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+            AND i.invoice_date <= b.pe
         )
     ),
 
-    -- Revenue + GP per existing customer per bulan (window: activeMonths sebelum akhir bulan)
+    -- Revenue + GP per existing customer per bucket (window: SELURUH
+    -- bucket itu sendiri, bukan lagi activeMonths — Keputusan desain #2).
+    -- invoice_count DIGABUNG dari repeat_orders (dulu CTE terpisah, JOIN
+    -- ke-6 pada spine customer x bucket yang sama persis - restrukturisasi
+    -- 2026-08-21, audit performa: 8+ Merge Join berantai pada ~275rb baris
+    -- dominasi waktu eksekusi).
     active_inv_agg AS (
-      SELECT e.ms, ri.customer_id, SUM(ri.rev) AS rev, SUM(ri.gp) AS gp
+      SELECT b.label, ri.customer_id, SUM(ri.rev) AS rev, SUM(ri.gp) AS gp,
+        COUNT(DISTINCT ri.invoice_id) AS invoice_count
       FROM raw_inv ri
-      JOIN months m ON
-        ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                           - ${activeMonths}::int * INTERVAL '1 month'
-        AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-      JOIN existing e ON e.id = ri.customer_id AND e.ms = m.ms
-      GROUP BY e.ms, ri.customer_id
+      JOIN buckets b ON ri.invoice_date >= b.ps AND ri.invoice_date <= b.pe
+      JOIN existing e ON e.id = ri.customer_id AND e.label = b.label
+      GROUP BY b.label, ri.customer_id
     ),
 
-    -- M7: revenue per existing customer di activeMonths SEBELUM active window
+    -- M7: revenue per existing customer di BUCKET SEBELUMNYA (lebar sama
+    -- dgn bucket current, Keputusan desain #2) — bukan lagi 2×activeMonths
+    -- mundur dari bucket_end.
     prev_inv_agg AS (
-      SELECT e.ms, ri.customer_id, SUM(ri.rev) AS rev
+      SELECT pb.label, ri.customer_id, SUM(ri.rev) AS rev
       FROM raw_inv ri
-      JOIN months m ON
-        ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                           - (${activeMonths}::int * 2) * INTERVAL '1 month'
-        AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                               - ${activeMonths}::int * INTERVAL '1 month'
-      JOIN existing e ON e.id = ri.customer_id AND e.ms = m.ms
-      GROUP BY e.ms, ri.customer_id
+      JOIN prev_buckets pb ON ri.invoice_date >= pb.ps AND ri.invoice_date <= pb.pe
+      JOIN existing e ON e.id = ri.customer_id AND e.label = pb.label
+      GROUP BY pb.label, ri.customer_id
     ),
 
-    -- M6: existing customer yang order lebih dari 1x dalam active window
-    repeat_orders AS (
-      SELECT e.ms, ri.customer_id
-      FROM raw_inv ri
-      JOIN months m ON
-        ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                           - ${activeMonths}::int * INTERVAL '1 month'
-        AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-      JOIN existing e ON e.id = ri.customer_id AND e.ms = m.ms
-      GROUP BY e.ms, ri.customer_id
-      HAVING COUNT(DISTINCT ri.invoice_id) > 1
-    ),
-
-    -- M5: existing customer yang beli HM dalam activeMonths sebelum akhir bulan
-    hm AS (
-      SELECT DISTINCT e.ms, hr.customer_id
-      FROM hm_raw hr
-      JOIN months m ON
-        hr.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                           - ${activeMonths}::int * INTERVAL '1 month'
-        AND hr.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-      JOIN existing e ON e.id = hr.customer_id AND e.ms = m.ms
-    ),
-
-    -- Kontribusi revenue High Margin per existing customer per bulan (tooltip hover M3,
-    -- task006) - populasi & window sama dengan active_inv_agg supaya konsisten dgn
-    -- total_revenue_existing.
+    -- Kontribusi revenue High Margin per existing customer per bucket
+    -- (tooltip hover M3, task006) - populasi & window sama dengan
+    -- active_inv_agg supaya konsisten dgn total_revenue_existing. JUGA
+    -- dipakai sbg penentu keanggotaan M5 (customer yang MUNCUL di sini
+    -- otomatis "beli HM dalam window ini", tidak perlu CTE keanggotaan
+    -- terpisah).
     hm_inv_agg AS (
-      SELECT e.ms, hr.customer_id, SUM(hr.revenue) AS hm_revenue
+      SELECT b.label, hr.customer_id, SUM(hr.revenue) AS hm_revenue
       FROM hm_raw hr
-      JOIN months m ON
-        hr.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                           - ${activeMonths}::int * INTERVAL '1 month'
-        AND hr.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-      JOIN existing e ON e.id = hr.customer_id AND e.ms = m.ms
-      GROUP BY e.ms, hr.customer_id
+      JOIN buckets b ON hr.invoice_date >= b.ps AND hr.invoice_date <= b.pe
+      JOIN existing e ON e.id = hr.customer_id AND e.label = b.label
+      GROUP BY b.label, hr.customer_id
     ),
 
-    -- New customers per bulan: first invoice dalam active window
+    -- New customers per bucket: first invoice dalam bucket itu sendiri
+    -- (komplemen persis dari kualifikasi "existing" di atas — formula
+    -- ambang SAMA, cuma tandanya dibalik).
     new_cust AS (
-      SELECT DISTINCT c.id, m.ms
+      SELECT DISTINCT c.id, b.label
       FROM customers c
-      CROSS JOIN months m
-      JOIN first_inv fi ON fi.customer_id = c.id
+      CROSS JOIN buckets b
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-        AND fi.first_date >= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                            - ${activeMonths}::int * INTERVAL '1 month'
-        AND fi.first_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+        AND c.first_invoice_date >= (date_trunc('month', b.ps)
+                            - (${activeMonths}::int - 1) * INTERVAL '1 month'
+                            - INTERVAL '1 day')
+        AND c.first_invoice_date <= b.pe
         AND EXISTS (
           SELECT 1 FROM raw_inv ri
           WHERE ri.customer_id = c.id
-            AND ri.invoice_date >  (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-                                   - ${activeMonths}::int * INTERVAL '1 month'
-            AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
+            AND ri.invoice_date >= b.ps AND ri.invoice_date <= b.pe
         )
     ),
 
     -- Pre-aggregated new customer count — hindari cartesian product di main SELECT
     new_cust_cnt AS (
-      SELECT ms, COUNT(DISTINCT id)::int AS cnt
+      SELECT label, COUNT(DISTINCT id)::int AS cnt
       FROM new_cust
-      GROUP BY ms
+      GROUP BY label
     ),
 
-    -- Active existing count + median revenue per bulan (M3 enrichment)
+    -- Active existing count + median revenue per bucket (M3 enrichment)
     monthly_extras AS (
-      SELECT ms,
+      SELECT label,
         COUNT(*)::int AS active_existing_count,
         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rev))::bigint AS median_revenue
       FROM active_inv_agg
-      GROUP BY ms
+      GROUP BY label
     ),
 
-    -- Top revenue contributor per bulan
+    -- Top revenue contributor per bucket
     top_contrib AS (
-      SELECT DISTINCT ON (ms)
-        ms, customer_id, rev AS top_rev,
-        ROUND(rev * 100.0 / NULLIF(SUM(rev) OVER (PARTITION BY ms), 0), 1) AS top_pct
+      SELECT DISTINCT ON (label)
+        label, customer_id, rev AS top_rev,
+        ROUND(rev * 100.0 / NULLIF(SUM(rev) OVER (PARTITION BY label), 0), 1) AS top_pct
       FROM active_inv_agg
-      ORDER BY ms, rev DESC
+      ORDER BY label, rev DESC
     ),
 
-    -- Median GP per bulan (M4 tier threshold)
+    -- Median GP per bucket (M4 tier threshold)
     gp_median_per_month AS (
-      SELECT ms, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gp) AS gp_median_threshold
+      SELECT label, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gp) AS gp_median_threshold
       FROM active_inv_agg
-      GROUP BY ms
+      GROUP BY label
     ),
 
-    -- GP tier breakdown per bulan
+    -- GP tier breakdown per bucket
     gp_tier_breakdown AS (
       SELECT
-        ai.ms,
+        ai.label,
         SUM(CASE WHEN ai.gp >  gm.gp_median_threshold            THEN ai.gp ELSE 0 END) AS tier1_gp,
         SUM(CASE WHEN ai.gp <= gm.gp_median_threshold
                  AND ai.gp >  gm.gp_median_threshold * 0.5       THEN ai.gp ELSE 0 END) AS tier2_gp,
         SUM(CASE WHEN ai.gp <= gm.gp_median_threshold * 0.5      THEN ai.gp ELSE 0 END) AS tier3_gp
       FROM active_inv_agg ai
-      JOIN gp_median_per_month gm ON gm.ms = ai.ms
-      GROUP BY ai.ms
+      JOIN gp_median_per_month gm ON gm.label = ai.label
+      GROUP BY ai.label
     ),
 
-    -- Top GP contributor per bulan
+    -- Top GP contributor per bucket
     top_contrib_gp AS (
-      SELECT DISTINCT ON (ms)
-        ms, customer_id, gp AS top_gp,
-        ROUND(gp * 100.0 / NULLIF(SUM(gp) OVER (PARTITION BY ms), 0), 1) AS top_gp_pct
+      SELECT DISTINCT ON (label)
+        label, customer_id, gp AS top_gp,
+        ROUND(gp * 100.0 / NULLIF(SUM(gp) OVER (PARTITION BY label), 0), 1) AS top_gp_pct
       FROM active_inv_agg
-      ORDER BY ms, gp DESC
+      ORDER BY label, gp DESC
     )
 
     SELECT
-      TO_CHAR(m.ms, 'YYYY-MM') AS month,
+      b.label AS month,
 
       COUNT(DISTINCT e.id)::int AS existing_customers,
 
@@ -314,12 +317,12 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       ) AS avg_gross_profit,
 
       ROUND(
-        COUNT(DISTINCT hmr.customer_id)::numeric * 100
+        COUNT(DISTINCT hia.customer_id)::numeric * 100
         / NULLIF(COUNT(DISTINCT e.id), 0), 1
       ) AS high_margin_ratio,
 
       ROUND(
-        COUNT(DISTINCT ro.customer_id)::numeric * 100
+        COUNT(DISTINCT CASE WHEN cur.invoice_count > 1 THEN cur.customer_id END)::numeric * 100
         / NULLIF(COUNT(DISTINCT e.id), 0), 1
       ) AS repeat_order_rate,
 
@@ -334,23 +337,52 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       -- M7 3-way split (koreksi user 2026-08-10: "pisahkan flat/turun jadi
       -- masing-masing 1 card, chart kiri 3 balok Naik/Flat/Turun") — dulu
       -- cuma binary up vs flat_down (100-expansion_rate), sekarang flat
-      -- (cur == prev, TERMASUK sama-sama 0 kalau existing customer literally
-      -- tidak order di window manapun) dan turun (cur < prev) dipisah eksak,
-      -- bukan didekati. expansion_rate/flat_down_rate TIDAK dihapus (masih
-      -- dipakai M7Expansion.tsx chart tren kanan, 2-way, di luar scope
-      -- perubahan ini).
+      -- dan turun (cur < prev) dipisah eksak, bukan didekati.
+      -- expansion_rate/flat_down_rate TIDAK dihapus (masih dipakai
+      -- M7Expansion.tsx chart tren kanan, 2-way, di luar scope perubahan ini).
+      --
+      -- 4-way (koreksi user 2026-08-21, KERAS: "datamu tidak valid jika
+      -- tanpa transaksi kamu beri label stabil") — flat_rate SEBELUMNYA
+      -- include customer yang literally TIDAK ADA transaksi di kedua window
+      -- (cur=prev=0) sbg "Flat/Stabil" — SALAH secara bisnis, "stabil"
+      -- cuma masuk akal kalau customer itu MEMANG masih order (nilainya
+      -- sama persis), bukan yang tidak order sama sekali. Dipisah jadi
+      -- flat_rate (cur=prev, DAN cur>0 — genuinely tidak berubah) vs
+      -- inactive_rate (cur=prev=0 — tidak ada sinyal sama sekali,
+      -- kategori terpisah, BUKAN bagian dari "stabil").
       ROUND(
         COUNT(DISTINCT CASE
-          WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0)
+          WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0) AND COALESCE(cur.rev, 0) > 0
           THEN e.id END)::numeric * 100
         / NULLIF(COUNT(DISTINCT e.id), 0), 1
       ) AS flat_rate,
+      ROUND(
+        COUNT(DISTINCT CASE
+          WHEN COALESCE(cur.rev, 0) = 0 AND COALESCE(prv.rev, 0) = 0
+          THEN e.id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+      ) AS inactive_rate,
       ROUND(
         COUNT(DISTINCT CASE
           WHEN COALESCE(cur.rev, 0) < COALESCE(prv.rev, 0)
           THEN e.id END)::numeric * 100
         / NULLIF(COUNT(DISTINCT e.id), 0), 1
       ) AS down_rate,
+
+      -- Jumlah mentah (2026-08-22, "butuh data jumlah, bukan cuma
+      -- persentase") — CASE WHEN sama persis rate di atas, tanpa *100/…
+      COUNT(DISTINCT CASE
+        WHEN COALESCE(cur.rev, 0) > COALESCE(prv.rev, 0)
+        THEN e.id END)::int AS up_count,
+      COUNT(DISTINCT CASE
+        WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0) AND COALESCE(cur.rev, 0) > 0
+        THEN e.id END)::int AS flat_count,
+      COUNT(DISTINCT CASE
+        WHEN COALESCE(cur.rev, 0) = 0 AND COALESCE(prv.rev, 0) = 0
+        THEN e.id END)::int AS inactive_count,
+      COUNT(DISTINCT CASE
+        WHEN COALESCE(cur.rev, 0) < COALESCE(prv.rev, 0)
+        THEN e.id END)::int AS down_count,
 
       COALESCE(MAX(me.active_existing_count), 0)::int AS active_existing_count,
       COALESCE(MAX(ncc.cnt), 0)::int                   AS active_new_count,
@@ -368,22 +400,20 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       COALESCE(MAX(tcg.top_gp_pct), 0)              AS top_gp_pct,
       COALESCE(SUM(hia.hm_revenue), 0)               AS hm_revenue
 
-    FROM months m
-    LEFT JOIN existing e          ON e.ms = m.ms
-    LEFT JOIN active_inv_agg cur  ON cur.ms = m.ms AND cur.customer_id = e.id
-    LEFT JOIN prev_inv_agg   prv  ON prv.ms = m.ms AND prv.customer_id = e.id
-    LEFT JOIN repeat_orders  ro   ON ro.ms  = m.ms AND ro.customer_id  = e.id
-    LEFT JOIN hm hmr              ON hmr.ms = m.ms AND hmr.customer_id = e.id
-    LEFT JOIN hm_inv_agg hia      ON hia.ms = m.ms AND hia.customer_id = e.id
-    LEFT JOIN monthly_extras me   ON me.ms = m.ms
-    LEFT JOIN new_cust_cnt ncc    ON ncc.ms = m.ms
-    LEFT JOIN top_contrib tc      ON tc.ms = m.ms
+    FROM buckets b
+    LEFT JOIN existing e          ON e.label = b.label
+    LEFT JOIN active_inv_agg cur  ON cur.label = b.label AND cur.customer_id = e.id
+    LEFT JOIN prev_inv_agg   prv  ON prv.label = b.label AND prv.customer_id = e.id
+    LEFT JOIN hm_inv_agg hia      ON hia.label = b.label AND hia.customer_id = e.id
+    LEFT JOIN monthly_extras me   ON me.label = b.label
+    LEFT JOIN new_cust_cnt ncc    ON ncc.label = b.label
+    LEFT JOIN top_contrib tc      ON tc.label = b.label
     LEFT JOIN customers cust_top  ON cust_top.id = tc.customer_id
-    LEFT JOIN gp_tier_breakdown gtb ON gtb.ms = m.ms
-    LEFT JOIN top_contrib_gp tcg  ON tcg.ms = m.ms
+    LEFT JOIN gp_tier_breakdown gtb ON gtb.label = b.label
+    LEFT JOIN top_contrib_gp tcg  ON tcg.label = b.label
     LEFT JOIN customers cust_top_gp ON cust_top_gp.id = tcg.customer_id
-    GROUP BY m.ms
-    ORDER BY m.ms
+    GROUP BY b.label, b.pe
+    ORDER BY b.pe
   `)
 
   return (rows as unknown[]).map((r: unknown) => {
@@ -398,7 +428,12 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams): Promise<Trend
       repeat_order_rate:      Number(row.repeat_order_rate ?? 0),
       expansion_rate:         Number(row.expansion_rate ?? 0),
       flat_rate:              Number(row.flat_rate ?? 0),
+      inactive_rate:          Number(row.inactive_rate ?? 0),
       down_rate:              Number(row.down_rate ?? 0),
+      up_count:               Number(row.up_count ?? 0),
+      flat_count:             Number(row.flat_count ?? 0),
+      inactive_count:         Number(row.inactive_count ?? 0),
+      down_count:             Number(row.down_count ?? 0),
       active_existing_count:  Number(row.active_existing_count ?? 0),
       active_new_count:       Number(row.active_new_count ?? 0),
       median_revenue:         Number(row.median_revenue ?? 0),
@@ -426,10 +461,7 @@ export async function fetchRevenueBreakdown(
 ): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number; hm_revenue: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH
@@ -580,7 +612,7 @@ export async function fetchRevenueBreakdown(
 export async function fetchExpansionBreakdown(
   p: SegmentParams,
   dateFrom?: string,
-): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; down_count: number; total_existing: number }> {
+): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const establishedCTE = cteEstablishedCustomers(p)
   const curRangeCond = dateFrom
@@ -589,10 +621,7 @@ export async function fetchExpansionBreakdown(
   const prevRangeCond = dateFrom
     ? sql`i.invoice_date >= (${dateFrom}::date - (${filterDate}::date - ${dateFrom}::date)) AND i.invoice_date < ${dateFrom}::date`
     : sql`i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH
@@ -629,14 +658,44 @@ export async function fetchExpansionBreakdown(
         AND ${excludeIntercompanyCond}
       GROUP BY i.customer_id
     ),
+    -- Branch/Division/Channel (2026-08-21, samakan §28.10 standar — user:
+    -- "standarmu berubah-rubah, tab 3 ini melenceng jauh" — semua KPI lain
+    -- (M1/M3-M6/M8-M10) py kolom ini di tabel breakdown, M7 belum). Pola
+    -- SAMA PERSIS latest_inv M1 (m1.repository.ts) — dari invoice
+    -- TERBARU customer itu DI DALAM window "current" (curRangeCond), bukan
+    -- all-time.
+    latest_inv AS (
+      SELECT DISTINCT ON (i.customer_id)
+        i.customer_id, i.branch_id, i.channel_name,
+        -- 3-level fallback SAMA PERSIS M1 (CS_INV_CTE, m1.repository.ts) —
+        -- ketemu susulan user "kenapa ada yang division-nya kosong": awalnya
+        -- cuma 2-level (division_override_id -> channel_divisions), channel
+        -- yang belum di-mapping ke channel_divisions jatuh NULL. M1 punya
+        -- fallback ke-3 (division "other") persis buat kasus ini.
+        COALESCE(c_ov.division_override_id, cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) AS division_id
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+      WHERE i.deleted_at IS NULL
+        AND ${curRangeCond}
+        AND ${companyCondI}
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+      ORDER BY i.customer_id, i.invoice_date DESC, i.id DESC
+    ),
     combined AS (
       SELECT
         ec.id, ec.customer_name, ec.customer_code,
         COALESCE(ic.revenue, 0)  AS cur_revenue,
-        COALESCE(ip.revenue, 0)  AS prev_revenue
+        COALESCE(ip.revenue, 0)  AS prev_revenue,
+        li.branch_id, li.channel_name, li.division_id
       FROM established_customers ec
       LEFT JOIN inv_current  ic ON ic.customer_id = ec.id
       LEFT JOIN inv_previous ip ON ip.customer_id = ec.id
+      LEFT JOIN latest_inv   li ON li.customer_id = ec.id
     )
     SELECT
       ROW_NUMBER() OVER (
@@ -644,22 +703,33 @@ export async function fetchExpansionBreakdown(
       )::int                                                                AS ranking,
       customer_code,
       customer_name,
+      cb.name                                                              AS branch_name,
+      d.label                                                              AS division_label,
+      combined.channel_name,
       ROUND(cur_revenue)::bigint                                           AS cur_revenue,
       ROUND(prev_revenue)::bigint                                          AS prev_revenue,
       CASE WHEN prev_revenue > 0
         THEN ROUND((cur_revenue - prev_revenue) * 100.0 / prev_revenue, 1)
         ELSE NULL
       END                                                                   AS change_pct,
+      -- 4-way status (koreksi user 2026-08-21, "datamu tidak valid jika
+      -- tanpa transaksi kamu beri label stabil") — cur=prev=0 (tidak ada
+      -- transaksi sama sekali di kedua window) dipisah jadi 'inactive',
+      -- BUKAN lagi 'flat'. 'flat' sekarang HANYA cur=prev DAN cur>0.
       CASE
         WHEN cur_revenue > prev_revenue THEN 'up'
+        WHEN cur_revenue = prev_revenue AND cur_revenue = 0 THEN 'inactive'
         WHEN cur_revenue = prev_revenue THEN 'flat'
         ELSE 'down'
       END                                                                   AS status,
       COUNT(*) FILTER (WHERE cur_revenue > prev_revenue) OVER ()::int       AS up_count,
-      COUNT(*) FILTER (WHERE cur_revenue = prev_revenue) OVER ()::int       AS flat_count,
+      COUNT(*) FILTER (WHERE cur_revenue = prev_revenue AND cur_revenue > 0) OVER ()::int AS flat_count,
+      COUNT(*) FILTER (WHERE cur_revenue = prev_revenue AND cur_revenue = 0) OVER ()::int AS inactive_count,
       COUNT(*) FILTER (WHERE cur_revenue < prev_revenue) OVER ()::int       AS down_count,
       COUNT(*) OVER ()::int                                                 AS total_existing
     FROM combined
+    LEFT JOIN company_branches cb ON cb.id = combined.branch_id
+    LEFT JOIN divisions d ON d.id = combined.division_id
     ORDER BY (cur_revenue - prev_revenue) DESC
   `)
 
@@ -670,26 +740,45 @@ export async function fetchExpansionBreakdown(
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>
-    return { rows: [], up_count: 0, flat_count: 0, down_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
+    return { rows: [], up_count: 0, flat_count: 0, inactive_count: 0, down_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
   }
 
   const first = rawRows[0] as Record<string, unknown>
+  const mappedRows = rawRows.map((r) => {
+    const row = r as Record<string, unknown>
+    return {
+      ranking:       Number(row.ranking),
+      customer_code: row.customer_code != null ? String(row.customer_code) : null,
+      customer_name: String(row.customer_name),
+      branch:        row.branch_name != null ? String(row.branch_name) : null,
+      division:      row.division_label != null ? String(row.division_label) : null,
+      channel:       row.channel_name != null ? String(row.channel_name) : null,
+      cur_revenue:   Number(row.cur_revenue ?? 0),
+      prev_revenue:  Number(row.prev_revenue ?? 0),
+      change_pct:    row.change_pct != null ? Number(row.change_pct) : null,
+      status:        String(row.status) as 'up' | 'flat' | 'inactive' | 'down',
+    }
+  })
+
   return {
+    // up_count/flat_count/inactive_count/down_count/total_existing TETAP
+    // dari window function di atas kohort established PENUH (§ formula
+    // resmi, metrics_docs.md: "Denominator = semua existing, bukan hanya
+    // yang aktif di kedua periode") — TIDAK ikut kena filter di bawah.
     up_count:       Number(first.up_count ?? 0),
     flat_count:     Number(first.flat_count ?? 0),
+    inactive_count: Number(first.inactive_count ?? 0),
     down_count:     Number(first.down_count ?? 0),
     total_existing: Number(first.total_existing ?? 0),
-    rows: rawRows.map((r) => {
-      const row = r as Record<string, unknown>
-      return {
-        ranking:       Number(row.ranking),
-        customer_code: row.customer_code != null ? String(row.customer_code) : null,
-        customer_name: String(row.customer_name),
-        cur_revenue:   Number(row.cur_revenue ?? 0),
-        prev_revenue:  Number(row.prev_revenue ?? 0),
-        change_pct:    row.change_pct != null ? Number(row.change_pct) : null,
-        status:        String(row.status) as 'up' | 'flat' | 'down',
-      }
-    }),
+    // `rows` (baris DITAMPILKAN, beda dari angka KPI di atas) DIFILTER
+    // cuma yang py sinyal revenue (2026-08-21, user: "maksudmu kamu tarik
+    // data all customer?", konfirmasi via AskUserQuestion) — established
+    // customer yang literally Rp0->Rp0 (tidak order sama sekali di kedua
+    // window) TIDAK menyebabkan apa pun (§28.7: breakdown jawab "siapa
+    // yang menyebabkan KPI berubah"), jadi tidak perlu jadi baris tabel.
+    // Sebelum filter: 32237 baris (89% Rp0->Rp0). Sama filosofinya dgn M1
+    // yang breakdown-nya cuma customer BENAR ADA invoice (INNER JOIN),
+    // bukan seluruh kohort existing.
+    rows: mappedRows.filter((r) => r.cur_revenue > 0 || r.prev_revenue > 0),
   }
 }

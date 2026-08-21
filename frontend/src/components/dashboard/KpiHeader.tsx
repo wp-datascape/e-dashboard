@@ -1,34 +1,47 @@
 import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useTranslation } from 'react-i18next';
 
-// Header KPI (task029.md §28.2) — Current / YoY / Change, dipusatkan
-// supaya semua KPI (M1-M10) pakai layout & aturan format yang sama.
-// TANPA card/border (2026-08-19, koreksi user — sempat mau diganti ke
-// card, dibatalkan: "perbaiki tanpa card dulu, tapi peletakannya
-// disesuaikan") — perbaikannya di hierarki visual & spacing, bukan
-// nambah bingkai: Current jadi paling menonjol (font lebih besar),
-// divider vertikal tipis misahin tiap kolom, ikon trend (⬆/⬇, pola sama
-// dgn StatCard.tsx) di angka Change, gap dilebarkan, dan sub-label
-// "vs <periode>" di YoY biar user tahu dibanding apa (temuan review UX
-// user 2026-08-19).
+// Header KPI (task029.md §28.2) — Current / YoY / Change.
+//
+// 2026-08-19, iterasi ke-5: dipadatkan jadi 1 baris — judul section di
+// atas (nyebut nama metrik + periode pembanding, jadi TIDAK perlu diulang
+// lagi di tiap item), lalu SATU baris "Label: Value | Label: Value |
+// Label: Value" dipisah pipe, bukan 3 kolom stacked label-di-atas-value
+// lagi (user: "1 baris maksudnya... Key: value | key: value | key:
+// value"). Spasi judul ke baris key:value diperkecil.
 export type KpiType = 'value' | 'rate' | 'count';
 
 interface KpiHeaderProps {
+  /** Nama KPI, mis. "Cross-Sell Rate" — dipakai di judul section (bukan diulang di tiap item lagi). */
+  metricLabel: string;
   current: number;
   yoy: number;
   kpiType: KpiType;
-  /** Format angka Current/YoY (Rp/jumlah) — tidak dipakai utk kpiType 'rate' (selalu %) */
   formatValue?: (v: number) => string;
-  /** Label periode pembanding YoY, mis. "Agu 2025" — ditampilkan sbg sub-label kecil */
-  comparisonLabel?: string;
+  /** Label periode SAAT INI, mis. "Kuartal 3 Tahun 2026" — WAJIB eksplisit
+   * (koreksi user 2026-08-21: "jangan pakai 'periode ini', harus keterangan
+   * eksplisit" — dulu judul section pakai teks generik "periode ini", tidak
+   * bilang periode yang mana). */
+  currentPeriodLabel: string;
+  /** Label periode pembanding YoY, mis. "Kuartal 2 Tahun 2025" */
+  comparisonLabel: string;
 }
 
-export function KpiHeader({ current, yoy, kpiType, formatValue, comparisonLabel }: KpiHeaderProps) {
+function Item({ label, value, valueColor, icon: Icon }: { label: string; value: string; valueColor?: string; icon?: React.ElementType }) {
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, whiteSpace: 'nowrap' }}>
+      <Typography component="span" variant="body2" color="text.secondary">{label}:</Typography>
+      {Icon && <Icon sx={{ fontSize: 16, color: valueColor }} />}
+      <Typography component="span" variant="body2" sx={{ fontWeight: 700, color: valueColor }}>{value}</Typography>
+    </Box>
+  );
+}
+
+export function KpiHeader({ metricLabel, current, yoy, kpiType, formatValue, currentPeriodLabel, comparisonLabel }: KpiHeaderProps) {
   const { t } = useTranslation();
   const fmt = formatValue ?? ((v: number) => v.toLocaleString('id-ID'));
 
@@ -38,10 +51,11 @@ export function KpiHeader({ current, yoy, kpiType, formatValue, comparisonLabel 
   let changeLabel: string;
   let direction: 'up' | 'down' | 'flat';
   if (kpiType === 'rate') {
-    // Percentage point, BUKAN relative % (task029.md §20/§28.2) — hindari
-    // rancu antara growth relatif dan perubahan pp.
+    // Percentage point, BUKAN relative % (task029.md §20/§28.2). Dieja
+    // penuh "poin persentase" — BUKAN singkatan "pp" (user 2026-08-19:
+    // "PP di summary itu apa? Jangan disingkat").
     const pp = current - yoy;
-    changeLabel = `${pp >= 0 ? '+' : ''}${pp.toFixed(1)}pp`;
+    changeLabel = t('dashboard.kpiHeader.ppValue', { value: `${pp >= 0 ? '+' : ''}${pp.toFixed(1)}` });
     direction = pp > 0 ? 'up' : pp < 0 ? 'down' : 'flat';
   } else {
     const diff = current - yoy;
@@ -53,32 +67,16 @@ export function KpiHeader({ current, yoy, kpiType, formatValue, comparisonLabel 
   const TrendIcon = direction === 'up' ? TrendingUpIcon : direction === 'down' ? TrendingDownIcon : RemoveIcon;
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: { xs: 2.5, sm: 4 }, mb: 1.5 }}>
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.kpiHeader.current')}</Typography>
-        <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{currentLabel}</Typography>
-      </Box>
-
-      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.kpiHeader.yoy')}</Typography>
-        <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2, color: 'text.secondary' }}>{yoyLabel}</Typography>
-        {comparisonLabel && (
-          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
-            {t('dashboard.kpiHeader.vsPeriod', { period: comparisonLabel })}
-          </Typography>
-        )}
-      </Box>
-
-      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.kpiHeader.change')}</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-          <TrendIcon sx={{ fontSize: 18, color: changeColor }} />
-          <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2, color: changeColor }}>{changeLabel}</Typography>
-        </Box>
+    <Box sx={{ mb: 2, textAlign: 'center' }}>
+      <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 0.25 }}>
+        {t('dashboard.kpiHeader.sectionLabel', { metric: metricLabel, currentPeriod: currentPeriodLabel, period: comparisonLabel })}
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
+        <Item label={currentPeriodLabel} value={currentLabel} />
+        <Typography color="text.disabled">|</Typography>
+        <Item label={comparisonLabel} value={yoyLabel} />
+        <Typography color="text.disabled">|</Typography>
+        <Item label={t('dashboard.kpiHeader.change')} value={changeLabel} valueColor={changeColor} icon={TrendIcon} />
       </Box>
     </Box>
   );

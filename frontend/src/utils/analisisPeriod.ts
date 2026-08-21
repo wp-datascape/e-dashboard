@@ -176,10 +176,38 @@ export function formatPeriodLabel(periodType: AnalisisPeriodType, periodKey: str
   }
   if (periodType === 'quarter') {
     const [year, q] = periodKey.split('-Q')
-    return `Kuartal (${q}) Tahun ${year}`
+    return `Kuartal ${q} Tahun ${year}`
   }
   const [year, s] = periodKey.split('-S')
-  return `Semester (${s}) Tahun ${year}`
+  return `Semester ${s} Tahun ${year}`
+}
+
+/**
+ * Label periode KOMPAK — dipakai tick axis chart (task029.md §30, 2026-08-20)
+ * yang ruangnya sempit, beda dari `formatPeriodLabel` (versi panjang, dipakai
+ * caption/header). Mirror `formatMonthLabel` (utils/date.ts) tapi generalized
+ * ke 4 granularitas:
+ *   monthly  → "Agu 26"
+ *   quarter  → "Q3 26"
+ *   semester → "S1 26"
+ *   annual   → "2026"
+ */
+export function formatPeriodLabelShort(periodType: AnalisisPeriodType, periodKey: string): string {
+  if (periodType === 'annual') return periodKey
+  if (periodType === 'monthly' || periodType === 'ytd') {
+    const [year, month] = periodKey.split('-')
+    const y = Number(year)
+    const m = Number(month)
+    if (!y || !m) return periodKey
+    const d = new Date(y, m - 1, 1)
+    return d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+  }
+  if (periodType === 'quarter') {
+    const [year, q] = periodKey.split('-Q')
+    return `Q${q} ${year.slice(2)}`
+  }
+  const [year, s] = periodKey.split('-S')
+  return `S${s} ${year.slice(2)}`
 }
 
 export interface PeriodDateRange {

@@ -9,6 +9,8 @@ import { LineAlertWidget } from '@/components/charts/LineAlertWidget'
 import { BulletChartWidget } from '@/components/charts/BulletChartWidget'
 import type { MetricCard } from '@/types/dashboard'
 import { METRIC_COLOR_KEY, metricTitle, metricSubtitle, formatMetricValue } from './metricFormat'
+import { formatMonthLabel } from '@/utils/date'
+import { formatIDR } from '@/utils/format'
 
 // Pemetaan tipe chart per metric_key — dipusatkan di sini (task029) supaya
 // Dashboard/Overview dan halaman Growth/Retention/Value (masing-masing
@@ -33,6 +35,7 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.crossSellingRatioLabel'), color: color('cross_selling_ratio') }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
           tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
         />
       )
@@ -48,6 +51,7 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.avgCategoryLabel'), color: theme.palette.success.main }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
         />
       )
 
@@ -62,6 +66,7 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.expansionRateLabel'), color: theme.palette.success.main }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
           tooltipFormatter={(v: number, n: string) => [`${v}%`, n]}
         />
       )
@@ -89,6 +94,7 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           threshold={10}
           thresholdLabel={t('dashboard.charts.dormantThresholdLabel')}
           height={180}
+          xAxisFormatter={formatMonthLabel}
         />
       )
 
@@ -103,6 +109,8 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.dormantValueLabel'), color: color('dormant_value') }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
+          yAxisFormatter={formatIDR}
         />
       )
 
@@ -130,6 +138,8 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.avgRevenueLabel'), color: color('avg_revenue') }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
+          yAxisFormatter={formatIDR}
         />
       )
 
@@ -144,6 +154,8 @@ export function renderMetricWidget(metric: MetricCard, t: TFunction, theme: Them
           series={[{ key: 'value', label: t('dashboard.charts.avgGrossProfitLabel'), color: color('avg_gross_profit') }]}
           xKey="month"
           height={180}
+          xAxisFormatter={formatMonthLabel}
+          yAxisFormatter={formatIDR}
         />
       )
 

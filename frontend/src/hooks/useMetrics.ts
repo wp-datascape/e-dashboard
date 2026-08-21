@@ -12,6 +12,8 @@ const STALE_TIME = 1000 * 60 * 5; // 5 menit
 export function useCrossSelling(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
@@ -51,6 +53,8 @@ export function useCrossSellingDetail(params: {
 export function useCustomerMetrics(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  // Granularitas trend (task029.md §30.9, 2026-08-22) — mirror useCrossSelling.
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;

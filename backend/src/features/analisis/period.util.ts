@@ -220,6 +220,103 @@ export function shiftDateByYears(dateStr: string, deltaYears: number): string {
   return `${targetYear}-${pad2(m)}-${pad2(Math.min(d, maxDay))}`
 }
 
+/**
+ * Potong akhir periode ke titik yang ADIL kalau periode itu (atau padanan
+ * tahun-nya, buat YoY) masih berjalan relatif ke HARI INI — supaya current
+ * & pembanding YoY tetap apple-to-apple dan TIDAK tampil 0/kosong di tengah
+ * periode (task029.md §30, instruksi user 2026-08-20: "pakai data per
+ * tanggal hari ini untuk cutoff, begitu juga data pembanding YoY nya").
+ *
+ * Bekerja TANPA perlu tahu apakah request ini "current" atau "YoY" — cukup
+ * dari tahun di `periodKey` sendiri: kalau periodKey 1 tahun sebelum tahun
+ * berjalan (kasus YoY), "hari ini" ikut digeser mundur setahun juga sebagai
+ * referensi, jadi otomatis konsisten dengan current-nya tanpa parameter
+ * tambahan dari caller. Periode yang SUDAH TUTUP penuh (calendarEnd sudah
+ * lewat referensi "hari ini" versi periode itu) TIDAK terpotong sama sekali
+ * — tetap tampil penuh, cuma periode yang genuinely masih berjalan yang kena
+ * potong. Contoh: hari ini 2026-08-19, filter Kuartalan Q3 2026 (calendarEnd
+ * 2026-09-30, masih berjalan) → dipotong ke 2026-08-19. Pembanding YoY-nya
+ * Q3 2025 (calendarEnd 2025-09-30) → yearsBack=1 → referensi "hari ini"
+ * digeser ke 2025-08-19 → dipotong ke 2025-08-19 juga (apple-to-apple, sama
+ * "sejauh mana" ke dalam periode). Q1 2026 yang sudah tutup (calendarEnd
+ * 2026-03-31, sudah lewat) TIDAK kena potong — tetap tampil 1 kuartal penuh.
+ */
+/**
+ * "Hari ini" yang digeser mundur sejumlah tahun = (tahun `today` − `year`) —
+ * dipakai `clampToElapsedEnd`/`clampEndToDay` supaya request YoY (periodKey/
+ * bucket-nya tahun lalu) otomatis dapat referensi "sejauh mana" yang SAMA
+ * dengan request current-nya, TANPA caller perlu bilang eksplisit "ini
+ * current" atau "ini YoY" — cukup dari selisih tahun `year` itu sendiri.
+ */
+function referenceNowForYear(year: number, today: Date): string {
+  const yearsBack = today.getFullYear() - year
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  return shiftDateByYears(todayStr, -yearsBack)
+}
+
+// BUG ditemukan 2026-08-21 (user klik titik Desember 2025 di chart trend M2 —
+// popup drill-down 0 customer aktif, padahal invoice Des 2025 ada 12678+404):
+// `referenceNowForYear` cuma bandingin TAHUN periodKey vs tahun `today` buat
+// nebak "apa ini current period atau padanan YoY-nya" — periodKey="2025-12"
+// (Desember, SUDAH TUTUP 8 bulan) kena dianggap "yearsBack=1" krn tahunnya
+// beda 1 dari today (2026), lalu di-cap ke "21 Agustus 2025" (referenceNow),
+// yang JATUH SEBELUM periodStart Desember (1 Des 2025) → range invoice_date
+// >= 1-Des-2025 AND <= 21-Ags-2025 jadi TERBALIK/mustahil → 0 baris. Fix:
+// hanya boleh di-clamp kalau periodKey itu MEMANG current period ATAU
+// padanan YoY-nya (geser tahunnya ke tahun `today`, hasilnya harus PERSIS
+// sama dgn `getCurrentPeriodKey`) — bulan/kuartal/semester ikut dicek, tidak
+// cuma tahun. Periode lampau sembarang (drill-down klik titik chart) selalu
+// lolos tanpa clamp, sesuai niat awal komentar "periode yang sudah tutup
+// tidak kena potong sama sekali".
+export function clampToElapsedEnd(periodKey: string, calendarEnd: string, periodType: PeriodType, today: Date = new Date()): string {
+  const periodYear = Number(periodKey.slice(0, 4))
+  if (!periodYear) return calendarEnd
+  const shiftedToThisYear = `${today.getFullYear()}${periodKey.slice(4)}`
+  if (shiftedToThisYear !== getCurrentPeriodKey(periodType, today)) return calendarEnd
+  const referenceNow = referenceNowForYear(periodYear, today)
+  return calendarEnd > referenceNow ? referenceNow : calendarEnd
+}
+
+/**
+ * Potong tanggal akhir SEBUAH periode ke hari ke-D bulan yang sama (dibatasi
+ * hari terakhir bulan itu kalau D lebih besar) — dipakai mode "Apply date
+ * cutoff" (task029.md §30, instruksi user 2026-08-20): user pilih hari
+ * spesifik lewat date picker, SEMUA titik trend dipotong ke hari yang sama
+ * setiap bulannya (mis. analisis "20 hari pertama tiap bulan, 12 bulan
+ * terakhir") — BUKAN behavior default (`clampToElapsedEnd` di atas, yang
+ * cuma memotong titik yang SEDANG berjalan, periode yang sudah tutup tetap
+ * penuh). Ini mode terpisah, eksplisit dipilih user, bukan pengganti default.
+ *
+ * PENTING (bug ditemukan 2026-08-20 lewat pertanyaan user "apakah ini bekerja
+ * untuk kuartalan/semesteran/tahunan?"): untuk granularitas > bulanan, bucket
+ * `periodEnd` yang masuk ke sini adalah AKHIR KALENDER bulan TERAKHIR periode
+ * itu (mis. Kuartal 3 → 30 September) — kalau periode itu SEDANG BERJALAN,
+ * bulan terakhirnya bisa jadi bulan yang BELUM TERJADI SAMA SEKALI (hari ini
+ * baru Agustus, bulan September belum mulai), jadi "hari ke-20 bulan itu"
+ * jadi tanggal masa depan yang tidak masuk akal (hasilnya 0/kosong). Makanya
+ * hasil akhirnya di-cap ke `referenceNowForYear` juga (sama seperti
+ * `clampToElapsedEnd`) — periode yang SUDAH TUTUP tidak terdampak (hasil
+ * clamp-nya sudah otomatis di masa lalu), cuma periode yang MASIH BERJALAN
+ * yang kena batasi ke hari ini (atau padanan tahun-nya buat YoY).
+ *
+ * Fix sama seperti `clampToElapsedEnd` (bug 2026-08-21) — cap ke
+ * `referenceNowForYear` cuma valid buat bucket yang MEMANG current period
+ * atau padanan YoY-nya (dicek dari `periodKey`+`periodType` bucket itu, bukan
+ * cuma tahun `periodEnd`) — bucket lampau sembarang (mis. Desember tahun
+ * lalu di mode Apply date cutoff) harus lolos apa adanya, tidak boleh ikut
+ * ke-cap ke tanggal yang jatuh SEBELUM bucket itu bahkan mulai.
+ */
+export function clampEndToDay(periodEnd: string, day: number, periodKey: string, periodType: PeriodType, today: Date = new Date()): string {
+  const [y, m] = periodEnd.split('-').map(Number)
+  const lastDay = lastDayOfMonth(y, m)
+  const d = Math.min(day, lastDay)
+  const clamped = `${y}-${pad2(m)}-${pad2(d)}`
+  const shiftedToThisYear = `${today.getFullYear()}${periodKey.slice(4)}`
+  if (shiftedToThisYear !== getCurrentPeriodKey(periodType, today)) return clamped
+  const referenceNow = referenceNowForYear(y, today)
+  return clamped > referenceNow ? referenceNow : clamped
+}
+
 export function getCurrentPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
   const year = today.getFullYear()
   const month = today.getMonth() + 1
@@ -228,6 +325,45 @@ export function getCurrentPeriodKey(periodType: PeriodType, today: Date = new Da
   if (periodType === 'monthly' || periodType === 'ytd') return `${year}-${pad2(month)}`
   if (periodType === 'quarter') return `${year}-Q${Math.floor((month - 1) / 3) + 1}`
   return `${year}-S${month <= 6 ? 1 : 2}`
+}
+
+export interface TrailingPeriodBucket {
+  /** period_key ('YYYY-MM'/'YYYY-QN'/'YYYY-SN'/'YYYY') — dipakai sebagai label titik trend chart. */
+  label: string
+  /** Tanggal awal periode itu (YYYY-MM-DD), inklusif, SELALU batas kalender
+   * (task029.md §30.10 — 1 Jan/1 Apr/1 Jul/1 Okt dst, tidak pernah digeser/
+   * dipotong apa pun kondisinya, beda dari `end`). Dipakai sbg acuan New/
+   * Existing per-bucket (§30.10) DAN lower-bound rentang transaksi. */
+  start: string
+  /** Tanggal akhir periode itu (YYYY-MM-DD), inklusif — dipakai sbg cutoff query per bucket.
+   * BISA dipotong (elapsed/day-cutoff) oleh service layer, beda dari `start`. */
+  end: string
+}
+
+/**
+ * N periode berurutan MUNDUR dari `currentKey` (termasuk currentKey sendiri
+ * sebagai titik terakhir) — generalisasi trend chart "12 periode terakhir,
+ * mengikuti granularitas filter" (task029.md §28.3/§30.1) supaya SATU fungsi
+ * ini dipakai semua KPI (M1-M10) yang butuh N-titik trend per granularitas,
+ * BUKAN ditulis ulang generate_series hardcode-bulanan di tiap repository
+ * (§30.4 — "REUSE ini, jangan tulis ulang").
+ *
+ * Dipakai oleh SERVICE layer (bukan repository) — hasilnya array {label,end}
+ * dikirim ke repository sbg parameter query mentah (VALUES list), repository
+ * TIDAK menghitung tanggal periode sendiri (business logic tetap di service,
+ * lihat CRITICAL_RULES.md pembagian layer).
+ */
+export function buildTrailingPeriods(periodType: PeriodType, currentKey: string, count: number): TrailingPeriodBucket[] {
+  const keys: string[] = [currentKey]
+  let key = currentKey
+  for (let i = 1; i < count; i++) {
+    key = getPreviousPeriodKey(periodType, key)
+    keys.unshift(key)
+  }
+  return keys.map((k) => {
+    const range = getPeriodRange(periodType, k)
+    return { label: k, start: range.start, end: range.end }
+  })
 }
 
 /**

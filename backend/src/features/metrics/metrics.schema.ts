@@ -16,12 +16,31 @@ const excludeIntercompanyField = z
   .optional()
   .transform((v) => v === 'true')
 
+// Granularitas trend/KPI Header (task029.md §30, 2026-08-20) — 4 nilai resmi
+// dari filter Growth/Retention/Value, BUKAN termasuk 'ytd' (itu khusus
+// Analisis/task016, lihat period.util.ts). Default 'monthly' — behavior lama
+// (tanpa param ini sama sekali) tetap identik, sudah diverifikasi numerik
+// sama persis dgn query generate_series lama.
+const periodTypeField = z.enum(['monthly', 'quarter', 'semester', 'annual']).optional().default('monthly')
+
+// Mode "Apply date cutoff" (task029.md §30, instruksi user 2026-08-20) — SEMUA
+// titik trend dipotong ke hari yang sama (bukan cuma titik yang sedang
+// berjalan seperti default), dipakai analisis mis. "20 hari pertama tiap
+// bulan, 12 bulan terakhir". BUKAN z.coerce.boolean() — pola sama dengan
+// exclude_intercompany di atas (Boolean("false")===true di JS).
+const applyDateCutoffField = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true')
+
 export const crossSellingQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
     .optional()
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  period_type: periodTypeField,
+  apply_date_cutoff: applyDateCutoffField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
@@ -34,6 +53,11 @@ export const customerMetricsQuerySchema = z.object({
     .optional()
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  // Granularitas periode (task029.md §30.9 poin 1, 2026-08-22) — M3-M7
+  // sebelumnya hardcode bulanan, sekarang reuse periodTypeField yang sama
+  // persis dgn crossSellingQuerySchema (M1/M2), default 'monthly' identik
+  // dgn behavior lama kalau param ini tidak dikirim.
+  period_type: periodTypeField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,

@@ -7,6 +7,13 @@ export const metricsApi = {
   getCrossSelling: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
+    // Granularitas trend/KPI Header (task029.md §30, 2026-08-20) — default
+    // 'monthly' di backend kalau tidak dikirim, behavior lama tetap identik.
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    // Mode "Apply date cutoff" (task029.md §30, 2026-08-20) — potong SEMUA
+    // titik trend ke hari yang sama (bukan cuma titik yang sedang berjalan),
+    // dipakai analisis mis. "20 hari pertama tiap bulan, 12 bulan terakhir".
+    apply_date_cutoff?: boolean;
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
@@ -18,6 +25,8 @@ export const metricsApi = {
   getCustomerMetrics: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
+    // Granularitas trend (task029.md §30.9, 2026-08-22) — mirror getCrossSelling.
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;

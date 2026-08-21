@@ -10,8 +10,6 @@ import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
-import Switch from '@mui/material/Switch'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import SearchIcon from '@mui/icons-material/Search'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -22,9 +20,10 @@ import { Card, StatusChip, DatePicker } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { ParetoFilterToggle } from '@/components/filters/ParetoFilterToggle'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { useAnalisis } from '@/hooks/useAnalisis'
-import { formatIDR, formatIDRSigned } from '@/utils/format'
+import { formatRupiah, formatRupiahSigned } from '@/utils/format'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
@@ -189,7 +188,7 @@ export default function AnalisisPage() {
       width: 170,
       sortable: false,
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatRupiah(row.comparison.revenue)} marginText={formatRupiah(row.comparison.margin)} />
       ),
     },
     {
@@ -201,7 +200,7 @@ export default function AnalisisPage() {
       // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} showLabels={false} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatRupiah(row.current.revenue)} marginText={formatRupiah(row.current.margin)} showLabels={false} />
       ),
     },
     {
@@ -213,8 +212,8 @@ export default function AnalisisPage() {
         <MetricPair
           revenueLabel={revLabel}
           marginLabel={gpLabel}
-          revenueText={formatIDRSigned(row.comparison.revenue_change_value)}
-          marginText={formatIDRSigned(row.comparison.margin_change_value)}
+          revenueText={formatRupiahSigned(row.comparison.revenue_change_value)}
+          marginText={formatRupiahSigned(row.comparison.margin_change_value)}
           revenueColor={trendColor(row.comparison.revenue_change_pct, row.comparison.revenue_alert)}
           marginColor={trendColor(row.comparison.margin_change_pct, row.comparison.margin_alert)}
           showLabels={false}
@@ -301,19 +300,12 @@ export default function AnalisisPage() {
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
           />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={onlyPareto}
-                onChange={(e) => {
-                  setOnlyPareto(e.target.checked)
-                  setPaginationModel((p) => ({ ...p, page: 0 }))
-                }}
-                size="small"
-              />
-            }
-            label={t('analisis.onlyPareto')}
-            sx={{ ml: 0, whiteSpace: 'nowrap' }}
+          <ParetoFilterToggle
+            checked={onlyPareto}
+            onChange={(checked) => {
+              setOnlyPareto(checked)
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
           />
 
           <ExcludeIntercompanyToggle

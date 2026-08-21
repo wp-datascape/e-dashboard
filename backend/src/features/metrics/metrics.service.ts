@@ -1,5 +1,5 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { loadThresholds, resolveDormantCategory, resolveDormantMonths } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantCategory, resolveDormantMonths, getDormantCategoryMap } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
 import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchReactivatedCustomers, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
 // Reuse fetchDormantValueTrend (task025 §19, 2026-08-07) — sebelumnya cuma
@@ -7,6 +7,12 @@ import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdo
 // (Nilai Hilang) supaya bisa averageLastMonths sama seperti KPI8/KPI10.
 // Formula/threshold PERSIS sama, cuma dipanggil dari 1 tempat lagi.
 import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repository'
+// Reuse resolve-tanggal-periode Monthly/Quarterly/Semester/Annual (task029.md
+// §30.4 — "REUSE ini, jangan tulis ulang") — modul ini sebelumnya cuma dipakai
+// fitur Analisis (task016), sekarang juga dipakai granularitas M1 Cross
+// Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
+// di backend ini (dicek: tidak ada eslint boundary rule).
+import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, clampToElapsedEnd, clampEndToDay } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -72,40 +78,91 @@ export async function resolveSegmentParams(
   }
   // Fallback division_id 'other'/'intercompany' per company (task012 v2) — resolusi
   // sekali per request, lihat utils/scope.ts
-  const [otherIdByCompany, intercompanyIdByCompany] = await Promise.all([
+  // dormantCategoryMap (task027 fix, 2026-08-21): division_id → kategori dormant,
+  // dipakai bareng `dormant` di atas utk threshold PER-CUSTOMER (dormantMonths
+  // scalar di atas TETAP dihitung/dipertahankan demi caller lama yang belum
+  // migrasi — lihat cteCustDivision/dormantThresholdCaseSql, segment.helper.ts).
+  // cid=0 (superadmin/holding, 'all') TIDAK boleh diteruskan sbg companyId ke
+  // getDormantCategoryMap (0 bukan company_id valid) — kirim undefined supaya
+  // ambil peta divisi SEMUA company (division_id PK global, tidak collide).
+  const [otherIdByCompany, intercompanyIdByCompany, dormantCategoryMap] = await Promise.all([
     loadDivisionFallbackIds('other'),
     loadDivisionFallbackIds('intercompany'),
+    getDormantCategoryMap(cid !== 0 ? cid : undefined),
   ])
   const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, dormant, dormantCategoryMap, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {
   try {
     const periodEnd = params.period_end ?? todayDate()
+    const periodType = params.period_type ?? 'monthly'
 
-    // Normalisasi ke akhir bulan agar KPI / Detail / Heatmap / Trend semua pakai window identik.
-    // Tanpa ini, KPI pakai filterDate (hari ini) sementara Trend pakai end-of-month per bulan →
+    // Normalisasi ke akhir PERIODE (bukan selalu akhir bulan lagi, task029.md
+    // §30 — granularitas Monthly/Quarterly/Semester/Annual) agar KPI / Detail
+    // / Heatmap / Trend semua pakai window identik. Tanpa ini, KPI pakai
+    // filterDate (hari ini) sementara Trend pakai end-of-period per titik →
     // pada 1 Juli KPI Card 1 menunjuk data Juni tapi Trend titik Juli = 0%.
-    const [py, pm] = periodEnd.split('-').map(Number)
-    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
-    const endOfMonth = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    // periodEnd diparse manual (BUKAN `new Date(periodEnd)`) supaya konstruksi
+    // Date pakai komponen LOKAL eksplisit (y,m,d) — hindari pergeseran timezone
+    // dari parsing string ISO (pola sama dgn frontend utils/date.ts).
+    const [py, pm, pd] = periodEnd.split('-').map(Number)
+    const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+    const calendarRange = getPeriodRange(periodType, periodKey)
+    const calendarEnd = calendarRange.end
+    // Awal periode SELALU batas kalender, tidak pernah dipotong/digeser apa pun
+    // kondisinya (task029 §30.10 — "start date selalu harus awal periode, itu
+    // sudah aturan paten internasional"). Dipakai juga sbg acuan New/Existing
+    // (cteExistingCustomersByPeriod, segment.helper.ts).
+    const periodStartDate = calendarRange.start
 
-    const segParams = await resolveSegmentParams(params.company_id, endOfMonth, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    // 12 titik trend MUNDUR dari periodKey, granularitas sama dgn KPI Header
+    // (§30.1 — Quarterly bukan "12 bulan dikelompokkan jadi kuartal", tapi
+    // benar-benar 12 KUARTAL = 3 tahun ke belakang). Angka tiap bucket
+    // dihitung ULANG per periode (bukan rata-rata dari titik bulanan) — sudah
+    // diverifikasi numerik identik dgn query lama untuk granularitas monthly.
+    const buckets = buildTrailingPeriods(periodType, periodKey, 12)
 
-    const [kpiRaw, trend, detail, heatmapResult] = await Promise.all([
-      fetchCrossSellingKPI(segParams),
-      fetchCrossSellingTrend(segParams),
-      fetchCrossSellingDetail(segParams),
-      fetchCrossSellingHeatmap(segParams),
+    let periodEndDate: string
+    if (params.apply_date_cutoff) {
+      // Mode "Apply date cutoff" (instruksi user 2026-08-20) — SEMUA 12 titik
+      // dipotong ke hari yang sama (hari dari `periodEnd` literal, mis. tanggal
+      // 20), BUKAN cuma titik yang sedang berjalan. Mode analisis eksplisit
+      // ("20 hari pertama tiap bulan, 12 bulan terakhir") — user yang aktifkan
+      // sendiri lewat checkbox, BUKAN default (lihat clampEndToDay docstring).
+      // `start` bucket TIDAK disentuh (selalu batas kalender, §30.10).
+      for (let i = 0; i < buckets.length; i++) {
+        buckets[i] = { label: buckets[i]!.label, start: buckets[i]!.start, end: clampEndToDay(buckets[i]!.end, pd, buckets[i]!.label, periodType) }
+      }
+      periodEndDate = clampEndToDay(calendarEnd, pd, periodKey, periodType)
+    } else {
+      // Default — potong ke elapsed cutoff HANYA kalau periode ini (atau
+      // padanan tahunnya, buat request YoY) masih berjalan (§30, instruksi
+      // user 2026-08-20) — supaya current & pembanding YoY apple-to-apple,
+      // tetap keliatan data di tengah periode alih-alih 0%. Periode yang
+      // SUDAH TUTUP (mis. kuartal lalu) tidak kena potong sama sekali, tetap
+      // tampil 1 periode penuh. Lihat clampToElapsedEnd (period.util.ts)
+      // untuk penjelasan lengkap kenapa ini bekerja utk request YoY juga
+      // TANPA perlu tahu ini "current" atau "YoY". Titik TERAKHIR (periodKey,
+      // current) di-overwrite ke cutoff ini — titik-titik SEBELUMNYA (periode
+      // yang sudah tutup) TIDAK disentuh, tetap tampil penuh. `start` bucket
+      // terakhir TIDAK disentuh (selalu batas kalender, §30.10).
+      periodEndDate = clampToElapsedEnd(periodKey, calendarEnd, periodType)
+      buckets[buckets.length - 1] = { label: periodKey, start: buckets[buckets.length - 1]!.start, end: periodEndDate }
+    }
+
+    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+
+    const [kpiRaw, trend, detailResult, heatmapResult] = await Promise.all([
+      fetchCrossSellingKPI(segParams, periodStartDate, periodEndDate),
+      fetchCrossSellingTrend(segParams, buckets),
+      fetchCrossSellingDetail(segParams, periodStartDate, periodEndDate),
+      fetchCrossSellingHeatmap(segParams, periodStartDate, periodEndDate),
     ])
 
-    // period.start = hari pertama window inklusif: endOfMonth − activeMonths bulan + 1 hari.
-    // Date.UTC aman untuk boundary tahun (Jan − 3 = Okt tahun lalu).
-    const startStr = new Date(Date.UTC(py, pm - segParams.activeMonths, 1)).toISOString().slice(0, 10)
-
     return {
-      period: { start: startStr, end: endOfMonth, active_months: segParams.activeMonths },
+      period: { start: periodStartDate, end: periodEndDate, active_months: segParams.activeMonths, type: periodType, key: periodKey },
       kpi1: {
         multi_cat_count: kpiRaw.multi_cat_count,
         active_count:    kpiRaw.active_count,
@@ -116,9 +173,10 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
         total_distinct_cats: kpiRaw.total_distinct_cats,
       },
       trend,
-      detail,
-      heatmap:    heatmapResult.heatmap,
-      categories: heatmapResult.categories,
+      detail:            detailResult.rows,
+      heatmap:           heatmapResult.heatmap,
+      categories:        heatmapResult.categories,
+      detail_categories: detailResult.categories,
     }
   } catch (err) {
     if (err instanceof AppError) throw err
@@ -128,13 +186,49 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
 
 export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: MetricsScope = {}): Promise<CustomerMetricsData> {
   try {
-    const filterDate = params.period_end ?? todayDate()
+    const periodEnd = params.period_end ?? todayDate()
+    const periodType = params.period_type ?? 'monthly'
+
+    // Granularitas periode (task029.md §30.9 poin 1, 2026-08-22) — pola
+    // SAMA PERSIS getCrossSellingMetrics (M1/M2) di atas, REUSE bukan tulis
+    // ulang. M3-M7 sebelumnya hardcode `segParams.filterDate` sbg satu-
+    // satunya acuan (12 bulan kalender mundur, dihitung DI DALAM
+    // fetchCustomerMetricsTrend) — sekarang 12 titik ("buckets") dihitung DI
+    // SINI (service layer), granularitas-aware, dikirim ke repository siap
+    // pakai (repository TIDAK lagi menghitung tanggal periode sendiri).
+    const [py, pm, pd] = periodEnd.split('-').map(Number)
+    const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+    const calendarRange = getPeriodRange(periodType, periodKey)
+
+    const buckets = buildTrailingPeriods(periodType, periodKey, 12)
+
+    // M3-M7 belum punya mode "Apply date cutoff" (§30.9 poin 2, di luar
+    // scope granularitas ini) — cuma elapsed cutoff default (periode yang
+    // MASIH BERJALAN dipotong ke hari ini, periode yang sudah tutup penuh
+    // tidak disentuh). Reuse clampToElapsedEnd apa adanya (SUDAH diperbaiki
+    // hari ini utk bug periode lampau, §30.11).
+    const periodEndDate = clampToElapsedEnd(periodKey, calendarRange.end, periodType)
+    buckets[buckets.length - 1] = { label: periodKey, start: buckets[buckets.length - 1]!.start, end: periodEndDate }
+
+    // "Bucket sebelumnya" per titik (dipakai M7 up/flat/inactive/down —
+    // window "previous" = bucket SEBELUM bucket itu, lebar sama, keputusan
+    // desain #2 §30.9 plan 2026-08-22) — dihitung DI SERVICE LAYER (bukan
+    // di repository, konsisten dgn pembagian layer "repository tidak
+    // menghitung tanggal periode sendiri", CRITICAL_RULES.md). Label
+    // dibuat SAMA PERSIS dgn bucket current-nya (bukan label periode
+    // sebelumnya sendiri) supaya repository bisa JOIN by label langsung.
+    const prevBuckets = buckets.map((b) => {
+      const prevKey = getPreviousPeriodKey(periodType, b.label)
+      const prevRange = getPeriodRange(periodType, prevKey)
+      return { label: b.label, start: prevRange.start, end: prevRange.end }
+    })
+
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
       loadThresholds(),
     ])
 
-    const trend = await fetchCustomerMetricsTrend(segParams)
+    const trend = await fetchCustomerMetricsTrend(segParams, buckets, prevBuckets)
 
     const trendPoints: CustomerMetricsTrendPoint[] = trend.map((row) => ({
       month:                  row.month,
@@ -156,7 +250,12 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       up_rate:                 row.expansion_rate,
       flat_down_rate:          parseFloat((100 - row.expansion_rate).toFixed(1)),
       flat_rate:               row.flat_rate,
+      inactive_rate:           row.inactive_rate,
       down_rate:               row.down_rate,
+      up_count:                row.up_count,
+      flat_count:              row.flat_count,
+      inactive_count:          row.inactive_count,
+      down_count:              row.down_count,
       active_existing_count:   row.active_existing_count,
       active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
@@ -219,6 +318,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
       period_end:     filterDate,
       up_count:       result.up_count,
       flat_count:     result.flat_count,
+      inactive_count: result.inactive_count,
       down_count:     result.down_count,
       total_existing: result.total_existing,
       rows:           result.rows,

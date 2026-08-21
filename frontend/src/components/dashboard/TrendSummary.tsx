@@ -1,25 +1,42 @@
 import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 
-// Trend Summary (task029.md §28.6) — 12M Average / Highest / Lowest,
-// dihitung dari SELURUH titik trend yang tampil di chart (bukan diam-diam
-// ambil 1 titik terakhir — itu larangan eksplisit §28.6). Dipusatkan
-// supaya M1-M10 pakai perhitungan & layout yang sama. TANPA card
-// (2026-08-19, sama spt KpiHeader) — dipisah pakai divider vertikal +
-// gap lebih lega, bukan bingkai, sesuai perbaikan tata letak yang
-// diminta user tanpa nambah card.
+// Trend Summary (task029.md §28.6) — Average/Highest/Lowest, dihitung dari
+// SELURUH titik trend yang tampil di chart (bukan diam-diam ambil 1 titik
+// terakhir — larangan eksplisit §28.6).
+//
+// 2026-08-19, iterasi ke-5: dipadatkan jadi 1 baris — judul section di
+// atas (nyebut metrik + jumlah bulan, TIDAK diulang lagi di tiap item),
+// lalu SATU baris "Label: Value | Label: Value | Label: Value" dipisah
+// pipe (sama pola dgn KpiHeader). Spasi judul ke baris key:value diperkecil.
 interface TrendSummaryProps<T> {
+  /** Nama KPI, mis. "Cross-Sell Rate" — dipakai di judul section (bukan diulang di tiap item lagi). */
+  metricLabel: string;
   data: T[];
   accessor: (row: T) => number;
   labelAccessor: (row: T) => string;
   formatValue: (v: number) => string;
+  /** Kata satuan periode ("bulan"/"kuartal"/"semester"/"tahun", task029.md §30,
+   * 2026-08-20) — default "bulan" (dashboard.periodUnit.monthly) kalau caller
+   * belum granularitas-aware. */
+  unit?: string;
 }
 
-export function TrendSummary<T>({ data, accessor, labelAccessor, formatValue }: TrendSummaryProps<T>) {
+function Item({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, whiteSpace: 'nowrap' }}>
+      <Typography component="span" variant="body2" color="text.secondary">{label}:</Typography>
+      <Typography component="span" variant="body2" sx={{ fontWeight: 700 }}>{value}</Typography>
+      {sub && <Typography component="span" variant="caption" color="text.disabled">({sub})</Typography>}
+    </Box>
+  );
+}
+
+export function TrendSummary<T>({ metricLabel, data, accessor, labelAccessor, formatValue, unit }: TrendSummaryProps<T>) {
   const { t } = useTranslation();
   if (data.length === 0) return null;
+  const resolvedUnit = unit ?? t('dashboard.periodUnit.monthly');
 
   const values = data.map(accessor);
   const average = values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -32,26 +49,16 @@ export function TrendSummary<T>({ data, accessor, labelAccessor, formatValue }: 
   });
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: { xs: 2.5, sm: 4 }, mt: 2, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.trendSummary.average', { count: data.length })}</Typography>
-        <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatValue(average)}</Typography>
-      </Box>
-
-      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.trendSummary.highest')}</Typography>
-        <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatValue(values[highestIdx])}</Typography>
-        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>{labelAccessor(data[highestIdx])}</Typography>
-      </Box>
-
-      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>{t('dashboard.trendSummary.lowest')}</Typography>
-        <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatValue(values[lowestIdx])}</Typography>
-        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>{labelAccessor(data[lowestIdx])}</Typography>
+    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+      <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 0.25 }}>
+        {t('dashboard.trendSummary.sectionLabel', { metric: metricLabel, count: data.length, unit: resolvedUnit })}
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
+        <Item label={t('dashboard.trendSummary.average')} value={formatValue(average)} />
+        <Typography color="text.disabled">|</Typography>
+        <Item label={t('dashboard.trendSummary.highest')} value={formatValue(values[highestIdx])} sub={labelAccessor(data[highestIdx])} />
+        <Typography color="text.disabled">|</Typography>
+        <Item label={t('dashboard.trendSummary.lowest')} value={formatValue(values[lowestIdx])} sub={labelAccessor(data[lowestIdx])} />
       </Box>
     </Box>
   );

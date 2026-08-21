@@ -4,6 +4,9 @@
 // ── Cross Selling (M1, M1.1, M2) ─────────────────────────────────────────────
 
 export interface CrossSellingTrendPoint {
+  // Nama field TETAP `month` tapi isinya sekarang period_key sesuai granularitas
+  // request (task029.md §30, 2026-08-20) — 'YYYY-MM' default (monthly), atau
+  // 'YYYY-QN'/'YYYY-SN'/'YYYY' kalau period_type diisi quarter/semester/annual.
   month: string;
   total_active: number;
   multi_product: number;
@@ -20,6 +23,14 @@ export interface CrossSellingDetailRow {
   has_consumable: boolean;
   has_sparepart: boolean;
   total_revenue: number;
+  // Branch/Division/Channel (task029.md §28.10, 2026-08-21) — dari invoice
+  // TERBARU customer itu DI DALAM periode laporan.
+  branch: string | null;
+  division: string | null;
+  channel: string | null;
+  // Map dinamis, key = item_type asli ('unit'/'card'/'accesories'/dst — apa pun
+  // yang ada di data company itu, TIDAK di-hardcode 3 tipe lagi, 2026-08-21).
+  type_breakdown: Record<string, { qty: number; revenue: number }>;
 }
 
 export interface HeatmapRow {
@@ -31,13 +42,19 @@ export interface HeatmapRow {
 }
 
 export interface CrossSellingData {
-  period: { start: string; end: string; active_months: number };
+  // type/key (task029.md §30) — granularitas & period_key yang BENAR-BENAR
+  // dipakai backend, buat cross-check label FE tanpa hitung ulang.
+  period: { start: string; end: string; active_months: number; type: string; key: string };
   kpi1: { multi_cat_count: number; active_count: number; rate: number };
   kpi2: { avg_categories: number; total_distinct_cats: number };
   trend: CrossSellingTrendPoint[];
   detail: CrossSellingDetailRow[];
   heatmap: HeatmapRow[];
   categories: string[];
+  // categories = scope heatmap (top-30 customer). detail_categories = SEMUA
+  // customer (tabel Breakdown) — sengaja beda, 2026-08-21 (lihat backend
+  // metrics.types.ts).
+  detail_categories: string[];
 }
 
 // ── M3 Revenue Drill-down ───────────────────────────────────────────────────────
@@ -68,15 +85,24 @@ export interface ExpansionBreakdownRow {
   ranking: number;
   customer_code: string | null;
   customer_name: string;
+  branch: string | null;
+  division: string | null;
+  channel: string | null;
   cur_revenue: number;
   prev_revenue: number;
   change_pct: number | null;
-  status: 'up' | 'flat_down';
+  // 4-way (2026-08-21, koreksi user "datamu tidak valid jika tanpa
+  // transaksi kamu beri label stabil") — 'inactive' (cur=prev=0, tidak
+  // ada transaksi sama sekali) dipisah dari 'flat' (cur=prev DAN > 0).
+  status: 'up' | 'flat' | 'inactive' | 'down';
 }
 
 export interface ExpansionBreakdownData {
   period_end: string;
   up_count: number;
+  flat_count: number;
+  inactive_count: number;
+  down_count: number;
   total_existing: number;
   rows: ExpansionBreakdownRow[];
 }
@@ -156,6 +182,23 @@ export interface CustomerMetricsTrendPoint {
   expansion_rate: number;
   up_rate: number;
   flat_down_rate: number;
+  // 4-way split (existing customer naik/stabil/tidak-aktif/turun spend vs
+  // periode sebelumnya, eksak, bukan didekati) — dipakai chart diverging
+  // M7Expansion. inactive_rate (2026-08-21, koreksi user "datamu tidak
+  // valid jika tanpa transaksi kamu beri label stabil") dipisah dari
+  // flat_rate — flat_rate sekarang cuma cur=prev DAN cur>0 (genuinely
+  // tidak berubah), inactive_rate = cur=prev=0 (tidak ada transaksi sama
+  // sekali di kedua window).
+  flat_rate: number;
+  inactive_rate: number;
+  down_rate: number;
+  // Jumlah customer mentah per kategori (2026-08-22, user: "Aku butuh
+  // data jumlah nya selain dari persentase") — pasangan raw-count dari
+  // up_rate/flat_rate/inactive_rate/down_rate di atas.
+  up_count: number;
+  flat_count: number;
+  inactive_count: number;
+  down_count: number;
   // M3 enrichment
   active_existing_count: number;
   active_new_count: number;

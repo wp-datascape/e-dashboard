@@ -107,13 +107,16 @@ export async function getDashboard(
     // tanggal) - BUKAN override activeMonths, prinsip §8e tidak berubah.
     const [cross, customer, dormant, thresholds, segParams,
            crossYoy, customerYoy, dormantYoy, segParamsYoy] = await Promise.all([
-      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      // period_type: 'monthly' eksplisit — Overview selalu bulanan (task029.md
+      // §30 granularitas cuma dipakai halaman Growth/Retention/Value, bukan
+      // Overview), disamakan dgn behavior sebelum param ini ada.
+      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
       getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
       loadThresholds(),
       resolveSegmentParams(companyId, filterDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
-      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
       getDormantCustomerMetrics({ company_id: companyId, period_end: comparisonDate, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
       resolveSegmentParams(companyId, comparisonDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
     ])
