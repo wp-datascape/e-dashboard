@@ -29,10 +29,14 @@ import * as schema from '@/db/schema'
 const isLocalDb = ['localhost', '127.0.0.1'].includes(new URL(env.DATABASE_URL).hostname)
 
 // postgres-js client
-// max: jumlah koneksi pool — sesuaikan dengan kebutuhan production
+// max: jumlah koneksi pool — disamakan dev/production (20, sebelumnya dev cuma 5)
+// menyusul audit performa 2026-08-20: test suite (banyak request paralel dalam 1
+// test body, mis. Task G4/G5 scope-isolation) sempat timeout krn antre di pool
+// sempit, padahal query individunya sendiri sudah cepat (lihat tuning work_mem/
+// shared_buffers di bawah + idx_customers_company_id/idx_invoice_items_invoice_id).
 // onnotice: suppress noisy notices from Drizzle migrations / schema introspection
 const client = postgres(env.DATABASE_URL, {
-  max: env.NODE_ENV === 'production' ? 20 : 5,
+  max: 20,
   idle_timeout: 30,
   connect_timeout: 10,
   onnotice: () => {},

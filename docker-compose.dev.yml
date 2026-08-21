@@ -7,6 +7,16 @@ services:
     image: postgres:15-alpine
     container_name: e-dashboard-dev-db
     restart: unless-stopped
+    # Tuning performa (audit 2026-08-20) — jatah lebih kecil dari prod (lihat
+    # docker-compose.prod.yml) karena VPS 8GB dibagi bareng OS/aaPanel/mail
+    # server/Postgres prod sekaligus, dev bukan prioritas RAM.
+    command: >
+      postgres
+      -c shared_buffers=${PG_SHARED_BUFFERS:-384MB}
+      -c work_mem=${PG_WORK_MEM:-16MB}
+      -c maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-128MB}
+      -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-768MB}
+      -c jit=${PG_JIT:-off}
     environment:
       POSTGRES_USER: dashboard
       POSTGRES_PASSWORD: ${DB_PASSWORD}

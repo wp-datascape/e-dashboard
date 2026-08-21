@@ -1,0 +1,1 @@
+CREATE INDEX "idx_pareto_snapshots_company_period" ON "pareto_period_snapshots" USING btree ("company_id","period_type","period_key","checkpoint");
