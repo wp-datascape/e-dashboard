@@ -399,20 +399,65 @@ flat_down_rate: parseFloat((100 - row.expansion_rate).toFixed(1)),
 
 `flat_down_rate` = sisa existing yang spending-nya flat/turun (termasuk yang tidak order sama sekali).
 
-### Drill-Down Modal
+**4-way (REVISI 2026-08-21, KERAS — user: "datamu tidak valid jika tanpa
+transaksi kamu beri label stabil")** — versi 3-way lama (`flat_rate` =
+`cur_revenue = prev_revenue`, TERMASUK sama-sama 0) SALAH secara bisnis:
+customer yang tidak order sama sekali di kedua window dilabeli "Stabil",
+padahal mereka tidak melakukan apa pun. Dipisah eksak jadi 4 kategori
+(`fetchCustomerMetricsTrend`, dipakai chart diverging & SummaryCard tab
+Overview `M7ExpansionGrowth.tsx`):
 
-*(Ditambahkan 2026-07-23)* Klik pada bar bulan tertentu membuka modal Expansion
-Breakdown (`GET /metrics/expansion-breakdown`, `fetchExpansionBreakdown` di
-`m3m7.repository.ts`) yang menampilkan per customer:
+| Kategori | Kondisi | Makna bisnis |
+|---|---|---|
+| `up_rate` | `cur > prev` | Spending naik |
+| `flat_rate` | `cur = prev` DAN `cur > 0` | Genuinely tidak berubah, MASIH order |
+| `inactive_rate` | `cur = prev = 0` | TIDAK ADA transaksi sama sekali di kedua window |
+| `down_rate` | `cur < prev` | Spending turun (bisa turun ke 0 juga) |
+
+Di data lokal (company='all'): Up 1.7%, Flat **0.2%**, Inactive **90.0%**,
+Down 8.1% — sebelumnya "Flat" gabungan lama tampil ~90.2%, MENYEMBUNYIKAN
+fakta bahwa hampir semuanya sebenarnya "tidak ada transaksi" (window aktif
+cuma 30 hari, kohort existing jauh lebih lebar dari itu — wajar mayoritas
+tidak transaksi di window sesempit ini, tapi itu bukan "stabil").
+
+### Drill-Down (dialog klik-titik + tabel breakdown, direvisi 2026-08-21)
+
+Klik titik chart ATAU tabel breakdown yang selalu tampil di tab Trend
+Analysis, keduanya sumber datanya `GET /metrics/expansion-breakdown`
+(`fetchExpansionBreakdown`, `m3m7.repository.ts`):
 
 | Kolom | Keterangan |
 |---|---|
-| Ranking | Urutan `(cur_revenue - prev_revenue)` terbesar ke terkecil |
 | Nama customer | Dari tabel `customers` |
+| Branch/Division/Channel | **BARU 2026-08-21** — dari invoice TERBARU customer itu DI DALAM window "current", pola sama `latest_inv` M1 (`m1.repository.ts`). Division fallback 3-level: `division_override_id` → `channel_divisions` → divisi "other" (sama persis M1) |
 | Revenue Sebelumnya | `prev_revenue` (window 30 hari sebelum active window) |
 | Revenue Sekarang | `cur_revenue` (active window) |
 | % Perubahan | `NULL` kalau `prev_revenue = 0` (customer baru, tidak ada basis pembagi) |
-| Status | `up` (hijau) jika `cur_revenue > prev_revenue`, else `flat_down` |
+| Status | 4-way: `up`/`flat`/`inactive`/`down` (revisi 2026-08-21 dari 3-way `up`/`flat`/`down`, yang sebelumnya dari binary `up`/`flat_down`) — `inactive` = `cur_revenue = prev_revenue = 0`, dipisah dari `flat` yang sekarang cuma `cur = prev` DAN `cur > 0` |
+
+Kolom **Ranking** (angka urutan) DIHAPUS dari tampilan 2026-08-21 — di
+tabel breakdown yang bisa di-sort ulang user (Name/Revenue/Change), angka
+ranking dari backend (tetap urutan revenue delta desc) jadi tidak sinkron
+dgn urutan baris yang tampil, membingungkan. Kolom **Customer Code**
+JUGA dihapus — `customer_code` NULL utk SEMUA customer di data lokal,
+kolom itu selalu kosong. Kedua field tetap ada di data (dipakai `id`
+DataGrid & search), cuma bukan kolom tampilan lagi.
+
+**Filter baris breakdown (BARU 2026-08-21)** — `rows` yang di-return cuma
+customer dengan `cur_revenue > 0 ATAU prev_revenue > 0` (py sinyal
+revenue). Established customer yang LITERAL tidak order sama sekali di
+kedua window (Rp0→Rp0, ~89% dari total kohort) DIKELUARKAN dari baris
+tabel — mereka tidak "menyebabkan" apa pun (§28.7), cuma noise kalau
+ditampilkan semua (32237 baris). **`up_count`/`flat_count`/`inactive_count`/
+`down_count`/`total_existing` TIDAK ikut difilter** — tetap dihitung dari
+kohort established PENUH (formula resmi di atas: "denominator = semua
+existing"), supaya SummaryCard/KpiHeader tetap akurat sesuai definisi
+KPI. **Catatan**: karena filter ini, status `inactive` (kolom Status)
+SECARA PRAKTIS tidak pernah muncul di baris tabel/dialog yang tampil
+(definisinya `cur=prev=0`, yang justru SELALU dikeluarkan filter di
+atas) — nilai `inactive_count`-nya tetap benar/berguna di angka
+aggregate (SummaryCard), cuma tidak akan pernah kelihatan sbg chip baris
+individual.
 
 Header modal menampilkan: jumlah customer spending naik (`up_count`), total existing
 (`total_existing`), dan up rate hasil hitung ulang dari keduanya — sudah diverifikasi
@@ -421,9 +466,31 @@ untuk bulan yang sama.
 
 ### Tampilan
 
-- **Chart**: BarChartWidget 100% stacked horizontal 12 bulan
-- **Hijau** (`up_rate`): % existing dengan spending naik
-- **Abu-abu** (`flat_down_rate`): % flat/turun/tidak aktif
-- **Label**: persentase langsung di dalam bar via `showLabels` + `labelFormatter`
-- **Subtitle**: "Hijau = % spending naik vs 30 hari sebelumnya · Abu-abu = % flat/turun"
-- **Modal**: tabel drill-down per bulan (lihat Drill-Down Modal di atas)
+Halaman standar §28.10/§29 (KpiHeader current/YoY/change SELALU di atas +
+tab Overview/Trend Analysis) — sama pola M1/M2, `M7ExpansionGrowth.tsx`
+(tab Ekspansi halaman Growth) beda dari `M7Expansion.tsx` (dipakai apa
+adanya, tanpa KpiHeader/tab, di halaman Customer Metrics workbench yang
+menumpuk M3-M7 sekaligus).
+
+**Chart Trend Analysis (revisi 2026-08-21, dari 100% stacked horizontal
+lama)** — `ExpansionChart.tsx` (shared), diverging vertical bar per bulan:
+`up_rate` menjulur ke ATAS dari garis 0 (1 segmen). Sisi BAWAH garis 0
+adalah STACK 2 segmen (revisi susulan sama hari, user: "negatif chart
+jadi bar stack yang membedakan masing masing kategori") —
+`down_rate` (dinegasikan, MASIH transaksi tapi turun) ditumpuk dgn
+`inactive_rate` (dinegasikan, TIDAK ADA transaksi sama sekali). Warna
+monokrom (bukan hijau/merah) — primary solid utk naik, tint primary utk
+turun, grey NETRAL (bukan tint lagi) utk inactive — genuinely beda hue
+krn "tidak ada sinyal" beda konsep dari "menurun". `showZeroLine` (garis
+tegas di 0). `flat_rate` TIDAK masuk chart (bukan positif/negatif, tidak
+natural di bar diverging) — kebaca di SummaryCard "Flat" tab Overview.
+Legend 3 entri: Spending Up / Spending Down / No Transaction.
+
+**Mini chart Overview** — `AreaChartWidget` 1 garis "Net Expansion"
+(`up_rate - down_rate - inactive_rate`, direvisi sama hari — momentum
+negatif customer yang berhenti total ikut dihitung, bukan cuma yang
+menurun tapi masih order) dgn fitur "fill by value" recharts
+(`negativeColor` di `AreaSeries`, gradient `SplitColorGradient` baca
+posisi pixel titik 0 dari `useYAxisScale()`) — garis DAN fill area
+SAMA-SAMA ganti warna monokrom (primary solid vs grey) tepat di titik
+silang 0.

@@ -818,6 +818,220 @@ Ini yang MENGGANTIKAN daftar kolom breakdown lama di §8.1/§9/§12-19.
 
 #### M1 — Cross Selling
 
+**Restrukturisasi tab (permintaan user, 2026-08-21) — SELESAI:**
+struktur tab §28.3/28.7 (Analysis/Breakdown, 2 tab) di halaman M1 diganti 3
+sub-tab: **Overview** (Summary Cards + mini trend chart + top 5 customer by
+total revenue, ringkasan cepat) · **Trend Analysis** (chart tren PENUH +
+tabel Breakdown PENUH, gabungan Analysis+Breakdown lama) · **Heatmap** (M1.1,
+dulu nempel di bawah chart tren di tab Analysis, sekarang tab sendiri).
+
+**⚠️ KEPUTUSAN DIBALIK 2026-08-21 (sore, sama hari) — "Halaman M1 adalah
+standar layout default untuk diterapkan ke semua layout KPI":** catatan awal
+di bawah ini bilang restrukturisasi ini "KHUSUS M1, TIDAK men-supersede §28
+Analysis/Breakdown di M2-M10" — **KEPUTUSAN ITU DIBATALKAN oleh user hari
+yang sama.** Pola M1 (KpiHeader current/YoY/change + sub-tab Overview/Trend
+Analysis[/Heatmap kalau relevan]) SEKARANG jadi **standar layout default utk
+SEMUA KPI M1-M10** — men-supersede §28 Analysis/Breakdown 2-tab lama
+sepenuhnya. §28.3/28.7 (Analysis/Breakdown) di atas jadi HISTORIS, bukan
+acuan lagi. Lihat implementasi M2 di bawah (KPI pertama yang ikut pola
+baru ini setelah M1).
+
+Keputusan desain (dikonfirmasi via pertanyaan ke user):
+- KPI Header (current/YoY/change) TETAP selalu tampil DI ATAS ketiga sub-tab
+  (bukan pindah ke dalam Overview) — konstan terlihat apa pun sub-tab aktif.
+- Top 10 customer di Overview: by **Category Count** (bukan Revenue),
+  kolom diringkas (Nama · Category Count · Total Revenue), state-nya
+  TERPISAH dari search/sort tabel Breakdown penuh di Trend Analysis (selalu
+  top-10-by-category-count, tidak ikut berubah kalau user sortir tabel di
+  tab sebelah).
+- Mini chart (Overview) pakai widget & data SAMA PERSIS dgn chart penuh
+  (Trend Analysis) — cuma height lebih kecil (160 vs 280) & tanpa
+  `TrendSummary` (ringkasan analitis, biar Overview tetap ringkas).
+
+**Koreksi 2026-08-21 (temuan user: "Overview dan Trend Analysis isinya
+kenapa sama?"/"summary-nya mana?"):** iterasi pertama Overview cuma
+"versi kecil" dari Trend Analysis (chart sama dipersempit + tabel sama
+dipotong 10 baris) — TIDAK ada elemen yang genuinely beda, "Summary Cards"
+dari mockup awal user TIDAK pernah dibangun (diasumsikan cukup diwakili
+KpiHeader yang sudah ada, ternyata tidak — KpiHeader cuma 1 metrik, mockup
+minta "cards" jamak). **Ditambahkan `SummaryCard` (komponen lokal baru,
+`M1CrossSelling.tsx`)** — 4 kartu angka headline sekaligus (Cross Sell
+Rate, Active Customers, Multi-Category Customers, Avg Category/Customer),
+dari `data.kpi1`/`data.kpi2` yang SUDAH di-fetch (kpi2 sebelumnya SAMA
+SEKALI tidak ditampilkan di halaman M1 — cuma dipakai M2 punya dialog
+sendiri). Pakai `Card` primitif (`components/ui/Card`), BUKAN `StatCard`/
+`MetricStatCard` (dashboard) — keduanya WAJIB `change`/`trend`/`data`
+sparkline yang tidak ada konteksnya di sini, maksa isi itu = data palsu.
+
+**Koreksi ke-2, sama hari (layout + jenis chart/list Overview):**
+- **Layout**: dari 1 kolom vertikal (cards → chart → list, semua full-width
+  stacked) jadi 2 section — section ATAS 2 kolom (kiri: 4 Summary Cards grid
+  2×2, kanan: chart), section BAWAH full-width (list Top 10). Wrap ke 1
+  kolom otomatis di layar sempit (`flexWrap: 'wrap'`, breakpoint implisit
+  lewat `flex: '1 1 300px'`).
+- **Chart**: dari `ComboChartWidget` (bar Active/Multi-Category + line Cross
+  Sell Rate, sama persis dgn Trend Analysis cuma dipersempit) jadi
+  **`SimpleTrendLine`** (komponen lokal baru) — 1 garis Cross Sell Rate
+  SAJA, dibangun langsung dari primitif recharts. **BUKAN** reuse
+  `AreaChartWidget` (area terisi warna, bukan "line" murni) atau
+  `LineAlertWidget` (SELALU render `ReferenceArea`/`ReferenceLine` ambang
+  alert, tidak bisa dimatikan, tidak relevan utk Cross Sell Rate yang tidak
+  py konsep ambang alert — maksa pakai widget itu = ambang alert palsu).
+- **List Top 10**: dari `ResponsiveListView` (DataGrid, tabel) jadi list
+  polos (rank nomor + nama + revenue, 1 baris per customer, border-bottom
+  antar baris, dibangun dari `Card` + `Box`/`Typography` — bukan komponen
+  tabel). Sorting juga diganti dari **by Category Count** jadi **by Total
+  Revenue** (permintaan user, koreksi ke-2). **Koreksi ke-3, sama hari:
+  dibatasi Top 5** (bukan Top 10 lagi).
+
+Implementasi: `M1CrossSelling.tsx` — state tab
+`'overview' | 'trend' | 'heatmap'` (dulu `'analysis' | 'breakdown'`), 3
+blok render kondisional. Tidak ada perubahan backend (semua tab reuse
+`data.trend`/`data.detail`/`data.heatmap` yang SUDAH ada dari 1 fetch,
+tidak ada fetch baru). `tsc --noEmit` + `eslint` bersih. Render di browser
+BELUM di-screenshot (tidak ada tooling browser di sesi ini).
+
+**Tabel Breakdown (Trend Analysis tab) — §28.10 LENGKAP 2026-08-21
+(permintaan user: "hapus kolom id pelanggan dan tambahkan data yang belum
+ada"):**
+- Kolom **ID Pelanggan (customer_code) DIHAPUS** dari tabel M1 (frontend-
+  only — field-nya TETAP ada di `CrossSellingDetailRow`/dipakai search,
+  cuma tidak jadi kolom tampilan lagi). `M2AvgCategory.tsx` py tabel
+  drill-down sendiri, TIDAK disentuh, masih tampilkan customer_code.
+- **Branch/Division/Channel** — BARU, butuh perubahan backend:
+  `CS_INV_CTE` (`m1.repository.ts`, dipakai bareng oleh
+  `fetchCrossSellingKPI`/`fetchCrossSellingTrend`/`fetchCrossSellingDetail`/
+  `fetchCrossSellingHeatmap`) diperluas project kolom
+  `branch_id`/`channel_name`/`invoice_date`/`division_id`
+  (`COALESCE(division_override_id, channel_divisions.division_id)`) —
+  aman (kolom asli tabel `invoices`, tidak nambah baris, `SELECT DISTINCT`
+  sudah include `i.id` yang unik). `fetchCrossSellingDetail` nambah CTE
+  `latest_inv` (`DISTINCT ON customer_id ORDER BY invoice_date DESC`) —
+  branch/division/channel diambil dari invoice TERBARU customer itu DI
+  DALAM periode laporan (BUKAN all-time seperti `cteCustDivision`/dormant
+  threshold — scope-nya sengaja ikut periode, bukan properti customer
+  sepanjang hidup). Diverifikasi: company 1, 316 baris, 0 yang branch/
+  division-nya NULL.
+- **YoY Category Count/Category Change/Revenue YoY/Cross Sell Status** —
+  BARU, **TIDAK butuh backend baru** — reuse `yoyData` (fetch `period_end`
+  digeser -1 tahun) yang SUDAH ada di halaman ini (awalnya cuma buat
+  KpiHeader). Frontend JOIN `yoyData.detail` ke `data.detail` by
+  `customer_id` (`yoyByCustomer` Map). Cross Sell Status: **New** = tidak
+  ada baseline YoY (customer TIDAK di populasi Existing periode yang sama
+  setahun lalu — BUKAN definisi "New" halaman ini, yang populasinya sudah
+  Existing-only), **Increased/Stable/Decreased** = perbandingan
+  category_count vs YoY-nya. Chip warna: New=primary, Increased=success,
+  Stable=default, Decreased=error (`StatusChip`).
+- **Caveat verifikasi jujur**: dites ke data restore production lokal —
+  branch/division/channel dan struktur YoY-nya SUDAH benar (query jalan,
+  join tidak error, tidak ada leakage), TAPI dataset lokal cuma py histori
+  Jan 2025–sekarang (hasil restore terakhir sesi ini) — periode
+  pembanding YoY (Sep 2024–Agu 2025) otomatis 0 baris (belum ada data
+  sama sekali sebelum Jan 2025), jadi SEMUA customer tampil "New" di
+  lokal. Ini keterbatasan DATA TES, bukan bug — logic-nya sudah benar dan
+  akan otomatis terisi begitu histori data cukup panjang (production).
+  `m1BreakdownNote` (catatan lama "belum tersedia") DIHAPUS, sudah tidak
+  relevan — SEMUA kolom §28.10 M1 sekarang lengkap.
+
+**Koreksi ke-4, sama hari — kolom breakdown per tipe produk DIHAPUS dari
+tabel** (temuan user: "tabel jadi lebih detail lagi sampai menampilkan
+revenue padahal seharusnya itu breakdown matrix"). Kolom qty/revenue per
+item_type (Unit/Consumable/Sparepart/dst, ditambahkan lebih awal di sesi
+yang sama per permintaan user) DIHAPUS lagi dari tabel Breakdown — matriks
+customer × tipe produk itu SUDAH jadi tugas tab **Heatmap** (M1.1), tabel
+Breakdown jadi dobel/kepanjangan kalau nampilin detail yang sama. Field
+`type_breakdown` TETAP ada di `CrossSellingDetailRow` (dipakai Heatmap),
+cuma tidak lagi di-flatten jadi kolom tabel. `detail_categories` (list
+kategori dinamis, dari fix "card KNT hilang" sebelumnya) TETAP ada di
+response, dipakai kalau suatu saat perlu lagi — cuma tidak dipakai
+`breakdownColumns` M1 sekarang. Kolom akhir tabel M1: Customer · Branch ·
+Division · Channel · Category Count · YoY Category Count · Category
+Change · Revenue · Revenue YoY · Cross Sell Status — PERSIS §28.10, tanpa
+tambahan. `tsc --noEmit` + `eslint` bersih.
+
+**Koreksi ke-5 (nama SectionLabel/judul) & ke-6 (chart Overview), sama
+hari:**
+- **Prefix "M1"/"M1.1"/"M2" dihapus dari semua judul** (permintaan user:
+  "hapus prefix M1 langsung judul saja di semuanya ganti simbol atau icon
+  saja" + susulan "terapkan di semua matrix") — diganti ikon MUI (BUKAN
+  emoji, aturan proyek): `SwapHorizIcon` (judul utama M1),
+  `GridOnIcon` (SectionLabel Heatmap M1.1 DAN judul internal
+  `HeatmapWidget` itu sendiri — widget-nya nambah prop `icon?` baru buat
+  ini), `CategoryIcon` (M2). `SectionLabel` (`HelperComponents.tsx`)
+  nambah prop `icon?: React.ElementType` opsional, reusable.
+- **Gaya "AI content writing" (pola "Judul — Deskripsi" pakai em dash,
+  "·" nempel prefix+nama) dibersihkan** dari judul-judul itu (permintaan
+  user eksplisit) — jadi frasa alami, mis. "M1 · Cross Selling Ratio —
+  Trend 12 {{unit}}" → "Tren Rasio Cross Selling (12 {{unit}})". Subtitle/
+  legend chart lain yang pakai "·" sbg pemisah enumerasi (pola berbeda,
+  fungsional, dipakai luas di widget lain) SENGAJA tidak disentuh.
+- **Chart mini Overview diganti jadi Area Chart** (permintaan user: "rubah
+  chart overview menjadi area chart") — `SimpleTrendLine` (komponen lokal
+  custom yang tadinya dibangun manual dari primitif recharts, per
+  permintaan "line chart" sebelumnya) DIHAPUS, diganti reuse
+  `AreaChartWidget` (komponen shared, sudah dipakai M2) — konsisten dgn
+  prinsip "pusatkan UI, jangan duplikasi". `AreaChartWidget` sudah
+  bungkus Card+title+subtitle sendiri, jadi wrapper `Card` manual yang
+  tadinya dibuat di Overview juga ikut dibuang (tidak perlu lagi).
+
+**Koreksi ke-7 — teks tab Heatmap dirapikan + bug info salah diperbaiki**
+(user: "text di heatmap ini tidak mengikuti filter informasi salah" +
+"format tanggal dan uang cek ulang gunakan util" + "tampilan juga
+terlalu sesak dengan text text tersebut" + "sepertinya harus dihapus
+salah satu karena sepertinya duplikat"):
+- **Bug info salah**: `heatmapHelperText` hardcode "Top 8 kategori" —
+  TIDAK PERNAH akurat, backend TIDAK ADA cap 8 kategori sama sekali
+  (cuma customer yang dibatasi top 30, kategori dinamis penuh per
+  company — 4 utk MKO, 6 utk KNT, lihat koreksi ke-3 sebelumnya).
+  Screenshot user nunjukin chip "6 kategori" vs teks "Top 8 kategori" di
+  sebelahnya — jelas kontradiktif. DIHAPUS dari teks, biar chip (yang
+  sudah akurat) jadi satu-satunya sumber angka itu.
+- **Format tanggal**: `data.period.start`/`.end` (raw ISO "2026-08-01")
+  ditampilkan mentah tanpa format sebelumnya — sekarang lewat
+  `formatDateID` (util `@/utils/date.ts`, standar DD-MM-YYYY proyek,
+  sudah dipakai luas di tempat lain) → "01-08-2026".
+- **Format uang**: `HeatmapWidget.tsx` py fungsi lokal `fmtRp()` duplikat
+  (bukan reuse util) — diganti `formatIDR` (`@/utils/format.ts`, formatter
+  Rupiah singkat standar utk ruang sempit spt sel tabel/tick chart, sudah
+  dipakai luas di tempat lain juga).
+- **Tampilan sesak/duplikat**: SectionLabel ("Heatmap Cross Selling
+  Pelanggan" + ikon) DAN title internal `HeatmapWidget` ("Matriks Cross
+  Selling Pelanggan (periode)") tumpang tindih persis (nama + periode
+  disebut 2x). `HeatmapWidgetProps.title` diubah jadi opsional, tidak
+  diisi lagi dari `M1CrossSelling.tsx` — SectionLabel di luar jadi
+  satu-satunya judul. Subtitle widget ("Kolom = tipe produk... · Hijau =
+  ada pembelian... · Diurutkan...") dipangkas jadi cuma hint interaksi
+  ("Klik sel untuk melihat detail produk") — sisanya sudah kebaca dari
+  header kolom & legend warna visual yang SUDAH ada di bawah matrix
+  (duplikat kalau dijelaskan lagi via teks). `heatmapMatrixTitleWithPeriod`
+  (i18n key, sekarang tidak dipakai) dihapus. `tsc --noEmit` + `eslint`
+  bersih.
+
+**Koreksi ke-8 — `KpiHeader` (komponen shared, `components/dashboard/`):
+label periode generik diganti eksplisit** (user: "'periode ini' jangan
+dipakai, harus keterangan eksplisit" + susulan "'Saat Ini' ganti juga jadi
+eksplisit"). Sebelumnya: `"{{metric}} — periode ini vs {{period}}"` dan
+item row `"Saat Ini: X | {{comparisonLabel}}: Y | Perubahan: Z"` — sisi
+current SELALU teks generik ("periode ini"/"Saat Ini"), sisi pembanding
+SUDAH eksplisit ("Agustus 2025") — asimetris, tidak konsisten.
+- `KpiHeaderProps` nambah field WAJIB baru `currentPeriodLabel: string`
+  (mis. "Agustus 2026", dihitung via `formatPeriodLabel(periodType,
+  periodKey)` — reuse fungsi yang SUDAH dipakai buat `comparisonLabel`,
+  bukan logic baru). Dipakai di 2 tempat: judul section (ganti "periode
+  ini") DAN label item pertama (ganti "Saat Ini").
+- i18n key `dashboard.kpiHeader.current` ("Saat Ini"/"Current") jadi
+  orphan, DIHAPUS.
+- **Bonus fix ketemu sambil kerjakan** (kelihatan langsung di teks yang
+  dikirim user): `formatPeriodLabel()` (`utils/analisisPeriod.ts`) utk
+  quarter/semester nge-print tanda kurung aneh — "Kuartal (2) Tahun 2025"
+  bukan "Kuartal 2 Tahun 2025". DIPERBAIKI (hapus `()`), dampaknya ke
+  SEMUA pemakai fungsi ini (`M1CrossSelling.tsx` + `Analisis/index.tsx`),
+  bukan cuma KpiHeader.
+- `KpiHeader` cuma dipanggil dari 1 tempat (`M1CrossSelling.tsx`) saat
+  ini, jadi field baru langsung WAJIB (bukan opsional) — caller lain nanti
+  (M2-M10 pas ikut pola KpiHeader) otomatis kena kontrak yang benar dari
+  awal, tidak perlu migrasi ulang. `tsc --noEmit` + `eslint` bersih.
+
 **Tujuan:** mengetahui customer yang membeli lebih dari satu kategori.
 
 **Kolom:** Customer · Branch · Division · Channel · Current Category
@@ -826,6 +1040,51 @@ Cross Sell Status
 
 **Status:** New / Increased / Stable / Decreased
 
+**Tambahan di luar spec (permintaan user, 2026-08-21) — SELESAI, sudah lewat
+1x koreksi:** kolom breakdown per tipe produk ditambahkan ke tabel
+Breakdown, tiap tipe 2 kolom terpisah (qty + revenue). `qty` = `SUM(quantity)`
+asli kolom `invoice_items.quantity` — SENGAJA beda dari cara heatmap M1.1
+hitung angka sel (`COUNT(*)` baris item, ambigu: banyak-produk-1-invoice vs
+1-produk-banyak-invoice keluar angka sama).
+
+**Iterasi 1 (SALAH, sudah diganti):** 3 kolom hardcode Unit/Consumable/
+Sparepart. Ternyata `item_type` BERVARIASI per company — KNT punya 6 tipe
+(unit/consumable/sparepart/**card**/accesories/software), MKO 4. Kategori
+`card` KNT saja Rp43.8 miliar, SAMA SEKALI hilang dari tabel dgn hardcode 3
+kolom (ditemukan user lewat perbandingan visual heatmap KNT [6 kategori] vs
+tabel [cuma 3]). Klaim verifikasi awal ("sum 3 tipe = total_revenue") cuma
+kebetulan cocok di 1 sampel customer yang tidak pernah beli kategori Card —
+tidak berlaku umum, TIDAK menyeluruh.
+
+**Iterasi 2 (SEKARANG, benar) — kolom DINAMIS:** jumlah & jenis kolom
+mengikuti `item_type` yang BENAR-BENAR ada di data (`detail_categories`),
+mirror persis cara heatmap M1.1 kerja (`GROUP BY item_type`, bukan hardcode).
+- Backend (`m1.repository.ts`): `fetchCrossSellingDetail` diubah dari 1 query
+  ter-agregasi 3-tipe jadi 2 query (`cc` = ringkasan customer, `type_breakdown`
+  = flat customer×item_type mirror pola heatmap), di-pivot di JS jadi map
+  `type_breakdown: Record<item_type, {qty, revenue}>` per customer + list
+  `categories` (SEMUA item_type yg ada di SEMUA customer, bukan cuma top-30
+  spt heatmap — 2 field terpisah `categories` (heatmap) vs `detail_categories`
+  (tabel) di `CrossSellingMetricsData`, SENGAJA beda scope, lihat komentar
+  di `metrics.types.ts`).
+- Frontend (`M1CrossSelling.tsx`): `breakdownColumns` dibangun dinamis dari
+  `data.detail_categories` (bukan array literal 3 kolom tetap). Field kolom
+  di-FLATTEN ke `type_qty_{category}`/`type_revenue_{category}` langsung di
+  `breakdownRows` (bukan `valueGetter` — komponen `ResponsiveListView` versi
+  mobile baca `row[field]` langsung, tidak lewat `valueGetter`, ditemukan
+  pas implementasi). `relabelCategory` (`helpers.ts`) diperluas cover
+  card/accesories/software (dulu cuma unit/consumable/sparepart, sisanya
+  fallback raw key).
+- **Diverifikasi ulang MENYELURUH** (bukan 1 sampel lagi): company 2 (KNT) —
+  `detail_categories` = 6 tipe termasuk `card`, dicek 1 customer (Shopee COS,
+  28 kategori) — SUM SEMUA 6 tipe (unit+card+consumable+software+accesories+
+  sparepart) = Rp10.572.641.909, PERSIS sama dgn `total_revenue`. `tsc
+  --noEmit` + `eslint` bersih (backend+frontend), test suite 79 pass/2 skip/
+  3 fail (fail SAMA dgn baseline, tidak terkait M1).
+- Render tabel di browser BELUM di-screenshot (tidak ada tooling browser
+  otomatis tersedia di sesi ini) — cek manual di browser sebelum dianggap
+  selesai total.
+
 #### M2 — Average Product Category
 
 **Tujuan:** mengetahui perubahan jumlah kategori produk yang dibeli
@@ -833,6 +1092,182 @@ customer.
 
 **Kolom:** Customer · Branch · Division · Channel · Current Category
 Count · YoY Category Count · Change · Revenue · Revenue YoY
+
+**Restrukturisasi ikut pola M1 (2026-08-21, permintaan user "lanjutkan di
+tab kategori" setelah keputusan "M1 = standar layout default") — SELESAI:**
+`M2AvgCategory.tsx` diadaptasi PERSIS dari `M1CrossSelling.tsx`, dengan
+penyesuaian karena M2 tidak punya konsep Heatmap sendiri:
+- **`KpiHeader`** (current/YoY/change) ditambahkan di atas — SEBELUMNYA M2
+  sama sekali TIDAK punya perbandingan YoY eksplisit. Metrik: Avg
+  Category/Customer (`kpi2.avg_categories`), `kpiType="value"`,
+  `formatValue` 2 desimal. Butuh fetch YoY baru (`useCrossSelling` dgn
+  `period_end` digeser -1 tahun) — pola sama persis M1, prop baru
+  `periodEnd`/`applyDateCutoff` ditambah ke `Props` M2 (diteruskan dari
+  `Growth/index.tsx` dan `CrossSelling/index.tsx`, sebelumnya M2 tidak
+  terima `periodEnd` sama sekali).
+- **2 sub-tab (BUKAN 3 spt M1)**: **Overview** (Summary Cards 2×2 — Avg
+  Category, Total Distinct Categories, Active Customers, Cross Sell Rate +
+  mini Area chart + Top 5 customer by CATEGORY COUNT bukan revenue —
+  ranking ikut metrik utama panel ini sendiri, beda dari M1 yg ranking by
+  revenue) · **Trend Analysis** (chart Area PENUH + `TrendSummary`, SAMA
+  persis chart yang sudah ada sebelumnya, cuma dipindah ke tab).
+  **TIDAK ada tab Heatmap** — M1.1 heatmap sudah cukup 1x di panel M1
+  (`activeKpi` switch di Growth, panel M1/M2 TIDAK pernah tampil
+  bersamaan), tidak perlu diduplikasi ke M2.
+- **Komponen `SummaryCard`** dipindah dari lokal `M1CrossSelling.tsx` ke
+  `HelperComponents.tsx` (shared) — dipakai M1 DAN M2 sekarang, bukan
+  duplikat kode.
+- **i18n key generik** (`m1SearchPlaceholder`/`m1SortLabel`/dst di tabel
+  Breakdown M1) di-rename buang prefix "m1" (`tableSearchPlaceholder`/
+  `tableSortLabel`/dst) — sudah dipakai lintas KPI (bukan cuma M1 lagi),
+  nama lama menyesatkan.
+
+**Iterasi lanjutan drill-down/BreakdownTable (sama hari, 3 putaran):**
+1. **Awalnya**: drill-down klik-titik-buka-dialog M2 (fitur M2-only, M1
+   tidak punya krn Breakdown-nya fixed-period bukan per-titik) DIPERTAHANKAN
+   apa adanya, TIDAK diganti tabel breakdown, supaya tidak regresi.
+2. **User lapor 2 masalah**: "klik titik tidak ada muncul pop up" (dialog
+   rusak/tidak reliable) DAN "tabel breakdown nya belum ada". Respons awal:
+   dialog DIHAPUS, diganti komponen baru **`BreakdownTable.tsx`** (shared,
+   diekstrak dari logic breakdown M1 — `CROSS_SELL_STATUS_COLOR`/
+   `breakdownColumns`/join-YoY/search+sort — SEKARANG dipakai M1 DAN M2,
+   M1CrossSelling.tsx juga di-refactor pakai komponen ini, bukan kode
+   lokal lagi).
+3. **User protes**: "kamu bilang ada dialog, dialognya itu tidak
+   berfungsi, sekarang malah kamu hapus?" — benar, menghapus fitur yang
+   rusak BUKAN cara memperbaikinya. User pilih: kembalikan dialog + coba
+   perbaiki bug klik-nya, `BreakdownTable` TETAP ada juga (2 cara akses
+   data, bukan saling gantikan — dialog utk histori per-titik masa lalu,
+   BreakdownTable utk periode sekarang tanpa perlu klik).
+   - **Root cause bug klik ditemukan**: `AreaChartWidget.tsx` pasang
+     `onClick` di `<Dot>` custom kecil (radius 4px) per-titik — dibandingkan
+     `BarChartWidget.tsx` (yang klik-nya TERBUKTI jalan, dipasang LANGSUNG
+     di `<Bar>`, permukaan solid besar) — Dot kecil kemungkinan besar
+     KETUTUP layer pelacak-mouse internal recharts yang dipakai Tooltip
+     (invisible, di ATAS dot dalam stacking order), klik tidak pernah
+     sampai ke elemen Dot.
+   - **Fix**: `onClick` dipindah ke level `<AreaChart>` (chart container)
+     pakai `activeLabel` dari `MouseHandlerDataParam` (tipe resmi recharts
+     v3.10.1, via `import type { MouseHandlerDataParam } from 'recharts'`)
+     — cari baris data yang `[xKey]`-nya cocok dgn `activeLabel`. Mekanisme
+     ini SAMA PERSIS dgn yang sudah TERBUKTI jalan buat Tooltip hover
+     (recharts internal mouse-tracking), bukan DOM element kecil yang bisa
+     ketutup. Dot tetap tampil visual (`dot={{ r: 3, ... }}`, statis) +
+     `activeDot={{ r: 5 }}` (hover highlight bawaan recharts) — cuma TIDAK
+     lagi jadi target klik individual.
+   - **Perubahan ini di `AreaChartWidget.tsx` (shared)** — otomatis
+     berlaku ke SEMUA pemakai widget ini yang pakai `onAreaClick` di masa
+     depan, bukan cuma M2.
+4. **Hasil akhir**: M2 sekarang punya KEDUANYA — dialog klik-titik (SUDAH
+   diperbaiki) + `BreakdownTable` (di tab Trend Analysis, di bawah chart).
+- `tsc --noEmit` + `eslint` (whole project) bersih.
+
+**Verifikasi tambahan (sama hari, 2 temuan user):**
+- **"Popup tren 2025 kenapa tidak ada Customer Aktif?"** — dicek langsung ke
+  data, BUKAN bug: dataset lokal (hasil restore production terbaru) cuma
+  py histori mulai **1 Januari 2025** (kedua company). Klik ke titik
+  **Januari 2025** → Customer Aktif = 0, KARENA memang tidak mungkin ada
+  customer "Existing" di bulan pertama data sama sekali (syarat Existing:
+  first_invoice SEBELUM `periodStart - activeMonths`, mustahil dipenuhi
+  kalau tidak ada histori sebelum Jan 2025 sama sekali). Dibuktikan: Maret
+  2025 = 589 aktif, Juni 2025 = 939 aktif — bulan LAIN di 2025 normal ada
+  data, cuma bulan PERTAMA (Januari) yang nol, sesuai definisi bisnisnya.
+- **Kolom breakdown `—` diganti `0`/`Rp 0`** (koreksi user, konsisten dgn
+  standar tabel lain di app ini — instruksi yang SAMA persis pernah
+  diberikan sebelumnya utk kolom type-breakdown M1 yang sudah dihapus):
+  `yoy_category_count`, `category_change`, `yoy_total_revenue` di
+  `BreakdownTable.tsx` — dulu tampil `—` kalau customer tidak punya
+  baseline YoY (kategori "New"), sekarang `0`/`Rp 0`. **Category count
+  22, 25, dst di tabel ini SUDAH benar kategori** (bukan produk) —
+  diverifikasi ke data: `COUNT(DISTINCT product_category_id)`, dibuktikan
+  1 customer KNT dgn category_count=22 py distinct_products=150 (jauh
+  lebih besar, kalau "22" itu produk seharusnya sama dgn 150-nya, bukan
+  angka terpisah jauh lebih kecil).
+
+**Redesign chart Trend Analysis M2 (2026-08-21, permintaan user)** — dari
+`AreaChartWidget` (1 garis avg_category polos) jadi `ComboChartWidget`
+(stacked bar + 2 garis), spek dari user: "1. Total customer -> tinggi
+stacked bar, 2. Single Category -> bagian pertama bar, 3. Multi Category ->
+bagian kedua bar, 4. Avg Category -> line + benchmark":
+- **`ComboChartWidget` (shared) diperluas**: prop `stacked?: boolean` baru
+  (terapkan `stackId="stack"` ke `Bar`+`Bar2`, sebelumnya SELALU render 2
+  bar sejajar, tidak bisa ditumpuk) + `formatLine2` (gap kecil yang
+  ketemu — tooltip line2 sebelumnya tidak pernah pakai formatter custom,
+  fallback ke `toLocaleString` polos) + `onBarClick` sekarang nempel di
+  KEDUA bar (bar+bar2), bukan cuma bar pertama — supaya klik di segmen
+  manapun dari stacked bar sama-sama trigger drill-down.
+- **Data**: `single_category` DIHITUNG di frontend (`total_active -
+  multi_product`, keduanya SUDAH ada di `data.trend`, TIDAK ADA fetch/
+  perubahan backend). `benchmark` = rata-rata `avg_category` dari SEMUA 12
+  titik yang tampil di chart (dikonfirmasi ke user: bukan target
+  dikonfigurasi admin — itu opsi lain yang lebih besar scope-nya, ditolak
+  demi versi cepat jalan hari ini) — 1 angka konstan di-broadcast ke semua
+  titik data supaya line2 render sbg garis lurus horizontal.
+- **Diverifikasi ke data asli** (company 2, 12 bulan): `single_category +
+  multi_product` PERSIS sama dgn `total_active` di SEMUA 12 titik (tidak
+  ada selisih).
+- **Koreksi benchmark (sama hari, susulan)**: user tanya "jadi rata-rata
+  dari rata-rata?" — BENAR, perhitungan awal (`sum(avg_category) / 12`,
+  unweighted mean) salah secara statistik: bulan dgn sedikit customer
+  (mis. Agustus 2026 baru 779, bulan berjalan) ikut disamakan bobotnya
+  dgn bulan yang 1992 customer. Diperbaiki jadi **weighted mean** —
+  `sum(avg_category_i × total_active_i) / sum(total_active_i)`, setara
+  total kategori SEMUA customer-bulan dibagi total customer-bulan.
+  Diverifikasi: unweighted 1.54 vs weighted 1.53 (beda kecil di dataset
+  ini, tapi metode weighted yang benar — bisa beda jauh lebih besar kalau
+  distribusi customer per bulan lebih timpang).
+
+**Koreksi ke-2 (sama hari, susulan lagi)** — user: "sepertinya itu tidak
+berfungsi hapus saja benchmark nya" + "kalau diubah jadi area chart dengan
+data ini apakah bisa? agar tidak monoton semuanya bar chart combo?":
+- **Garis benchmark DIHAPUS total** (state `benchmark`, prop `line2Key`
+  di JSX, key i18n `m2SeriesBenchmark`) — tidak didebug lebih lanjut,
+  langsung dihapus sesuai instruksi eksplisit user.
+- **`ComboChartWidget` (shared) diperluas lagi**: prop baru
+  `barVariant?: 'bar' | 'area'` (default `'bar'`, perilaku lama
+  tidak berubah) — kalau `'area'`, bar/bar2 dirender sbg `<Area>` (gradient
+  fill, gaya sama `AreaChartWidget`) alih-alih `<Bar>` (kotak), TAPI data
+  dan `stacked`/`onBarClick` logic SAMA PERSIS (cuma ganti bentuk visual,
+  bukan struktur data baru). `<defs>`/`linearGradient` ditambah kondisional
+  (cuma di-render kalau `barVariant==='area'`). Fitur `concentrationKey`
+  (highlight bar red di atas threshold, dipakai M4) TETAP Bar-only — tidak
+  masuk akal utk Area, jadi cuma ada di cabang `barVariant==='bar'`.
+- M2 sekarang pakai `barVariant="area"` — chart Trend Analysis M2 jadi
+  **stacked AREA** (Single Category + Multi Category, gradient fill)
+  + garis Avg Category (line biasa, TANPA benchmark lagi) — beda visual
+  dari M1 yang tetap `barVariant="bar"` (default, tidak disentuh), biar
+  tidak semua KPI di app ini tampil sbg bar chart combo yang sama persis.
+- **Koreksi warna (susulan)**: `barColor` (segmen Single Category) tadinya
+  abu-abu/slate (persis warna `total_active` di M1) — user: "rubah warna
+  nya jangan abu abu". Diganti `theme.palette.warning.main` (amber) —
+  3 warna sekarang beda jelas: Single Category=amber, Multi Category=biru
+  (primary, TIDAK diubah), Avg Category=hijau (success, TIDAK diubah).
+- `tsc --noEmit` + `eslint` bersih.
+
+**Bug klik "pop up error" ditemukan & diperbaiki (susulan, sama hari)** —
+setelah M2 pindah ke `barVariant="area"`, klik chart munculkan error.
+Root cause: `onClick` PER-ELEMEN yang dipasang di `<Bar>`/`<Area>` (pola
+lama `ComboChartWidget`) beda payload di recharts v3 — `<Bar>` kirim data
+BARIS asli (`BarRectangleItem`), `<Area>` kirim props GEOMETRI KURVA-nya
+sendiri (`RechartsMouseEventHandler<Props, SVGPathElement>`,
+`node_modules/recharts/types/shape/Curve.d.ts`) — BUKAN data. Waktu M2
+pakai `barVariant="area"`, handler `onBarClick` M2 (`(d) => ...d.month...`)
+terima objek salah bentuk, `d.month` undefined, error di
+`getPeriodDateRange` (parse periode invalid). Fix: `onClick` PER-ELEMEN
+di `<Bar>`/`<Area>` DIHAPUS semua, dipindah 1x ke level `<ComposedChart>`
+pakai `activeLabel` (`MouseHandlerDataParam` dari recharts) — mekanisme
+SAMA PERSIS yang sudah dipakai buat perbaiki `AreaChartWidget.tsx`
+sebelumnya, kali ini diterapkan ke `ComboChartWidget` juga — bekerja
+SERAGAM utk Bar maupun Area, tidak bergantung payload per-elemen yang
+ternyata beda-beda. M1 (pakai `barVariant="bar"` default, tapi TIDAK
+kirim `onBarClick` sama sekali) tidak terdampak/tidak berisiko oleh
+perubahan ini. `tsc --noEmit` + `eslint` bersih.
+- `onAreaClick` → `onBarClick` (ganti widget pindah pola klik ke Bar yang
+  lebih reliable — sudah dibuktikan lebih robust dari klik-titik Area di
+  koreksi sebelumnya). `AreaChartWidget` TETAP dipakai di tab Overview
+  (mini chart, sengaja tetap sederhana — cuma tab Trend Analysis yang
+  di-upgrade ke versi kaya ini).
+- `tsc --noEmit` + `eslint` bersih.
 
 #### M3 — Average Revenue / Existing Customer
 
@@ -1002,3 +1437,1189 @@ Dengan struktur ini, 3–4 KPI dalam satu menu (Growth/Retention/Value)
 tetap bisa berada dalam satu halaman, tanpa membuat tiap KPI harus
 memuat chart, tabel, dan informasi detail sekaligus (Analysis vs
 Breakdown dipisah tab, bukan ditumpuk).
+
+---
+
+## 29. Tab Per-KPI di Halaman Growth/Retention/Value (tambahan user, 2026-08-19)
+
+Revisi atas asumsi §28.13 ("3-4 KPI tetap satu halaman, ditumpuk vertikal").
+Makin banyak KPI dapat pola lengkap §28 (Header + Analysis/Breakdown penuh),
+satu halaman ditumpuk jadi terlalu panjang — Retention paling parah (4 KPI
+× blok penuh). Solusi: KPI jadi tab level halaman, bukan ditumpuk.
+
+### 29.1 Referensi visual
+
+Dicek https://overview.tremor.so/support sebagai referensi gaya tab bar
+(bersih, underline biru di tab aktif). Catatan penting: di halaman itu tab
+ada di level HALAMAN (Support/Retention/Workflow/Agents) — di DALAM 1
+halaman, semua KPI card (Current Tickets/SLA Performance/Call Volume)
+tetap tampil bersamaan tanpa tab, baru di bawahnya 1 tabel data. Jadi pola
+"1 tab = 1 KPI" adalah ekstensi ide user, bukan langsung dicontoh dari
+referensi — cuma gaya visual tab bar-nya yang dipakai.
+
+### 29.2 Struktur
+
+```
+[Filter bar - 1 baris, dipakai bareng semua tab: company/branch/division/
+ periode/exclude-intercompany]
+
+[Tab bar: M1 Cross Selling | M2 Avg Category | M7 Expansion]
+─────────────────────────────────────────────────────────
+   (isi tab aktif = 1 blok §28 penuh: KpiHeader + tab
+    Analysis/Breakdown + chart + breakdown table)
+```
+
+- Filter TETAP di atas tab, bukan di dalam tiap tab — ganti tab tidak
+  reset filter (lanjutan §23, filter persistent).
+- Konten tab = 1 KPI penuh sesuai §28 (Header, Analysis/Breakdown, chart,
+  tooltip, trend summary, breakdown table) — pola internal KPI TIDAK
+  berubah dari yang sudah ada di M1, cuma dipindah dari "selalu tampil"
+  jadi "tampil kalau tab-nya aktif" (KPI non-aktif unmount, bukan display:
+  none — hindari fetch data KPI yang tidak sedang dilihat).
+
+### 29.3 Deep-link via URL query param
+
+Tab aktif tercermin di query string, mis. `/growth?kpi=cross_selling_ratio`.
+Alasan:
+- Refresh/share link tetap di tab yang sama (bukan reset ke tab pertama).
+- Sekalian jadi solusi temuan lama yang belum dikerjakan: 9 `metric.link`
+  dari kartu Overview yang nunjuk ke rute mati (`/customer-revenue` dkk,
+  tidak pernah ada rute frontend-nya) — link itu diarahkan ke
+  `/growth?kpi=...` / `/retention?kpi=...` / `/value?kpi=...` sesuai
+  menu-nya, bukan rute terpisah per KPI.
+
+Value `kpi` = `metric_key` yang SAMA dengan yang sudah dipakai backend/
+`METRIC_LABEL_KEYS` (frontend/src/components/dashboard/metricFormat.ts) —
+bukan nama baru, biar `metric.link` dari Overview bisa langsung dipetakan
+tanpa tabel mapping tambahan:
+
+- Growth: `cross_selling_ratio` (M1) · `avg_category` (M2) · `expansion_rate` (M7)
+- Retention: `repeat_order_rate` (M6) · `dormant_rate` (M8) · `dormant_value` (M9) ·
+  `reactivation_rate` (M10)
+- Value: `avg_revenue` (M3) · `avg_gross_profit` (M4) · `high_margin_penetration` (M5)
+
+Query param tidak ada / tidak valid / user tidak punya akses KPI itu →
+fallback ke KPI pertama yang user PUNYA akses, urutan sesuai §2.
+
+### 29.4 Rollout
+
+Growth dulu (M1/M2/M7) sebagai contoh — direview user sebelum diterapkan
+ke Retention (§11) dan Value (§16). Pola internal tiap KPI (Header/
+Analysis/Breakdown, §28) TIDAK berubah, restrukturnya cuma di level
+"tab mana yang render", bukan isi KPI itu sendiri.
+
+---
+
+## 30. Filter Granularitas Periode — Monthly/Quarterly/Semester/Annual (tambahan user, 2026-08-19)
+
+Klarifikasi §21/§22 (sudah tertulis tapi belum diimplementasi di manapun)
++ §28.3 ("12 periode terakhir, mengikuti granularitas filter"). Ini FILTER
+KEDUA yang terpisah dari filter scope (Entitas/Divisi + tanggal, sudah ada
+di semua halaman KPI) — belum ada UI-nya sama sekali saat ini.
+
+### 30.1 Konfirmasi maksud "12 batang mengikuti granularitas"
+
+Ganti filter ke Quarterly BUKAN mengelompokkan 12 bulan yang sama jadi
+kuartal-kuartal — tapi mengganti unit chart itu sendiri jadi kuartal, dan
+mundur 12 kuartal (=3 tahun), bukan 12 bulan (=1 tahun) lagi. Tiap batang
+= 1 kuartal utuh (3 bulan digabung). Sama utk Semester (12 semester = 6
+tahun) dan Annual (12 tahun).
+
+Ini BUKAN cuma soal chart Analysis — filter ini juga mengubah KPI Header
+(§21): Quarterly → Current = Q3 2026, YoY = Q3 2025 (bukan lagi Aug 2026
+vs Aug 2025). Jadi granularitas ini punya 2 titik pengaruh: Header (current/
+comparison KPI) dan trend chart Analysis (§28.3) — bukan cuma salah satu.
+
+### 30.2 Temuan: data historis belum cukup panjang
+
+Dicek langsung ke DB lokal (restore data production, 2026-08-19):
+`invoices.invoice_date` rentang **2025-01-01 s/d 2026-08-17 (~20 bulan)**.
+
+| Granularitas | Rentang dibutuhkan (12 periode) | Rentang data ada | Slot kosong |
+|---|---|---|---|
+| Monthly | 1 tahun | ~20 bulan | 0 dari 12 |
+| Quarterly | 3 tahun | ~6-7 kuartal | ~5 dari 12 |
+| Semester | 6 tahun | ~3 semester | ~9 dari 12 |
+| Annual | 12 tahun | ~2 tahun | ~10 dari 12 |
+
+**Keputusan user:** tetap 12 slot selalu (bukan dipotong sesuai data yang
+ada) — periode yang datanya belum ada ditampilkan kosong/nol. Konsekuensi:
+saat ini chart Semester & Annual mayoritas kosong sampai data historis
+menumpuk beberapa tahun ke depan — ini WAJAR/EXPECTED, bukan bug, mengingat
+sistem baru mulai punya data terstruktur sejak awal 2025.
+
+### 30.3 Aturan agregasi per jenis KPI (1 batang = 1 periode gabungan)
+
+**Rate KPI** (mis. M8 Dormant Rate, M1 Cross-Sell Rate) — **keputusan
+user:** dihitung ULANG dari total pembilang/penyebut se-periode, BUKAN
+rata-rata dari rate tiap bulan (rata-rata rate bisa distorsi kalau volume
+antar bulan beda jauh — mis. dormant rate Juli 10% dari 50 customer vs
+Agustus 10% dari 500 customer, rata-rata sederhana (10%+10%)/2 mengabaikan
+bobot volume). Contoh M8 kuartal: total customer dormant (Jul+Agu+Sep) /
+total existing customer (Jul+Agu+Sep) — BUKAN AVG(rate Jul, rate Agu,
+rate Sep).
+
+**Value/Count KPI** (mis. M3 Revenue, M9 Dormant Value) — **belum
+diputuskan, perlu direview PER KPI saat implementasi**, karena tidak semua
+"jumlah" aman langsung dijumlah 3 bulan:
+- Metrik SUM murni per transaksi (Total Revenue, Total GP) → aman
+  dijumlah 3 bulan.
+- Metrik COUNT customer unik (mis. "existing customers", "expanded
+  customers") → TIDAK aman langsung dijumlah 3 bulan (customer yang sama
+  aktif di 3 bulan itu bakal ke-double/triple count) — butuh query ulang
+  "distinct customer dalam window 1 kuartal", bukan SUM(count bulanan).
+
+### 30.4 Belum ada implementasi backend sama sekali
+
+Semua endpoint M1-M10 (`backend/src/features/metrics/metrics.service.ts`)
+saat ini HARDCODE bulanan — tidak ada parameter `period_type`, trend selalu
+12 bulan terakhir dari `period_end`. Menambahkan granularitas ini bukan
+cuma tambah filter UI, tapi perubahan di:
+- Backend: tiap service M1-M10 perlu terima `period_type` + hitung ulang
+  query aggregate-nya per aturan §30.3 (bukan cuma ganti label axis).
+- Ada modul yang SUDAH punya logic resolve rentang tanggal
+  quarter/semester/annual siap pakai:
+  `backend/src/features/analisis/period.util.ts` (`getPeriodRange`,
+  `PeriodType`) — REUSE ini, jangan tulis ulang, cuma untuk fitur Analisis
+  (task016) saat ini, bukan dipakai M1-M10.
+- Frontend: filter UI baru (dropdown Monthly/Quarterly/Semester/Annual) +
+  axis label chart per granularitas (mirror `formatMonthLabel`,
+  §"Format tampilan" di `utils/date.ts` — perlu `formatQuarterLabel`/
+  `formatSemesterLabel`/`formatYearLabel` baru).
+
+### 30.5 Skala pekerjaan
+
+Ini JAUH lebih besar dari tab-per-KPI (§29) — nyentuh ~10 service backend
+(M1-M10, tiap KPI beda cara agregasi per §30.3) + KPI Header + trend chart
+di 3 halaman (Growth/Retention/Value). Rekomendasi: pilih 1 KPI dulu jadi
+contoh (mirror pola M1 di §28/§29), direview user, baru diterapkan ke
+sisanya — BUKAN dikerjakan sekaligus ke 10 KPI.
+
+### 30.6 M1 Cross Selling — SELESAI (contoh pertama, 2026-08-20)
+
+Backend + frontend granularitas M1 (Cross Selling Ratio) sudah jalan
+end-to-end, sudah diverifikasi live di browser (bukan cuma dites unit):
+
+- `backend/src/features/metrics/metrics.schema.ts` — `crossSellingQuerySchema`
+  terima `period_type` (monthly/quarter/semester/annual, default monthly,
+  behavior lama tetap identik kalau param ini tidak dikirim — diverifikasi
+  numerik sama persis vs query lama sebelum diganti).
+- `backend/src/features/analisis/period.util.ts` — ditambah
+  `buildTrailingPeriods()` (N periode mundur, reusable utk M2-M10) dan
+  `clampToElapsedEnd()` (lihat §30.7).
+- `backend/src/features/metrics/repository/m1.repository.ts` —
+  `fetchCrossSellingTrend` digeneralisasi dari `generate_series` bulanan ke
+  bucket VALUES-list per granularitas (drizzle `sql.join` + `VALUES`, BUKAN
+  array parameter — `sql\`${arr}::text[]\`` TIDAK bekerja di drizzle-orm,
+  expand jadi row/record bukan array literal, sudah dites langsung ke DB).
+- Frontend: `M1CrossSelling.tsx`, `M2AvgCategory.tsx` (share `data.trend`
+  yang sama dgn M1, jadi otomatis ikut granularitas + drill-down-nya
+  digeneralisasi dari `monthToEndDate` ke `getPeriodDateRange`), tab bar
+  Growth kirim `period_type`, label header/chart/trend-summary semua
+  granularitas-aware (`formatPeriodLabelShort`, `dashboard.periodUnit.*`).
+- M7 (Expansion, `useCustomerMetrics`) BELUM — di luar scope "mulai dari
+  KPI 1", lihat §30.9.
+
+### 30.7 Periode berjalan — elapsed cutoff + YoY apple-to-apple (SELESAI, 2026-08-20)
+
+**Temuan sebelum diperbaiki:** untuk periode yang MASIH BERJALAN (mis. Q3
+2026 saat hari ini baru pertengahan Agustus), KPI Header sempat menunjuk
+0%/0 customer — window aktif (`active_window_months`, business_configs) di
+data ini cuma 1 bulan, sementara cutoff yang dipakai SELALU akhir kalender
+penuh periode (mis. 30 September utk Q3), jauh di masa depan yang datanya
+belum ada. Bulanan kebetulan tidak kelihatan 0% (window 1 bulan × cutoff
+akhir bulan yang cuma beberapa hari di depan hari ini, masih ketimpa data
+riil) — TAPI pembanding YoY-nya ternyata TETAP pakai 1 bulan PENUH
+(instruksi user 2026-08-20 menemukan ini: "jika data filter bulanan, chart
+menampilkan data tidak 0 ... apakah pembanding nya YoY 2025 ini 1 bulan
+penuh?" — jawabannya waktu itu YA, bukan apple-to-apple).
+
+**Perbaikan:** `clampToElapsedEnd(periodKey, calendarEnd, today)` di
+`period.util.ts` — potong cutoff ke "hari ini" (atau padanan tahun-nya
+buat YoY) KALAU DAN HANYA KALAU periode itu masih berjalan; periode yang
+sudah tutup penuh (mis. Q2 2026, kuartal lalu) TIDAK disentuh, tetap
+tampil 1 periode penuh. Trik intinya: geser referensi "hari ini" mundur
+sejumlah tahun = selisih (tahun sekarang − tahun di periodKey) — jadi
+utk request current (periodKey tahun ini) referensinya hari ini apa
+adanya, utk request YoY (periodKey tahun lalu) referensinya otomatis ikut
+mundur setahun juga — TANPA backend perlu tahu request ini "current" atau
+"YoY", cukup dari tahun di periodKey sendiri. Sudah diverifikasi 4 skenario
+langsung ke DB + live di browser: (1) bulanan berjalan, (2) kuartalan
+berjalan (dulu 0%, sekarang benar), (3) YoY dari kuartal berjalan (ikut
+terpotong ke tanggal yang sama tahun lalu, bukan akhir kuartal penuh), (4)
+kuartal yang sudah tutup (tetap tampil penuh, tidak kepotong).
+
+Trend chart's titik TERAKHIR (periodKey aktif) ikut memakai cutoff yang
+sama; titik-titik sebelumnya (periode yang sudah tutup) tidak disentuh.
+
+Diterapkan di M1 saja sejauh ini (sama seperti §30.6) — M2 ikut otomatis
+(share `data.trend`), M3-M10 BELUM (§30.9).
+
+**Koreksi (2026-08-20, sesudah §30.7 di atas sempat salah diterapkan):**
+implementasi PERTAMA `clampToElapsedEnd` cuma memotong tanggal AKHIR window,
+tapi tanggal AWAL window tetap dihitung dari rumus lama "mundur N bulan
+mentah dari cutoff" (`filterDate - activeMonths bulan`) — untuk cutoff yang
+BUKAN akhir bulan (mis. tanggal 20), ini menggeser awal window jadi tanggal
+20 bulan sebelumnya (mis. 21 Juli), BUKAN tanggal 1 bulan berjalan (1
+Agustus). **Ditegur user:** "start date selalu harus awal periode ... itu
+sudah aturan paten international, jangan buat aturan aneh sendiri." Benar —
+awal window untuk KPI/reporting period HARUS SELALU tanggal 1 kalender
+(atau 1 Januari utk tahunan, dst), tidak pernah digeser oleh aritmatika
+mundur-N-bulan.
+
+**Perbaikan final** (`m1.repository.ts`, `CS_INV_CTE` + `fetchCrossSellingTrend`):
+awal window dihitung `date_trunc('month', cutoff) − (activeMonths−1) bulan
+− 1 hari` — SELALU jatuh di tanggal 1 kalender suatu bulan (mundur sejumlah
+bulan PENUH dari bulan cutoff sendiri, activeMonths TETAP tidak pernah
+diubah oleh periodType, task026 §8e tetap berlaku), bukan hasil pengurangan
+mentah dari tanggal cutoff yang bisa jatuh di tengah bulan. Utk periode yang
+SUDAH TUTUP, cutoff-nya sendiri selalu akhir bulan kalender, jadi rumus lama
+vs baru KEBETULAN sama — TAPI ditemukan bonus: rumus LAMA (bahkan sebelum
+sesi ini) punya bug off-by-one halus kalau bulan cutoff & bulan sebelumnya
+beda jumlah hari (mis. cutoff 30 Juni − 1 bulan = 30 Mei via aritmatika
+interval Postgres, padahal seharusnya awal Juni = 1 Juni, bukan nyerempet
+31 Mei) — rumus baru otomatis bebas dari bug ini juga (¹karena dimulai dari
+`date_trunc` bulan cutoff, bukan pengurangan interval mentah). Bug SAMA
+(`filterDate - activeMonths * INTERVAL '1 month'` mentah) MASIH ADA di
+M3-M10 (`m3m7.repository.ts`, `m8m10.repository.ts`, `m5/m6.repository.ts`,
+`segment.helper.ts`) — TIDAK disentuh di sesi ini (di luar scope "M1 dulu"),
+dicatat sebagai temuan terpisah, cek lagi kalau giliran M3-M10 dikerjakan.
+
+Sudah diverifikasi ulang: window Agustus 2026 (berjalan) sekarang benar
+1-20 Agustus (bukan lagi 21 Juli-20 Agustus), YoY-nya 1-20 Agustus 2025
+(apple-to-apple), dan periode yang sudah tutup (Juni 2026) tetap 1-30 Juni
+penuh — semua diverifikasi live browser + query langsung ke DB.
+
+### 30.7a "Apply date cutoff" — mode analisis SEMUA titik trend dipotong sama (SELESAI, 2026-08-20)
+
+**Latar belakang:** dari diskusi §30.7, user menunjukkan filter "Periode"
+sebenarnya cuma filter BULAN/periode (hari-nya tidak berpengaruh KECUALI
+di periode yang sedang berjalan) — "itu namanya bukan filter tanggal tapi
+filter bulan atau periode... klik tanggal 25 Juli dan 1 Juli data chart
+di Juli tidak akan berubah". Lalu user klarifikasi maksud aslinya:
+kebutuhan ANALISIS eksplisit "20 hari pertama dalam 12 bulan terakhir
+grafiknya seperti apa" — beda dari default trend (yang cuma motong titik
+yang sedang berjalan, periode tutup tetap penuh, lihat §30.7). Ini FITUR
+TERPISAH yang sengaja diaktifkan user, BUKAN pengganti behavior default.
+
+**UI** (`Growth/index.tsx`): field "Periode" DEFAULT `type="month"`
+(cuma pilih bulan+tahun — jujur soal apa yang benar-benar dipakai, sesuai
+temuan user), + checkbox baru "Apply date cutoff" di sampingnya. Checkbox
+OFF → field tetap month picker, behavior trend = default (§30.7). Checkbox
+ON → field berubah jadi date picker penuh (hari bisa dipilih), DAN
+mengaktifkan mode SEMUA 12 titik trend dipotong ke hari yang sama (bukan
+cuma titik yang sedang berjalan) — termasuk pembanding YoY-nya, tetap
+apple-to-apple (day-of-month yang sama di kedua tahun).
+
+**Backend:** param baru `apply_date_cutoff` (boolean, pola string-enum
+sama seperti `exclude_intercompany` — BUKAN `z.coerce.boolean()`).
+`clampEndToDay(periodEnd, day)` (period.util.ts) — potong SEBUAH tanggal
+akhir periode ke hari ke-D bulan yang sama (dibatasi hari terakhir bulan
+itu kalau D lebih besar, mis. D=31 di bulan Februari → jatuh ke 28/29).
+Kalau `apply_date_cutoff=true`, SEMUA 12 bucket trend (bukan cuma titik
+terakhir) + KPI Header dipotong lewat fungsi ini, MENGGANTIKAN
+`clampToElapsedEnd` (§30.7) sepenuhnya utk request itu.
+
+Diterapkan di M1 + fetch YoY-nya M1 sendiri (§30.6 pattern) — M2 ikut
+otomatis (share `data.trend`). Sudah diverifikasi query langsung ke DB +
+live browser: checkbox OFF → trend seperti biasa (11 bulan penuh, 1 bulan
+berjalan terpotong elapsed); checkbox ON, hari=20 → SEMUA 12 titik
+terpotong ke tanggal 1-20 bulan masing-masing, termasuk KPI Header current
+& pembanding YoY (mis. "Saat Ini: 28.7% | Agustus 2025: 29.6%" — dua-duanya
+window tanggal 1-20).
+
+**Koreksi (2026-08-20, sesudah user tanya "apakah ini bekerja untuk
+kuartalan/semesteran/tahunan juga?"):** implementasi PERTAMA `clampEndToDay`
+cuma memotong DAY-nya, tanpa cek apakah hasilnya masih masuk akal — untuk
+granularitas > bulanan, bucket periodEnd yang masuk ke fungsi ini adalah
+akhir kalender BULAN TERAKHIR periode itu (mis. Kuartal 3 → 30 September).
+Kalau periode itu SEDANG BERJALAN, bulan terakhirnya bisa jadi bulan yang
+BELUM TERJADI SAMA SEKALI (hari ini baru Agustus, September belum mulai) —
+"hari ke-20 bulan itu" jadi tanggal masa depan, hasilnya 0/kosong (bug,
+sama persis gejala §30.7 sebelum diperbaiki, tapi di fungsi yang beda).
+
+**Perbaikan:** `clampEndToDay` sekarang JUGA di-cap ke `referenceNowForYear`
+(fungsi baru, diekstrak dari logic yang sudah ada di `clampToElapsedEnd`
+— dipakai bareng oleh keduanya) — periode yang SUDAH TUTUP tidak terdampak
+(hasil clamp-nya sudah otomatis di masa lalu), cuma periode yang MASIH
+BERJALAN yang kena batasi ke hari ini (atau padanan tahun-nya buat YoY).
+Sudah diverifikasi ulang 4 granularitas × current/YoY/closed langsung ke
+DB + live browser (kuartalan) — semua KPI Header & trend sekarang konsisten
+non-zero, current Q3 2026 (cutoff hari 20) = 28.7% match persis dengan
+bulanan Agustus 2026 (cutoff hari 20) = 28.7% (masuk akal, activeMonths=1
+independen dari periodType, §30.4/task026 §8e).
+
+### 30.8 Temuan terbuka — M1/M2 belum pakai definisi customer SSOT (task028)
+
+**BELUM DIPERBAIKI — lihat §30.10 utk definisi final (New/Existing relatif
+periode, BUKAN activeMonths) yang menggantikan opsi A/B di bawah ini.**
+
+M3-M10 semua sudah pakai `cteEstablishedCustomers` (SSOT task028,
+`segment.helper.ts`: Existing = bukan New, TERMASUK Dormant). M1
+(`m1.repository.ts` CS_INV_CTE) dan M2 (`avg-category.repository.ts`)
+PUNYA populasi sendiri yang tidak pernah dipanggil ke situ — populasinya
+"siapa saja yang transaksi dalam window aktif" (gabungan New+Active,
+BUKAN exclude New seperti SSOT). Tooltip M1 melabeli angka ini "Existing
+Customers" — jadi labelnya menyesatkan (populasi sebenarnya bukan
+"Existing" per definisi final).
+
+Sudah dicek 2 cara perbaikan langsung ke DB (data Q2 2026, akhir Juni,
+rate cross-sell sekarang 27,0% dari 2.623 customer):
+
+| Opsi | Cara | Hasil (rate / populasi) |
+|---|---|---|
+| A — Exclude New saja | Populasi tetap "aktif dalam window", cuma customer yang pembelian PERTAMANYA jatuh di window ini (New) dikeluarkan | 27,0% → 30,5% (1.584 customer) — perubahan wajar |
+| B — SSOT penuh (samakan M6-M10) | Denominator diganti SEMUA existing customer (termasuk yang sudah lama tidak beli), bukan cuma yang aktif window ini | 27,0% → 1,6% (30.373 customer) — anjlok drastis, makna KPI berubah total dari "cross-sell di antara yang aktif" jadi "cross-sell di antara SEMUA yang pernah ada" |
+
+Sempat diajukan ke user via pertanyaan tapi user minta klarifikasi dulu
+(2026-08-20), lalu percakapan pindah ke §30.7 duluan — opsi mana yang
+dipakai BELUM diputuskan, dicatat di sini biar tidak hilang.
+
+### 30.10 Definisi periode & New/Existing customer — REVISI FINAL (2026-08-20)
+
+**Koreksi user atas draft saya sebelumnya** ("lewat satu bulan" / window
+aktif N-bulan buat nentuin New/Existing): itu salah. Aturan yang benar,
+kata user persis: *"jika transaksi pertama di Juli, di akhir periode Juli
+itu close, masuk periode Agustus dia sudah bukan New"* — New/Existing itu
+**relatif ke PERIODE yang sedang dilihat (batas kalender), bukan relatif
+ke activeMonths (window bulan mundur).**
+
+**A. Batas periode — SELALU batas kalender, tidak bisa digeser (aturan
+paten internasional, sudah dikonfirmasi user 2x):**
+
+| Granularitas | Awal (selalu) | Akhir default (kalau sudah tutup) |
+|---|---|---|
+| Tahunan | 1 Januari | 31 Desember |
+| Semester 1 | 1 Januari | 30 Juni |
+| Semester 2 | 1 Juli | 31 Desember |
+| Kuartal 1 | 1 Januari | 31 Maret |
+| Kuartal 2 | 1 April | 30 Juni |
+| Kuartal 3 | 1 Juli | 30 September |
+| Kuartal 4 | 1 Oktober | 31 Desember |
+| Bulanan | tanggal 1 | sehari sebelum tanggal 1 bulan berikutnya |
+
+Kalau periode itu SEDANG BERJALAN (belum lewat "akhir default"-nya),
+akhir efektifnya dipotong ke hari ini (elapsed cutoff, §30.7) — bukan
+akhir default. Awal periode TIDAK PERNAH dipotong/digeser, kapan pun.
+
+Status implementasi: sudah SESUAI di `period.util.ts` (`getPeriodRange`)
+untuk keempat granularitas — tidak perlu perbaikan di bagian ini, cuma
+diformalkan di sini biar jadi acuan tertulis.
+
+**B. Definisi New/Existing — GANTI TOTAL dari activeMonths, jadi relatif
+periode:**
+
+- **New** = customer yang transaksi PERTAMA-nya SEPANJANG HIDUP (belum
+  pernah transaksi sebelum itu sama sekali) jatuh DI DALAM rentang periode
+  yang sedang dilihat (start-end kalender di atas, sudah termasuk elapsed
+  cutoff kalau periode itu berjalan).
+- **Existing** = customer yang transaksi pertamanya jatuh SEBELUM awal
+  periode yang sedang dilihat (sudah "customer lama" sebelum periode ini
+  bahkan mulai), DAN py punya minimal 1 transaksi DI DALAM periode ini
+  ("Customer aktif berarti yang ada transaksi >= 1 di periode filter" —
+  kata user persis).
+- Konsekuensi otomatis (contoh user): customer yang transaksi pertama di
+  Juli itu New untuk periode "Juli" / "Kuartal 3" / "2026" (karena Juli
+  ada di dalam ketiganya) — begitu masuk periode "Agustus", customer yang
+  sama itu Existing (karena transaksi pertamanya, Juli, sudah SEBELUM awal
+  Agustus). Tidak perlu aturan "lewat N bulan" sama sekali — otomatis dari
+  posisi tanggal transaksi pertama vs batas periode yang dipilih.
+
+**Dampak ke M1/M2 (menggantikan §30.8 yang masih pending):** populasi M1
+saat ini ("siapa saja transaksi dalam activeMonths=1 bulan mundur") harus
+diganti "siapa saja transaksi pertama SEBELUM awal periode ini, DAN
+transaksi minimal 1x DI DALAM periode ini" (Existing per definisi baru di
+atas) — beda dari Opsi A/B yang sempat dihitung di §30.8 (yang masih
+berbasis activeMonths), BELUM dihitung ulang angkanya dengan definisi ini.
+Rentang transaksi yang dianalisis (buat cross-sell rate) ikut lebar
+periode penuh (Kuartal = 3 bulan/elapsed, Tahunan = YTD), BUKAN activeMonths
+1 bulan — ini juga menjawab pertanyaan user soal "51 hari untuk Q3" (elapsed
+Jul1-Aug20), bukan 1 bulan terakhir saja.
+
+**SELESAI (pilot M1, 2026-08-20).** Diimplementasi sbg helper GLOBAL/
+reusable (task029 §30.10, instruksi user: "terapkan filter global nya
+dulu untuk dipakai di matrix yang lain nya"), BUKAN ditulis khusus di
+dalam M1 saja:
+
+- `customers/helper/segment.helper.ts` — 2 fungsi baru, re-export lewat
+  `metrics/segment.helper.ts`:
+  - `cteFirstInvoiceDate(p)` → CTE `first_invoice_date(customer_id,
+    first_date)`, tanggal transaksi pertama SEPANJANG HIDUP customer
+    (scope company+branch RBAC saja, BUKAN division/branch filter laporan
+    — status New/Existing itu properti GLOBAL customer).
+  - `cteExistingCustomersByPeriod(p, periodStart)` → CTE `existing_
+    customers(id)`, pakai `cteFirstInvoiceDate` di atas + `first_date <
+    periodStart`.
+- `period.util.ts` — `TrailingPeriodBucket` tambah field `start` (selalu
+  batas kalender, tidak pernah dipotong/digeser); `buildTrailingPeriods`
+  isi `start` dari `getPeriodRange(...).start` tiap bucket.
+- `m1.repository.ts` (pilot) — `CS_INV_CTE` ganti total dari activeMonths
+  window jadi `[periodStart, periodEnd]` + JOIN `existing_customers`.
+  `fetchCrossSellingTrend` dihitung ULANG per bucket (populasi Existing
+  beda2 tiap titik trend, sesuai `bk.ps` masing-masing — TIDAK bisa lagi
+  1 window global sekali hitung seperti implementasi lama) — pakai
+  `cteFirstInvoiceDate` SEKALI (bukan 12x subquery per bucket, efisiensi).
+- `metrics.service.ts` — `periodStartDate` dihitung dari `getPeriodRange`
+  (SELALU kalender, tidak ikut clamp elapsed/day-cutoff yang cuma
+  menyentuh `end`), diteruskan ke KPI/Detail/Heatmap. `period.start` yang
+  ditampilkan sekarang LANGSUNG `periodStartDate` ini — sekaligus
+  membereskan bug lama (`startStr` sempat pakai rumus `Date.UTC(y, em -
+  activeMonths, 1)` yang cuma benar kebetulan untuk activeMonths=1,
+  sekarang sudah tidak dipakai sama sekali).
+- Tooltip UI M1/M2 (`chart1Subtitle`/`m2ChartSubtitle`, i18n id+en) —
+  disesuaikan teksnya, tidak lagi bilang "window N bulan" (definisi lama).
+
+**Diverifikasi (query langsung ke DB + live browser, hari ini 2026-08-20):**
+
+| Granularitas | period.start | period.end | active_count | rate |
+|---|---|---|---|---|
+| Bulanan (Agustus, berjalan) | 2026-08-01 | 2026-08-20 | 855 | 28,9% |
+| Kuartalan (Q3, berjalan, **51 hari**) | 2026-07-01 | 2026-08-20 | 2.104 | 31,4% |
+| Semesteran (S2, berjalan) | 2026-07-01 | 2026-08-20 | 2.104 | 31,4% |
+| Tahunan (2026, berjalan, **YTD**) | 2026-01-01 | 2026-08-20 | 4.806 | 40,2% |
+| Kuartalan Q1 2026 (SUDAH TUTUP, full) | 2026-01-01 | 2026-03-31 | 3.495 | 33,4% |
+
+Trend 12-kuartal: titik paling awal (2023-Q4 s/d 2025-Q1) = 0 customer —
+BENAR secara definisi baru (data invoice mulai Jan 2025 di DB lokal ini,
+jadi SEMUA customer di 2025-Q1 itu transaksi pertamanya masih DI DALAM
+periode itu sendiri = New, bukan Existing). Titik current (2026-Q3, baru
+elapsed 51 hari) populasinya LEBIH KECIL dari 2026-Q1/Q2 (kuartal penuh
+90 hari) — sudah benar, terlihat jelas juga di chart (bar Q3 26 lebih
+pendek dari Q1/Q2 26). YoY current vs pembanding tetap apple-to-apple
+(§30.7, tidak berubah): Q3 2026 (Jul1-Aug20) vs Q3 2025 (Jul1-Aug20).
+
+**Belum disentuh** (scope pilot M1 saja, sesuai §30.9): M2 ikut otomatis
+(share `data.trend`/`data.period`, tidak perlu perubahan sendiri). M3-M10
+masih pakai `cteEstablishedCustomers`/activeMonths (task026 §8e, memang
+BEDA definisi dan sengaja tidak diubah scope-nya di sini). Drill-down
+M1.1 (`useCustomerProducts`, dialog produk per customer) masih pakai
+`active_window`/activeMonths lama juga (endpoint terpisah, di luar 4
+fungsi yang diubah).
+
+### 30.9a URGEN — Bug ambang Dormant per divisi (task027, ditemukan lagi 2026-08-21)
+
+**Prioritas: URGENT — bug aktif, angka SALAH di production sekarang, TIDAK
+bergantung pada keputusan task028/granularitas.** Ditemukan pertama task027
+(201 customer b2b_project salah dicap Dormant), diinvestigasi ulang lebih
+dalam 2026-08-21 saat audit M8-M10 utk granularitas periode.
+
+**Root cause dikonfirmasi:** `resolveDormantMonths()` (`config/threshold.ts`)
+cari divisi dgn JUMLAH INVOICE TERBANYAK company-wide, lalu pakai ambang
+dormant divisi ITU SAJA untuk SEMUA customer — bukan per kategori bisnis
+customer sendiri (B2B_DC=3, B2C=6, B2B_Project=12, Manufacturing=6 bulan).
+
+**Temuan baru 2026-08-21:** infrastruktur fix-nya SUDAH ADA di kode, cuma
+tidak pernah disambungkan (dead code) — `getDormantCategoryMap()` (peta
+division_id→kategori dormant) dan `buildDormantCaseSql()` (bikin ekspresi
+SQL `CASE division_id WHEN ... THEN ambang END` per baris) — dua-duanya
+didefinisikan di `config/threshold.ts`, TIDAK ADA pemanggil sama sekali di
+seluruh codebase (dicek via grep).
+
+**Rencana perbaikan:**
+1. ✅ Tentukan "divisi customer ini" pakai definisi yang SUDAH ada (pola
+   "divisi dari invoice TERAKHIR", sama seperti Customer Workbench) — bukan
+   aturan baru.
+2. ✅ Alirkan info divisi ke CTE `cxm` (`m8m10.repository.ts`) — sekarang
+   tidak bawa info divisi sama sekali.
+3. ✅ Ganti `${dormantMonths}::int` (1 angka utk semua) → `buildDormantCaseSql(...)`
+   (per-customer sesuai divisinya).
+4. ⏳ Telusuri SEMUA pemanggil `resolveDormantMonths` (bukan cuma M8-M10) —
+   kemungkinan juga badge status "Dormant" Customer Workbench kena bug sama.
+5. ✅ Verifikasi pakai perbandingan langsung SQL sebelum/sesudah (company 1,
+   filterDate 2026-08-21): 476 dormant per-customer vs 680 dormant scalar-3-
+   bulan-lama — 204 customer yang tadinya salah dicap Dormant (kebanyakan
+   divisi Project/Intercompany, seharusnya ambang 12bln bukan 3bln), angka
+   `total_customers` (974) TIDAK berubah (bukti activeMonths tidak
+   terpengaruh, cuma dormantMonths yang diganti) — sesuai ekspektasi.
+
+**Status 2026-08-21: LANGKAH 1-3 & 5 SELESAI (di `m8m10.repository.ts`,
+`customers/helper/segment.helper.ts`, `metrics/segment.helper.ts`,
+`metrics.service.ts`), diverifikasi lokal, TIDAK di-deploy** (lihat
+peringatan di bawah). Implementasi:
+- `cteCustDivision(p)` (CTE baru, `customers/helper/segment.helper.ts`) —
+  divisi customer dari invoice TERBARU, scope company+branch RBAC saja
+  (BUKAN filter laporan) — filosofi sama `cteFirstInvoiceDate`, pattern sama
+  `latestSalespersonSq` (`customers.repository.ts`).
+- `dormantThresholdCaseSql(p)` — wrapper `buildDormantCaseSql()` +
+  `COALESCE(division_override_id, cust_division.division_id)` (task013
+  pattern).
+- `SegmentParams` nambah field `dormant`/`dormantCategoryMap` (resolusi
+  sekali per request di `resolveSegmentParams`, `metrics.service.ts`) —
+  `dormantMonths` scalar lama TETAP ada (backward-compat caller yang belum
+  migrasi), TIDAK dipakai lagi di dalam m8m10.
+- Ketiga fungsi (`fetchDormantTrend`, `fetchDormantValueRanking`,
+  `fetchReactivatedCustomers`) sudah pakai threshold per-customer.
+- `tsc --noEmit` bersih, test suite 78 pass/2 skip/4 fail (4 fail SAMA
+  seperti baseline sebelum perubahan ini — tidak terkait dormant).
+
+**Langkah 4 — audit ulang 2026-08-21: cuma 1 dari 3 "pemanggil lain" yang
+BENAR-BENAR kena bug ini, bukan 3.** Ditelusuri satu-satu:
+- ✅ **`customers.repository.ts` (`findCustomers`, badge status Customer
+  Workbench) — SELESAI DIPERBAIKI.** Ini SATU-SATUNYA yang benar-benar
+  pakai `resolveDormantMonths()` (1 scalar dominan) buat mengklasifikasi
+  BANYAK customer sekaligus. Fix: `sqlStatusExpr`/`sqlStatusWhere`
+  (`customers/helper/segment.helper.ts`) tipe parameter `dormantMonths`
+  diperluas jadi `number | SQL` (drizzle `sql` tag otomatis menangani
+  keduanya, angka jadi bound param atau SQL fragment di-splice apa
+  adanya — tidak perlu ubah isi fungsi). `findCustomers` sekarang kirim
+  `dormantThresholdExpr` (`buildDormantCaseSql` + `COALESCE(division_override_id,
+  channel_divisions.division_id)`, reuse JOIN `channel_divisions` yang
+  sudah ada lewat `latestSalespersonSq`) — bukan scalar lagi. GROUP BY
+  query `rows` ditambah `channel_divisions.division_id` +
+  `customers.division_override_id` (wajib, Postgres reject non-aggregate
+  column di SELECT tanpa ini). **`findCustomerDetail` (halaman detail 1
+  customer) TIDAK disentuh — sudah benar dari awal**, karena cuma 1
+  customer per request, threshold-nya sudah di-resolve spesifik utk
+  customer itu via `resolveDormantCategory(divRow.division_id)` (baca kode:
+  line ~341-342), bukan scalar dominan company-wide.
+- ⚠️ **`m3m7.repository.ts` (KPI3-7) — TERNYATA TIDAK KENA BUG INI.**
+  Satu-satunya referensi `dormantMonths` di file ini (`raw_inv` CTE, lower-
+  bound tanggal) TIDAK mengklasifikasi Dormant/Active — cuma buffer
+  pre-filter tanggal yg lebih lebar dari yang sebenarnya dibutuhkan
+  `active_inv_agg`/`prev_inv_agg` (window aslinya jauh lebih sempit,
+  `activeMonths`-based). Nilai `dormantMonths` yang salah TIDAK mengubah
+  baris mana pun yang akhirnya dihitung — cuma sedikit boros scan. Tidak
+  perlu fix (opsional: bisa dihapus sbg minor cleanup performa, di luar
+  scope bug ini).
+- ⚠️ **`m4.repository.ts` (GP breakdown) — TERNYATA TIDAK KENA BUG INI.**
+  File ini sama sekali tidak reference `dormantMonths` — delegasi penuh ke
+  `cteEstablishedCustomers(p)`, yang di versi LOKAL saat ini (task028,
+  "Existing termasuk dormant") SUDAH TIDAK PAKAI `dormantMonths` sama
+  sekali (lower-bound dormant sudah dilepas). Kalau task028 DIBATALKAN/
+  di-revert kembali ke perilaku production (dormant lower-bound balik),
+  BARU `cteEstablishedCustomers` perlu direvisit dgn threshold per-
+  customer — tapi itu keputusan terpisah (task028), bukan bug task027.
+
+**Ralat cakupan dampak** (dari catatan lama): `m3m7.repository.ts` dan
+`m4.repository.ts` DIKELUARKAN dari daftar "kena bug" — cukup
+`m8m10.repository.ts` (KPI8-10) dan `customers.repository.ts` (Customer
+Workbench), keduanya SUDAH diperbaiki per 2026-08-21.
+
+**Verifikasi Langkah 4** (company 1, filterDate hari ini): status Customer
+Workbench SEBELUM (scalar 3bln) → dormant=680, active=117, existing=177.
+SESUDAH (per-customer) → dormant=476, active=117, existing=381. `active`
+tidak berubah (benar, tidak bergantung dormantMonths), 204 customer pindah
+dari dormant→existing (680-476 = 381-177 = 204, konservasi eksak, cocok
+persis dgn hasil m8m10). Test suite tidak ada regresi baru (78 pass/2
+skip/4 fail, sama dgn baseline).
+
+**Status akhir 2026-08-21: SEMUA 5 langkah SELESAI** (langkah 4 ternyata
+lebih sempit dari perkiraan awal — cuma 1 file lagi yang perlu, bukan 3).
+Diverifikasi lokal, **TIDAK di-deploy**.
+
+**Peringatan:** `m8m10.repository.ts` DAN `customers/helper/segment.helper.ts`
+DAN `customers.repository.ts` adalah bagian dari file yang ENTANGLED dgn
+task026/028 belum-deploy (lihat task030.md §3,
+[[project_task026_task028_undeployed_entangled]]) — fix ini sudah
+dikerjakan+diverifikasi lokal, tapi TIDAK bisa di-deploy sendirian tanpa
+rekonstruksi manual sampai keputusan task028 selesai.
+
+### 30.9 Scope yang masih belum disentuh — STANDAR WAJIB, bukan opsional (update 2026-08-21)
+
+**Keputusan user 2026-08-21: poin 1 & 2 di bawah ini BUKAN pending/opsional
+lagi — keduanya STANDAR FILTER GLOBAL, wajib diterapkan ke SEMUA KPI (M1-
+M10, Retention, Value), bukan cuma Growth/M1-M2 sbg contoh.** Poin 4 juga
+diputuskan LANGSUNG disamakan dgn M1 (bukan "dicek lagi nanti").
+
+1. **Filter granularitas periode** (Bulanan/Kuartalan/Semesteran/Tahunan,
+   §30) — WAJIB semua KPI. M1+M2+M3-M7 SELESAI (lihat §30.13,
+   2026-08-22 — M3-M7 share 1 fungsi backend `fetchCustomerMetricsTrend`,
+   dikerjakan sekaligus). **M8-M10 masih belum** (kompleksitas tambahan
+   sendiri, lihat §30.9b). Retention & Value (§11, §16) masih pola lama
+   total (tab-per-KPI §29 JUGA belum) — filter granularitas di halaman itu
+   belum ada UI-nya sama sekali, jadi M3-M7 belum kelihatan efeknya di
+   sana walau backend-nya sudah siap.
+2. **"Apply date cutoff"** (§30.7a, potong semua titik trend ke hari yang
+   sama) — WAJIB semua KPI, standar sama dengan poin 1. Baru M1+M2.
+3. Definisi New/Existing relatif-periode (§30.10) — TERPISAH dari poin
+   1/2/4, dan terpisah juga dari task028 (lihat §30.8, keduanya soal
+   berbeda — §30.10 soal KAPAN garis New→Existing, task028 soal SIAPA yang
+   masuk Existing sama sekali/soal dormant). Baru M1 (pilot). BELUM
+   diputuskan mau di-generalisasi ke M2-M10 atau tetap M1-only — beda
+   dari poin 1/2 yang SUDAH confirmed wajib global.
+4. Bug off-by-one rumus window lama (`filterDate - activeMonths bulan`
+   mentah, BUKAN calendar-anchored spt fix M1 pagi 2026-08-20) — **WAJIB
+   disamakan dengan M1**, bukan "dicek lagi nanti". SELESAI utk
+   `m3m7.repository.ts` (§30.13, 2026-08-22, formula sendiri BUKAN
+   sama-persis M1 — lihat §30.13 kenapa). Masih ada di
+   `m8m10.repository.ts`, `m5/m6.repository.ts`, `segment.helper.ts`
+   (`cteEstablishedCustomers`).
+- **"Customer Definitions" UI** (§27) — belum dibangun. **Catatan
+  2026-08-21**: dokumen §27.1 baris 524-529 SUDAH eksplisit bilang teks
+  kartu-nya "HARUS ikut SSOT task028" — artinya §27 TERSAMBUNG ke
+  keputusan task028 yang sama (lihat [[project_task026_task028_undeployed_entangled]]),
+  bukan isu independen. Tidak bisa dibangun akurat sebelum task028
+  diputuskan.
+
+**Skala pekerjaan poin 1/2/4:** menyentuh M3-M10 (6+ file repository) +
+2 halaman penuh (Retention, Value) + kemungkinan entangled lagi dengan
+task026/028 di file yang sama (m3m7/m8m10/m5/m6/segment.helper.ts — cek
+`git diff origin/main` dulu sebelum deploy APAPUN dari sini, lihat §3
+task030.md). Belum mulai dikerjakan per 2026-08-21 — dicatat sbg scope
+confirmed, bukan lagi didiskusikan opsional-tidaknya.
+
+### 30.9b PENDING — Interaksi ambang Dormant per-divisi × granularitas periode (M8-M10, dibahas 2026-08-21)
+
+**Konteks:** setelah fix threshold dormant per-divisi selesai (§30.9a), muncul
+pertanyaan susulan: bagaimana perilakunya begitu M8-M10 dapat filter
+granularitas periode (poin 1 di §30.9, belum dikerjakan)? Dianalisis (belum
+diimplementasi), disepakati sbg 2 pending item TERPISAH dari §30.9a:
+
+**A. Trend chart (dormant_rate per titik) — snapshot vs lebar bucket.**
+Dormant Rate itu SNAPSHOT (status PADA 1 titik waktu), bukan agregat
+sepanjang rentang seperti Revenue. Threshold per-divisi (fix §30.9a) sudah
+period-agnostic — benar di titik waktu manapun, tidak perlu diperbaiki lagi.
+Tapi begitu granularitas bucket (Kuartal/Semester/Tahun) LEBIH LEBAR dari
+ambang dormant divisi tsb (paling parah: b2b_dc 3bln vs bucket Tahunan
+12bln), snapshot cuma di 2 ujung bucket — dinamika DI ANTARANYA hilang dari
+tampilan. **Dibuktikan pakai data asli** (company 1, division=1
+Distribution/b2b_dc, ambang 3bln, tren bulanan 12 titik 2025-09 s/d
+2026-08): dormant_rate Maret 2026 (akhir Q1) = 44.4%, Juni 2026 (akhir Q2)
+= 43.8% — hampir sama, kelihatan stabil. Tapi bulan di antaranya (April
+47.4%, Mei 48.8%) sempat naik cukup tinggi lalu turun lagi — kalau cuma
+lihat snapshot kuartalan (Maret vs Juni), lonjakan tengah kuartal itu SAMA
+SEKALI TIDAK KELIHATAN. Obstacle teknis tambahan: `fetchDormantTrend`
+(`m8m10.repository.ts`) CTE `months`-nya HARDCODE `generate_series` 12
+bulan trailing — kalau period_type disambungkan tanpa mengubah bucket
+generator ini, tampilan TETAP 12 titik bulanan, tidak otomatis jadi 12
+kuartal/semester/tahun (perlu pola sama `buildTrailingPeriods`, M1).
+`reactivated_count`/`prev_me` juga ikut perlu diputuskan ulang — window
+reaktivasi sekarang implisit 1 bulan (prev month boundary), kalau bucket
+jadi Tahunan otomatis melebar jadi "reaktivasi kapan saja sepanjang tahun
+ini" — keputusan bisnis, bukan otomatis benar.
+
+**B. Breakdown table per-customer — "dormant sejak bulan apa" TIDAK kena
+masalah di atas.** Beda dari trend chart, tanggal seorang customer JADI
+dormant adalah properti PER-CUSTOMER (`last_invoice_date` + ambang
+divisinya sendiri), bukan properti bucket periode — nilainya SAMA PERSIS
+mau ditarik dengan filter Bulanan/Kuartalan/Semesteran/Tahunan sekalipun,
+karena tidak dihitung per-bucket. Breakdown table begini justru
+mengembalikan detail presisi yang hilang di poin A. Yang perlu ditambah
+(kecil, reuse infrastruktur `dormantThresholdCaseSql`/`cteCustDivision`
+yang sudah ada dari §30.9a, BUKAN bikin baru): kolom `dormant_since` =
+`last_invoice_date + dormant_threshold_customer_itu * INTERVAL '1 month'`
+di `fetchDormantValueRanking` (KPI9, top 20) dan/atau `findCustomers`
+dengan `status=dormant` (Customer Workbench, daftar lengkap+pagination) —
+kedua-duanya SUDAH pakai ambang per-customer yang benar (§30.9a), tinggal
+tambah 1 kolom output, threshold per-customer-nya sudah tersedia di query
+(dipakai HAVING/WHERE), tinggal di-carry jadi SELECT juga.
+
+**Status: belum dikerjakan, dicatat sbg pending — item A digabung ke scope
+poin 1 §30.9 (granularitas M8-M10), item B independen/lebih ringan, bisa
+dikerjakan kapan saja tanpa nunggu poin A selesai.**
+
+### 30.11 Bug `clampToElapsedEnd`/`clampEndToDay` — periode lampau ke-clamp jadi rentang terbalik (SELESAI, 2026-08-21)
+
+User klik titik Desember 2025 di chart tren M2 (Growth) — popup drill-down
+tampil 0 di ketiga angka (Avg Categories, Distinct Categories, Active
+Customers), padahal invoice Desember 2025 ada 12678 (company 2) + 404
+(company 1) baris, dan query manual langsung ke DB menunjukkan 1787
+customer Existing aktif di bulan itu.
+
+**Root cause**: `clampToElapsedEnd`/`clampEndToDay` (period.util.ts) dipakai
+`getCrossSellingMetrics` (metrics.service.ts) buat "potong tanggal akhir
+periode yang MASIH BERJALAN ke hari ini" (supaya current period & YoY-nya
+apple-to-apple, tidak nunjuk 0% di tengah periode). Tapi fungsi ini nebak
+"apa periode ini current/YoY-nya current" CUMA dari selisih TAHUN
+(`today.getFullYear() - periodYear`), tanpa cek bulan/kuartal-nya sama
+sekali. `periodKey="2025-12"` (Desember, sudah tutup 8 bulan) beda tahun 1
+dari `today` (2026-08-21) → dikira "padanan YoY dari periode berjalan" →
+di-cap ke `referenceNow = "2025-08-21"` (21 Agustus 2025, hasil geser
+`today` mundur 1 tahun) — padahal `referenceNow` itu JATUH SEBELUM
+`periodStart` Desember (1 Des 2025)! Query jadi
+`invoice_date >= '2025-12-01' AND invoice_date <= '2025-08-21'` — rentang
+TERBALIK/mustahil → 0 baris selalu, apa pun isi datanya.
+
+Dibuktikan lewat script langsung manggil `getCrossSellingMetrics` (bypass
+HTTP): sebelum fix, `period.end` yang dihasilkan buat request
+`period_end='2025-12-31'` adalah `"2025-08-21"` (bukan `"2025-12-31"`).
+Bug ini SEBENARNYA sudah ada sejak periode granularitas (§30.7)
+diimplementasikan 2026-08-20 — cuma baru ketahuan sekarang krn baru kali
+ini user klik titik bulan Sep-Des tahun lalu di chart (klik bulan yang
+lebih awal tahun ini, mis. Jan-Ags 2025, kebetulan tidak kena krn
+`referenceNow` jatuh SETELAH bulan itu, bukan sebelum — jadi kondisi
+`calendarEnd > referenceNow` selalu false, tidak ke-clamp).
+
+**Fix**: `clampToElapsedEnd`/`clampEndToDay` sekarang terima `periodType`
+tambahan, cek `periodKey` itu digeser ke tahun `today` HARUS PERSIS sama
+dgn `getCurrentPeriodKey(periodType, today)` dulu sebelum boleh di-clamp —
+bukan cuma cocok tahunnya, bulan/kuartal/semesternya ikut dicocokkan.
+Periode lampau sembarang (drill-down klik titik chart manapun) sekarang
+selalu lolos tanpa clamp (`calendarEnd` dipakai apa adanya), sesuai niat
+awal komentar lama "periode yang sudah tutup tidak kena potong sama
+sekali" — niat itu sekarang BENERAN diimplementasikan, bukan cuma
+tertulis di komentar.
+
+Diverifikasi (script manual, company 'all'):
+- Desember 2025 (bug yang dilaporkan): `active_count` 0 → 1787, `period.end`
+  `"2025-08-21"` → `"2025-12-31"` (benar, full bulan).
+- September 2025 (bug sama, belum sempat dilaporkan user): 0 → 1247.
+- Current period (Agustus 2026, berjalan): tetap ke-clamp ke `"2026-08-21"`
+  (tidak berubah, ini memang harus terpotong).
+- YoY eksplisit (Agustus 2025, padanan YoY dari Agustus 2026 berjalan):
+  tetap ke-clamp ke `"2025-08-21"` (tidak berubah, apple-to-apple YoY tetap
+  jalan).
+- Kuartal Q3 2025 (padanan YoY dari Q3 2026 yang sedang berjalan — today
+  jatuh di Q3 2026 juga): tetap ke-clamp konsisten (by design, bukan bug).
+- Kuartal Q1 2025 (`active_count` 0): TETAP 0 setelah fix — ini LEGIT, bulan
+  pertama data (Jan 2025), tidak ada customer yang first_invoice_date-nya
+  sebelum awal Q1 2025 secara definisi. Beda kasus dari bug di atas.
+
+Satu-satunya pemanggil kedua fungsi ini (`getCrossSellingMetrics`, dipakai
+M1+M2, satu-satunya fitur yang sudah pakai granularitas periode §30.7 saat
+ini) — jadi fix ini otomatis menutup celah yang sama persis di mode
+default MAUPUN mode "Apply date cutoff" (§30.7a, `clampEndToDay` dipakai
+di 12 titik trend sekaligus, sama-sama rawan kasus ini kalau user
+toggle mode itu lalu lihat bucket Sep-Des tahun sebelumnya).
+
+Catatan buat granularitas Annual: `periodKey` Annual formatnya cuma
+`"YYYY"` (tidak ada komponen bulan) — jadi bedanya "tahun lalu yang sudah
+tutup total" vs "padanan YoY dari tahun berjalan" TIDAK bisa dibedakan
+lewat mekanisme fix ini (`shiftedToThisYear` buat Annual selalu cocok
+trivial). Ini bukan regresi dari fix ini — perilaku lama utk Annual sudah
+begini dari awal (§30.7), dan belum ada laporan bug spesifik utk kasus
+itu. Dicatat sbg keterbatasan yang diketahui, bukan diperbaiki sekarang
+(di luar scope laporan user kali ini — cuma monthly/quarter yang dipakai
+Growth/M1/M2 saat ini).
+
+### 30.12 M7 Expansion — standar layout Growth + chart diverging (SELESAI, 2026-08-21)
+
+Lanjutan rollout "M1 jadi standar layout semua KPI" (§29/30.6) ke tab
+Ekspansi halaman Growth. User pilih scope via AskUserQuestion: standar
+penuh (KpiHeader + tab Overview/Trend Analysis) TAPI HANYA versi tab
+Growth — halaman Customer Metrics workbench (`CustomerMetrics/index.tsx`,
+M3-M7 ditumpuk 1 halaman tanpa KpiHeader/tab) TETAP versi ringkas biar
+konsisten sesama M3-M6 di sana. Solusinya PECAH jadi 2 komponen:
+
+- `M7Expansion.tsx` — tetap dipakai apa adanya di Customer Metrics
+  workbench, TIDAK dapat KpiHeader/tab.
+- `M7ExpansionGrowth.tsx` (BARU) — KHUSUS tab Ekspansi halaman Growth,
+  pola sama persis M2AvgCategory.tsx (KpiHeader dgn YoY fetch sendiri +
+  tab Overview [SummaryCard Naik/Stabil/Turun/Existing + mini chart + Top
+  5 Movers dari `useExpansionBreakdown(periodEnd)`] + tab Trend Analysis
+  [chart penuh + TrendSummary]). Dialog drill-down klik-titik TETAP ada
+  di kedua versi (fitur lama, tidak diubah), logic-nya di-extract ke
+  `expansionHelpers.tsx` (statusChipColor/statusLabel/useExpansionColumns)
+  supaya tidak duplikasi antara 2 komponen (ESLint react-refresh juga
+  menolak file yang export komponen React + fungsi biasa sekaligus, jadi
+  ekstraksi ini sekalian benerin itu).
+
+**Chart diganti dari 100% stacked horizontal jadi diverging vertical**
+(user: "ganti jadi positif negatif bar chart") — `ExpansionChart.tsx`
+(BARU, dipakai kedua komponen) render `up_rate` positif (hijau, di atas
+garis 0) + `down_rate` DINEGASIKAN jadi `-down_rate` (merah, di bawah
+garis 0), `stackId` sama supaya nyambung jadi 1 bar per bulan yang
+menjulur dua arah dari 0 — bukan lagi bar horizontal 100% penuh per
+baris/bulan yang cuma bisa lihat proporsi, bukan skala turun-nya
+seberapa besar. `flat_rate` sengaja TIDAK ikut masuk chart (3 arah di 1
+bar diverging ambigu dibaca) — tetap kebaca di SummaryCard "Stabil" tab
+Overview.
+
+Ternyata `flat_rate`/`down_rate` (trend point) dan `flat_count`/
+`down_count`/status 3-way (`up`/`flat`/`down`, breakdown drill-down)
+SUDAH dikirim backend sejak koreksi 2026-08-10 (§ lama, "pisahkan
+flat/turun") — cuma TYPE frontend (`types/metrics.ts`) dan komponen
+(`M7Expansion.tsx`) yang belum pernah disambungkan (masih pakai versi
+lama binary `up`/`flat_down`). Backend TIDAK perlu diubah sama sekali
+untuk kerjaan ini, murni frontend catch-up.
+
+Susulan user: "bedakan warna positif dan negatif nya agar garis
+pemisahnya terlihat" — `BarChartWidget.tsx` (shared) dapat prop baru
+`showZeroLine` (render `<ReferenceLine y={0}>` tegas, opt-in supaya
+tidak mengubah chart lain yang sudah pakai widget ini) — tanpa ini bar
+hijau/merah cuma nempel di titik 0 tanpa batas yang kelihatan jelas.
+Juga benerin bug kecil nebeng di widget yang sama: `LabelList` skip-label
+threshold `val < 5` (buat sembunyikan label di bar sangat kecil) SELALU
+true buat bilangan negatif berapa pun besarnya — diganti `Math.abs(val) <
+5`, aman buat semua caller lama (nilai lama semua non-negatif, perilaku
+identik).
+
+Sekalian ditambah `icon` prop ke `SectionLabel` + export `SummaryCard` di
+`CustomerMetrics/HelperComponents.tsx` (pola sama CrossSelling/
+HelperComponents.tsx) — prefix teks "M7 ·" di `sectionLabel`/judul
+lainnya dihapus, ganti ikon `TrendingUpIcon` (konsisten dgn pembersihan
+prefix "M1"/"M2" §28.10). Dicatat: ada 3-4 implementasi `SectionLabel`
+terpisah tersebar di codebase (`pages/shared/`, `CrossSelling/`,
+`CustomerMetrics/`, `DormantCustomer/`) — TIDAK dikonsolidasi jadi 1
+komponen bersama kali ini (di luar scope, blast radius nyentuh M3-M6/
+M8-M10 yang tidak diminta), dicatat sbg technical debt buat nanti.
+
+Status: M1/M2/M7(Growth) sudah standar. M3-M6, M8-M10, Retention, Value
+masih belum — lanjutan berikutnya kalau diminta.
+
+**Susulan bug (SELESAI, sama hari)**: user lapor "warna bar nya masih 1
+warna merah semua" setelah chart diverging pertama kali jalan. Diverifikasi
+via screenshot Playwright langsung (login admin@mail.com, dev server lokal
+:5173) — TERBUKTI bug asli, bukan cuma persepsi/proporsi data: SELURUH bar
+(bagian atas MAUPUN bawah garis 0) ke-paint merah semua, padahal legend di
+bawah chart sudah benar tampil 2 warna (hijau "Spending Up", merah
+"Spending Down"). Root cause: `<BarChart>` recharts defaultnya
+`stackOffset="none"` — utk 2 series di 1 `stackId` yang TANDA-nya beda
+(up_rate positif, down_rate_neg negatif), cumsum "none" bikin series
+KEDUA (down_rate_neg) mulai dari TOP series PERTAMA (bukan dari 0),
+jadi rect-nya melebar nutupin balik area series pertama. Fix: `BarChart`
+(BarChartWidget.tsx, SEMUA caller, bukan cuma M7) dikasih
+`stackOffset="sign"` — value literal recharts yang didesain khusus utk
+diverging stacked bar (link resmi "BarChartStackedBySign" ada di
+`node_modules/recharts/types/util/types.d.ts`), aman utk semua caller lama
+yang stacked-nya semua-positif (hasil "sign" == "none" tanpa nilai
+negatif). Diverifikasi ulang via screenshot — kedua versi (Growth
+Trend Analysis tab BESAR + mini chart Overview tab + versi Customer
+Metrics workbench M7Expansion.tsx) semua benar: hijau di atas garis 0,
+merah di bawah, garis 0 kelihatan jelas (`showZeroLine`).
+
+**Susulan lanjutan (SELESAI, sama hari)**:
+- "jangan hijau dan merah carikan paduan warna yang lebih soft monokrom" —
+  ganti dari alpha-blend hijau/merah ke MONOKROM 1 hue (primary/brand
+  biru): naik = primary solid, turun = `alpha(primary, 0.3)` (tint sangat
+  muda). `chartSubtitle` i18n disesuaikan (ID+EN) — tidak lagi sebut
+  "Hijau"/"Merah", ganti "Batang gelap (atas)"/"Batang muda (bawah)".
+- "ada angka yang hilang di beberapa chart yang pendek" — `BarChartWidget`
+  (shared) punya threshold lama skip-label kalau `|value| < 5` (biar label
+  tidak numpuk di bar kecil). Buat chart diverging ini threshold itu
+  KONTRAPRODUKTIF — bar pendek justru paling butuh angka eksplisit krn
+  visualnya susah ditaksir. Tambah prop `labelMinValue` (default 5, TIDAK
+  ubah chart lain), di-set `0` khusus `ExpansionChart.tsx` — sekarang semua
+  bar berlabel termasuk yang kecil (4.9%/3.7%/4.1%/1.7% dst, sebelumnya
+  hilang).
+- "untuk tab overview gunakan chart yang lebih simpel" — mini chart tab
+  Overview (`M7ExpansionGrowth.tsx`) diganti dari `ExpansionChart`
+  (diverging, 2 seri + label + legend + garis 0 — kepadatan berlebih di
+  tinggi 168px) jadi `AreaChartWidget` 1 seri (`up_rate` saja), height 120
+  — POLA SAMA PERSIS mini chart Overview M1/M2 (AreaChartWidget 1 seri,
+  tanpa label/legend). Chart diverging lengkap TETAP dipakai di tab Trend
+  Analysis (di situ ruangnya cukup, height 320).
+
+**"area chart fill by value recharts" (SELESAI, sama hari)** — user
+tanya soal teknik recharts, lalu koreksi "bukankah datanya positif
+negatif" (mini chart Overview waktu itu cuma tampil `up_rate`, SELALU
+positif, teknik split-warna tidak relevan). Diganti jadi metrik `net =
+up_rate - down_rate` (`trendWithNet` useMemo) — GENUINELY bisa positif
+ATAU negatif, cocok dipakai fill-by-value. Implementasi persis pola resmi
+recharts (`AreaChartFillByValue`, dicek via Context7): `AreaChartWidget`
+(shared, komponen BARU `SplitColorGradient` di dalamnya) baca
+`useYAxisScale()`+`useChartHeight()` — hooks recharts v3, HARUS dirender
+sbg child `<AreaChart>` bukan di widget langsung — buat hitung posisi
+pixel titik 0 (`ratio`), lalu `<linearGradient>` 4-stop split warna di
+titik itu. `AreaSeries` dapat field baru opsional `negativeColor` (tidak
+diisi = perilaku lama, gradient 1 warna, TIDAK ada caller lain yang
+berubah).
+
+Diverifikasi lewat filter "All Entities"/company 2 (KNT) — net-nya SELALU
+negatif 12 bulan terakhir, jadi splitnya sengaja tidak pernah kepakai
+(bukan bug, dibuktikan lewat script backend cross-check 3 company). Ganti
+filter ke PT Mesin Kasir Online (company 1) — ada 2 bulan net positif,
+splitnya kepakai.
+
+Susulan user (2x) — "sama saja tidak ada perubahan warna" — walau gradient
+DOM-nya sudah benar (dicek langsung via `page.evaluate` baca elemen
+`<linearGradient>`+stops di browser), splitnya SECARA VISUAL terlalu
+tipis: (1) opacity 0.45 kurang kontras drpd bikin warnanya jelas beda,
+manual coba beberapa kali sampai 0.9/0.08 (opacity solid vs fade-ke-nol
+di titik silang) — (2) STROKE garisnya (elemen paling menonjol di chart
+ini) TETAP 1 warna terus walau fill sudah split, bikin kesan "tidak
+berubah" krn yang paling kelihatan justru tidak ikut berubah — ditambah
+gradient KEDUA (`${id}-stroke`, opacity SELALU penuh, tanpa fade-ke-nol
+spt gradient fill) khusus dipakai sbg `stroke` prop `<Area>`, reuse
+teknik yang sama (fill gradient JUGA bisa dipakai sbg stroke di SVG,
+`url(#...)` berlaku ke keduanya). Sekarang garis + fill KEDUANYA ganti
+warna tegas di titik silang 0, diverifikasi via screenshot.
+
+**Koreksi keras — tabel Breakdown M7 tidak sesuai standar §28.10 (user:
+"standarmu berubah-rubah, tab 1,2 sudah sama, tab 3 ini melenceng jauh,
+kamu tidak baca dokumentasi???")** — dibaca ulang §28.10 (M1/M3-M9/M10
+kolom breakdown-nya SEMUA py Branch/Division/Channel + BreakdownTable.tsx
+py Search+Sort di atas tabel). Tabel M7 yang barusan ditambahkan (§30.12
+sebelumnya) BELUM punya ketiganya — gap nyata, bukan kesalahpahaman user:
+
+- **Backend** (`m3m7.repository.ts`, `fetchExpansionBreakdown`): CTE baru
+  `latest_inv` (pola SAMA PERSIS latest_inv M1, m1.repository.ts) — invoice
+  TERBARU customer itu DI DALAM window "current" (`curRangeCond`), resolve
+  `branch_id`→`company_branches.name`, `division_id`→`divisions.label`,
+  `channel_name` apa adanya. `ExpansionBreakdownRow` (backend+frontend
+  `metrics.types.ts`) dapat 3 field baru: `branch`/`division`/`channel`.
+  Diverifikasi jalan (32237 baris, sample row branch="Jakarta"
+  division="Distribution" channel="DC WEST") — CATATAN: ~96% baris NULL di
+  ketiga kolom itu, krn populasi `established_customers` (fixed cohort)
+  include customer yang TIDAK py invoice di window "current" sama sekali
+  (cur_revenue=0) — tidak ada invoice utk ambil branch-nya, BUKAN bug,
+  konsisten dgn cara `cur_revenue`/`prev_revenue` juga default 0 utk
+  kasus yang sama.
+- **Frontend** (`expansionHelpers.tsx`): `useExpansionColumns` dapat 3
+  kolom baru Branch/Division/Channel (reuse key i18n `common.branch`/
+  `customers.detail.division`/`customers.detail.channel` — SAMA PERSIS yang
+  dipakai `BreakdownTable.tsx`, tidak bikin key baru duplikat), posisi
+  setelah Code, sebelum kolom metrik — urutan sama M1.
+- **Table Filter** (`M7ExpansionGrowth.tsx`): Search+Sort ditambah di atas
+  tabel, pola SAMA PERSIS `BreakdownTable.tsx` (`TextField` search by
+  nama/kode + `TextField select` sort Name/Revenue Desc/Change Desc,
+  client-side dari `currentBreakdown` yang SUDAH ada, TIDAK ada fetch
+  baru). Height tabel disamakan 480 (dulu 420, standar M1/M2 480).
+- Dialog drill-down klik-titik (`expansionColumns` SAMA persis dipakai di
+  situ juga) otomatis ikut dapat kolom Branch/Division/Channel — konsisten,
+  bukan disengaja beda dari tabel utama.
+- `tsc --noEmit` + `eslint` (backend+frontend) bersih, diverifikasi via
+  screenshot browser langsung.
+
+**Susulan (3 pertanyaan user, sama hari) — 2 kolom lagi dihapus, 1 bug
+division ditemukan:**
+- **"#, id itu kolom apa?"** — kolom `ranking` (server-side, urutan tetap
+  revenue delta desc) DIHAPUS dari `useExpansionColumns` — begitu tabel
+  di-sort ulang lewat dropdown (mis. Name A-Z), angkanya JADI SALAH/acak
+  krn tidak ikut urutan tampilan. `BreakdownTable.tsx` (M1/M2) JUGA tidak
+  py kolom nomor urut — konsisten dihapus. `ranking` TETAP dipakai sbg
+  `id` internal DataGrid, cuma bukan kolom tampilan lagi.
+- **"kode itu apa?"** — dicek ke DB: `customer_code` NULL utk SEMUA 32994
+  customer (0%) — kolom SELALU "—" tanpa kecuali, sama sekali tidak
+  informatif. M1 SUDAH pernah menghapus kolom yang sama persis dgn alasan
+  sama (§28.10). Dihapus di sini juga, field tetap dipakai search.
+- **"kenapa ada yang branch/channel/division-nya kosong?"** — 2 penyebab
+  beda, dicek ke data langsung:
+  1. **Mayoritas (28803/32237, ~89%)**: customer established TAPI TIDAK
+     ADA invoice sama sekali di window "current" — `cur_revenue`/
+     `prev_revenue` JUGA 0 utk baris yang sama (dibuktikan: SEMUA baris
+     kosong branch py cur=prev=0). Bukan bug — tidak ada invoice sama
+     sekali, jadi tidak ada apa pun (branch/division/channel/revenue) yang
+     bisa ditarik.
+  2. **Sangat kecil (4 baris)**: customer PY revenue current, TAPI
+     `branch_id` invoice-nya sendiri NULL di tabel `invoices` (dicek
+     langsung — data mentah dari sumbernya, bukan bug query) — genuinely
+     tidak ada branch utk ditampilkan.
+  - **Bug nyata ditemukan sambil investigasi**: `latest_inv` (M7) cuma
+    2-level fallback division (`division_override_id -> channel_divisions`)
+    — M1 py 3-level (+ fallback "other" division kalau channel belum
+    ke-mapping `channel_divisions`). Ditambahkan fallback ke-3 SAMA PERSIS
+    M1 — diverifikasi: sebelum fix 4 baris py revenue tapi division NULL,
+    sesudah fix 0 baris (semua revenue>0 SEKARANG py division terisi,
+    fallback ke "Other" kalau channel belum ke-mapping).
+- `tsc --noEmit` (backend+frontend) bersih tiap iterasi.
+
+**Koreksi keras — "Inactive" salah dilabeli "Flat/Stabil" (user: "datamu
+tidak valid jika tanpa transaksi kamu beri label stabil")** — `flat_rate`
+(sejak koreksi 2026-08-10) definisinya `cur_revenue = prev_revenue`,
+TERMASUK customer yang literally cur=prev=0 (tidak ada transaksi sama
+sekali di kedua window) — dilabeli "Stabil" padahal customer itu TIDAK
+melakukan apa pun, bukan "stabil berbelanja". Dipisah jadi 4-way:
+
+- **Backend** (`m3m7.repository.ts`): `flat_rate` sekarang HANYA
+  `cur=prev DAN cur>0` (genuinely tidak berubah). `inactive_rate` BARU
+  (`cur=prev=0`) — dipakai `fetchCustomerMetricsTrend` (trend chart/
+  SummaryCard) DAN `fetchExpansionBreakdown` (status per-customer,
+  `up`/`flat`/`inactive`/`down`, `inactive_count` di aggregate). Types
+  (`metrics.types.ts` backend+frontend) disesuaikan.
+- **Chip status** (`expansionHelpers.tsx`): `inactive` dapat warna
+  `warning` sendiri (beda dari `flat`=default/abu netral, `down`=error) —
+  secara bisnis lebih perlu perhatian drpd genuinely-flat, tapi bukan
+  penurunan aktif spt down.
+- **SummaryCard Overview** (`M7ExpansionGrowth.tsx`): grid 2x2 -> 3
+  kolom, kartu "Inactive" baru terpisah dari "Flat". Angka nyata
+  (company='all'): Up 1.7%, **Flat 0.2%**, **Inactive 90.0%**, Down 8.1% —
+  sebelumnya "Flat" gabungan tampil ~90.2%, menyembunyikan bahwa hampir
+  SEMUA itu sebenarnya "tidak ada transaksi", BUKAN "stabil berbelanja"
+  (0.2% doang yang genuinely flat).
+- **Chart diverging** (`ExpansionChart.tsx`, susulan user: "negatif chart
+  jadi bar stack yang membedakan masing masing kategori") — sisi negatif
+  sekarang STACK 2 SEGMEN terpisah: `down_rate` (tint primary, masih
+  transaksi tapi turun) + `inactive_rate` (grey NETRAL, genuinely beda hue
+  bukan cuma tint lebih pudar — "tidak ada transaksi" secara konsep beda
+  dari "menurun"). Legend 3 entri: Spending Up / Spending Down / No
+  Transaction. `flat_rate` TETAP tidak masuk chart (bukan positif/negatif,
+  tidak natural di bar diverging) — kebaca di SummaryCard.
+- **Net Expansion** (mini chart Overview, fill-by-value) — formula
+  diupdate `up_rate - down_rate - inactive_rate` (sebelumnya cuma
+  `- down_rate`) — momentum negatif customer yang berhenti total ikut
+  dihitung, bukan cuma yang menurun tapi masih order.
+- `tsc --noEmit`+`eslint` (backend+frontend) bersih, diverifikasi
+  screenshot browser — chart+SummaryCard+tabel semua konsisten pakai
+  definisi 4-way yang sama.
+
+### 30.13 Filter granularitas M3-M7 + fix off-by-one window aktif (SELESAI, 2026-08-22)
+
+User lapor: "Filter bulanan, kuartlan, semesteran, tahunan belum jalan" di
+tab Expansion (M7) — dropdown Granularitas ada di UI tapi diam-diam
+diabaikan backend. Dikonfirmasi via AskUserQuestion: dikerjakan **M3-M7
+sekaligus** (poin 1 §30.9), bukan cuma M7, karena semuanya share 1 fungsi
+backend `fetchCustomerMetricsTrend` (`m3m7.repository.ts`). Sekalian
+memenuhi poin 4 §30.9 (bug off-by-one) utk fungsi yang sama, karena sudah
+dibongkar buat generalisasi bucket.
+
+**2 keputusan desain kunci (bukan sekadar refactor mekanis):**
+
+1. **Kualifikasi "Existing" (siapa masuk kohort) — makna bisnis TIDAK
+   berubah**, cuma dibuat kalender-benar + generik-bucket. Formula lama:
+   `first_invoice_date < (akhir bulan kalender) - activeMonths bulan`
+   (pengurangan interval mentah, py bug off-by-one di batas bulan pendek).
+   Formula baru: `first_invoice_date < date_trunc('month', bucket.start) -
+   (activeMonths-1) bulan - 1 hari` — anchor ke **awal bucket** (dulu ke
+   akhir), pola `date_trunc` sama persis fix M1 §30.7. **CATATAN PENTING**:
+   ini BUKAN formula "sama persis M1" — investigasi ulang nemuin M1 versi
+   FINAL sudah TOTAL meninggalkan windowing berbasis `activeMonths`
+   (comment M1: "GANTI TOTAL dari activeMonths mundur yang dipakai
+   sebelumnya", sekarang cuma `first_invoice_date < periodStart` tanpa
+   offset). M3-M7 TETAP pakai `activeMonths` sbg bagian kualifikasi kohort
+   (task026 §8e: "window aktif utk parameter existing TIDAK BOLEH
+   berubah") — beda definisi Existing M1 vs M3-M7 ini SUDAH
+   didokumentasikan sbg konflik terbuka belum diputuskan (§30.8/task028),
+   **plan ini sengaja TIDAK menyentuh/menyatukan itu**, cuma benerin
+   aritmatika tanggalnya.
+2. **Window agregasi current/previous (revenue M3/M4, rate M7) — ikut
+   LEBAR BUCKET**, bukan lagi fixed `activeMonths` — ini yang bikin
+   granularitas kelihatan RIIL (Kuartal beneran agregat 3 bulan, bukan
+   nampilin 1 bulan terakhir tiap titik). Sesuai keputusan §30.3 yang
+   sudah ada ("Rate KPI: recompute dari total pembilang/penyebut
+   se-periode, bukan rata-rata rate per bulan"). Untuk granularitas
+   BULANAN (default, `activeMonths` config saat ini = 1), bucket 1 bulan
+   = `activeMonths` 1 bulan → hasil numerik SAMA seperti sebelumnya
+   (diverifikasi, lihat di bawah) — bedanya baru kelihatan di Kuartal/
+   Semester/Tahun granularitas eksplisit yang memang belum pernah ada.
+
+**Perubahan backend:**
+- `metrics.schema.ts` — `customerMetricsQuerySchema` tambah `period_type`
+  (reuse `periodTypeField` yang sama dgn `crossSellingQuerySchema`).
+- `metrics.service.ts` `getCustomerMetrics` — direstruktur mirror
+  `getCrossSellingMetrics` (§30.6): `buildTrailingPeriods` 12 bucket,
+  `clampToElapsedEnd` utk bucket terakhir (reuse fix §30.11, bukan
+  ditulis ulang), `prevBuckets` dihitung di SERVICE (bukan repository —
+  repository tidak boleh hitung tanggal periode sendiri).
+- `m3m7.repository.ts` `fetchCustomerMetricsTrend` — rewrite besar:
+  `months AS (generate_series bulanan)` → `buckets(label, ps, pe) AS
+  (VALUES ...)` (pola sama persis `fetchCrossSellingTrend` M1, VALUES-list
+  drizzle `sql.join`), seluruh 10 CTE (`existing`, `active_inv_agg`,
+  `prev_inv_agg`, `hm_inv_agg`, `new_cust`, dst) diganti dari `m.ms` ke
+  `b.label`/`b.ps`/`b.pe`. `fetchExpansionBreakdown`/`fetchRevenueBreakdown`
+  (drill-down 1 titik) TIDAK berubah — sudah generik terima rentang
+  tanggal apa pun sejak awal.
+
+**Perubahan frontend:** `useCustomerMetrics`/`metricsApi.getCustomerMetrics`
+tambah `period_type`; `Growth/index.tsx` kirim ke fetch M3-M7 + prop
+`periodType` ke `M7ExpansionGrowth`; `M7ExpansionGrowth.tsx` pakai
+`periodType` asli (bukan hardcode `'monthly'`) di
+`getCurrentPeriodKey`/`getYoyPeriodKey`/`formatPeriodLabel`/drill-down
+(`getPeriodDateRange`, ganti dari `monthToEndDate`, pola sama M1);
+`ExpansionChart.tsx` terima prop `periodType`, sumbu-X + tooltip custom
+(`ExpansionTooltip`, pola `TooltipContentProps`+`renderTooltip` sama
+`M3Revenue.tsx`) pakai `formatPeriodLabelShort(periodType, ...)`.
+`M7Expansion.tsx` (Customer Metrics workbench, tidak py filter UI granular)
+TIDAK diubah — otomatis tetap bulanan lewat default prop opsional.
+
+**Verifikasi:**
+- Regresi bulanan (default, TANPA `period_type`) — dibandingkan sebelum/
+  sesudah rewrite: field trend berubah TIPIS (mis. `existing_customers`
+  bulan Sep 2025 12864→12904), TAPI ini BUKAN regresi — dibuktikan lewat
+  psql langsung: threshold "existing" bulan Sep 2025 SEBELUM fix =
+  `2025-08-30`, SESUDAH fix = `2025-08-31` (formula lama salah 1 hari di
+  batas bulan pendek, persis kelas bug off-by-one yang dimandatkan §30.9
+  poin 4). Semua selisih di seluruh 12 titik dicek: kecil (0-3 hari di
+  batas bulan), SELALU threshold BARU >= threshold LAMA (artinya customer
+  yang qualify Existing bertambah/sama, tidak pernah berkurang — arah
+  koreksi konsisten dgn "lebih permisif dgn benar", bukan acak). Tidak ada
+  NaN/negatif/nilai aneh di scan penuh output.
+- Live browser (Growth → tab Expansion, ganti dropdown 4 granularitas,
+  screenshot tiap mode — admin@mail.com, dev server lokal):
+  - **Bulanan** (default): "Agustus 2026: 1.7% | Agustus 2025: 5.3%" —
+    identik dgn sebelum rewrite.
+  - **Kuartalan**: label sumbu-X genuinely "Q4 23" s/d "Q3 26" (12 kuartal
+    asli, bukan 12 bulan dikelompokkan ulang). "Kuartal 3 Tahun 2026: 3.4%
+    | Kuartal 3 Tahun 2025: 7.4%", trend summary "Highest: 11.9%
+    (2025-Q3) | Lowest: 0.0% (2023-Q4)".
+  - **Semesteran**: label "S1 21" s/d "S2 26", "Semester 2 Tahun 2026:
+    2.3% | Semester 2 Tahun 2025: 3.9%", data kosong (0%) di semester
+    sebelum histori dataset dimulai (~2025) — benar, bukan error.
+  - **Tahunan**: label "2015" s/d "2026", "Expansion 2026 vs 2025: 9.9% |
+    0.0%" — cuma bar 2026 py data (dataset belum panjang, sesuai §30.2).
+    Bar 2026 nunjuk down-rate tinggi (~89%) krn periode current (Jan-Ags
+    2026, 8 bulan elapsed via `clampToElapsedEnd`) dibandingkan periode
+    previous SATU TAHUN PENUH (2025, 12 bulan, TIDAK di-clamp krn sudah
+    lampau) — matematis wajar (revenue YTD 8 bulan hampir pasti < revenue
+    12 bulan penuh tahun lalu utk mayoritas customer), BUKAN bug, konsisten
+    dgn cara M7 sudah bandingkan "current period vs periode SEBELUMNYA"
+    (sequential, bukan YoY) sejak awal — sama pola yang juga berlaku di
+    granularitas Bulanan (Agustus parsial vs Juli penuh).
+  - Dropdown option granularitas berlabel Inggris "Monthly"/**"Quarter"**
+    (BUKAN "Quarterly")/"Semester"/"Annual" (i18n
+    `paretoThreshold.period.*`) — dicatat krn sempat bikin script
+    verifikasi salah selector.
+- M1/M2 (Cross Selling/Category, fungsi backend BEDA — `m1.repository.ts`)
+  di-screenshot ulang setelah semua perubahan di atas — Bulanan & Kuartal
+  KEDUANYA masih benar, tidak ada efek samping (`period.util.ts` yang
+  di-share tidak berubah perilakunya utk M1).
+- `tsc --noEmit` + `eslint` (backend+frontend) bersih di tiap tahap.
+
+**Di luar scope (sengaja, sesuai batas §30.9 yang sudah ada):** M8-M10
+(item terpisah, kompleksitas ambang dormant per-divisi × lebar bucket,
+§30.9b), Retention/Value (belum py UI filter granularitas sama sekali,
+backend M3-M7 sudah siap tapi belum ada yang manggil dgn `period_type`
+selain Growth), "Apply date cutoff" mode utk M3-M7 (poin 2 §30.9, item
+terpisah), resolusi SSOT "Existing customer" M1 vs M3-M7 (task028/§30.8,
+tetap terbuka).
+
+**Susulan (sama hari) — user pertanyakan angka Kuartal (7,9%) yang tidak
+sama dengan "jumlah" 3 bulan penyusunnya (4,0%+3,7%+6,2%=13,9%).**
+Diverifikasi langsung lewat script manggil `getCustomerMetrics` (bypass
+HTTP, company_id='all'): angka bulanan April/Mei/Juni (6.2/3.7/4.0) DAN
+Kuartal Q2 2026 (7.9%) persis sama dgn yang tampil di layar user — bukan
+bug. Dijelaskan: (1) menjumlahkan persentase dari basis (denominator)
+BERBEDA antar bulan (existing_customers terus bertambah tiap bulan) tidak
+valid secara matematis; (2) sesuai §30.3, rate kuartal direcompute dari
+TOTAL revenue 3 bulan (Apr+Mei+Jun) vs TOTAL 3 bulan sebelumnya (Jan+Feb+
+Mar) per customer — bukan union/sum kejadian "naik" di bulan mana pun,
+jadi customer yang naik di 1 bulan tapi turun di bulan lain bisa TIDAK
+terhitung naik di level kuartal walau tampil naik di salah satu bulannya.
+
+**Susulan ke-2 (sama hari, koreksi user: "chart tidak valid, karena
+menampilkan data tidak 100%... seharusnya chart hanya positif dan
+negatif, tapi jumlah keseluruhan harus 100%")** — chart diverging (§30.12)
+sebelumnya cuma render `up_rate`(+)/`down_rate`(-), sisanya (flat+inactive,
+bisa >85% dari populasi) TIDAK divisualisasikan sama sekali (cuma di
+tooltip) — total tinggi bar jauh dari 100%, misleading. Dikonfirmasi
+lewat AskUserQuestion (2 opsi grouping): user pilih **sisi positif =
+`up_rate` MURNI, sisi negatif = gabungan `flat_rate + down_rate +
+inactive_rate`** (bukan opsi "positif = naik+stabil") — supaya tinggi
+total bar (atas+bawah) SELALU = 100% dari existing customers, tetap cuma
+2 warna. `ExpansionChart.tsx`: field baru `not_up_neg` (ganti
+`down_rate_neg`), i18n key baru `seriesNotUp` ("Selain Naik"/"Not Up"),
+`chartSubtitle` disesuaikan ("Bawah garis 0 = stabil/turun/tanpa
+transaksi, total atas+bawah = 100%"). Tooltip custom (`ExpansionTooltip`)
+TIDAK berubah strukturnya — tetap breakdown 4 baris (Naik/Stabil/Turun/
+Nonaktif) dari payload penuh, cuma ditambah divider visual pemisah antara
+baris "Naik" (sisi positif) vs 3 baris sisanya (sisi negatif gabungan).
+Diverifikasi via screenshot: label tiap bar SEKARANG genuinely jumlah ke
+100% (mis. Agustus 1.7%+98.3%=100.0%, September 6.9%+93.0%=99.9%,
+selisih desimal krn pembulatan 1 angka di belakang koma per komponen —
+bukan bug). Tabel breakdown (`useExpansionColumns`, status 4-way per
+customer) TIDAK berubah — sudah lebih dulu menampilkan Naik/Stabil/Turun/
+Nonaktif per baris sejak §30.12 susulan sebelumnya, memenuhi permintaan
+"flat dan nonaktif ditampilkan di tabel" tanpa perubahan tambahan.
+
+**Susulan ke-3 (sama hari, user: "Aku butuh data jumlah nya selain dari
+persentase")** — SummaryCard (tab Overview) dan tooltip chart (tab Trend
+Analysis) SEBELUMNYA cuma tampil persentase (mis. "Naik 1.7%"), jumlah
+customer mentah di baliknya tidak kelihatan sama sekali. Ditambahkan:
+
+- **Backend** (`m3m7.repository.ts` `fetchCustomerMetricsTrend`): 4 kolom
+  COUNT baru — `up_count`/`flat_count`/`inactive_count`/`down_count` —
+  pakai CASE WHEN SAMA PERSIS `up_rate`/`flat_rate`/`inactive_rate`/
+  `down_rate` (cuma tanpa `*100/NULLIF(...)`), supaya angka mentah PERSIS
+  konsisten dgn rate yang sudah tampil (bukan hasil back-compute dari rate
+  yang sudah dibulatkan 1 desimal, yang bisa meleset). `TrendRow` type +
+  `metrics.service.ts` mapping ke `CustomerMetricsTrendPoint` (frontend
+  `types/metrics.ts`) ikut diupdate.
+- **SummaryCard** (`HelperComponents.tsx`, shared M1/M2/M7) dapat prop
+  opsional baru `subValue` (baris kecil di bawah angka utama) — opsional
+  supaya caller M1/M2 (cuma py 1 angka per kartu) TIDAK berubah.
+  `M7ExpansionGrowth.tsx` isi `subValue` dgn `"{{count}} customer"` (key
+  i18n baru `customerCountValue`, pola sama `dormantCustomer.json`) utk
+  kartu Naik/Stabil/Tidak Aktif/Turun.
+- **Tooltip chart** (`ExpansionChart.tsx`, dipakai Growth+workbench M7):
+  4 baris tooltip format ulang jadi `"1.7% (561 customer)"` dst — data
+  (`up_count` dst) di-carry lewat `data` array yang sama (payload penuh,
+  pola sama field rate).
+- Diverifikasi screenshot: SummaryCard "Up 1.7% / 561 customers", "Flat
+  0.2% / 53 customers", "Inactive 90.0% / 29.332 customers", "Down 8.1% /
+  2.654 customers" — totalnya (561+53+29332+2654=32600) PERSIS sama dgn
+  kartu "Existing Customers" (32.600), konsisten. Tooltip chart juga
+  tervalidasi sama, format `"persentase (N customer)"` per kategori.
+- Tabel breakdown per-customer TIDAK diubah (sudah menampilkan data
+  individual per row, bukan agregat persentase — tidak relevan dgn
+  permintaan ini).
+- `tsc --noEmit` (backend+frontend) bersih.
