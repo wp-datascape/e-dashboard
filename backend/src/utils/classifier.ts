@@ -25,18 +25,22 @@ export interface ClassificationResult {
   matchedRule?: string
 }
 
-type DbRule = typeof item_classification_rules.$inferSelect
+export type DbRule = typeof item_classification_rules.$inferSelect
 
-// ─── DB Lookup ───────────────────────────────────────────────────────────────
+// ─── Rules loader ────────────────────────────────────────────────────────────
 
-async function lookupFromDb(
-  itemName: string,
-  categoryName: string,
-  unitPrice: number,
-  companyId: number,
-): Promise<DbRule | null> {
+/**
+ * Ambil semua rule aktif utk 1 company (company-specific + global) — SEKALI per
+ * batch/import, bukan per baris. Rule-nya identik untuk SEMUA baris company yang
+ * sama dalam 1 file (tidak berubah di tengah proses import), jadi caller (mis.
+ * import.service.ts) WAJIB panggil ini SEKALI di luar loop lalu reuse hasilnya
+ * ke semua baris — ditemukan 2026-08-21 lewat audit N+1: sebelumnya query ini
+ * (JOIN + ORDER BY) diulang di SETIAP baris item (bisa puluhan ribu per file),
+ * padahal hasilnya selalu sama.
+ */
+export async function loadClassificationRules(companyId: number): Promise<DbRule[]> {
   try {
-    const rules = await db
+    return await db
       .select()
       .from(item_classification_rules)
       .where(
@@ -49,55 +53,59 @@ async function lookupFromDb(
         ),
       )
       .orderBy(desc(item_classification_rules.priority))
+  } catch (err) {
+    logger.error(`Classifier DB lookup failed: ${err instanceof Error ? err.message : String(err)}`)
+    return []
+  }
+}
 
-    if (rules.length === 0) return null
+// ─── Matching (murni in-memory, TIDAK ada DB call) ────────────────────────────
 
-    const upperItem = itemName.toUpperCase()
-    const upperCategory = categoryName.toUpperCase()
-    let bestMatch: DbRule | null = null
+function matchRules(rules: DbRule[], itemName: string, categoryName: string, unitPrice: number): DbRule | null {
+  if (rules.length === 0) return null
 
-    for (const rule of rules) {
-      const pattern = rule.match_pattern.toUpperCase()
-      let matched = false
+  const upperItem = itemName.toUpperCase()
+  const upperCategory = categoryName.toUpperCase()
+  let bestMatch: DbRule | null = null
 
-      switch (rule.match_type) {
-        case 'keyword_item_name':
-          matched = upperItem.includes(pattern)
-          break
-        case 'keyword_category':
-          matched = upperCategory.includes(pattern)
-          break
-        case 'exact_item_name':
-          matched = upperItem === pattern
-          break
-        case 'exact_category':
-          matched = upperCategory === pattern
-          break
-        case 'price_range': {
-          try {
-            const range = JSON.parse(rule.match_pattern) as { min?: number; max?: number }
-            if (range.min !== undefined && unitPrice < range.min) break
-            if (range.max !== undefined && unitPrice > range.max) break
-            matched = true
-          } catch {
-            // skip invalid JSON
-          }
-          break
+  for (const rule of rules) {
+    const pattern = rule.match_pattern.toUpperCase()
+    let matched = false
+
+    switch (rule.match_type) {
+      case 'keyword_item_name':
+        matched = upperItem.includes(pattern)
+        break
+      case 'keyword_category':
+        matched = upperCategory.includes(pattern)
+        break
+      case 'exact_item_name':
+        matched = upperItem === pattern
+        break
+      case 'exact_category':
+        matched = upperCategory === pattern
+        break
+      case 'price_range': {
+        try {
+          const range = JSON.parse(rule.match_pattern) as { min?: number; max?: number }
+          if (range.min !== undefined && unitPrice < range.min) break
+          if (range.max !== undefined && unitPrice > range.max) break
+          matched = true
+        } catch {
+          // skip invalid JSON
         }
-      }
-
-      if (matched) {
-        if (!bestMatch || rule.priority > bestMatch.priority) {
-          bestMatch = rule
-        }
+        break
       }
     }
 
-    return bestMatch
-  } catch (err) {
-    logger.error(`Classifier DB lookup failed: ${err instanceof Error ? err.message : String(err)}`)
-    return null
+    if (matched) {
+      if (!bestMatch || rule.priority > bestMatch.priority) {
+        bestMatch = rule
+      }
+    }
   }
+
+  return bestMatch
 }
 
 // ─── Main Classifier ─────────────────────────────────────────────────────────
@@ -106,13 +114,14 @@ export interface ClassifyOptions {
   itemName: string
   categoryName: string
   unitPrice: number
-  companyId: number
+  /** Hasil `loadClassificationRules(companyId)` — SEKALI per batch, lihat docstring-nya. */
+  rules: DbRule[]
 }
 
-export async function classifyItemType(options: ClassifyOptions): Promise<ClassificationResult> {
-  const { itemName, categoryName, unitPrice, companyId } = options
+export function classifyItemType(options: ClassifyOptions): ClassificationResult {
+  const { itemName, categoryName, unitPrice, rules } = options
 
-  const dbRule = await lookupFromDb(itemName, categoryName, unitPrice, companyId)
+  const dbRule = matchRules(rules, itemName, categoryName, unitPrice)
   if (dbRule) {
     return {
       itemType: dbRule.item_type as ItemType,
