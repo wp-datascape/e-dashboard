@@ -18,16 +18,13 @@ import {
 } from '@/hooks/useNotifications'
 import { NotificationDetailDialog } from '@/components/ui/NotificationDetailDialog'
 import type { NotificationRow } from '@/types/notifications'
+import { formatDateTimeID } from '@/utils/date'
 
 const RECENT_COUNT = 8
 
+// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeID(iso)
 }
 
 export function NotificationBell() {

@@ -11,15 +11,12 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useImportLogs } from '@/hooks/useImport'
 import { ErrorDetailDialog } from './ErrorDetailDialog'
 import type { ImportLog } from '@/types/import'
+import { formatDateTimeID } from '@/utils/date'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('id-ID', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
+// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
+const formatDate = formatDateTimeID
 
 function StatusIcon({ status }: { status: ImportLog['status'] }) {
   if (status === 'success') return <CheckCircleIcon sx={{ color: 'success.main', fontSize: 18 }} />

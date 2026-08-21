@@ -25,7 +25,7 @@ import type {
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { StatusChip } from '@/components/ui'
 import { BuChip } from '@/pages/Transactions/components/BuChip'
-import { formatIDR } from '@/utils/format'
+import { formatRupiah } from '@/utils/format'
 import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
 import { ProductBreakdownDialog } from './components/ProductBreakdownDialog'
@@ -120,7 +120,7 @@ function HighMarginProductTab({ filter }: { filter: FilterState }) {
       width: 150,
       type: 'number',
       sortable: false,
-      valueFormatter: (value) => formatIDR(value as number),
+      valueFormatter: (value) => formatRupiah(value as number),
     },
     {
       field: 'total_gp',
@@ -128,7 +128,7 @@ function HighMarginProductTab({ filter }: { filter: FilterState }) {
       width: 140,
       type: 'number',
       sortable: false,
-      valueFormatter: (value) => formatIDR(value as number),
+      valueFormatter: (value) => formatRupiah(value as number),
     },
     {
       field: 'gp_margin_percent',
@@ -256,7 +256,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
       width: 150,
       type: 'number',
       sortable: false,
-      valueFormatter: (value) => formatIDR(value as number),
+      valueFormatter: (value) => formatRupiah(value as number),
     },
     {
       field: 'categories_bought',

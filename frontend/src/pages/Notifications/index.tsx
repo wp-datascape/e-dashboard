@@ -15,16 +15,10 @@ import {
 } from '@/hooks/useNotifications'
 import { NotificationDetailDialog } from '@/components/ui/NotificationDetailDialog'
 import type { NotificationRow } from '@/types/notifications'
+import { formatDateTimeID } from '@/utils/date'
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
+const fmtDate = formatDateTimeID
 
 export default function NotificationsPage() {
   const { t } = useTranslation()

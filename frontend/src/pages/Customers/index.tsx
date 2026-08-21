@@ -16,7 +16,7 @@ import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
-import { formatIDR } from '@/utils/format';
+import { formatRupiah } from '@/utils/format';
 import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
 
 export default function Customers() {
@@ -88,8 +88,8 @@ export default function Customers() {
     { field: 'division', headerName: t('customers.detail.division'), width: 140, sortable: false, renderCell: ({ row }) => <DivisionChip division={row.division} /> },
     { field: 'status', headerName: t('customers.status'), width: 110, sortable: false, renderCell: ({ row }) => <StatusChip status={row.status} /> },
     { field: 'category_count', headerName: t('customers.categories'), width: 110, type: 'number', sortable: true },
-    { field: 'avg_monthly_revenue', headerName: t('customers.detail.avgMonthly'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatIDR(value as number) },
-    { field: 'lifetime_value', headerName: t('customers.detail.lifetimeValue'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatIDR(value as number) },
+    { field: 'avg_monthly_revenue', headerName: t('customers.detail.avgMonthly'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatRupiah(value as number) },
+    { field: 'lifetime_value', headerName: t('customers.detail.lifetimeValue'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatRupiah(value as number) },
     { field: 'last_invoice_date', headerName: t('customers.lastTransaction'), width: 150, sortable: true, valueFormatter: (value) => (value as string) ?? '-' },
     { field: 'total_invoices', headerName: t('customers.totalInvoices'), width: 110, type: 'number', sortable: false },
   ];
