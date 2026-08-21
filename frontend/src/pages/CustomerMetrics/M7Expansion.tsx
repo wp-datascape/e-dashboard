@@ -5,46 +5,16 @@ import Skeleton from '@mui/material/Skeleton';
 import MuiTooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import type { GridColDef } from '@mui/x-data-grid';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 
-import { BarChartWidget } from '@/components/charts/BarChartWidget';
-import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useExpansionBreakdown } from '@/hooks/useMetrics';
-import { fmtRpDetail, monthToEndDate } from './helpers';
+import { monthToEndDate } from './helpers';
 import { SectionLabel } from './HelperComponents';
-
-function statusChipColor(status: string): 'success' | 'default' {
-  return status === 'up' ? 'success' : 'default';
-}
-
-function statusLabel(status: string, t: TFunction): string {
-  return status === 'up' ? t('customerMetrics.m7.statusUp') : t('customerMetrics.m7.statusFlatDown');
-}
-
-// Kolom rank/customer/code reuse key m4.* (sudah pola yang sama dipakai M3Revenue.tsx)
-// — generik lintas M3/M4/M7, tidak perlu duplikasi key per-metrik.
-function useExpansionColumns(t: TFunction): GridColDef[] {
-  return [
-    { field: 'ranking',       headerName: t('customerMetrics.m4.colRank'),     width: 56,  sortable: false },
-    { field: 'customer_name', headerName: t('customerMetrics.m4.colCustomer'), flex: 1,   minWidth: 160 },
-    { field: 'customer_code', headerName: t('customerMetrics.m4.colCode'),     width: 110, sortable: false,
-      renderCell: (p) => p.value ?? '—' },
-    { field: 'prev_revenue', headerName: t('customerMetrics.m7.colPrevRevenue'), width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRpDetail(p.value as number) },
-    { field: 'cur_revenue', headerName: t('customerMetrics.m7.colCurRevenue'), width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRpDetail(p.value as number) },
-    { field: 'change_pct', headerName: t('customerMetrics.m7.colChangePct'), width: 100, align: 'right', headerAlign: 'right',
-      renderCell: (p) => (p.value === null ? '—' : `${p.value}%`) },
-    { field: 'status', headerName: t('customerMetrics.m7.colStatus'), width: 110, align: 'center', headerAlign: 'center', sortable: false,
-      renderCell: (p) => <StatusChip label={statusLabel(p.value as string, t)} color={statusChipColor(p.value as string)} /> },
-  ]
-}
+import { ExpansionChart } from './ExpansionChart';
+import { useExpansionColumns } from './expansionHelpers';
 
 interface Props {
   trend: CustomerMetricsTrendPoint[]
@@ -56,7 +26,6 @@ interface Props {
 }
 
 export function M7Expansion({ trend, isLoading, companyId, branchId, division, excludeIntercompany }: Props) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const expansionColumns = useExpansionColumns(t);
@@ -87,25 +56,9 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
       {isLoading ? (
         <Skeleton variant="rectangular" height={340} />
       ) : (
-        <BarChartWidget
-          title={t('customerMetrics.m7.chartTitle')}
-          subtitle={t('customerMetrics.m7.chartSubtitle')}
-          data={trend.map((point) => ({
-            month:          point.month,
-            up_rate:        point.up_rate,
-            flat_down_rate: point.flat_down_rate,
-          }))}
-          series={[
-            { key: 'up_rate',        label: t('customerMetrics.m7.seriesUp'), color: theme.palette.success.main },
-            { key: 'flat_down_rate', label: t('customerMetrics.m7.seriesFlatDown'),  color: theme.palette.action.disabledBackground, labelColor: theme.palette.text.primary },
-          ]}
-          xKey="month"
+        <ExpansionChart
+          trend={trend}
           height={320}
-          stacked
-          layout="horizontal"
-          showLabels
-          labelFormatter={(v) => `${v.toFixed(1)}%`}
-          tooltipFormatter={(v, n) => [`${v.toFixed(1)}%`, n]}
           onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
         />
       )}
