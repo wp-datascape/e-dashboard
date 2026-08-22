@@ -402,7 +402,21 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
     WITH
     ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds, null)},
     -- Top-2 business_unit per HM category berdasarkan jumlah distinct buyer
-    hm_affinity AS (
+    --
+    -- MATERIALIZED (2026-08-22, bug timeout 20s dgn scope "Semua Entitas") —
+    -- CTE ini dibaca dari DALAM subquery berkorelasi relevance_score di SELECT
+    -- akhir (per baris customer_data x customers, bisa puluhan ribu baris).
+    -- Postgres 12+ defaultnya meng-INLINE CTE yang cuma dipakai di 1 tempat
+    -- (bukan materialize) — karena titik pakainya ada DI DALAM subquery
+    -- berkorelasi, "1 tempat" itu dieksekusi ULANG tiap baris outer query,
+    -- jadi JOIN+WindowAgg berat CTE ini (invoice_items x invoices x customers x
+    -- channel_divisions) ikut dihitung ulang per-customer alih-alih SEKALI lalu
+    -- dipakai ulang. EXPLAIN membuktikan: SubPlan relevance_score punya
+    -- WindowAgg/GroupAggregate TERINLINE identik definisi CTE ini (bukan CTE
+    -- Scan ke hasil yang sudah dihitung), total cost sampai 84 JUTA (vs cost
+    -- CTE ini sendirian cuma puluhan ribu). MATERIALIZED memaksa Postgres
+    -- hitung SEKALI, simpan hasilnya, baru dipakai berulang oleh subquery.
+    hm_affinity AS MATERIALIZED (
       SELECT product_category_id, business_unit
       FROM (
         SELECT
