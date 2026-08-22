@@ -159,10 +159,26 @@ export async function getDashboard(
       reactivation_rate: averageInRange(dormantYoy.trend, comparisonPeriodStart, comparisonDate, (r) => r.reactivation_rate),
     }
 
+    // Link tiap card (2026-08-22, user lapor: "menu dan url cross selling
+    // masih bisa dibuka dari dashboard card") — SEMUA 10 link di bawah tadinya
+    // masih mengarah ke halaman standalone lama per-KPI (/cross-selling,
+    // /avg-category-per-customer, /customer-revenue, /customer-gross-profit,
+    // /high-margin-penetration, /repeat-order, /customer-expansion,
+    // /dormant-rate, /dormant-value, /reactivation-rate) — link-link itu
+    // dibuat task025 §12/§14 (2026-08-07), SEBELUM konsolidasi Growth/
+    // Retention/Value (task029, 2026-08-19) yang menggantikan halaman-halaman
+    // itu sbg entry point utama. Halaman lama TIDAK dihapus (menu.tsx: "isinya
+    // sama, cuma sudah tidak ada entry langsung di sidebar"), tapi klik card
+    // Overview seharusnya ke halaman BARU, bukan yang lama. Growth (cross_
+    // selling_ratio/avg_category/expansion_rate) SUDAH py tab-per-KPI (§29),
+    // jadi link-nya `/growth?kpi=<metric_key>` (persis GrowthKpiKey di
+    // Growth/index.tsx). Retention/Value BELUM py tab-per-KPI (§29, "masih
+    // belum") — semua metric-nya cuma `/retention`/`/value` polos (halaman
+    // itu stack semua KPI-nya sekaligus, tidak ada kpi= yang bisa di-deep-link).
     const metrics: MetricCard[] = [
       buildCard(
         'cross_selling_ratio', 'Cross Selling Ratio',
-        'Customer beli >1 kategori / Total customer aktif', '/cross-selling',
+        'Customer beli >1 kategori / Total customer aktif', '/growth?kpi=cross_selling_ratio',
         // 'line' — samakan dgn ComboChartWidget di CrossSelling/index.tsx,
         // seri "ratio" (metrik ini persis) dirender sbg LINE di sana, bukan
         // bar (koreksi user 2026-08-09: "chart di dashboard jenisnya sama
@@ -180,7 +196,7 @@ export async function getDashboard(
         // dipecah jadi 2 halaman, card KPI2 sekarang mengarah ke halaman
         // spesifik-nya (sebelumnya sama-sama ke '/cross-selling').
         'avg_category', 'Rata-rata Kategori Produk',
-        'Rata-rata kategori unik per customer aktif', '/avg-category-per-customer',
+        'Rata-rata kategori unik per customer aktif', '/growth?kpi=avg_category',
         'number', 'area',
         cross.trend.map((r) => ({ month: r.month, value: r.avg_category })),
         current.avg_category,
@@ -194,7 +210,7 @@ export async function getDashboard(
       // ditemukan sbg bug terkait saat memperbaiki link avg_category di atas.
       buildCard(
         'avg_revenue', 'Rata-rata Revenue',
-        'Revenue per existing customer di periode ini', '/customer-revenue',
+        'Revenue per existing customer di periode ini', '/value',
         'currency', 'bar',
         customer.trend.map((r) => ({ month: r.month, value: r.avg_revenue })),
         current.avg_revenue,
@@ -202,7 +218,7 @@ export async function getDashboard(
       ),
       buildCard(
         'avg_gross_profit', 'Rata-rata Gross Profit',
-        'Gross profit per existing customer', '/customer-gross-profit',
+        'Gross profit per existing customer', '/value',
         'currency', 'stacked-bar',
         // 3 tier (Atas/Tengah/Bawah) per bulan (task026 §9 lanjutan) - sama
         // dgn field yang dipakai CustomerGrossProfit/index.tsx, biar mini-
@@ -214,7 +230,7 @@ export async function getDashboard(
       ),
       buildCard(
         'high_margin_penetration', 'High Margin Penetration',
-        'Existing customer beli produk high margin', '/high-margin-penetration',
+        'Existing customer beli produk high margin', '/value',
         'percent', 'line',
         customer.trend.map((r) => ({ month: r.month, value: r.high_margin_ratio })),
         current.high_margin_penetration,
@@ -222,7 +238,7 @@ export async function getDashboard(
       ),
       buildCard(
         'repeat_order_rate', 'Repeat Order Rate',
-        'Existing customer yang bertransaksi ulang', '/repeat-order',
+        'Existing customer yang bertransaksi ulang', '/retention',
         // 'line' — samakan dgn M6RepeatOrder.tsx (LineChartWidget tren 12
         // bulan seri "rate"), bukan bar. RadialBarWidget (gauge snapshot)
         // di halaman yang sama TIDAK direplikasi di sini — bentuknya gauge
@@ -234,7 +250,7 @@ export async function getDashboard(
       ),
       buildCard(
         'expansion_rate', 'Customer Expansion Rate',
-        'Customer dengan spending naik vs bulan lalu', '/customer-expansion',
+        'Customer dengan spending naik vs bulan lalu', '/growth?kpi=expansion_rate',
         // 'bar' — samakan dgn M7Expansion.tsx (BarChartWidget seri
         // "up_rate"), bukan line.
         'percent', 'bar',
@@ -247,7 +263,7 @@ export async function getDashboard(
         // dipecah jadi 3 halaman, tiap card sekarang mengarah ke halaman
         // spesifik-nya (sebelumnya ketiganya sama-sama ke '/dormant-customer').
         'dormant_rate', 'Dormant Customer Rate',
-        'Existing customer tidak aktif', '/dormant-rate',
+        'Existing customer tidak aktif', '/retention',
         'percent', 'line',
         dormant.trend.map((r) => ({ month: r.month, value: r.dormant_rate })),
         current.dormant_rate,
@@ -256,7 +272,7 @@ export async function getDashboard(
       ),
       buildCard(
         'dormant_value', 'Dormant Customer Value',
-        'Estimasi potensi omset hilang dari customer dormant', '/dormant-value',
+        'Estimasi potensi omset hilang dari customer dormant', '/retention',
         'currency', 'bar',
         dormantValueTrend,
         current.dormant_value,
@@ -265,7 +281,7 @@ export async function getDashboard(
       ),
       buildCard(
         'reactivation_rate', 'Customer Reactivation Rate',
-        'Customer dormant yang kembali aktif bulan ini', '/reactivation-rate',
+        'Customer dormant yang kembali aktif bulan ini', '/retention',
         // 'line' — samakan dgn LineAlertWidget tren di ReactivationRate/
         // index.tsx, bukan bar. BulletChartWidget (gauge snapshot) di
         // halaman yang sama TIDAK direplikasi (gauge 1-nilai, bukan seri

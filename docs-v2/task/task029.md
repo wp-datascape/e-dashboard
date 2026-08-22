@@ -2623,3 +2623,45 @@ customer mentah di baliknya tidak kelihatan sama sekali. Ditambahkan:
   individual per row, bukan agregat persentase — tidak relevan dgn
   permintaan ini).
 - `tsc --noEmit` (backend+frontend) bersih.
+
+### 30.14 PENDING — Gabungkan M5 (global) dengan halaman High Margin Push List (per-produk)
+
+**Dicatat 2026-08-22, belum dikerjakan** — user tanya lalu konfirmasi
+pemahaman soal 2 hal yang keliru dikira sama:
+
+- **M5 (`high_margin_ratio`, dipakai KPI Value + trend M3-M7)** — angka
+  GLOBAL 1 persentase: customer dihitung "penetrated" begitu beli produk
+  high-margin APA SAJA (semua kategori di-OR-kan jadi 1 keanggotaan),
+  `high_margin_ratio = COUNT DISTINCT customer yang beli HM apa saja /
+  COUNT DISTINCT existing customers`. Sumber: `hm_inv_agg` CTE,
+  `m3m7.repository.ts`.
+- **Tab "Product Penetration" halaman Products > High Margin
+  (`ProductsHighMargin/index.tsx`, `fetchHmDetail`)** — breakdown PER
+  PRODUK/KATEGORI, tiap baris py persentase penetrasi SENDIRI-SENDIRI
+  (mis. KASSEN KS 606 2D BT 0.6%, 67/11574). Jumlah baris-baris ini TIDAK
+  akan pas dgn angka global M5 (1 customer bisa muncul di banyak baris
+  produk, cuma dihitung 1x di angka global) — beda level agregasi, bukan
+  bug/inkonsistensi.
+- Halaman yang sama JUGA punya tab "Upsell Targets" (`fetchUpsellTargets`,
+  lihat §30.13 susulan soal fix timeout 20s-nya) — per-customer, kategori
+  HM apa yang BELUM dibeli.
+
+**Keputusan lokasi menu (dibahas sama sesi)**: M5 secara konseptual masuk
+grup **Value** (bareng M3 Revenue, M4 Gross Profit — sama-sama soal
+KUALITAS/kontribusi margin per existing customer, BUKAN soal ekspansi
+jumlah/jenis pembelian spt grup Growth). Dokumen ini sendiri (§16-19)
+sudah menempatkan M5 berurutan dgn M3/M4 di bawah "Value" — taksonomi
+konseptual sudah benar, cuma navigasi sidebar BELUM ikut (sekarang
+"High Margin" jadi menu berdiri sendiri di "Produk & Portofolio", bukan
+tab KPI di halaman Value spt M1/M2 di Growth).
+
+**Rencana (belum dieksekusi, "kita atur nanti" — instruksi user)**:
+gabungkan fungsi M5 (angka global, kartu KPI + trend) dengan halaman
+Products > High Margin (breakdown per-produk + Upsell Targets) — jadi
+1 pengalaman terpadu, kemungkinan pola sama M1/M2/M7 (KpiHeader + tab
+Overview [angka global + summary] / Trend Analysis / Breakdown
+[per-produk + upsell]), dipindah ke bawah menu Value. Detail desain
+BELUM diputuskan — perlu dibahas lebih lanjut sebelum implementasi
+(termasuk apakah "Upsell Targets" tetap relevan di bawah Value atau
+tetap di Products, dan bagaimana breakdown per-produk existing di
+`ProductsHighMargin/index.tsx` di-reuse vs ditulis ulang).
