@@ -57,6 +57,7 @@
   "branch": "Cabang",
   "ok": "OK",
   "titleWithItemCount": "{{title}} — {{count}} item",
+  "pageOf": "Halaman {{page}} / {{total}}",
   "copyright": "Developed by IT Department © {{year}} Executive Dashboard. Hak cipta dilindungi.",
   "appVersion": "v1.0.0",
   "toggleSidebar": "Buka/tutup sidebar",

@@ -2665,3 +2665,87 @@ BELUM diputuskan — perlu dibahas lebih lanjut sebelum implementasi
 (termasuk apakah "Upsell Targets" tetap relevan di bawah Value atau
 tetap di Products, dan bagaimana breakdown per-produk existing di
 `ProductsHighMargin/index.tsx` di-reuse vs ditulis ulang).
+
+### 30.15 PENDING — Hapus route halaman KPI lama setelah layouting Growth/Retention/Value selesai
+
+**Dicatat 2026-08-22, belum dikerjakan.** Bermula dari bug: card "Cross
+Selling Ratio" di Overview masih buka halaman lama `/cross-selling`
+(judul "Cross Selling", tab menu 3 chart lain) — root cause & fix link
+card ada di §30.14-adjacent (commit `fix(dashboard): kartu Overview...`,
+sama hari). Investigasi lanjutan: KENAPA `/cross-selling` (dan 9 route
+KPI lama lainnya — `/avg-category-per-customer`, `/customer-revenue`,
+`/customer-gross-profit`, `/high-margin-penetration`, `/repeat-order`,
+`/customer-expansion`, `/dormant-rate`, `/dormant-value`,
+`/reactivation-rate`) MASIH bisa dibuka sama sekali.
+
+**Penyebab**: konsolidasi Growth/Retention/Value (task029, 2026-08-19)
+cuma menghapus entry-nya dari SIDEBAR (`menu.tsx`) — route-nya sendiri
+(`routeConstants.tsx`) SENGAJA TIDAK dihapus, karena komponen chart-nya
+(M1CrossSelling, M2AvgCategory, M3Revenue, dst) langsung di-*reuse* oleh
+halaman Growth/Retention/Value yang baru (`menu.tsx`, comment eksplisit:
+"isinya sama, cuma sudah tidak ada entry langsung di sidebar"). Efek
+sampingnya: siapa pun yang py URL lama (bookmark, link lama, atau kode
+lain yang belum di-update spt kasus dashboard card ini) tetap bisa
+nyasar ke UI lama, di luar standar layout Growth/Retention/Value yang
+sedang dirapikan.
+
+**Rencana (belum dieksekusi, instruksi eksplisit user: "HAPUS", bukan
+redirect — koreksi keras thd usulan redirect yang sempat saya
+tawarkan)**: setelah standar layout M1-M10 (§28-29, saat ini baru
+M1/M2/M7 SELESAI, M3-M6/M8-M10 masih pola lama — lihat §30.12) kelar
+semua, **HAPUS** 10 route lama di atas (`routeConstants.tsx` — hapus
+entry route-nya) beserta halaman standalone-nya (`pages/CrossSelling/
+index.tsx`, `pages/CustomerMetrics/index.tsx`, `pages/DormantCustomer/
+index.tsx`, dst — file container halamannya, BUKAN komponen chart M1-M10
+di dalamnya yang masih dipakai Growth/Retention/Value). **Sebelum
+eksekusi**: audit dulu apakah ada tempat LAIN yang sengaja bergantung ke
+10 URL lama ini (notifikasi berisi link, PDF report, dsb) — belum dicek
+sama sekali sejauh ini, kalau ada perlu diarahkan ke halaman baru
+sebelum route lamanya benar-benar dihapus.
+
+### 30.16 Bug KRITIS — `ResponsiveListView` mobile crash "A problem repeatedly occurred" (SELESAI, 2026-08-22)
+
+User lapor (dgn screenshot Safari iOS): tab crash berulang di menu
+Ekspansi (Growth) saat buka "list view mode" mobile — sempat dikira
+lanjutan bug "auto reload kembali ke Overview" yang sebelumnya SALAH
+didiagnosis sbg stale-chunk-setelah-deploy (§ sebelumnya di sesi ini).
+Investigasi ulang membuktikan diagnosis stale-chunk itu keliru — root
+cause sebenarnya JAUH lebih serius dan kemungkinan besar SUMBER YANG SAMA
+utk kedua laporan.
+
+**Root cause**: `ResponsiveListView.tsx` (komponen SHARED, dipakai 30+
+halaman — RBAC, Classification, Analisis, ActivityLog/AuditLog/LoginLog,
+M1-M7 breakdown table, Users, Companies, Transactions, Customers, dst).
+Cabang DESKTOP render lewat MUI `DataGrid` (otomatis dipaginasi/
+virtualized via `pageSize`). Cabang MOBILE (`isMobile` true) SAMA SEKALI
+TIDAK pakai DataGrid — cuma `rows.map(...)` mentah, render SEMUA baris
+sekaligus jadi komponen `<Accordion>` penuh (icon+chip+nested Box),
+`pageSize` yang sudah diterima props diam-diam DIABAIKAN di jalur ini.
+Untuk tabel besar (breakdown Expansion client-side, ~3.400+ baris company
+'all') ini artinya ribuan komponen Accordion+Chip di-mount SEKALIGUS di
+1 render — cukup utk menghabiskan memori tab mobile Safari, WebKit
+meng-crash process render-nya, browser auto-reload, crash lagi, berulang
+sampai muncul dialog "A problem repeatedly occurred" — TEPAT gejala yg
+dilaporkan user. Ini JUGA kemungkinan besar penjelasan SEBENARNYA utk
+laporan "klik chart tren, halaman auto-reload balik ke Overview" —
+membuka tab Trend Analysis me-render breakdown table yang sama di bawah
+chart, crash-reload lalu kembali ke default tab persis meniru gejala yg
+sebelumnya (keliru) didiagnosis sbg stale JS chunk.
+
+**Fix**: `ResponsiveListView.tsx` — tambah paginasi CLIENT-side di cabang
+mobile (state `mobilePage`, slice `rows.slice(page*pageSize,
+(page+1)*pageSize)`, kontrol Prev/Next + label "Page X of Y", key i18n
+baru `common.pageOf`). Reset `mobilePage` ke 0 tiap `rows` berubah
+(search/sort/filter baru bisa bikin halaman sekarang di luar jangkauan).
+Caller `paginationMode='server'` (Transactions, Products, Notifications,
+ProductsHighMargin, Customers, Analisis — `rows` yang diterima SUDAH 1
+halaman dari API) SENGAJA dilewati dari paginasi tambahan ini — datanya
+sudah kecil, motong ulang di sini malah salah.
+
+**Diverifikasi**: Playwright device iPhone 13, scope company='all' —
+SEBELUM fix: seluruh `rows` (ribuan) di-mount jadi Accordion. SESUDAH
+fix: M7 Expansion breakdown → 25 Accordion + "Page 1 of 137" (≈3.425
+baris ÷ 25). M1 Cross Selling breakdown (komponen sama, halaman beda) →
+25 Accordion + "Page 1 of 35" (≈875 baris) — konsisten, fix berlaku ke
+SEMUA pemakai komponen ini sekaligus (bukan cuma M7), sesuai sifat
+shared-component. `tsc --noEmit` bersih.
