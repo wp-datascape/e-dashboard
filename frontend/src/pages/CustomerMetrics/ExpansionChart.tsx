@@ -1,15 +1,12 @@
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TooltipContentProps } from 'recharts';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 import { BarChartWidget } from '@/components/charts/BarChartWidget';
-import { formatPeriodLabelShort } from '@/utils/analisisPeriod';
+import { ChartTooltipCard } from '@/components/charts/ChartTooltipCard';
+import { formatPeriodLabel, formatPeriodLabelShort } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
-import { Row } from './HelperComponents';
+import { useTheme } from '@mui/material/styles';
 
 // Dikembalikan ke pola chart production/main (2026-08-23, instruksi user:
 // "rubah cart ke refrensi cart di production... cek di branch main") — bar
@@ -43,6 +40,10 @@ interface Props {
    * luar, mis. M7 unified card §30.23). Default true (perilaku lama,
    * dipakai M7Expansion.tsx workbench). */
   showHeader?: boolean;
+  /** Header custom (2026-08-24, koreksi user: "masukkan header cart ke
+   * dalam box cart") — diteruskan apa adanya ke `headerContent`
+   * BarChartWidget, dirender DI DALAM Card widget, bukan di luar. */
+  headerContent?: React.ReactNode;
   /** Caption di BAWAH chart, digabung dgn legend (2026-08-22, koreksi user:
    * subtitle penjelasan chart & legend warna itu SAMA-SAMA legend, jangan
    * dipisah atas-bawah). */
@@ -53,8 +54,14 @@ interface Props {
   periodType?: PeriodGranularity;
 }
 
+// Tooltip custom (2026-08-24, task029.md §31, koreksi user: "ganti
+// sepenuhnya didalam tooltip cart, sekaligus perbaikan format tanggal") —
+// sebelumnya judul pakai formatPeriodLabelShort ("Sep 25", ok tapi beda
+// gaya dari M1/M2), chip "Klik untuk lihat detail" terpisah di header.
+// Sekarang pakai ChartTooltipCard (atomic, sama dgn M1/M2) — judul pakai
+// formatPeriodLabel penuh ("September 2025", konsisten M1/M2), hint klik
+// dipindah ke SINI (momen user sudah hover/tap titik chart).
 function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<number, string> & { periodType: PeriodGranularity }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
   const d = payload[0].payload as {
@@ -68,37 +75,42 @@ function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<n
   const withCount = (rate: number, count: number) => `${rate.toFixed(1)}% (${t('customerMetrics.m7.customerCountValue', { count: count.toLocaleString('id-ID') })})`;
 
   return (
-    <Box sx={{
-      bgcolor: 'background.paper',
-      border: `1px solid ${theme.palette.divider}`,
-      p: 1.5,
-      minWidth: 240,
-      fontSize: 12,
-    }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
-        {formatPeriodLabelShort(periodType, d.month)}
-      </Typography>
-      <Divider sx={{ mb: 1 }} />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Row label={t('customerMetrics.m7.seriesUp')} value={withCount(d.up_rate, d.up_count)} />
-        <Divider sx={{ my: 0.4 }} />
-        <Row label={t('customerMetrics.m7.seriesFlat')} value={withCount(d.flat_rate, d.flat_count)} />
-        <Row label={t('customerMetrics.m7.seriesDown')} value={withCount(d.down_rate, d.down_count)} />
-        <Row label={t('customerMetrics.m7.seriesInactive')} value={withCount(d.inactive_rate, d.inactive_count)} />
-      </Box>
-    </Box>
+    <ChartTooltipCard
+      title={t('customerMetrics.m7.tooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      minWidth={240}
+      rows={[
+        { label: t('customerMetrics.m7.seriesUp'), value: withCount(d.up_rate, d.up_count) },
+        { label: t('customerMetrics.m7.seriesFlat'), value: withCount(d.flat_rate, d.flat_count) },
+        { label: t('customerMetrics.m7.seriesDown'), value: withCount(d.down_rate, d.down_count) },
+        { label: t('customerMetrics.m7.seriesInactive'), value: withCount(d.inactive_rate, d.inactive_count) },
+      ]}
+      hint={t('customerMetrics.m7.chartClickHint')}
+    />
   );
 }
 
-export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitle, showHeader = true, caption, periodType = 'monthly' }: Props) {
+export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitle, showHeader = true, headerContent, caption, periodType = 'monthly' }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Potong periode kosong di AWAL (2026-08-24, bug dilaporkan user: "GAP
+  // terlalu besar" — screenshot granularitas Semester: 12 periode trailing
+  // mundur 6 tahun, tapi histori company baru ada ~1,5 tahun terakhir,
+  // sebagian besar periode paling awal existing_customers=0 total (belum
+  // ada data sama sekali) — chart horizontal tetap render SEMUA baris
+  // Y-axis kosong tanpa bar apa pun di atasnya, jadi "gap" raksasa. Potong
+  // dari periode PERTAMA yang benar-benar punya data, bukan tampilkan 12
+  // titik mentah apa adanya. Kalau SEMUA periode kosong (findIndex -1),
+  // biarkan array asli (fallback aman, tidak crash).
+  const firstDataIdx = trend.findIndex((p) => p.existing_customers > 0);
+  const trimmedTrend = firstDataIdx > 0 ? trend.slice(firstDataIdx) : trend;
 
   return (
     <BarChartWidget
       title={showHeader ? (title ?? t('customerMetrics.m7.chartTitle')) : undefined}
       subtitle={showHeader ? (subtitle ?? t('customerMetrics.m7.chartSubtitle')) : undefined}
+      headerContent={headerContent}
       caption={caption}
       // yAxisWidth diperkecil di mobile (2026-08-23, bug dilaporkan user:
       // "offside" — label bulan default 120px FIXED menyisakan terlalu
@@ -107,7 +119,7 @@ export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitl
       // bulan). Label bulan pendek ("Sep 25" dst, sudah lewat
       // formatPeriodLabelShort) muat di ~56px, sisanya dikasih ke bar.
       yAxisWidth={isMobile ? 56 : 120}
-      data={trend.map((point) => ({
+      data={trimmedTrend.map((point) => ({
         month: point.month,
         up_rate: point.up_rate,
         flat_rate: point.flat_rate,

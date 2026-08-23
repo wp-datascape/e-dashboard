@@ -102,6 +102,7 @@
     "chartTitle": "Customer Expansion Trend (12 Months)",
     "chartSubtitle": "Green = spending up · Grey = flat/down/no transaction (total = 100%)",
     "chartClickHint": "Click to see detail",
+    "tooltipTitle": "Customer Expansion — {{month}}",
     "seriesUp": "Spending Up",
     "seriesDown": "Spending Down",
     "seriesInactive": "No Transaction",
