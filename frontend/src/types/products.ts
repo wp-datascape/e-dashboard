@@ -222,6 +222,14 @@ export interface CustomerProductsParams {
   division?: number
   period_month?: string
   active_window?: number
+  // Rentang tanggal eksplisit, INKLUSIF kedua ujung — dipakai M1 heatmap
+  // drill-down (2026-08-22, bug: dialog dulu SELALU pakai active_window,
+  // tidak terkait filter granularitas Bulanan/Kuartalan/Semesteran/Tahunan
+  // di halaman) — kalau diisi, backend pakai INI, bukan period_month+
+  // active_window. UpsellCustomerDialog.tsx (Products High Margin) TETAP
+  // pakai period_month/active_window, TIDAK diubah.
+  period_start?: string
+  period_end?: string
   exclude_intercompany?: boolean
   page?: number
   per_page?: number

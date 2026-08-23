@@ -7,6 +7,7 @@
  * round-trip ke server tiap klik prev/next.
  */
 import type { AnalisisPeriodType } from '@/types/analisis'
+import type { ParetoPeriodType } from '@/types/paretoThresholds'
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
@@ -257,10 +258,115 @@ export function getPeriodDateRange(periodType: AnalisisPeriodType, periodKey: st
   }
 }
 
+/**
+ * Potong tanggal akhir periode ke HARI INI kalau `periodKey` yang diklik
+ * adalah periode SAAT INI yang masih berjalan (in-progress) — mirror
+ * `clampToElapsedEnd` backend (period.util.ts). Bug (2026-08-22, user:
+ * "data di pop up ... sumber atau filtering-nya tidak sama dengan data
+ * dalam tabel"): `getPeriodDateRange()` cuma kalkulator kalender murni
+ * (Agustus SELALU dianggap berakhir tgl 31, tidak tahu hari ini baru
+ * tgl berapa) — klik bar bulan berjalan (mis. Agustus, hari ini baru
+ * tgl 22) buka drill-down "per 31 Agustus" (9 hari ke MASA DEPAN),
+ * sementara tabel breakdown utama di halaman yang sama defaultnya "per
+ * hari ini". 2 sumber data yang seharusnya identik (sama-sama "periode
+ * berjalan saat ini") jadi query dengan `period_end` beda, hasilnya
+ * beda (window "previous" ikut bergeser, bukan cuma soal invoice masa
+ * depan yang kosong). Dipakai di onBarClick M2AvgCategory.tsx dan
+ * M7ExpansionGrowth.tsx — klik bar PERIODE LAMPAU (sudah tutup) TIDAK
+ * kena clamp ini (rawEnd-nya memang sudah <= hari ini secara alami).
+ */
+export function clampPeriodEndToToday(
+  periodType: AnalisisPeriodType,
+  periodKey: string,
+  rawEnd: string,
+  today: Date = new Date(),
+): string {
+  if (periodKey !== getCurrentPeriodKey(periodType, today)) return rawEnd
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  return rawEnd < todayStr ? rawEnd : todayStr
+}
+
+/**
+ * Potong tanggal akhir periode ke HARI KE-D (dihitung dari AWAL periode) —
+ * mirror `clampEndToDay` backend (period.util.ts, fix 2026-08-23: hari ke-D
+ * dari bulan AKHIR kalender itu salah utk granularitas non-bulanan, harus
+ * dari awal periode). Dipakai drill-down (klik titik chart) saat mode
+ * "Apply date cutoff" AKTIF — sebelumnya drill-down M7 cuma pakai
+ * `clampPeriodEndToToday` (elapsed clamp default), sama sekali tidak
+ * memperhitungkan cutoff_day, jadi popup-nya tetap tampil "s/d hari ini"
+ * walau toggle cutoff sudah aktif & filter tanggal lain di halaman sudah
+ * benar (bug dilaporkan user 2026-08-23).
+ */
+export function clampPeriodEndToDay(
+  periodType: AnalisisPeriodType,
+  periodKey: string,
+  periodStart: string,
+  periodEnd: string,
+  day: number,
+  today: Date = new Date(),
+): string {
+  const [y, m, d0] = periodStart.split('-').map(Number)
+  const candidate = new Date(y, m - 1, d0 + (day - 1))
+  const candidateStr = `${candidate.getFullYear()}-${pad2(candidate.getMonth() + 1)}-${pad2(candidate.getDate())}`
+  const clamped = candidateStr > periodEnd ? periodEnd : candidateStr
+  if (periodKey !== getCurrentPeriodKey(periodType, today)) return clamped
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  return clamped > todayStr ? todayStr : clamped
+}
+
 /** "1-30 Juni 2026" / "1 Jan - 31 Mar 2026" — rentang tanggal manusiawi. Semua tipe periode Analisis selalu dalam 1 tahun kalender, jadi tahun cukup ditulis sekali di akhir. */
 export function formatDateRange(range: PeriodDateRange): string {
   const [sy, sm, sd] = range.start.split('-').map(Number)
   const [, em, ed] = range.end.split('-').map(Number)
   if (sm === em) return `${sd}–${ed} ${MONTH_NAMES_ID[sm - 1]} ${sy}`
   return `${sd} ${MONTH_NAMES_ID[sm - 1]} – ${ed} ${MONTH_NAMES_ID[em - 1]} ${sy}`
+}
+
+/** Params yang WAJIB dikirim tiap fetch drilldown (klik-titik chart) ke
+ * backend — mirror `ResolveTrendPeriodParams` di backend `period.util.ts`.
+ * Dibuat SATU kali dari state filter halaman (bukan diturunkan ulang per
+ * hook) — lihat `buildDrilldownPeriodParams`. */
+export interface DrilldownPeriodParams {
+  // ParetoPeriodType (bukan AnalisisPeriodType) — 'ytd' TIDAK termasuk, sama
+  // seperti `crossSellingQuerySchema` backend (khusus Analisis/task016, tidak
+  // relevan buat KPI Growth/Retention/Value yang punya drilldown).
+  period_type: ParetoPeriodType
+  apply_date_cutoff: boolean
+  cutoff_day: number
+  skip_elapsed_clamp: true
+}
+
+/**
+ * SATU fungsi pusat yang merakit params drilldown dari state filter halaman
+ * — dipakai SEMUA hook drilldown (M2 `useCrossSellingDetail` sekarang, dan
+ * KPI lain berikutnya yang butuh pola serupa) lewat SATU pemanggilan, BUKAN
+ * tiap komponen halaman menurunkan `cutoff_day`/`skip_elapsed_clamp` sendiri²
+ * (2026-08-23, koreksi user: "filter ini fungsinya harus global... kalau
+ * [diturunkan ulang di tiap fungsi] akan rawan bug di metric KPI lainnya").
+ *
+ * `cutoff_day` SENGAJA diambil dari `pageriodEnd` (tanggal FILTER HALAMAN),
+ * BUKAN dari titik yang diklik user — drilldown mengirim `period_end`-nya
+ * sendiri (tanggal akhir bucket yang diklik, mis. akhir semester lalu),
+ * yang HARINYA beda dari hari filter halaman (mis. hari ini tgl 23) — kalau
+ * cutoff_day ikut dari titik yang diklik, "dipotong" ke hari ITU SENDIRI,
+ * tidak berefek apa pun (lihat komentar backend `resolveTrendPeriod`).
+ *
+ * `skip_elapsed_clamp` SELALU `true` — drilldown TIDAK PERNAH boleh ikut
+ * clamp otomatis default (`clampToElapsedEnd`, backend), walau `apply_date_
+ * cutoff` OFF — backend `resolveTrendPeriod` mengecek apply_date_cutoff
+ * LEBIH DULU (prioritas lebih tinggi), jadi flag ini aman selalu true, tidak
+ * menimpa toggle eksplisit user.
+ */
+export function buildDrilldownPeriodParams(
+  periodType: ParetoPeriodType,
+  pageriodEnd: string,
+  applyDateCutoff: boolean,
+): DrilldownPeriodParams {
+  const [, , d] = pageriodEnd.split('-').map(Number)
+  return {
+    period_type: periodType,
+    apply_date_cutoff: applyDateCutoff,
+    cutoff_day: d,
+    skip_elapsed_clamp: true,
+  }
 }

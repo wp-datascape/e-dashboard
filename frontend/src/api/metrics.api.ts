@@ -14,6 +14,14 @@ export const metricsApi = {
     // titik trend ke hari yang sama (bukan cuma titik yang sedang berjalan),
     // dipakai analisis mis. "20 hari pertama tiap bulan, 12 bulan terakhir".
     apply_date_cutoff?: boolean;
+    // Hari filter HALAMAN yang sebenarnya (2026-08-23) — WAJIB dikirim kalau
+    // apply_date_cutoff=true DAN request ini drilldown (period_end-nya bukan
+    // tanggal filter halaman, tapi tanggal akhir bucket yang diklik). Lihat
+    // komentar `useCrossSellingDetail`.
+    cutoff_day?: number;
+    // Bypass clampToElapsedEnd (2026-08-23) — dipakai `useCrossSellingDetail`
+    // (drilldown klik-titik), lihat komentar di sana.
+    skip_elapsed_clamp?: boolean;
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
@@ -27,6 +35,10 @@ export const metricsApi = {
     period_end?: string;
     // Granularitas trend (task029.md §30.9, 2026-08-22) — mirror getCrossSelling.
     period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    // apply_date_cutoff (2026-08-23) — sempat tidak pernah dikirim sama sekali
+    // dari sini, jadi toggle "Apply date cutoff" diabaikan total oleh M7
+    // walau backend-nya sudah siap terima param ini — mirror getCrossSelling.
+    apply_date_cutoff?: boolean;
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
@@ -51,7 +63,7 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getExpansionBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
+  getExpansionBreakdown: async (params: { period_end?: string; date_from?: string; period_type?: 'monthly' | 'quarter' | 'semester' | 'annual'; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
     const res = await api.get<ApiResponse<ExpansionBreakdownData>>('/metrics/expansion-breakdown', { params });
     return res.data.data;
   },

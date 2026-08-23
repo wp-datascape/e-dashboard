@@ -9,7 +9,7 @@ import { buildCompanyConditionRaw } from '@/utils/scope'
  * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
  */
 export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
-  const { cid, filterDate, activeMonths, division, companyScopeIds } = p
+  const { cid, filterDate, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
@@ -77,6 +77,17 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         (m.ms - INTERVAL '1 day')::date                                        AS prev_me,
         sc.first_date                                                           AS first_date,
         sc.dormant_threshold                                                    AS dormant_threshold,
+        -- "not new" (§30.10, 2026-08-23 — instruksi user "patokan ke
+        -- definisi terbaru") — Existing = first invoice SEBELUM AWAL
+        -- bucket kalender (m.ms), BUKAN activeMonths mundur dari me/prev_me
+        -- (formula lama, task028, punya bug off-by-one JUGA: pola sama
+        -- persis yang ditemukan & diperbaiki di m3m7.repository.ts existing/
+        -- new_cust CTE hari yang sama). Dihitung SEKALI di sini (bukan
+        -- diulang di 11 tempat FILTER di bawah) supaya 1 sumber kebenaran,
+        -- konsisten dgn cteEstablishedCustomers/cteExistingCustomersByPeriod
+        -- (segment.helper.ts).
+        (sc.first_date < m.ms)                                                  AS is_existing_at_me,
+        (sc.first_date < (m.ms - INTERVAL '1 month')::date)                     AS is_existing_at_prev_me,
         MAX(inv.invoice_date) FILTER (
           WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
                                          ${filterDate}::date)
@@ -97,17 +108,17 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
 
     SELECT
       TO_CHAR(month_start, 'YYYY-MM') AS month,
-      -- "not new" (koreksi user 2026-08-10) ditambah ke SEMUA filter di
-      -- bawah — first_date < me - activeMonths (utk metrik berbasis me)
-      -- atau < prev_me - activeMonths (utk metrik berbasis prev_me),
-      -- PERSIS pola cteEstablishedCustomers/existing CTE.
+      -- "not new" (§30.10, 2026-08-23) — pakai is_existing_at_me/
+      -- is_existing_at_prev_me yang sudah dihitung 1x di CTE cxm (bukan
+      -- activeMonths mundur dari me/prev_me lagi, formula lama task028
+      -- punya bug off-by-one, lihat komentar di CTE cxm).
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_me
       )::int                                                                     AS total_customers,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_me
           AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS dormant_count,
       -- Severity split (koreksi user 2026-08-10, "opsi A": 4 kartu Total/
@@ -122,50 +133,50 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
       -- sama, cuma sekarang ada pecahannya).
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_me
           AND last_at_me > me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS active_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_me
           AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
           AND last_at_me >  me - (dormant_threshold * 2) * INTERVAL '1 month'
       )::int                                                                     AS dormant_light_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
-          AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_me
           AND last_at_me <= me - (dormant_threshold * 2) * INTERVAL '1 month'
       )::int                                                                     AS dormant_severe_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
-            AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+            AND is_existing_at_me
             AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
-            AND first_date < me - ${activeMonths}::int * INTERVAL '1 month'
+            AND is_existing_at_me
         ), 0) * 100, 1
       )                                                                          AS dormant_rate,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
-          AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_prev_me
           AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS prev_dormant_count,
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
-          AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
+          AND is_existing_at_prev_me
           AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
           AND active_in_month = true
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
-            AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
+            AND is_existing_at_prev_me
             AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
             AND active_in_month = true
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_prev_me IS NOT NULL
-            AND first_date < prev_me - ${activeMonths}::int * INTERVAL '1 month'
+            AND is_existing_at_prev_me
             AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate

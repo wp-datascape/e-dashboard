@@ -33,6 +33,38 @@ const applyDateCutoffField = z
   .optional()
   .transform((v) => v === 'true')
 
+// Bypass clampToElapsedEnd (task029, 2026-08-23 — laporan user: klik titik
+// S2 2025 di chart trend M2, drilldown-nya kepotong ke "23-08-2025" padahal
+// "Apply date cutoff" TIDAK aktif). Root cause: clampToElapsedEnd (period.
+// util.ts) sengaja meng-clamp BUKAN cuma periode yang sedang berjalan, tapi
+// juga padanan YoY-nya (persis 1 tahun lalu) — supaya KpiHeader "current vs
+// YoY" apple-to-apple. Endpoint /metrics/cross-selling DIPAKAI ULANG utk 2
+// tujuan beda: (1) titik trend/KpiHeader YoY (MEMANG harus di-clamp), (2)
+// drilldown klik-titik user (endpoint sama, tapi harus SELALU periode penuh,
+// termasuk saat period_end yang diklik kebetulan = padanan YoY periode
+// berjalan). Backend tidak bisa membedakan 2 tujuan itu cuma dari
+// period_end/period_type, jadi caller (frontend, `useCrossSellingDetail`)
+// yang menandai eksplisit "ini drilldown, jangan clamp".
+const skipElapsedClampField = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true')
+
+// Referensi "hari ke berapa" utk mode apply_date_cutoff, KHUSUS drilldown
+// (task029, 2026-08-23 — susulan laporan user: centang "Apply date cutoff"
+// + tanggal filter hari ini, tapi drilldown klik-titik S2 2025 tetap tampil
+// "31 Desember", bukan kepotong ke hari yang sama). Root cause: mode ini
+// (clampEndToDay) selalu memotong ke "hari dari period_end REQUEST INI
+// SENDIRI" — utk fetch trend utama itu BENAR (period_end = tanggal filter
+// halaman, mis. hari ini tgl 23), tapi utk drilldown period_end SENGAJA
+// diisi tanggal AKHIR bucket yang diklik (mis. 2025-12-31, HARInya 31, BUKAN
+// hari filter halaman) — pakai hari itu apa adanya jadi "dipotong ke hari
+// 31" yang notabene = tanggal aslinya sendiri, TIDAK berefek sama sekali.
+// Field ini membawa hari filter halaman YANG SEBENARNYA secara terpisah,
+// dipakai HANYA kalau ada (fallback ke hari dari period_end kalau kosong,
+// behavior lama utk fetch trend utama tetap identik).
+const cutoffDayField = z.coerce.number().int().min(1).max(31).optional()
+
 export const crossSellingQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
@@ -41,6 +73,8 @@ export const crossSellingQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   period_type: periodTypeField,
   apply_date_cutoff: applyDateCutoffField,
+  cutoff_day: cutoffDayField,
+  skip_elapsed_clamp: skipElapsedClampField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
@@ -58,6 +92,23 @@ export const customerMetricsQuerySchema = z.object({
   // persis dgn crossSellingQuerySchema (M1/M2), default 'monthly' identik
   // dgn behavior lama kalau param ini tidak dikirim.
   period_type: periodTypeField,
+  // apply_date_cutoff/cutoff_day — field SAMA (bukan duplikat) dgn
+  // crossSellingQuerySchema, disediakan di sini juga supaya resolveTrendPeriod
+  // (period.util.ts, dipakai getCustomerMetrics) punya param yang sama
+  // lengkapnya dgn getCrossSellingMetrics — belum ada UI M3-M7 yang
+  // mengaktifkan mode ini saat ini, tapi kapabilitasnya global/siap pakai.
+  apply_date_cutoff: applyDateCutoffField,
+  cutoff_day: cutoffDayField,
+  // skip_elapsed_clamp (2026-08-23) — field SAMA (bukan duplikat) dgn
+  // crossSellingQuerySchema di atas, disediakan di sini juga supaya kalau
+  // M3-M7 nanti punya drilldown yang reuse getCustomerMetrics langsung
+  // (pola sama M2 reuse getCrossSellingMetrics), bug class "drilldown ikut
+  // ke-clamp" tidak terulang — belum ada caller yang set true saat ini
+  // (drilldown M3-M7 lewat endpoint breakdown terpisah yang tidak pernah
+  // panggil clampToElapsedEnd sama sekali), disiapkan lebih dulu di service
+  // layer (lihat getCustomerMetrics) supaya global, tidak perlu dikerjakan
+  // ulang tiap kali ada drilldown baru.
+  skip_elapsed_clamp: skipElapsedClampField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
@@ -95,6 +146,13 @@ export const expansionBreakdownQuerySchema = z.object({
   // resolveSegmentParams). Opsional, fallback ke activeMonths lama kalau
   // kosong (backward-compat).
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  // period_type (2026-08-23, koreksi user: "membandingkan 1-7 vs 26-31 itu
+  // makesense?" — jawaban TIDAK, window "sebelumnya" harus period-anchored
+  // (posisi relatif sama di periode sebelumnya), bukan rolling-window mundur
+  // dari date_from. Perlu granularitas supaya service tahu periode
+  // SEBELUMNYA yang mana — opsional, fallback rolling-window lama kalau
+  // kosong (caller lama blm wired, mis. M7Expansion.tsx workbench).
+  period_type: z.enum(['monthly', 'quarter', 'semester', 'annual']).optional(),
 })
 
 export type ExpansionBreakdownQuery = z.infer<typeof expansionBreakdownQuerySchema>
@@ -363,6 +421,17 @@ export const customerProductsQuerySchema = z.object({
     .optional()
     .default(currentMonth),
   active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  // Rentang tanggal eksplisit (2026-08-22, bug dilaporkan user: drill-down
+  // produk M1.1 heatmap pakai "Window N bulan terakhir" dari active_window
+  // (config existing-customer, TIDAK terkait filter granularitas halaman),
+  // padahal heatmap-nya sendiri sudah pakai rentang tanggal granularitas-
+  // aware. Kalau KEDUANYA diisi, service pakai period_start/period_end ini
+  // LANGSUNG (skip perhitungan period_month+active_window) — dipakai M1
+  // heatmap drill-down. Opsional, BUKAN pengganti period_month/active_window
+  // — UpsellCustomerDialog.tsx (fitur beda, Products High Margin) TETAP
+  // pakai period_month/active_window apa adanya, tidak disentuh.
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'period_start harus format YYYY-MM-DD').optional(),
+  period_end:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'period_end harus format YYYY-MM-DD').optional(),
   page:     z.coerce.number().int().positive().optional().default(1),
   per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
 })

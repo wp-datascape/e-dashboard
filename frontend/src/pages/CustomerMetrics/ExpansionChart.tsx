@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TooltipContentProps } from 'recharts';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
@@ -10,42 +10,42 @@ import { formatPeriodLabelShort } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 import { Row } from './HelperComponents';
 
-// Chart diverging (2026-08-21, koreksi user: "ganti jadi positif negatif bar
-// chart") — dulu horizontal 100% stacked (up_rate + flat_down_rate, sisi
-// kanan selalu penuh 100%, sulit lihat SEBERAPA BESAR yang turun karena
-// dominan warna abu netral). Sekarang bar vertikal per bulan yang menjulur
-// DUA ARAH dari garis 0: up_rate ke atas, down_rate ke BAWAH — dibedakan
-// lewat intensitas warna monokrom (primary solid vs tint), bukan hijau/merah
-// (koreksi user ke-2).
+// Dikembalikan ke pola chart production/main (2026-08-23, instruksi user:
+// "rubah cart ke refrensi cart di production... cek di branch main") — bar
+// horizontal 100% stacked per bulan, hijau = up_rate, abu = sisanya, PERSIS
+// `M7Expansion.tsx` di main (`layout="horizontal"`, `stacked`, warna
+// `theme.palette.success.main`/`action.disabledBackground`). Sesi lokal ini
+// SEMPAT diubah ke bar vertikal diverging (lihat riwayat git kalau perlu
+// arsipnya) — REVERT total ke bentuk production, BUKAN cuma restyle warna.
 //
-// Susulan (sama hari): sempat dicoba flat_rate+inactive_rate ikut jadi
-// SEGMEN VISUAL (stack 4 kategori) — user balik minta disederhanakan lagi:
-// "buat negatif chart hanya untuk data up dan down saja, tapi data flat
-// dan inactive tampilkan dalam tooltip". Chart SEMPAT cuma 2 segmen
-// (up_rate positif, down_rate negatif) — flat_rate/inactive_rate TETAP ada
-// di `data` (dibaca tooltip custom lewat payload penuh), cuma TIDAK
-// jadi <Bar> sendiri. Pola sama persis M3Revenue.tsx (`M3Tooltip`,
-// `renderTooltip` + `TooltipContentProps`, baca `payload[0].payload` utk
-// akses field yang tidak di-render sbg bar).
-//
-// Susulan lanjutan (2026-08-22, koreksi user: "chart tidak valid, karena
-// menampilkan data tidak 100%... jumlah keseluruhan harus 100%") — sisi
-// naik+turun SAJA cuma sebagian kecil dari populasi existing (mis. Agustus
-// naik 1.7% + turun 8.1% = 9.8%, sisanya 90.2% stabil+nonaktif TIDAK
-// kelihatan sama sekali di chart). Diputuskan via AskUserQuestion: sisi
-// positif TETAP murni `up_rate` saja, tapi sisi negatif digabung jadi
-// `-(flat_rate + down_rate + inactive_rate)` — supaya TINGGI KESELURUHAN
-// bar (atas+bawah) selalu = 100% dari existing customers, TETAP cuma 2
-// warna (bukan 4 segmen kembali), breakdown flat/turun/nonaktif di dalam
-// sisi negatif itu tetap dijelaskan lewat tooltip (Row per kategori, sudah
-// ada) + kolom status 4-way di tabel breakdown (`expansionHelpers.tsx`,
-// tidak berubah — sudah py Naik/Stabil/Turun/Nonaktif per customer).
+// Yang TETAP dipertahankan dari iterasi lokal (bukan bagian yang direvert,
+// genuinely perbaikan data yang independen dari bentuk chart):
+// - `not_up` = flat_rate + down_rate + inactive_rate digabung (bukan cuma
+//   `flat_down_rate` seperti main — field itu sendiri sudah tidak ada lagi
+//   di data model, sudah dipecah jadi 3 kategori terpisah sejak perbaikan
+//   "inactive_rate ikut dikurangi" hari yang sama) — SEKARANG POSITIF lagi
+//   (bukan negatif, tidak perlu lagi krn chart tidak diverging).
+// - Tooltip custom (`ExpansionTooltip`) yang merinci flat/turun/nonaktif +
+//   jumlah customer mentah per kategori — main cuma tampilkan tooltip
+//   default `[up_rate%, flat_down_rate%]`, versi ini lebih informatif tanpa
+//   mengubah bentuk chart-nya.
+// - `xAxisFormatter`/`periodType` (granularitas Bulanan/Kuartal/Semester/
+//   Tahun) — main hardcode bulanan, halaman Growth sudah py filter ini.
 interface Props {
   trend: CustomerMetricsTrendPoint[];
   height?: number;
   onBarClick?: (dataPoint: Record<string, unknown>) => void;
   title?: string;
   subtitle?: string;
+  /** false = sembunyikan title+subtitle bawaan chart (2026-08-22, koreksi
+   * user: judul chart ini redundan kalau caller sudah punya judul card di
+   * luar, mis. M7 unified card §30.23). Default true (perilaku lama,
+   * dipakai M7Expansion.tsx workbench). */
+  showHeader?: boolean;
+  /** Caption di BAWAH chart, digabung dgn legend (2026-08-22, koreksi user:
+   * subtitle penjelasan chart & legend warna itu SAMA-SAMA legend, jangan
+   * dipisah atas-bawah). */
+  caption?: string;
   /** Granularitas trend (task029.md §30.9, 2026-08-22) — default 'monthly',
    * dipakai buat format label sumbu-X & tooltip (bukan cuma "YYYY-MM" lagi,
    * bisa "2026-Q3"/"2026-S1"/"2026"). */
@@ -58,7 +58,7 @@ function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<n
   if (!active || !payload?.[0]) return null;
   const d = payload[0].payload as {
     month: string;
-    up_rate: number; flat_rate: number; down_rate: number; not_up_neg: number; inactive_rate: number;
+    up_rate: number; flat_rate: number; down_rate: number; not_up: number; inactive_rate: number;
     up_count: number; flat_count: number; down_count: number; inactive_count: number;
   };
   // "{{count}} customer" (2026-08-22, user: "Aku butuh data jumlah nya
@@ -89,14 +89,15 @@ function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<n
   );
 }
 
-export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitle, periodType = 'monthly' }: Props) {
+export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitle, showHeader = true, caption, periodType = 'monthly' }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
 
   return (
     <BarChartWidget
-      title={title ?? t('customerMetrics.m7.chartTitle')}
-      subtitle={subtitle ?? t('customerMetrics.m7.chartSubtitle')}
+      title={showHeader ? (title ?? t('customerMetrics.m7.chartTitle')) : undefined}
+      subtitle={showHeader ? (subtitle ?? t('customerMetrics.m7.chartSubtitle')) : undefined}
+      caption={caption}
       data={trend.map((point) => ({
         month: point.month,
         up_rate: point.up_rate,
@@ -107,38 +108,47 @@ export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitl
         flat_count: point.flat_count,
         down_count: point.down_count,
         inactive_count: point.inactive_count,
-        // Sisi negatif = SEMUA yang bukan "naik" (stabil+turun+nonaktif)
-        // digabung — supaya tinggi total bar (atas+bawah) = 100% dari
-        // existing customers, tetap cuma 2 warna. Rincian per kategori
-        // tetap dibaca via tooltip (payload penuh, field di atas).
-        not_up_neg: -((point.flat_rate ?? 0) + (point.down_rate ?? 0) + (point.inactive_rate ?? 0)),
+        // Pengganti `flat_down_rate` (main) — sekarang 3 kategori terpisah
+        // digabung jadi 1 nilai visual, rinciannya tetap ada di tooltip.
+        not_up: (point.flat_rate ?? 0) + (point.down_rate ?? 0) + (point.inactive_rate ?? 0),
       }))}
       series={[
+        { key: 'up_rate', label: t('customerMetrics.m7.seriesUp'), color: theme.palette.success.main },
         {
-          key: 'up_rate', label: t('customerMetrics.m7.seriesUp'),
-          color: theme.palette.primary.main,
-          labelColor: theme.palette.getContrastText(theme.palette.primary.main),
-        },
-        {
-          key: 'not_up_neg', label: t('customerMetrics.m7.seriesNotUp'),
-          color: alpha(theme.palette.primary.main, 0.35),
-          labelColor: theme.palette.text.primary,
+          key: 'not_up', label: t('customerMetrics.m7.seriesNotUp'),
+          // Abu-abu gelap di mode terang / abu-abu terang di mode gelap
+          // (2026-08-23, koreksi user) — `action.disabledBackground` (dulu)
+          // terlalu pucat/nyaris tak kelihatan sbg segmen chart (memang
+          // didesain SUBTLE utk background tombol disabled, bukan utk warna
+          // chart). `labelColor` TIDAK di-override lagi — biar default
+          // getContrastText(color) yang otomatis pilih teks putih/gelap
+          // sesuai kontras warna abu yang dipakai, bukan text.primary tetap
+          // (yang jadi tidak kebaca begitu bar-nya digelapkan di mode terang).
+          color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[600],
         },
       ]}
       xKey="month"
       height={height}
       stacked
-      showZeroLine
+      layout="horizontal"
+      // xDomainMax=100 (bukan default 'auto') — data ini 100%-stacked
+      // (up_rate + not_up = 100), sumbu harus berhenti PERSIS di 100 sama
+      // seperti referensi production, bukan "dibulatkan" recharts ke 120.
+      xDomainMax={100}
+      // xAxisTicks kelipatan 10 (2026-08-23, koreksi user: "buat kelipatan
+      // 10 agar lebih jelas") — bukan lagi tick otomatis recharts yang bisa
+      // ganjil (mis. 0/30/60/90/100).
+      xAxisTicks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
       xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-      yAxisFormatter={(v) => `${v}%`}
+      yAxisFormatter={(v) => `${Math.round(v)}%`}
       showLabels
-      // labelMinValue=0 (2026-08-21, koreksi user: "ada angka yang hilang di
-      // beberapa chart yang pendek") — default BarChartWidget nyembunyiin
-      // label di bar < 5 (biar tidak numpuk), tapi di chart diverging ini
-      // bar PENDEK justru paling butuh angkanya kebaca (visualnya kecil,
-      // susah ditaksir dari tinggi bar doang).
-      labelMinValue={0}
-      labelFormatter={(v) => `${Math.abs(v).toFixed(1)}%`}
+      // labelMinValue TIDAK di-override lagi (2026-08-23, koreksi user:
+      // "sembunyikan seperti production") — dulu di-paksa 0 supaya label kecil
+      // (mis. up_rate 1.7%) tetap dirender, tapi label yang dipaksa muat di
+      // segmen super tipis itu malah kepotong/tertutup segmen tetangga (jadi
+      // "1.7%" kelihatan cuma "7%"). Pakai default BarChartWidget (5) — sama
+      // persis production, angka di bawah threshold cukup disembunyikan.
+      labelFormatter={(v) => `${v.toFixed(1)}%`}
       renderTooltip={(props) => <ExpansionTooltip {...props} periodType={periodType} />}
       onBarClick={onBarClick}
     />

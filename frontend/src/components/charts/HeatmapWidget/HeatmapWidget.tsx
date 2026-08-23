@@ -28,6 +28,13 @@ export interface HeatmapWidgetProps {
   // Pelanggan" + helper text periode di atasnya).
   title?: string;
   subtitle?: string;
+  /** Konten arbitrer di ATAS matrix, DI DALAM Card widget ini (2026-08-22,
+   * instruksi user: "pindahkan ini sebagai judul card seperti diatas" —
+   * pola SAMA PERSIS `ComboChartWidget.tsx`'s `headerContent`, dipakai M1
+   * krn header lama — SectionLabel+helper text+chip — perlu StatusChip
+   * di sampingnya, TIDAK bisa direpresentasikan `title`/`subtitle` string
+   * biasa). Kalau diisi, MENGGANTIKAN render title/subtitle bawaan. */
+  headerContent?: React.ReactNode;
   xLabels: string[];
   data: HeatmapRow[];
   /** Klik sel yang sudah ada transaksi (bought) — untuk drill-down detail produk */
@@ -279,7 +286,7 @@ function DesktopHeatmapView({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export const HeatmapWidget = ({ title, subtitle, xLabels, data, onCellClick, icon: Icon }: HeatmapWidgetProps) => {
+export const HeatmapWidget = ({ title, subtitle, headerContent, xLabels, data, onCellClick, icon: Icon }: HeatmapWidgetProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -288,7 +295,9 @@ export const HeatmapWidget = ({ title, subtitle, xLabels, data, onCellClick, ico
     <Card sx={{ p: 2 }}>
       {/* Header — title/subtitle keduanya opsional (2026-08-21, koreksi user:
           tampilan sesak, dobel dgn SectionLabel+helper text di luar widget). */}
-      {(title || subtitle) && (
+      {headerContent ? (
+        <Box sx={{ mb: 2 }}>{headerContent}</Box>
+      ) : (title || subtitle) && (
         <Box sx={{ mb: 2 }}>
           {title && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

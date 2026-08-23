@@ -11,6 +11,7 @@ import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercomp
 import { DatePicker } from '@/components/ui/DatePicker';
 import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { todayIsoDate as todayIsoDateCm } from '../CustomerMetrics/helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M6RepeatOrder } from '../CustomerMetrics/M6RepeatOrder';
 import { M8DormantRate } from '../DormantCustomer/M8DormantRate';
 import { M9DormantValue } from '../DormantCustomer/M9DormantValue';
@@ -77,7 +78,8 @@ export default function Retention() {
           <DatePicker
             size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
+            onChange={(e) => setPeriodEnd(clampDateNotFuture(e.target.value, todayIsoDateCm()))}
+            max={todayIsoDateCm()}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />

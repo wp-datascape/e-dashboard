@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -7,8 +6,6 @@ import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Typography from '@mui/material/Typography';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useTranslation } from 'react-i18next';
@@ -25,62 +22,43 @@ import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { PeriodTypeFilterFields } from '@/components/filters/PeriodTypeFilterFields';
 import { usePeriodTypeFilter } from '@/hooks/usePeriodTypeFilter';
 import { todayStr } from '../CrossSelling/helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M1CrossSelling } from '../CrossSelling/M1CrossSelling';
 import { M2AvgCategory } from '../CrossSelling/M2AvgCategory';
 import { M7ExpansionGrowth } from '../CustomerMetrics/M7ExpansionGrowth';
 
-// Growth (task029.md §2, §8-10, §29): M1 Cross Selling, M2 Average Product
-// Category, M7 Customer Expansion Rate — sekarang tab per-KPI (§29, ide
-// user 2026-08-19), BUKAN ditumpuk vertikal seperti sebelumnya. Cuma 1 blok
-// KPI dirender sekaligus (KPI non-aktif unmount total, bukan display:none)
-// biar tidak fetch data yang tidak sedang dilihat.
+// Growth (task029.md §2, §8-10, §29 lalu §30.19): M1 Cross Selling, M2
+// Average Product Category, M7 Customer Expansion Rate.
+//
+// 2026-08-22 (koreksi keras user: "kembalikan ke kondisi UI awal", "buatkan
+// halaman khusus tabel, terlalu kotor jika chart digabung dengan tabel") —
+// tab luar per-KPI (§29, dipasang 2026-08-19) DIHAPUS, dikembalikan ke pola
+// DITUMPUK VERTIKAL (sama seperti Retention/index.tsx & Value/index.tsx —
+// referensi eksplisit user), SEMUA KPI yang permission-nya dimiliki user
+// dirender sekaligus, bukan 1 KPI aktif via tab. Tabel breakdown (dulu
+// nempel permanen di tab "Trend Analysis" tiap KPI) DIPINDAH ke halaman
+// baru terpisah, `pages/Report/Growth/index.tsx` (menu "Laporan" > "Growth",
+// lihat menu.tsx) — bukan dihapus, lihat task029.md §30.19.
 //
 // Reuse LANGSUNG komponen chart yang SUDAH ADA (M1CrossSelling/M2AvgCategory
 // dari CrossSelling/, M7Expansion dari CustomerMetrics/ — masing-masing
-// sudah chart detail + tooltip + drill-down/breakdown sendiri), BUKAN bikin
-// chart baru dari data ringkas /dashboard (percobaan pertama yang salah,
-// 2026-08-19 — koreksi user: chart lama sudah ada, jangan dibuat ulang versi
-// simpel). M1/M2 dan M7 datang dari 2 hook berbeda (useCrossSelling vs
+// sudah chart detail + tooltip + drill-down sendiri), BUKAN bikin chart baru
+// dari data ringkas /dashboard (percobaan pertama yang salah, 2026-08-19 —
+// koreksi user: chart lama sudah ada, jangan dibuat ulang versi simpel).
+// M1/M2 dan M7 datang dari 2 hook berbeda (useCrossSelling vs
 // useCustomerMetrics, mengikuti sumber data asli masing-masing di halaman
 // lamanya) — TIDAK dipaksa jadi 1 fetch.
 //
 // Permission per-KPI (2026-08-19, perbaikan temuan routeConstants.tsx):
 // route ini digate growth:view, TAPI M1/M2 & M7 masing-masing tetap dicek
-// independen oleh cross.selling:view/expansion:view di endpoint aslinya.
-// Tab KPI yang permission-nya tidak dimiliki user TIDAK ditampilkan sama
-// sekali (bukan tab kosong + NoSectionAccess) — kalau user tidak punya
-// akses ke satupun, baru tampil NoSectionAccess menggantikan tab bar.
-type GrowthKpiKey = 'cross_selling_ratio' | 'avg_category' | 'expansion_rate';
-
+// independen oleh cross.selling:view/expansion:view di endpoint aslinya —
+// section yang permission-nya tidak dimiliki diganti `NoSectionAccess`
+// (pola sama persis Retention/index.tsx), bukan disembunyikan total.
 export default function Growth() {
   const { t } = useTranslation();
   const can = useCan();
   const canCrossSelling = can('cross.selling:view');
   const canExpansion = can('expansion:view');
-
-  // metric_key dipakai apa adanya sbg value tab & query param `kpi` — sama
-  // dengan METRIC_LABEL_KEYS (metricFormat.ts) & metric.link dari backend,
-  // biar nanti kartu Overview bisa deep-link langsung ke sini tanpa mapping
-  // tambahan (§29.3).
-  const availableKpis: GrowthKpiKey[] = [
-    ...(canCrossSelling ? (['cross_selling_ratio', 'avg_category'] as const) : []),
-    ...(canExpansion ? (['expansion_rate'] as const) : []),
-  ];
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedKpi = searchParams.get('kpi');
-  const activeKpi: GrowthKpiKey | null =
-    requestedKpi && availableKpis.includes(requestedKpi as GrowthKpiKey)
-      ? (requestedKpi as GrowthKpiKey)
-      : (availableKpis[0] ?? null);
-
-  const handleTabChange = (_: React.SyntheticEvent, value: GrowthKpiKey) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('kpi', value);
-      return next;
-    }, { replace: true });
-  };
 
   // ─── Filter: quick (auto-apply) vs advanced (staged/draft) — 2026-08-20 ────
   // Koreksi user: quick filter (Entitas+Periode) sempat ikut staged, jadi
@@ -163,28 +141,45 @@ export default function Growth() {
     setOnlyPareto(draftOnlyPareto);
   };
 
-  // "Reset Filter" (2026-08-20) — Entitas & Periode (auto-apply) di-reset
-  // LANGSUNG ke default (konsisten dengan sifatnya yang instan, bukan
-  // nunggu Terapkan). Cabang/Divisi/Granularitas/toggle di panel lanjutan
-  // cuma reset DRAFT-nya — user tetap harus klik "Terapkan Filter" sendiri
-  // kalau memang mau default itu benar-benar dipakai ke chart.
+  // "Reset Filter" — SEMUA field (termasuk Cabang/Divisi/Granularitas/
+  // toggle di panel lanjutan) di-reset LANGSUNG ke default, applied DAN
+  // draft sekaligus.
+  //
+  // Susulan (2026-08-22, bug ditemukan user: "reset filter hanya
+  // mengembalikan filter ke kondisi semula, tapi tidak dengan filter
+  // data nya — contoh filter semester, reset, combo box kembali bulanan
+  // tapi data chart masih semester") — sebelumnya cuma DRAFT
+  // (`draftPeriodTypeFilter`/`draftScopeFilter.excludeIntercompany`) yang
+  // direset, applied state (`periodTypeFilter`/`scopeFilter.
+  // excludeIntercompany`, yang beneran dipakai fetch data) TIDAK ikut
+  // — combo box kelihatan reset (baca draft) tapi chart masih pakai
+  // granularitas lama sampai user klik "Terapkan Filter" lagi sendiri,
+  // padahal tombol Reset seharusnya langsung berlaku, bukan perlu 2
+  // langkah. Sekarang applied DAN draft direset bareng utk SEMUA field.
   const handleResetFilter = () => {
     scopeFilter.setCompanyId('all');
     draftScopeFilter.setCompanyId('all');
     setPeriodEnd(todayStr());
+    scopeFilter.setExcludeIntercompany(false);
     draftScopeFilter.setExcludeIntercompany(false);
+    periodTypeFilter.setPeriodType('monthly');
     draftPeriodTypeFilter.setPeriodType('monthly');
+    setOnlyPareto(false);
     setDraftOnlyPareto(false);
+    // Susulan (2026-08-22, instruksi user: "tombol reset tambahkan fungsi
+    // tutup field filter lanjutan") — panel Filter Lanjutan ikut ditutup
+    // begitu Reset diklik, bukan cuma isinya yang balik default.
+    setAdvancedOpen(false);
   };
 
   const resolvedBranchId = branchId === 'all' ? undefined : branchId;
   const resolvedDivision = division || undefined;
 
-  // M1 & M2 pakai data yang sama (useCrossSelling) — fetch sekali kalau
-  // salah satu dari 2 tab itu aktif, bukan re-fetch tiap pindah M1<->M2.
-  const needsCsData = activeKpi === 'cross_selling_ratio' || activeKpi === 'avg_category';
-  const needsCmData = activeKpi === 'expansion_rate';
-
+  // M1 & M2 pakai data yang sama (useCrossSelling), M7 pakai useCustomerMetrics
+  // — SEMUA di-fetch sekaligus begitu halaman dibuka (bukan lagi lazy per-tab
+  // aktif, sejak tab luar dihapus §30.19), masing-masing tetap `enabled` oleh
+  // permission-nya sendiri (canCrossSelling/canExpansion), bukan dipaksa fetch
+  // kalau user memang tidak punya akses.
   const { data: csData, isLoading: csLoading } = useCrossSelling({
     company_id: companyId,
     branch_id: resolvedBranchId,
@@ -193,64 +188,46 @@ export default function Growth() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
-  }, { enabled: needsCsData });
+  }, { enabled: canCrossSelling });
 
   const { data: cmData, isLoading: cmLoading } = useCustomerMetrics({
     company_id: companyId,
     branch_id: resolvedBranchId,
     period_end: periodEnd,
     period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
-  }, { enabled: needsCmData });
+  }, { enabled: canExpansion });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Urutan (2026-08-20, instruksi user): Judul -> Tab KPI -> Filter -> konten
-          KPI aktif. Tab dinaikkan langsung di bawah judul (bukan di bawah
-          filter seperti sebelumnya), filter dipindah ke bawah tab bar supaya
-          terlihat "milik" tab yang sedang aktif (walau state filter-nya tetap
-          1, dipakai bareng semua tab — cuma soal penempatan visual). */}
-      <Typography variant="pageTitle">{t('nav.groups.growth')}</Typography>
+      {/* Susulan (2026-08-22, instruksi user: "pindah filter ke sebelah
+          kanan sejajar dengan judul halaman") — judul + filter cepat
+          (Entitas/Periode/Apply date cutoff/Advanced Filters) DIGABUNG 1
+          baris (`justifyContent:'space-between'`, judul kiri filter
+          kanan, stack ke kolom di mobile) — pola SAMA PERSIS
+          Retention/index.tsx & Value/index.tsx (yang sudah begini dari
+          awal), Growth sebelumnya beda sendiri (judul baris terpisah di
+          atas filter). */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-start' },
+        justifyContent: 'space-between',
+        gap: 2,
+      }}>
+        <Typography variant="pageTitle">{t('nav.groups.growth')}</Typography>
 
-      {activeKpi === null ? (
-        <NoSectionAccess />
-      ) : (
-        <>
-          {/* Tab bar level halaman — 1 tab = 1 KPI (§29). variant="fullWidth"
-              (2026-08-20, instruksi user: "grid col 3 agar sama lebar") — tiap
-              tab dapat lebar sama rata mengisi baris, bukan scrollable
-              menyesuaikan panjang teks (yang bikin tab ke-3 sempat kepotong
-              di mobile). sx eksplisit sama dengan tab Analysis/Breakdown di
-              dalam tiap KPI (M1CrossSelling.tsx): cuma underline indicator
-              standar, TANPA fill/background di tab aktif. */}
-          <Tabs
-            value={activeKpi}
-            onChange={handleTabChange}
-            variant="fullWidth"
-            sx={{
-              borderBottom: 1,
-              borderColor: 'divider',
-              '& .MuiTab-root': { bgcolor: 'transparent', textTransform: 'none' },
-              '& .MuiTab-root.Mui-selected': { bgcolor: 'transparent' },
-            }}
-          >
-            {/* Label tab pakai varian Short (metrics.json) — 2026-08-20, koreksi
-                user: label penuh ("Tingkat Ekspansi Pelanggan" dkk) kepanjangan,
-                tab ke-3 sampai tidak kelihatan di scrollable tab bar mobile. */}
-            {canCrossSelling && <Tab value="cross_selling_ratio" label={t('metrics.crossSellingShort')} />}
-            {canCrossSelling && <Tab value="avg_category" label={t('metrics.avgCategoryShort')} />}
-            {canExpansion && <Tab value="expansion_rate" label={t('metrics.expansionShort')} />}
-          </Tabs>
-
-          {/* Filter — di bawah tab bar, tampil di setiap tab KPI. Quick bar
-              (Entitas + Periode) SELALU tampil, AUTO-APPLY (2026-08-20,
+        {(canCrossSelling || canExpansion) && (
+          /* Filter — SATU instance dipakai bareng semua section KPI di bawah
+              (pola sama Retention/Value, bukan lagi "milik" 1 tab aktif sejak
               koreksi user: quick filter sempat tidak berfungsi sebelum klik
               Terapkan — sekarang langsung memicu fetch data begitu diganti).
               Cabang/Divisi/Granularitas + toggle + tombol Terapkan/Reset ada
               di DALAM panel Filter Lanjutan, tetap staged (draft) sampai
-              tombol diklik. */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+              tombol diklik. */
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, width: { xs: '100%', sm: 'auto' } }}>
             <ScopeFilterFields filter={quickScopeFilter} fields={['entity']} />
             {/* type switch month<->date (instruksi user 2026-08-20) — value
                 selalu dikonversi dari/ke periodEnd ('YYYY-MM-DD' penuh, SSOT).
@@ -260,7 +237,18 @@ export default function Growth() {
               size="small" label={t('common.filters.periodDate')}
               type={applyDateCutoff ? 'date' : 'month'}
               value={applyDateCutoff ? periodEnd : periodEnd.slice(0, 7)}
-              onChange={(e) => setPeriodEnd(applyDateCutoff ? e.target.value : `${e.target.value}-01`)}
+              onChange={(e) => {
+                // clampDateNotFuture (utils/date.ts) — clamp jaga-jaga thd
+                // ketik manual > max DAN tombol clear bawaan browser (value
+                // kosong, 2026-08-23 laporan user: clear bikin fetch error,
+                // seharusnya reset ke hari ini bukan kosong).
+                const maxRaw = applyDateCutoff ? todayStr() : todayStr().slice(0, 7);
+                const picked = clampDateNotFuture(e.target.value, maxRaw);
+                setPeriodEnd(applyDateCutoff ? picked : `${picked}-01`);
+              }}
+              // max = hari ini — format ikut `type` aktif ('YYYY-MM-DD' mode
+              // date, 'YYYY-MM' mode month, keduanya dari 1 sumber `todayStr()`).
+              max={applyDateCutoff ? todayStr() : todayStr().slice(0, 7)}
               sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }}
             />
             <FormControlLabel
@@ -268,7 +256,19 @@ export default function Growth() {
                 <Checkbox
                   size="small"
                   checked={applyDateCutoff}
-                  onChange={(e) => setApplyDateCutoff(e.target.checked)}
+                  onChange={(e) => {
+                    // Normalisasi periodEnd ke awal bulan saat toggle DIMATIKAN
+                    // (2026-08-23, bug ditemukan: hari-nya tersisa dari waktu
+                    // toggle masih AKTIF, mis. "2026-08-05" — picker mode bulan
+                    // cuma nampilkan "Agustus 2026" jadi kelihatan benar, tapi
+                    // value asli masih "05", dipakai APA ADANYA oleh komponen
+                    // yang menampilkan tanggal mentah tanpa lewat clamp backend
+                    // spt M7ExpansionGrowth, jadi kartunya tampil "s/d 05-08-2026"
+                    // padahal M1/M2 benar "23-08-2026" krn baca period.end HASIL
+                    // clamp backend, bukan periodEnd mentah).
+                    setApplyDateCutoff(e.target.checked);
+                    if (!e.target.checked) setPeriodEnd(`${periodEnd.slice(0, 7)}-01`);
+                  }}
                 />
               }
               label={t('common.filters.applyDateCutoff')}
@@ -284,12 +284,22 @@ export default function Growth() {
               {t('common.filters.advancedFilters')}
             </Button>
           </Box>
+        )}
+      </Box>
 
+      {!canCrossSelling && !canExpansion ? (
+        <NoSectionAccess />
+      ) : (
+        <>
           {/* Collapse (bukan cuma conditional render) — animasi slide
               buka/tutup panel, termasuk baris tombol di dalamnya, sesuai
               instruksi user ("smooth animation untuk appearance button"). */}
           <Collapse in={advancedOpen}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+            {/* borderRadius dihapus (2026-08-22, koreksi user: "filter
+                lanjutan jangan rounded, semua layout di aplikasi ini
+                tidak ada yang rounded") — konsisten dgn atomic `Card`
+                (square:true, sudut tegas di semua tempat lain). */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, border: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
                 <ScopeFilterFields filter={draftScopeFilter} fields={['branch', 'division']} />
                 {/* showDateField=false — Tanggal cukup dari Periode di quick bar,
@@ -319,7 +329,7 @@ export default function Growth() {
                 <Button
                   variant="contained"
                   onClick={handleApplyFilter}
-                  loading={needsCsData ? csLoading : cmLoading}
+                  loading={csLoading || cmLoading}
                   sx={{ width: { xs: '100%', sm: 'auto' } }}
                 >
                   {t('common.filters.applyFilter')}
@@ -328,7 +338,10 @@ export default function Growth() {
             </Box>
           </Collapse>
 
-          {activeKpi === 'cross_selling_ratio' && (
+          {/* Ditumpuk vertikal (§30.19, koreksi user 2026-08-22) — SEMUA KPI
+              yang permission-nya dimiliki dirender sekaligus, pola sama
+              persis Retention/index.tsx & Value/index.tsx. */}
+          {canCrossSelling ? (
             <M1CrossSelling
               data={csData}
               isLoading={csLoading}
@@ -340,9 +353,11 @@ export default function Growth() {
               applyDateCutoff={applyDateCutoff}
               excludeIntercompany={excludeIntercompany}
             />
+          ) : (
+            <NoSectionAccess />
           )}
 
-          {activeKpi === 'avg_category' && (
+          {canCrossSelling ? (
             <M2AvgCategory
               data={csData}
               isLoading={csLoading}
@@ -354,9 +369,11 @@ export default function Growth() {
               applyDateCutoff={applyDateCutoff}
               excludeIntercompany={excludeIntercompany}
             />
+          ) : (
+            <NoSectionAccess />
           )}
 
-          {activeKpi === 'expansion_rate' && (
+          {canExpansion ? (
             <M7ExpansionGrowth
               trend={cmData?.trend ?? []}
               isLoading={cmLoading}
@@ -364,9 +381,18 @@ export default function Growth() {
               branchId={resolvedBranchId}
               division={resolvedDivision}
               periodEnd={periodEnd}
+              // resolvedPeriodEnd (2026-08-23) — tanggal akhir SETELAH
+              // resolveTrendPeriod di backend (elapsed-clamp/apply_date_cutoff),
+              // BUKAN periodEnd mentah dari filter halaman — dipakai kartu
+              // "Existing Customer" supaya konsisten dgn M1/M2 yang baca
+              // data.period.end (backend), bukan echo state filter apa adanya.
+              resolvedPeriodEnd={cmData?.period.end ?? periodEnd}
+              applyDateCutoff={applyDateCutoff}
               periodType={periodTypeFilter.periodType}
               excludeIntercompany={excludeIntercompany}
             />
+          ) : (
+            <NoSectionAccess />
           )}
         </>
       )}

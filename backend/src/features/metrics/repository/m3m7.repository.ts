@@ -74,7 +74,7 @@ export type TrendRow = {
  *    semester/tahun (baru, belum pernah ada).
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
-  const { cid, activeMonths, division, companyScopeIds } = p
+  const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
 
@@ -158,16 +158,23 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       CROSS JOIN buckets b
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-        -- not new: first invoice sebelum ambang activeMonths, di-anchor ke
-        -- AWAL bucket (bukan akhir spt versi lama) — date_trunc-anchored,
-        -- kalender-benar (bug off-by-one lama diperbaiki sekalian, pola
-        -- sama fix M1 §30.7). Baca langsung customers.first_invoice_date
+        -- not new: first invoice SEBELUM AWAL bucket (§30.10, definisi
+        -- final — relatif periode, BUKAN activeMonths). b.ps SUDAH
+        -- batas kalender bucket itu sendiri (TrailingPeriodBucket.start,
+        -- tidak pernah digeser), jadi cukup dibandingkan langsung, TANPA
+        -- date_trunc/activeMonths/pengurangan hari tambahan — bug ditemukan
+        -- 2026-08-23 (instruksi user "patokan ke definisi terbaru"):
+        -- formula lama SALAH reintroduce activeMonths ke perbandingan ini
+        -- (§30.10 eksplisit bilang New/Existing TIDAK relatif activeMonths
+        -- sama sekali) DAN kurang 1 hari ekstra (exclude customer yang
+        -- first invoice-nya PERSIS di hari terakhir bulan sebelumnya,
+        -- padahal itu "sebelum awal bucket" jadi harusnya Existing) — pola
+        -- benar PERSIS cteExistingCustomersByPeriod (segment.helper.ts,
+        -- referensi asli §30.10 M1). Baca langsung customers.first_invoice_date
         -- (bukan CTE first_inv/MIN scan 246rb+ invoice lagi) — kolom ini
         -- SUDAH dipelihara akurat tiap import (upsertCustomer,
         -- import.repository.ts).
-        AND c.first_invoice_date < (date_trunc('month', b.ps)
-                            - (${activeMonths}::int - 1) * INTERVAL '1 month'
-                            - INTERVAL '1 day')
+        AND c.first_invoice_date < b.ps
         AND EXISTS (
           SELECT 1
           FROM invoices i
@@ -236,9 +243,10 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       CROSS JOIN buckets b
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-        AND c.first_invoice_date >= (date_trunc('month', b.ps)
-                            - (${activeMonths}::int - 1) * INTERVAL '1 month'
-                            - INTERVAL '1 day')
+        -- New = komplemen persis dari existing (§30.10) — first invoice DI
+        -- DALAM bucket ini (>= b.ps), bug off-by-one/activeMonths yang sama
+        -- dgn CTE existing di atas, fix sama.
+        AND c.first_invoice_date >= b.ps
         AND c.first_invoice_date <= b.pe
         AND EXISTS (
           SELECT 1 FROM raw_inv ri
@@ -460,7 +468,11 @@ export async function fetchRevenueBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number; hm_revenue: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
-  const establishedCTE = cteEstablishedCustomers(p)
+  // periodStart (task029 §30.10, 2026-08-23) — M3 belum py filter granularitas
+  // periode (belum ada `dateFrom`, beda dari M4/M7), anchor ke awal BULAN
+  // kalender yang memuat filterDate (default "Bulanan"), bukan activeMonths
+  // mentah task028.
+  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -562,7 +574,7 @@ export async function fetchRevenueBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${cteEstablishedCustomers(p)}
+      WITH ${establishedCTE}
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>
@@ -612,15 +624,31 @@ export async function fetchRevenueBreakdown(
 export async function fetchExpansionBreakdown(
   p: SegmentParams,
   dateFrom?: string,
+  prevDateFrom?: string,
+  prevDateTo?: string,
 ): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
-  const establishedCTE = cteEstablishedCustomers(p)
+  // periodStart (task029 §30.10, 2026-08-23 — "patokan ke definisi terbaru")
+  // — kalau dateFrom dikirim (klik-titik chart granularitas-aware), itu
+  // SUDAH persis awal bucket yang dilihat, reuse langsung. Kalau tidak
+  // (fallback lama, mis. M7Expansion.tsx workbench), anchor ke awal BULAN
+  // kalender yang memuat filterDate — lebih benar drpd activeMonths mentah
+  // task028, konsisten dgn default granularitas "Bulanan" KPI lain.
+  const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
   const curRangeCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date AND i.invoice_date <= ${filterDate}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date`
-  const prevRangeCond = dateFrom
-    ? sql`i.invoice_date >= (${dateFrom}::date - (${filterDate}::date - ${dateFrom}::date)) AND i.invoice_date < ${dateFrom}::date`
-    : sql`i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
+  // prevRangeCond (2026-08-23, koreksi user: "membandingkan 1-7 vs 26-31 itu
+  // makesense?" — jawaban TIDAK) — kalau prevDateFrom/prevDateTo dikirim
+  // (dihitung PERIOD-ANCHORED di service layer, posisi relatif sama di
+  // periode sebelumnya), pakai itu APA ADANYA. Kalau tidak (caller lama blm
+  // wired periodType), fallback ke rolling-window mundur (perilaku lama,
+  // TIDAK diubah — backward-compat M7Expansion.tsx workbench).
+  const prevRangeCond = (prevDateFrom && prevDateTo)
+    ? sql`i.invoice_date >= ${prevDateFrom}::date AND i.invoice_date <= ${prevDateTo}::date`
+    : dateFrom
+      ? sql`i.invoice_date >= (${dateFrom}::date - (${filterDate}::date - ${dateFrom}::date)) AND i.invoice_date < ${dateFrom}::date`
+      : sql`i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -736,7 +764,7 @@ export async function fetchExpansionBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${cteEstablishedCustomers(p)}
+      WITH ${establishedCTE}
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>

@@ -113,5 +113,8 @@
     "moreCount": "+{{count}} more",
     "superadminBadge": "Superadmin — full access",
     "allDivisions": "All divisions"
+  },
+  "report": {
+    "comingSoon": "No tables here yet — will be added later."
   }
 }

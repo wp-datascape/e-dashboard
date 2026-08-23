@@ -40,9 +40,13 @@
   "configFeatures": "Fitur",
   "groups": {
     "executiveDashboard": "Executive Dashboard",
+    "business": "Business",
     "growth": "Growth",
     "retention": "Retention",
     "value": "Value",
+    "revenue": "Revenue",
+    "report": "Laporan",
+    "data": "Data",
     "customerWorkbench": "Customer Workbench",
     "productPortfolio": "Produk & Portofolio",
     "transactionRevenue": "Transaksi & Revenue",

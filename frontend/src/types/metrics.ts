@@ -224,6 +224,9 @@ export interface RepeatOrderCurrent {
 export interface CustomerMetricsData {
   trend: CustomerMetricsTrendPoint[];
   detail: unknown[];
+  /** Rentang tanggal periode aktif SETELAH resolveTrendPeriod backend
+   * (2026-08-23) — lihat CustomerMetricsData di backend metrics.types.ts. */
+  period: { start: string; end: string };
   high_margin_current: HighMarginCurrent;
   repeat_order_current: RepeatOrderCurrent;
 }

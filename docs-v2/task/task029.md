@@ -2749,3 +2749,517 @@ baris ÷ 25). M1 Cross Selling breakdown (komponen sama, halaman beda) →
 25 Accordion + "Page 1 of 35" (≈875 baris) — konsisten, fix berlaku ke
 SEMUA pemakai komponen ini sekaligus (bukan cuma M7), sesuai sifat
 shared-component. `tsc --noEmit` bersih.
+
+### 30.17 Bug — popup drill-down (klik bar bulan berjalan) beda data dgn tabel utama, di 6 komponen (SELESAI, 2026-08-22)
+
+**Laporan user**: klik bar Agustus (tanpa filter) di chart tren Ekspansi,
+lalu sortir popup by "Perubahan Terbesar" — baris teratas popup beda dari
+peringkat 1-2 tabel breakdown utama di bawahnya (customer beda, urutan
+beda), padahal keduanya "sama-sama breakdown periode saat ini" dan
+seharusnya konsisten (tabel = pelengkap breakdown, bukan sumber lain).
+
+**Root cause**: `onBarClick` (drill-down popup) menghitung tanggal via
+`getPeriodDateRange(periodType, bulan).end` / `monthToEndDate(bulan)` —
+KEDUANYA murni kalkulator kalender, SELALU mengembalikan akhir bulan
+kalender (mis. Agustus → 31 Agustus) TANPA PEDULI hari ini sudah sampai
+tanggal berapa. Tabel breakdown utama di halaman yang sama defaultnya
+`periodEnd = hari ini` (mis. 22 Agustus). Klik bar bulan BERJALAN (bukan
+bulan yang sudah tutup) jadi query popup pakai `period_end=2026-08-31`
+(9 hari ke MASA DEPAN) sementara tabel pakai `period_end=2026-08-22` —
+window "previous" ikut bergeser krn beda titik potong, customer/urutan
+yang keluar jadi genuinely beda, BUKAN cuma soal invoice masa depan yang
+kosong. User awalnya mengira ini soal logic sortir (%  vs Rupiah), TERNYATA
+akar masalahnya di TANGGAL yang dipakai query, sebelum sortir sama sekali
+sempat berperan.
+
+**Cakupan — user tanya "2 matrix lainnya juga?", ternyata 6 komponen kena,
+bukan cuma M7**:
+- `M2AvgCategory.tsx`, `M7ExpansionGrowth.tsx` (pola `getPeriodDateRange` +
+  `periodType`, sudah granularitas-aware) — fix pakai clamp baru
+  `clampPeriodEndToToday()` (BARU, `utils/analisisPeriod.ts`), mirror
+  `clampToElapsedEnd` backend: cek `periodKey === getCurrentPeriodKey(...)`,
+  kalau ya baru clamp ke hari ini.
+- `M3Revenue.tsx`, `M4GrossProfit.tsx`, `M7Expansion.tsx` (versi lama
+  Customer Metrics workbench) — pola `monthToEndDate(bulan)` per-bar,
+  masih hardcode bulanan (belum granularitas). Fix: pindah ke
+  `resolvePeriodEnd()` (ternyata SUDAH ADA di `utils/date.ts`, dipakai
+  Dashboard/index.tsx, cuma belum pernah disambungkan ke drill-down
+  M3-M7 — persis pola bug yang sama diperbaiki lewat fungsi yang sudah
+  benar sejak awal tapi tidak ke-reuse).
+- `M5HighMargin.tsx`, `M6RepeatOrder.tsx` — pola beda: `onChartClick`
+  (bukan per-bar) manggil `monthToEndDate(periodEnd)` dengan `periodEnd`
+  prop yang SUDAH tanggal penuh 'YYYY-MM-DD' (dari DatePicker Retention/
+  Value, bukan 'YYYY-MM'). Fix: `resolvePeriodEnd(periodEnd.slice(0,7))`
+  — ambil bagian YYYY-MM dulu baru clamp, mempertahankan makna "drill ke
+  bulan penuh yang memuat tanggal terpilih" sambil menutup celah tanggal
+  masa depan.
+- `monthToEndDate` di `CustomerMetrics/helpers.ts` (versi duplikat,
+  BUKAN yang di `utils/date.ts`) DIHAPUS — sudah 0 pemakai setelah 3 fix
+  di atas, dead code yang kalau dibiarkan bisa "digunakan lagi" tanpa
+  sadar dan mengulang bug yang sama.
+
+**Diverifikasi**: klik bar Agustus (bulan berjalan) di M7 Expansion
+(tanpa filter) → network request SEKARANG `period_end=2026-08-22` (hari
+ini, BUKAN 2026-08-31) — React Query bahkan DEDUPE 2 request (popup +
+tabel utama) jadi 1 network call karena parameternya sekarang genuinely
+identik, bukti konsistensi bukan cuma "kebetulan sama". M4 Gross Profit
+diverifikasi terpisah → `period_end=2026-08-22` juga. `tsc --noEmit`
+bersih di 6 file + 1 file dihapus fungsinya.
+
+**Di luar scope**: M8-M10 (DormantCustomer/) TIDAK punya pola drill-down
+klik-chart ini sama sekali (dicek, tidak ada `onBarClick`/`onChartClick`
+di 3 filenya) — tidak kena bug ini, bukan berarti belum diperiksa.
+
+### 30.18 KpiHeader + TrendSummary — redesain jadi card (SELESAI, 2026-08-22)
+
+User kirim mockup: ganti tampilan "info di bawah judul" (KpiHeader,
+current/pembanding/perubahan) dan TrendSummary (Rata-rata/Tertinggi/
+Terendah) dari 1 baris teks "Label: Value | Label: Value" (iterasi ke-5,
+§28.2) jadi kartu rounded+shadow — angka besar berdampingan + pill warna
+utk perubahan.
+
+`KpiHeader.tsx`: `Paper` rounded (`borderRadius:3`) + soft shadow (BUKAN
+`@/components/ui/Card` yang flat-border square — gaya sengaja beda utk
+card ringkasan). Judul (nama metrik) + subjudul ("{{periode saat ini}}
+vs {{periode pembanding}}", key i18n baru `dashboard.kpiHeader.periodVs`)
+di atas, 2 angka besar (`variant="h4"`) berdampingan dgn caption periode
+di bawah masing-masing, lalu `Chip` full-content di bawah utk perubahan
+(hijau=naik/merah=turun/abu=flat, icon trend + label "poin persentase"
+sama seperti sebelumnya, cuma bentuknya jadi pill bukan teks inline).
+
+`TrendSummary.tsx`: pola sama persis (card rounded+shadow, judul+subjudul
+key i18n baru `dashboard.trendSummary.periodSubtitle`), 3 angka besar
+berdampingan (Rata-rata/Tertinggi/Terendah), Tertinggi/Terendah dapat
+caption periode ekstra di bawah angkanya (mis. "(2025-09)").
+
+Kedua komponen SHARED, otomatis berlaku ke semua pemakai (M1/M2/M7 Growth
+— satu-satunya yang sudah pakai KpiHeader/TrendSummary sejauh ini, M3-M6
+di halaman Value/Retention BELUM migrasi ke pola KpiHeader ini, lihat
+§30.12, jadi tidak terpengaruh perubahan ini — bukan regresi, memang
+belum pakai komponennya). Diverifikasi desktop (900px) dan mobile
+(iPhone 13 device) — card scale rapi di kedua ukuran, pill tidak
+overflow. `tsc --noEmit` bersih.
+
+**Susulan (koreksi keras, sama hari) — "kamu buat componen baru? kenapa
+card nya berbeda dengan yang lain? padahal componennya atomic".**
+Implementasi PERTAMA di atas SALAH: pakai `Paper` MUI mentah +
+`borderRadius: 3` + `boxShadow` custom yang saya tulis sendiri supaya
+persis mockup (rounded corner + soft shadow) — hasilnya card ini punya
+gaya visual SENDIRI, beda dari SEMUA card lain di app (`@/components/ui/
+Card`, dipakai StatCard/SummaryCard/filter card/dst — flat-border square,
+sudah didefinisikan di `theme/index.ts` MuiCard styleOverrides). Ini
+persis pelanggaran [[feedback_centralize_ui_no_duplication]] — nulis
+styling baru alih-alih reuse komponen atomic yang sudah ada.
+
+**Fix**: `KpiHeader.tsx`/`TrendSummary.tsx` diganti total — pakai `Card`
+atomic (`@/components/ui/Card`) apa adanya, TANPA sx border/shadow/radius
+tambahan sama sekali (ikut default Card+theme). Pill perubahan juga
+diganti dari `Chip` MUI mentah (solid fill custom) ke `StatusChip` atomic
+(`@/components/ui/StatusChip` — SELALU outlined, oval, size/warna
+seragam sesuai design system, dipakai StatCard juga) — warna dipetakan
+ke prop semantiknya langsung (`success`/`error`/`default`), bukan
+`bgcolor` custom lagi. Hasil: card ini sekarang visual IDENTIK dgn card
+chart/tabel di sekitarnya (border tipis sama, sudut kotak sama, tanpa
+shadow tambahan) — konsisten penuh dgn card lain di halaman yang sama,
+bukan gaya sendiri. Diverifikasi ulang screenshot, `tsc --noEmit` bersih.
+
+### 30.19 Growth: hapus tab luar per-KPI, tabel dipindah ke menu Laporan baru (SELESAI, 2026-08-22)
+
+**Instruksi keras user**: "Rubah UI ke kondisi sebelum kita pakai tab
+untuk memisahkan cross selling, kategori, dan ekspansi... kembalikan ke
+kondisi UI awal" + "kita buatkan saja halaman khusus tabel, terlalu
+kotor jika chart digabung dengan tabel" + "jangan rollback git... tapi
+tata kembali UI-nya... kamu bisa mereferensi UI dari Value atau
+Retention" + (dipertegas via AskUserQuestion) "Buat saja 1 menu report,
+dan buat sub menu retention, revenue, dan growth — nanti kita maping
+tabel-tabel apa saja yang kita masukkan disana".
+
+**Bagian 1 — Growth/index.tsx: tab luar per-KPI (§29, dipasang
+2026-08-19) DIHAPUS.** Kembali ke pola DITUMPUK VERTIKAL (referensi
+eksplisit user: Retention/index.tsx & Value/index.tsx) — M1CrossSelling,
+M2AvgCategory, M7ExpansionGrowth SEMUA dirender sekaligus (bukan 1 KPI
+aktif via `<Tabs>`+query param `?kpi=`), masing-masing diganti
+`NoSectionAccess` kalau permission-nya tidak dimiliki (pola sama persis
+Retention). Fetch `useCrossSelling`/`useCustomerMetrics` sekarang
+`enabled` oleh permission (`canCrossSelling`/`canExpansion`) langsung,
+bukan lagi oleh `activeKpi`. Filter (Entitas/Periode/Filter Lanjutan)
+TETAP 1 instance dipakai bareng semua section (tidak berubah). Sub-tab
+INTERNAL tiap KPI (Overview/Trend Analysis/Heatmap di M1, dst) TIDAK
+disentuh — instruksi user spesifik soal tab yang MEMISAHKAN 3 KPI itu,
+bukan tab internal per-KPI.
+
+**Bagian 2 — Tabel breakdown (`BreakdownTable` di M1/M2, `ResponsiveListView`
+Search+Sort di M7) yang dulu nempel PERMANEN di tab "Trend Analysis"
+DIHAPUS dari M1CrossSelling.tsx/M2AvgCategory.tsx/M7ExpansionGrowth.tsx**
+(chart+TrendSummary TETAP ada di situ, cuma tabelnya yang pindah) —
+**dipindah ke halaman baru** `pages/Report/Growth/index.tsx`, diakses
+lewat menu sidebar baru **"Laporan"** (`config/menu.tsx`, collapsible,
+3 submenu: Growth/Retention/Revenue — icon+posisi sejajar Growth/
+Retention/Value). Report > Growth: filter sendiri (Entitas/Cabang/
+Divisi/Periode/Granularitas/Exclude Intercompany, TIDAK share state dgn
+`/growth`), 2 tab — "Cross Selling" (`BreakdownTable`, dataset SAMA persis
+dipakai M1 dan M2 makanya cuma 1 tab bukan 2 yang isinya duplikat) dan
+"Expansion" (Search+Sort+`ResponsiveListView`, logic diekstrak apa
+adanya dari M7ExpansionGrowth.tsx). Report > Retention dan Report >
+Revenue: **shell/placeholder** ("Belum ada tabel di halaman ini — akan
+ditambahkan kemudian") — Retention/Value (halaman chart) TIDAK punya
+tabel breakdown permanen sama sekali (M6/M8/M9/M10/M3/M4/M5 semuanya
+cuma dialog drill-down klik-chart), jadi tidak ada yang bisa dipindah
+sekarang; instruksi user eksplisit "nanti kita maping" — BELUM
+diputuskan, sengaja tidak dikerjakan lebih jauh dari shell routing.
+
+**Route baru**: `/report/growth`, `/report/retention`, `/report/revenue`
+(`routeConstants.tsx`, `routeLazyComponents.tsx`) — permissionKey REUSE
+`growth:view`/`retention:view`/`value:view` (SAMA dgn halaman chart-nya,
+bukan permission RBAC baru, tidak perlu migrasi permission).
+
+**Temuan penting saat debug 404**: route baru TIDAK otomatis muncul cuma
+dari `routeRegistry` (frontend) — `App.tsx` generate `<Route>` dari
+`pageSettings` (fetch `/api/v1/page-settings`, tabel `page_settings`
+backend) di-map ke `routeRegistry[page_key]`; kalau `page_key` tidak ada
+row-nya di DB, route TIDAK PERNAH ter-render walau sudah terdaftar di
+frontend. 3 baris baru ditambahkan `backend/src/db/seed.ts`
+(`report-growth`/`report-retention`/`report-revenue`, ready:true) DAN
+di-INSERT langsung ke DB dev lokal (seed.ts saja tidak retroaktif ke DB
+yang sudah ke-seed) — **perlu INSERT manual yang sama ke DB dev/prod
+saat deploy nanti**, jangan cuma andalkan migrate/deploy kode.
+
+**Ditemukan sekalian (tidak diaktifkan lagi)**: `page_settings` SUDAH
+py 10 baris `report-cross-selling`/`report-avg-category-per-customer`/
+`report-dormant-rate`/`report-dormant-value`/`report-reactivation-rate`/
+`report-customer-revenue`/`report-customer-gross-profit`/`report-high-
+margin-penetration`/`report-repeat-order`/`report-customer-expansion`
+dari sistem "Report" LAMA (task026 Fase 3, 2026-08-09) — SUDAH ORPHAN,
+tidak ada entry route-nya lagi di `routeConstants.tsx` sejak konsolidasi
+Growth/Retention/Value (2026-08-19), kemungkinan besar dianggap
+tergantikan waktu itu oleh tabel breakdown inline yang baru saja
+dihapus lagi hari ini. Struktur LAMA itu per-KPI INDIVIDUAL (10 halaman),
+struktur BARU per-FRAMEWORK (3 halaman: Growth/Retention/Revenue) —
+BEDA, bukan reaktivasi sistem lama, sesuai instruksi eksplisit user.
+Baris lama DIBIARKAN di DB (harmless, pola sama baris orphan lain).
+
+**Diverifikasi**: screenshot `/growth` (M1+M2+M7 tersusun vertikal, tanpa
+tab luar, tab "Trend Analysis" M1 tanpa tabel lagi), sidebar (menu
+"Laporan" collapsible di bawah Value), `/report/growth` tab "Cross
+Selling" (855 baris, "Report · Growth"), tab "Expansion" (3.424 baris),
+`/report/retention` (placeholder benar setelah fix key i18n
+`report.comingSoon` -> `common.report.comingSoon`, salah prefix
+namespace di percobaan pertama). `tsc --noEmit` bersih backend+frontend.
+
+### 30.20 Restrukturisasi grup sidebar — Business/Report/Data (SELESAI, 2026-08-22)
+
+**Instruksi user**: "untuk growth, retention dan value jadikan dalam 1
+section jangan dipisah judul, berikan judul business, untuk menu value
+ganti nama dengan revenue, buat judul Data, dan kelompokkan customer,
+transaksi dan produk".
+
+**Mekanisme sidebar** (`config/menu.tsx`): `groupLabelKey` di SATU item
+me-render header section BARU di atasnya; item BERIKUTNYA tanpa
+`groupLabelKey` otomatis nyambung jadi bagian section yang sama (bukan
+disembunyikan). Menggabungkan section = cukup lepas `groupLabelKey` dari
+item ke-2/ke-3 dst, BUKAN restrukturisasi data model.
+
+**Business** — 'growth' (item pertama) dapat `groupLabelKey:
+'nav.groups.business'` (key i18n baru, "Business"), 'retention' dan
+'value' dilepas `groupLabelKey`-nya (sebelumnya masing-masing py section
+sendiri "GROWTH"/"RETENTION"/"VALUE" terpisah).
+
+**Revenue** — 'value' (label tampilan) ganti dari `nav.groups.value` ke
+`nav.groups.revenue` (key i18n baru, "Revenue"). SENGAJA cuma label yang
+berubah — key internal/path/permission TETAP `value`/`/value`/
+`value:menu` (rename permission/route di luar scope, blast radius jauh
+lebih besar dari yang diminta). Submenu Report ketiga ('report-revenue')
+ikut disamakan ke `nav.groups.revenue` (sebelumnya salah reuse
+`nav.groups.value`, sekarang konsisten).
+
+**Data** — gabungan 3 section lama (Customer Workbench, Product &
+Portfolio, Transaction & Revenue) jadi 1, pola sama Business: 'customer'
+(item pertama, dipindah ke posisi baru — SEBELUMNYA section tersendiri
+persis di bawah Executive Dashboard) dapat `groupLabelKey:
+'nav.groups.data'` (key i18n baru, "Data"), 'product'/'transaction'
+dilepas `groupLabelKey`-nya. High Margin/Product Trend (anak 'product')
+dan Projects (anak 'transaction') IKUT pindah bareng parent-nya —
+TIDAK disebut eksplisit oleh user, tapi tetap 1 kelompok tematik (dulu
+juga nempel di grup yang sama, cuma section-nya beda).
+
+**Urutan section akhir**: Executive Dashboard -> Business (Growth/
+Retention/Revenue) -> Report (Growth/Retention/Revenue, collapsible) ->
+Data (Customer/Products/High Margin/Product Trend/Transactions/Projects)
+-> Administration (tidak berubah).
+
+**Insiden kecil (self-caught)**: saat mengedit blok Business, item
+'customer' SEMPAT KEHAPUS TIDAK SENGAJA (old_string edit pertama
+mencakup teks section "GROUP 2: CUSTOMER WORKBENCH" tapi new_string
+tidak melestarikannya) — ketahuan lewat `grep "key: 'customer'"` tidak
+match apa pun sebelum sempat di-screenshot/dilaporkan sbg selesai,
+langsung diperbaiki (ditambahkan kembali sbg item pertama Data) sebelum
+verifikasi visual.
+
+**Diverifikasi**: screenshot sidebar penuh — 4 section baru persis sesuai
+instruksi (Business/Report/Data/Administration + Executive Dashboard).
+`tsc --noEmit` bersih.
+
+### 30.21 Sidebar: hapus semua judul section/divider, Business & Data jadi parent collapsible, hapus Product Trend, accordion eksklusif (SELESAI, 2026-08-22)
+
+**Instruksi user (2 pesan berurutan)**: "Coba hilangkan judul section dan
+divider, jadi langsung overview. menu business, sub menu growth,
+retention, revenue. menu data, sub menu customer, produk, high margin,
+tren produk (Hapus ini redundan dengan retention), transaksi, proyek" —
+lalu susulan: "Buat saat sub menu terbuka, sub menu lain tertutup
+otomatis menghindari scroll".
+
+**Hapus semua header/divider** — `Sidebar.tsx` cuma render `<Divider>`+
+teks label KALAU `section.groupLabelKey` truthy. SEMUA `groupLabelKey`
+di `menu.tsx` dilepas (dashboard/business-items/report/data-items/
+administration) — hasilnya list mengalir polos, "Overview" langsung di
+paling atas tanpa header "Executive Dashboard" di atasnya.
+
+**Business & Data jadi parent collapsible** — §30.20 sebelumnya bikin
+Growth/Retention/Revenue & Customer/Products/dst jadi "section flat"
+(item terpisah, cuma dibedakan visual lewat `groupLabelKey` di item
+pertama). Tanpa header/divider, pola itu tidak lagi bisa mengelompokkan
+apa pun secara visual — direstruktur jadi parent+children (`children:
+[...]`, pola sama Report/Settings yang sudah ada): `key: 'business'`
+(icon `BusinessIcon`, path default `/growth`) membungkus growth/
+retention/value; `key: 'data'` (icon `StorageIcon` baru, path default
+`/customers`) membungkus customer/product/high-margin/transaction/
+project. Parent TIDAK py `permissionKey` sendiri (gating tetap di level
+children, pola sama Report/Settings).
+
+**Product Trend dihapus dari Data** — instruksi eksplisit user: "redundan
+dengan retention". HANYA dilepas dari array `children` Data (menu/
+sidebar) — route `/products/trend` TIDAK dihapus dari
+`routeConstants.tsx`/`page_settings` (pola sama halaman lama lain di
+file ini, "isinya sama, cuma sudah tidak ada entry langsung di
+sidebar"). `ShowChartIcon` (import yang jadi unused) ikut dihapus.
+
+**Accordion eksklusif** (susulan, mid-turn) — SEBELUM fix: `NavGroup`
+(`Sidebar.tsx`) simpan `expanded` sbg `useState` LOKAL per komponen,
+jadi Business+Data+Settings+dst semua bisa expanded BERSAMAAN,
+sidebar jadi sangat panjang. Fix: state "grup mana yang lagi terbuka"
+DIANGKAT ke komponen `Sidebar` (1 `expandedKey: string | null`),
+dioper ke tiap `<NavGroup>` sbg prop `expanded`/`onToggle` (bukan lagi
+`useState` lokal). `onToggle` set `expandedKey` ke key grup itu (toggle
+off kalau diklik lagi), otomatis nutup grup lain krn cuma 1 state
+dibagi semua. Initial value: grup yang MEMUAT path aktif saat mount
+(mis. buka `/report/growth` langsung -> grup "Report" otomatis
+terbuka), `null` kalau tidak ada yang cocok.
+
+**Diverifikasi**: screenshot sidebar collapsed (list rapi tanpa header/
+divider: Overview, Business, Report, Data, Settings, Configuration,
+Access Control, Log) dan expanded (klik Business -> Growth/Retention/
+Revenue muncul; klik Data -> Business otomatis nutup, Data muncul
+dengan 5 children TANPA Product Trend). `tsc --noEmit` bersih.
+
+**Susulan (sama hari) — indikator expand/collapse ganti dari chevron ke
++/-** (koreksi user: "jangan pakai arrow"). `ExpandMoreIcon`/
+`ExpandLessIcon` diganti `AddIcon`/`RemoveIcon` — tertutup = "+", terbuka
+= "-". Diverifikasi screenshot.
+
+### 30.22 M1/M2/M7: hapus sub-tab internal (Overview/Trend Analysis/Heatmap), ditumpuk langsung (TAHAP 1, SELESAI, 2026-08-22)
+
+**Instruksi user**: "perbaikan struktur layouting hapus tab menu jadi
+hanya chart saja seperti layout retention dan revenue. Tapi aku masih
+memerlukan beberapa informasi yang ada dalam card dan top customer tapi
+kita ganti layouting nya. untuk sekarang pindahkan dari tab menu ke
+layout utama dulu setiap chart termasuk heatmap".
+
+Lanjutan §30.19 (yang menghapus tab LUAR — Cross Selling/Category/
+Ekspansi di Growth/index.tsx) — sekarang tab DALAM tiap KPI (Overview/
+Trend Analysis, +Heatmap khusus M1) di `M1CrossSelling.tsx`/
+`M2AvgCategory.tsx`/`M7ExpansionGrowth.tsx` JUGA dihapus, pola akhirnya
+sama persis Retention/Value (chart+info langsung, tanpa tab sama
+sekali).
+
+**TAHAP 1 (ini) — cuma pindah lokasi, BUKAN redesain**: `<Tabs>`/`<Tab>`
++ state `tab`/`setTab` dihapus dari 3 file; SEMUA section yang dulu
+kondisional per-tab (`{tab === 'overview' && (...)}` dst) diubah jadi
+`<Box>` polos tanpa syarat — DITUMPUK berurutan sesuai urutan tab lama
+(Overview dulu: SummaryCard+mini chart+Top Customers, lalu Trend
+Analysis: chart penuh+TrendSummary, lalu utk M1 Heatmap). Isinya TIDAK
+dikurangi/digabung sama sekali (instruksi eksplisit user: "aku masih
+memerlukan beberapa informasi yang ada dalam card dan top customer") —
+konsekuensinya mini chart Overview & chart penuh Trend Analysis SEKARANG
+tampil BERSAMAAN (sebelumnya cuma salah satu terlihat tergantung tab
+aktif), disengaja apa adanya sesuai instruksi "untuk sekarang pindahkan
+dulu" — redesain tata-letak (TAHAP 2, mis. gabung/hilangkan duplikasi
+mini-vs-full chart) MENYUSUL terpisah, belum dikerjakan.
+
+**Diverifikasi**: screenshot `/growth` — M1 tampil KpiHeader -> Summary
+Cards+mini chart -> Top 5 Customers -> chart tren penuh (Cross-Selling
+Trend, 12 bulan) berurutan TANPA tab bar apa pun di antaranya. `tsc
+--noEmit` bersih (3 file: M1CrossSelling.tsx, M2AvgCategory.tsx,
+M7ExpansionGrowth.tsx).
+
+**Susulan (sama hari) — KpiHeader (elemen paling atas) dilepas dari
+`Card`, jadi teks polos** (instruksi user: "Info card yang diatas
+jadikan text lain base jangan pakai card lagi"). `KpiHeader.tsx`:
+`<Card>` (atomic, §30.18) diganti `<Box>` polos (tanpa border/bg/
+shadow) — konten TIDAK berubah (judul metrik+subjudul periode+2 angka
+besar+`StatusChip` pill perubahan), cuma bungkusnya bukan lagi kotak
+bordered. `SummaryCard` grid + `TrendSummary` di bawahnya TETAP pakai
+`Card` (tidak diminta berubah) — elemen paling atas ini sengaja
+dibedakan dari card-card lain di halaman yang sama. Diverifikasi
+screenshot, `tsc --noEmit` bersih.
+
+### 30.23 M1/M2/M7: gabung KpiHeader+chart+TrendSummary jadi 1 Card (Header/Body/Footer, sesuai §28.11, SELESAI, 2026-08-22)
+
+**Instruksi user**: "Jadikan 1 layout dengan chart cross selling sebagai
+header chart seperti konsep awal begitu juga untuk card dibawah chart
+jadikan footer chart".
+
+"Konsep awal" yang dimaksud = §28.11 "Struktur Final Setiap KPI Card"
+(ASCII diagram lama di dokumen ini) — 1 Card berbatas (border) berisi
+Judul+KpiHeader sbg **header**, chart sbg **body**, lalu
+Average/Highest/Lowest (TrendSummary) sbg **footer**, dipisah garis
+horizontal (`Divider`) — BUKAN 3 elemen lepas-lepas seperti hasil §30.22
+(KpiHeader teks polos + chart tersendiri + `TrendSummary` Card
+tersendiri dengan `mt: 2` di antaranya).
+
+**Perubahan**:
+- `TrendSummary.tsx` — tambah prop `bare?: boolean` (default `false`).
+  `bare=true` skip pembungkus `<Card>` + margin-top sendiri, cuma
+  render `<Box sx={{textAlign:'center'}}>` isinya — dipakai sbg footer
+  DI DALAM Card lain (caller yang kasih `Divider`+padding).
+- `M1CrossSelling.tsx`, `M2AvgCategory.tsx`, `M7ExpansionGrowth.tsx` —
+  pola SAMA PERSIS di ketiganya: `SectionLabel`(judul+info icon) +
+  `KpiHeader` dibungkus `<Box sx={{p:2.5}}>` pertama, lalu `<Divider/>`,
+  lalu chart utama (`ComboChartWidget`/`ExpansionChart`) dibungkus
+  `<Box sx={{p:2.5}}>` kedua, lalu `<Divider/>` lagi, lalu
+  `<TrendSummary bare .../>` dibungkus `<Box sx={{p:2.5}}>` ketiga —
+  SEMUANYA di dalam SATU `<Card>` (atomic, §30.18).
+- SummaryCard grid + mini chart + Top Customers/Top Movers (section di
+  BAWAH Card baru ini) **SENGAJA TIDAK ikut digabung** — tetap section
+  terpisah apa adanya, belum diubah tata-letaknya (itu scope TAHAP 2
+  §30.22 yang masih menunggu instruksi lanjut, bukan bagian permintaan
+  ini). Heatmap M1 juga tetap section terpisah di bawah, tidak berubah.
+
+**Diverifikasi**: `tsc --noEmit` + `eslint` bersih (4 file). Screenshot
+`/growth` (Playwright, login admin@mail.com) — ketiga panel (M1 Cross
+Selling, M2 Average Category, M7 Expansion) tampil sebagai 1 Card
+berbatas: judul+KpiHeader (current/YoY/chip perubahan) di atas, garis
+pembatas, chart trend 12 bulan di tengah, garis pembatas lagi,
+Average/Highest/Lowest di bawah — semuanya dalam 1 kotak yang sama,
+sesuai §28.11. Catatan: query `/metrics/customer-metrics` (dipakai M7)
+lambat di lokal (~10 detik) — bukan regresi dari perubahan ini, cuma
+karakteristik data dev, card tetap render benar setelah data datang.
+
+### 30.24 M1/M2/M7: hapus judul redundan, baris perbandingan pindah ke atas chart, legend disatukan di bawah (SELESAI, 2026-08-22)
+
+**Instruksi user** (anotasi screenshot §30.23, kotak warna): "yang aku
+tandai kotak merah itu adalah redundan dan tidak diperlukan, cukup
+judul utama card. Kotak kuning itu juga sama-sama legend kenapa
+letaknya dipisah atas dan bawah? itu UI UX yang salah. Pertahankan
+kotak merah dengan emot centang, hapus yang lain. Gantikan posisi
+kotak kuning atas dengan kotak hijau. Satukan ke 2 kotak kuning ke
+bawah chart."
+
+Diterjemahkan dari anotasi: 3 judul tampil di §30.23's unified Card —
+(1) `SectionLabel` (judul utama, ditandai centang → KEEP), (2)
+`KpiHeader`'s `metricLabel` ("Cross-Sell Rate" dst, DELETE — redundan
+dgn (1)), (3) judul bawaan chart (`ComboChartWidget`/`ExpansionChart`'s
+`title`, mis. "Tren Cross-Selling (12 bulan)", DELETE — redundan juga).
+Baris perbandingan periode (`KpiHeader` sisa, "kotak hijau") PINDAH
+menggantikan posisi judul+subtitle chart yang dihapus (tepat di atas
+chart). Subtitle chart lama (mis. "Bar = jumlah customer · Line =
+cross-sell rate (%)") dan legend warna recharts (bawaan, di bawah
+chart) — 2-2nya "kotak kuning", sama-sama legend tapi kepisah
+atas/bawah — DISATUKAN, keduanya di BAWAH chart.
+
+**Perubahan**:
+- `KpiHeader.tsx` — prop `metricLabel` DIHAPUS dari interface + render
+  (`<Typography variant="subtitle1">{metricLabel}</Typography>`
+  dihapus). Komponen sekarang HANYA render 1 baris perbandingan
+  (periode:nilai | vs | periode:nilai + chip, dari §30.23).
+- `ComboChartWidget.tsx` — `title: string` (wajib) → `title?: string`
+  (opsional), header Box cuma render kalau `title` ada. Prop baru
+  `caption?: string` — teks kecil di BAWAH chart (setelah
+  `ResponsiveContainer`, sebelum `</Card>`), sejajar dgn `<Legend>`
+  bawaan recharts yang sudah render di situ juga — otomatis "menyatu"
+  krn posisi sama, TIDAK perlu logic khusus gabung dgn legend.
+- `BarChartWidget.tsx` — treatment PERSIS sama: `title?: string`, header
+  Box conditional (`value !== undefined || title`), prop baru
+  `caption?: string` dirender di bawah chart.
+- `ExpansionChart.tsx` (wrapper `BarChartWidget` khusus M7) — prop baru
+  `showHeader?: boolean` (default `true`, jaga `M7Expansion.tsx`
+  workbench lama TETAP tampil title/subtitle bawaan, TIDAK ikut
+  berubah) + `caption?: string` diteruskan ke `BarChartWidget`.
+- `M1CrossSelling.tsx`/`M2AvgCategory.tsx`/`M7ExpansionGrowth.tsx` —
+  pola SAMA PERSIS di ketiganya: header region Card cuma
+  `SectionLabel` (+ info icon M1); `KpiHeader` (tanpa `metricLabel`)
+  DIPINDAH ke body region, tepat SEBELUM chart; `title`/`subtitle`
+  TIDAK lagi dikirim ke `ComboChartWidget`/`ExpansionChart`
+  (M7 pakai `showHeader={false}`); subtitle chart lama dikirim lewat
+  prop `caption` yang baru.
+
+**Diverifikasi**: `tsc --noEmit` + `eslint` bersih (7 file). Screenshot
+`/growth` (Playwright) — ketiga panel: header Card cuma 1 judul (tanpa
+"Cross-Sell Rate"/dst di bawahnya), baris "[periode]:[nilai] | vs |
+[periode]:[nilai] [chip]" persis di atas chart (posisi bekas judul+
+subtitle chart), chart tanpa judul sendiri, legend warna + caption
+penjelasan chart SEKARANG SATU BLOK sejajar tepat di bawah chart
+(bukan lagi kepisah atas/bawah). Footer `TrendSummary` tidak berubah.
+
+### 30.25 M1: 3 KPI card di atas chart, Top 5 Customers pindah ke samping chart, hapus section duplikat (SELESAI, 2026-08-22, khusus M1 saja)
+
+**Instruksi user** (setelah diskusi mockup ASCII "Growth > Cross
+Selling" yang di-scope-persempit via AskUserQuestion): "Kamu hanya
+harus tambahkan 3 card summary diatas chart cross selling dan
+meletakkan top 5 customer list disamping chart. Summary yang saat ini
+ada dibawah chart [dihapus, kontennya pindah]. Hapus juga mini chart
+ringkasan 12 bulan." Jawaban AskUserQuestion sebelumnya mengonfirmasi:
+(1) ini TAMBAHAN di atas, BUKAN pengganti unified Card §30.23/30.24;
+(2) Top 5 Customers "letakkan di samping chart 70/30 lebar 70% untuk
+chart, Nama dan Persentase Kontribusi, contoh: 1. TOKOPEDIA BOS
+(22%)"; (3) langsung diimplementasikan (bukan didiskusikan dulu).
+Scope **KHUSUS M1** (bukan M2/M7 — mockup & instruksi cuma soal
+"Cross Selling").
+
+**Bug ditemukan sekalian**: saat membaca file utk kerjaan ini, ketemu
+blok `ComboChartWidget`+`TrendSummary` DUPLIKAT (title/subtitle versi
+lama, `TrendSummary` non-`bare`) yang render chart yang SAMA PERSIS 2x
+di halaman — sisa refactor §30.23 yang lupa dihapus (M2/M7 SUDAH
+dibersihkan waktu itu, M1 kelewatan). Otomatis terhapus sebagai bagian
+dari perubahan ini (section itu memang jadi target hapus juga).
+
+**Perubahan** (`M1CrossSelling.tsx` saja):
+- **Section 1 (baru)** — 3 `<Grid>` kolom (`xs=12,sm=6,md=4`) berisi
+  `KpiCard` (Cross-Selling Rate/Avg Category per Customer/Active
+  Customers), ditaruh SEBELUM `<Card>` unified. **REUSE PENUH**
+  `KpiCard` + i18n keys (`kpi1Label`/`kpi1Sub`/`kpi2Label`/`kpi2Sub`/
+  `activeCustomerLabel`/`activeCustomerSub`) dari halaman ORPHAN lama
+  `pages/CrossSelling/index.tsx` (route sudah tidak dipakai sejak
+  §30.19, tapi KODE-nya TIDAK dihapus/didead-code-kan — persis
+  komponen+teks yang sama dipakai ulang di sini, BUKAN dibuat baru,
+  sesuai prinsip "centralize UI, no duplication"). Prefix "KPI 1 ·"/
+  "KPI 2 ·" di label DIHAPUS (i18n `kpi1Label`/`kpi2Label`, id+en) —
+  konsisten dgn keputusan §30.21 hapus prefix M-angka, sekarang teks
+  ini AKTIF tampil lagi jadi diselaraskan.
+- **Section 2 (unified Card body)** — chart utama dibungkus
+  `<Box sx={{display:'grid', gridTemplateColumns:{xs:'1fr',md:'7fr 3fr'}}}>`
+  bareng Top 5 Customers Card di sampingnya (70/30, stack ke 1 kolom
+  di mobile). Top 5 Customers format baris ganti dari "Rank · Nama ·
+  Rp revenue" jadi "Rank. Nama (persentase%)" — persentase = kontribusi
+  `total_revenue` customer itu thd JUMLAH `total_revenue` SEMUA
+  customer aktif periode itu (`totalRevenueAll`, `useMemo` baru,
+  dibulatkan ke bilangan bulat via `Math.round`, bukan 1 desimal —
+  contoh user "22%" bulat).
+- **DIHAPUS TOTAL**: section terpisah lama di bawah unified Card
+  (SummaryCard grid 2x2 + mini `AreaChartWidget` "ringkasan 12 bulan"
+  + Top 5 Customers versi lama format revenue) — kontennya sudah
+  dicover Section 1 (KPI) + Top 5 Customers versi baru di samping
+  chart. Import `AreaChartWidget` dan `SummaryCard` (dari
+  HelperComponents) jadi tidak dipakai lagi, dihapus dari import.
+  `formatRupiah` TETAP dipakai (kolom tabel drill-down heatmap M1.1,
+  tidak terkait).
+- Heatmap M1.1 (di bawah unified Card) TIDAK berubah — tetap section
+  terpisah, tidak ikut kena hapus (sesuai jawaban AskUserQuestion,
+  yang dibahas cuma Top Customers).
+
+**Diverifikasi**: `tsc --noEmit` + `eslint` bersih. Screenshot `/growth`
+— urutan akhir M1: 3 KPI card (Cross-Selling Rate 28.9%/Avg Category
+1.6/Active Customers 855) → unified Card (judul, KpiHeader baris
+perbandingan, chart 70% + Top 5 Customers 30% di sampingnya dgn format
+"1. TOKOPEDIA BOS (14%)" dst, TrendSummary footer) → Heatmap. Tidak ada
+lagi chart Cross-Selling duplikat. M2/M7 diverifikasi TIDAK terpengaruh
+(screenshot scroll ke bawah, render normal apa adanya).

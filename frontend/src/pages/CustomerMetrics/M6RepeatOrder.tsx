@@ -15,7 +15,7 @@ import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRorBreakdown } from '@/hooks/useMetrics';
-import { monthToEndDate } from './helpers';
+import { resolvePeriodEnd } from '@/utils/date';
 import { formatRupiah } from '@/utils/format';
 import { SectionLabel } from './HelperComponents';
 
@@ -93,7 +93,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, companyId, branc
             value={value}
             thresholdGreen={thresholdPct}
             height={240}
-            onChartClick={() => setDrillDate(monthToEndDate(periodEnd))}
+            onChartClick={() => setDrillDate(resolvePeriodEnd(periodEnd.slice(0, 7)))}
           />
         )}
       </Box>

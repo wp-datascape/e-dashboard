@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { metricsApi } from '@/api/metrics.api';
 import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData } from '@/types/metrics';
+import type { DrilldownPeriodParams } from '@/utils/analisisPeriod';
 
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
 
@@ -35,13 +36,23 @@ export function useCrossSelling(params?: {
 export function useCrossSellingDetail(params: {
   period_end: string | null;
   company_id?: number | 'all';
+  // Dibangun via `buildDrilldownPeriodParams` (utils/analisisPeriod.ts) di
+  // sisi caller — SATU tempat pusat yang merakit period_type/apply_date_
+  // cutoff/cutoff_day/skip_elapsed_clamp dari state filter halaman, BUKAN
+  // diturunkan ulang per hook (2026-08-23, koreksi user: "filter ini
+  // fungsinya harus global... rawan bug di metric KPI lainnya" kalau tiap
+  // fungsi menulis ulang). Lihat JSDoc `buildDrilldownPeriodParams` dan
+  // backend `resolveTrendPeriod` (period.util.ts, prioritas yang sama)
+  // untuk penjelasan lengkap kenapa tiap field ini dibutuhkan.
+  periodParams: DrilldownPeriodParams;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
 }) {
+  const { periodParams, ...rest } = params;
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling-detail', params],
-    queryFn: () => metricsApi.getCrossSelling({ ...params, period_end: params.period_end! }),
+    queryFn: () => metricsApi.getCrossSelling({ ...rest, ...periodParams, period_end: params.period_end! }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -55,6 +66,7 @@ export function useCustomerMetrics(params?: {
   period_end?: string;
   // Granularitas trend (task029.md §30.9, 2026-08-22) — mirror useCrossSelling.
   period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
@@ -78,10 +90,24 @@ export function useRevenueBreakdown(params: { period_end: string | null; company
 }
 
 // ── M7 Expansion Drill-down ───────────────────────────────────────────────────
-export function useExpansionBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useExpansionBreakdown(params: {
+  period_end: string | null;
+  company_id?: number | 'all';
+  // Granularitas (2026-08-22, bug class sama dgn useCrossSellingDetail) —
+  // tanpa ini backend fetchExpansionBreakdown fallback ke window
+  // activeMonths lama, bukan rentang penuh bucket yang diklik.
+  date_from?: string;
+  // period_type (2026-08-23) — dipakai backend menghitung window "sebelumnya"
+  // PERIOD-ANCHORED (posisi relatif sama di periode sebelumnya), bukan
+  // rolling-window mundur — lihat JSDoc getExpansionBreakdown (backend).
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+}) {
   return useQuery<ExpansionBreakdownData>({
     queryKey: ['metrics', 'expansion-breakdown', params],
-    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, date_from: params.date_from, period_type: params.period_type, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });

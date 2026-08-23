@@ -2,28 +2,33 @@ import { useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import { useTheme } from '@mui/material/styles';
+import Grid from '@mui/material/Grid';
+import MuiTooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import CategoryIcon from '@mui/icons-material/Category';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { GridColDef } from '@mui/x-data-grid';
 
-import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog, Card } from '@/components/ui';
 import { KpiHeader } from '@/components/dashboard/KpiHeader';
-import { TrendSummary } from '@/components/dashboard/TrendSummary';
 import { useCrossSelling, useCrossSellingDetail } from '@/hooks/useMetrics';
 import type { CrossSellingData } from '@/types/metrics';
-import { SectionLabel, SummaryCard } from './HelperComponents';
-import { BreakdownTable } from './BreakdownTable';
+import { SectionLabel, KpiCard } from './HelperComponents';
 import { formatRupiah } from '@/utils/format';
+import { formatDateID } from '@/utils/date';
 import {
   shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort,
-  getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange,
+  getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday,
+  buildDrilldownPeriodParams,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 
@@ -47,6 +52,11 @@ import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 // terbukti jalan buat Tooltip hover). Sekarang KEDUANYA ada: dialog
 // per-titik (bisa lihat histori bulan lain) + BreakdownTable (periode
 // sekarang, selalu tampil, tidak perlu klik).
+//
+// Susulan (2026-08-22, koreksi user: "terlalu kotor jika chart digabung
+// dengan tabel") — `<BreakdownTable>` DIPINDAH ke Laporan > Growth
+// (`pages/Report/Growth/index.tsx`), sama seperti M1CrossSelling.tsx.
+// Dialog klik-titik per-bulan TIDAK berubah, tetap ada di sini.
 interface Props {
   data: CrossSellingData | undefined;
   isLoading: boolean;
@@ -105,20 +115,26 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     exclude_intercompany: excludeIntercompany,
   });
 
-  const [tab, setTab] = useState<'overview' | 'trend'>('overview');
-
   // ─── Drill-down (klik titik grafik avg-category) ────────────────────────
   const [drillDate, setDrillDate] = useState<string | null>(null);
+  // periodParams dirakit SATU tempat pusat (buildDrilldownPeriodParams,
+  // utils/analisisPeriod.ts) dari state filter halaman (periodType/periodEnd/
+  // applyDateCutoff) — bukan diturunkan ulang di sini (2026-08-23, koreksi
+  // user soal duplikasi logic filter per fungsi).
+  const drilldownPeriodParams = buildDrilldownPeriodParams(periodType, periodEnd, applyDateCutoff);
   const { data: drillData, isLoading: drillLoading } = useCrossSellingDetail({
     period_end: drillDate,
+    periodParams: drilldownPeriodParams,
     company_id: companyId,
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
   });
 
+  // Kolom Kode Pelanggan (customer_code) DIHAPUS dari tabel drilldown ini
+  // (2026-08-23, permintaan user, susulan §M1CrossSelling.tsx yang sudah
+  // lebih dulu dihapus — nilai kode ini sering NULL/tidak berarti bagi user).
   const detailColumns: GridColDef[] = [
-    { field: 'customer_code', headerName: t('crossSelling.colCustomerCode'), width: 130 },
     { field: 'customer_name', headerName: t('crossSelling.colCustomerName'), flex: 1, minWidth: 180 },
     {
       field: 'has_unit',
@@ -162,115 +178,116 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     [data?.detail],
   );
 
+  // Icon tren (2026-08-22, instruksi user "buat layout seperti diatas" —
+  // REUSE pola persis M1CrossSelling.tsx: yoyByCustomer/crossSellStatus,
+  // category_count vs yoyData, sama definisi dgn tabel Breakdown).
+  const yoyCategoryCountByCustomer = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const r of yoyData?.detail ?? []) map.set(r.customer_id, r.category_count);
+    return map;
+  }, [yoyData?.detail]);
+
   return (
     <Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <SectionLabel label={t('crossSelling.labelM2')} icon={CategoryIcon} />
+        {/* Susulan (2026-08-22, instruksi user: "sekarang lanjut ke rata
+            rata kategori produk per pelanggan, buat layout seperti
+            diatas") — pola SAMA PERSIS M1CrossSelling.tsx final (§30.23-
+            30.25): (1) 3 KPI card di atas Card utama, (2) header Card cuma
+            judul (Divider dihapus), (3) KpiHeader dipindah jadi
+            `headerContent` DI DALAM ComboChartWidget (bukan sibling di
+            luar container-nya), (4) Top 5 Customers pindah jadi kolom
+            timeline di samping chart (grid 7fr/3fr, dot+garis, chip bulat
+            trend), BUKAN card/list terpisah di bawah lagi. SummaryCard
+            grid 2x2 + mini AreaChartWidget (section lama) DIHAPUS TOTAL —
+            sudah dicover kartu KPI di atas + Top 5 di samping chart. */}
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
+              <KpiCard
+                label={t('crossSelling.kpi1Label')}
+                value={`${data?.kpi1.rate ?? 0}%`}
+                sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
+                color={theme.palette.primary.main}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
+              <KpiCard
+                label={t('crossSelling.kpi2Label')}
+                value={data?.kpi2.avg_categories ?? 0}
+                sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, unit: periodUnit })}
+                color={theme.palette.info.main}
+              />
+            )}
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
+              <KpiCard
+                label={t('crossSelling.activeCustomerLabel')}
+                value={data?.kpi1.active_count ?? 0}
+                sub={t('crossSelling.activeCustomerSub', {
+                  start: data?.period.start ? formatDateID(data.period.start) : '—',
+                  end: data?.period.end ? formatDateID(data.period.end) : '—',
+                })}
+                color={theme.palette.success.main}
+              />
+            )}
+          </Grid>
+        </Grid>
 
-        {isLoading ? (
-          <Skeleton variant="rectangular" height={80} />
-        ) : (
-          <KpiHeader
-            metricLabel={t('crossSelling.seriesAvgCategory')}
-            current={data?.kpi2.avg_categories ?? 0}
-            yoy={yoyData?.kpi2.avg_categories ?? 0}
-            kpiType="value"
-            formatValue={(v) => v.toFixed(2)}
-            currentPeriodLabel={currentPeriodLabel}
-            comparisonLabel={yoyComparisonLabel}
-          />
-        )}
+        <Card>
+          <Box sx={{ p: 2.5 }}>
+            {/* CTA chip "Klik bar untuk detail per customer" (2026-08-23,
+                instruksi user: "lakukan hal yang sama untuk rata rata
+                kategory cart" — susulan M7) — pola sama persis heatmap M1/
+                M7: StatusChip icon={TouchAppIcon} color="info", pojok kanan
+                atas baris judul, dipindah dari caption chart (dulu ikut
+                nempel di kalimat subtitle) supaya lebih ter-notice.
 
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            minHeight: 36,
-            borderBottom: 1,
-            borderColor: 'divider',
-            '& .MuiTab-root': { bgcolor: 'transparent', textTransform: 'none' },
-            '& .MuiTab-root.Mui-selected': { bgcolor: 'transparent' },
-          }}
-        >
-          <Tab value="overview" label={t('crossSelling.m2TabOverview')} sx={{ minHeight: 36, py: 0.5 }} />
-          <Tab value="trend" label={t('crossSelling.m2TabTrendAnalysis')} sx={{ minHeight: 36, py: 0.5 }} />
-        </Tabs>
-
-        {tab === 'overview' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flex: '1 1 300px' }}>
-                {isLoading ? (
-                  <Skeleton variant="rectangular" height={168} />
-                ) : (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, height: '100%' }}>
-                    <SummaryCard label={t('crossSelling.seriesAvgCategory')} value={(data?.kpi2.avg_categories ?? 0).toFixed(2)} />
-                    <SummaryCard label={t('crossSelling.m2DialogDistinctCats')} value={(data?.kpi2.total_distinct_cats ?? 0).toLocaleString('id-ID')} />
-                    <SummaryCard label={t('crossSelling.seriesActiveCustomers')} value={(data?.kpi1.active_count ?? 0).toLocaleString('id-ID')} />
-                    <SummaryCard label={t('crossSelling.seriesCrossSellRateShort')} value={`${(data?.kpi1.rate ?? 0).toFixed(1)}%`} />
-                  </Box>
-                )}
+                Info tooltip (susulan sama hari, instruksi user: "tambahkan
+                info tooltip untuk cart rata rata kategory, dan hapus teks
+                dibawah legen") — pola sama persis judul chart utama M1
+                (MuiTooltip+IconButton+InfoOutlinedIcon di sebelah
+                SectionLabel), teks penjelasan (`m2ChartSubtitle`) PINDAH
+                dari caption di BAWAH chart (dihapus, lihat prop `caption`
+                ComboChartWidget di bawah) jadi isi tooltip ini. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <SectionLabel label={t('crossSelling.labelM2')} icon={CategoryIcon} />
+                <MuiTooltip
+                  title={t('crossSelling.m2ChartSubtitle')}
+                  placement="top"
+                  arrow
+                  slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+                >
+                  <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                    <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </MuiTooltip>
               </Box>
-
-              <Box sx={{ flex: '1 1 300px' }}>
-                {isLoading ? (
-                  <Skeleton variant="rectangular" height={168} />
-                ) : (
-                  <AreaChartWidget
-                    title={t('crossSelling.m2OverviewChartTitle', { unit: periodUnit })}
-                    subtitle={t('crossSelling.seriesAvgCategory')}
-                    data={data?.trend ?? []}
-                    series={[{ key: 'avg_category', label: t('crossSelling.seriesAvgCategory'), color: theme.palette.success.main }]}
-                    xKey="month"
-                    height={120}
-                    xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-                  />
-                )}
-              </Box>
-            </Box>
-
-            <Box>
-              <SectionLabel label={t('crossSelling.m2OverviewTopCustomersLabel')} />
-              {isLoading ? (
-                <Skeleton variant="rectangular" height={220} />
-              ) : (
-                <Card>
-                  {overviewTopCustomers.length === 0 ? (
-                    <Box sx={{ p: 2 }}>
-                      <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
-                    </Box>
-                  ) : (
-                    overviewTopCustomers.map((r, i) => (
-                      <Box
-                        key={r.customer_id}
-                        sx={{
-                          display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25,
-                          borderBottom: i < overviewTopCustomers.length - 1 ? '1px solid' : 'none',
-                          borderColor: 'divider',
-                        }}
-                      >
-                        <Typography variant="body2" color="text.disabled" sx={{ width: 20, fontWeight: 600 }}>{i + 1}</Typography>
-                        <Typography variant="body2" sx={{ flex: 1 }} noWrap>{r.customer_name}</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('crossSelling.colCategoryCount')}: {r.category_count}</Typography>
-                      </Box>
-                    ))
-                  )}
-                </Card>
-              )}
+              <StatusChip icon={<TouchAppIcon />} label={t('crossSelling.m2ChartHint')} color="info" />
             </Box>
           </Box>
-        )}
 
-        {tab === 'trend' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
-            <Box>
-              {isLoading ? (
-                <Skeleton variant="rectangular" height={260} />
-              ) : (
-                <>
+          <Box sx={{ p: 2.5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2, alignItems: 'start' }}>
+              <Box>
+                {isLoading ? (
+                  <Skeleton variant="rectangular" height={360} />
+                ) : (
                   <ComboChartWidget
-                    title={t('crossSelling.m2ChartTitle', { unit: periodUnit })}
-                    subtitle={`${t('crossSelling.m2ChartSubtitle', { unit: periodUnit })} · ${t('crossSelling.m2ChartHint')}`}
+                    headerContent={
+                      <KpiHeader
+                        current={data?.kpi2.avg_categories ?? 0}
+                        yoy={yoyData?.kpi2.avg_categories ?? 0}
+                        kpiType="value"
+                        formatValue={(v) => v.toFixed(2)}
+                        currentPeriodLabel={currentPeriodLabel}
+                        comparisonLabel={yoyComparisonLabel}
+                      />
+                    }
                     data={trendWithBuckets}
                     barKey="single_category"
                     barLabel={t('crossSelling.m2SeriesSingleCategory')}
@@ -287,23 +304,66 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                     xKey="month"
                     height={220}
                     xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-                    onBarClick={(d) => setDrillDate(getPeriodDateRange(periodType, String(d.month ?? '')).end)}
+                    onBarClick={(d) => {
+                      const month = String(d.month ?? '');
+                      setDrillDate(clampPeriodEndToToday(periodType, month, getPeriodDateRange(periodType, month).end));
+                    }}
                   />
-                  <TrendSummary
-                    metricLabel={t('crossSelling.seriesAvgCategory')}
-                    data={data?.trend ?? []}
-                    accessor={(r) => r.avg_category}
-                    labelAccessor={(r) => r.month}
-                    formatValue={(v) => v.toFixed(2)}
-                    unit={periodUnit}
-                  />
-                </>
-              )}
-            </Box>
+                )}
+              </Box>
 
-            <BreakdownTable data={data} yoyData={yoyData} isLoading={isLoading} />
+              <Box>
+                {isLoading ? (
+                  <Skeleton variant="rectangular" height={280} />
+                ) : (
+                  <>
+                    <Box sx={{ pb: 1 }}>
+                      <SectionLabel label={t('crossSelling.m2OverviewTopCustomersLabel')} />
+                    </Box>
+                    {overviewTopCustomers.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
+                    ) : (
+                      overviewTopCustomers.map((r, i) => {
+                        const isLast = i === overviewTopCustomers.length - 1;
+                        const yoyCategoryCount = yoyCategoryCountByCustomer.get(r.customer_id);
+                        const trendDirection: 'up' | 'down' | 'flat' =
+                          yoyCategoryCount == null || r.category_count > yoyCategoryCount ? 'up'
+                            : r.category_count < yoyCategoryCount ? 'down' : 'flat';
+                        const TrendIcon = trendDirection === 'up' ? TrendingUpIcon : trendDirection === 'down' ? TrendingDownIcon : TrendingFlatIcon;
+                        const trendColor = trendDirection === 'up' ? theme.palette.success.main : trendDirection === 'down' ? theme.palette.error.main : theme.palette.text.disabled;
+                        return (
+                          <Box key={r.customer_id} sx={{ display: 'flex', gap: 1.5 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
+                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0, mt: 0.5 }} />
+                              {!isLast && <Box sx={{ flex: 1, width: '2px', bgcolor: 'divider', my: 0.5 }} />}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, pb: isLast ? 0.5 : 2 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
+                                {i + 1}. {r.customer_name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                                {r.category_count} {t('crossSelling.m2CategoryCountSuffix')}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  width: 22, height: 22, borderRadius: '50%',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  bgcolor: alpha(trendColor, 0.15), flexShrink: 0,
+                                }}
+                              >
+                                <TrendIcon sx={{ fontSize: 14, color: trendColor }} />
+                              </Box>
+                            </Box>
+                          </Box>
+                        );
+                      })
+                    )}
+                  </>
+                )}
+              </Box>
+            </Box>
           </Box>
-        )}
+        </Card>
       </Box>
 
       {/* M2 Drill-down Dialog — detail per customer bulan yang diklik (fitur
@@ -313,11 +373,24 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
         open={!!drillDate}
         onClose={() => setDrillDate(null)}
         maxWidth="md"
-        title={t('crossSelling.m2DialogTitle', { date: drillDate })}
+        title={t('crossSelling.m2DialogTitle')}
         showCloseButton
         contentSx={{ p: 1 }}
+        // Susulan (2026-08-23, koreksi user: "pisahkan judul dan periode" —
+        // dulu period digabung ke title via em-dash. Standar layout drilldown
+        // SEKARANG: title = nama entitas doang, subtitle baris pertama =
+        // rentang tanggal SEBENARNYA yang dipakai query (bukan cuma nama
+        // periode), pola sama persis dialog drill-down M1.1 (heatmap cell) —
+        // reuse key `m11DialogSubtitle` yang sama, jadi standar di semua
+        // dialog drilldown, bukan duplikasi teks per KPI.
         subtitle={drillData && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              {t('crossSelling.m11DialogSubtitle', {
+                start: formatDateID(drillData.period.start),
+                end: formatDateID(drillData.period.end),
+              })}
+            </Typography>
             {([
               [t('crossSelling.m2DialogAvgCategories'), String(drillData.kpi2.avg_categories)],
               [t('crossSelling.m2DialogDistinctCats'),  String(drillData.kpi2.total_distinct_cats)],

@@ -8,6 +8,25 @@ export function todayIsoDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Clamp nilai date/month picker ke `maxValue` kalau melebihinya, ATAU
+ * kalau `value` kosong (2026-08-23, bug dilaporkan user: klik tombol clear
+ * bawaan browser pada date/month picker mengosongkan value → fetch data
+ * error) — semua onChange date/month picker filter periode di app ini
+ * SEHARUSNYA lewat fungsi pusat ini, bukan tiap tempat menulis kondisi
+ * `value > max ? max : value` sendiri² (pola lama itu SALAH utk value
+ * kosong: string kosong selalu lebih kecil dari string mana pun, jadi
+ * lolos apa adanya alih-alih di-clamp).
+ *
+ * `maxValue` diisi caller (todayIsoDate() utk type="date", currentYearMonth()
+ * utk type="month") — fungsi ini generik thd granularitas, cuma perbandingan
+ * string leksikografik (valid krn semua format ini 'YYYY-MM'/'YYYY-MM-DD',
+ * urutan leksikografik = urutan tanggal).
+ */
+export function clampDateNotFuture(value: string, maxValue: string): string {
+  return !value || value > maxValue ? maxValue : value
+}
+
 /** Konversi 'YYYY-MM' ke hari terakhir bulan sebagai 'YYYY-MM-DD' */
 export function monthToEndDate(month: string): string {
   const [y, m] = month.split('-').map(Number)

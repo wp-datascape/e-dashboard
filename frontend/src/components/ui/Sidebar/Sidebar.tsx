@@ -14,8 +14,8 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 import { useAuth } from '@/context/auth.context';
@@ -109,11 +109,21 @@ function NavGroup({
   collapsed,
   onNav,
   canSee,
+  expanded,
+  onToggle,
 }: {
   item: NavItem
   collapsed: boolean
   onNav: (path: string) => void
   canSee: (permissionKey?: string) => boolean
+  /** Accordion eksklusif (2026-08-22, instruksi user: "saat sub menu
+   * terbuka, sub menu lain tertutup otomatis menghindari scroll") — state
+   * "grup mana yang lagi terbuka" DIANGKAT ke Sidebar (1 sumber utk SEMUA
+   * NavGroup), bukan lagi `useState` lokal per grup (dulu tiap grup bisa
+   * expanded bersamaan, sidebar jadi sangat panjang kalau user buka
+   * Business+Data+Settings sekaligus). */
+  expanded: boolean
+  onToggle: () => void
 }) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -124,7 +134,6 @@ function NavGroup({
   const anyChildActive = visibleChildren.some(
     (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
   )
-  const [expanded, setExpanded] = useState(anyChildActive)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
@@ -179,7 +188,7 @@ function NavGroup({
   return (
     <>
       <ListItemButton
-        onClick={() => setExpanded((p) => !p)}
+        onClick={onToggle}
         selected={anyChildActive && !expanded}
         sx={{ ...NAV_ITEM_SX, justifyContent: 'flex-start' }}
       >
@@ -196,7 +205,10 @@ function NavGroup({
             },
           }}
         />
-        {expanded ? <ExpandLessIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <ExpandMoreIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
+        {/* Indikator +/- (2026-08-22, koreksi user: "jangan pakai arrow")
+            — bukan lagi chevron ExpandMore/Less. Tertutup = "+" (bisa
+            dibuka), terbuka = "-" (bisa ditutup). */}
+        {expanded ? <RemoveIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <AddIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
       </ListItemButton>
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <List dense disablePadding>
@@ -232,6 +244,7 @@ function buildNavSections(items: NavItem[]): NavSection[] {
 
 export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
   const { permissions } = useAuth()
   const collapsed = !open
@@ -241,6 +254,20 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
     if (!permissionKey) return true
     return permissions.includes(permissionKey)
   }
+
+  // Accordion eksklusif antar grup collapsible (Business/Report/Data/
+  // Settings/dst, 2026-08-22, instruksi user: "saat sub menu terbuka, sub
+  // menu lain tertutup otomatis menghindari scroll") — 1 state di sini,
+  // dioper ke tiap <NavGroup> sbg expanded/onToggle (bukan lagi useState
+  // lokal per grup). Default: grup yang MEMUAT path aktif saat mount
+  // (mis. buka /report/growth -> grup "Report" otomatis terbuka), null
+  // kalau tidak ada yang match (semua grup tertutup).
+  const [expandedKey, setExpandedKey] = useState<string | null>(() => {
+    const activeGroup = NAV_ITEMS.find((i) =>
+      i.children?.some((c) => location.pathname === c.path || location.pathname.startsWith(c.path))
+    )
+    return activeGroup?.key ?? null
+  })
 
   const handleNav = (path: string) => {
     navigate(path)
@@ -316,7 +343,17 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
               {section.items.map((item) => {
                 if (!isNavItemVisible(item, canSee)) return null
                 return item.children
-                  ? <NavGroup key={item.key} item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
+                  ? (
+                    <NavGroup
+                      key={item.key}
+                      item={item}
+                      collapsed={collapsed}
+                      onNav={handleNav}
+                      canSee={canSee}
+                      expanded={expandedKey === item.key}
+                      onToggle={() => setExpandedKey((k) => (k === item.key ? null : item.key))}
+                    />
+                  )
                   : <NavButton key={item.key} item={item} collapsed={collapsed} onNav={handleNav} />
               })}
             </span>
