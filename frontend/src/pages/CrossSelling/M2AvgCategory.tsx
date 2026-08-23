@@ -291,15 +291,14 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
           </Box>
 
           <Box sx={{ p: 2.5 }}>
-            {/* Layout grid 2-kolom KEMBALI (2026-08-24, koreksi user: "kenapa
-                mode desktop Top 5 juga ikut ke bawah chart, aku cuma minta
-                perbaiki mode mobile") — desktop (md+) side-by-side chart
-                7fr / Top5 3fr, mobile (xs) satu kolom. `minWidth: 0` di
-                kolom chart cegah ResponsiveContainer memaksa lebar
-                intrinsik grid track keluar batas kolomnya. TIDAK ada lagi
-                alignItems:'stretch'/height:'100%'/position:absolute. */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2 }}>
-            <Box sx={{ minWidth: 0 }}>
+            {/* CSS Grid manual (sx display:'grid') DIGANTI komponen `<Grid>`
+                MUI (2026-08-24, instruksi user: "gabisa pakai grid col
+                responsive? pakai context7" — dicek dokumentasi resmi MUI,
+                pola `<Grid container><Grid size={{xs,md}}>` sudah dipakai
+                konsisten di seluruh proyek ini, BUKAN CSS Grid tulisan
+                tangan via sx yang berulang kali bermasalah di mobile). */}
+            <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 8 }} sx={{ minWidth: 0 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={360} />
             ) : (
@@ -336,9 +335,9 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                 }}
               />
             )}
-            </Box>
+            </Grid>
 
-            <Box>
+            <Grid size={{ xs: 12, md: 4 }}>
               {isLoading ? (
                 <Skeleton variant="rectangular" height={200} />
               ) : (
@@ -406,8 +405,8 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                   </Box>
                 </>
               )}
-            </Box>
-            </Box>
+            </Grid>
+            </Grid>
           </Box>
         </Card>
       </Box>
