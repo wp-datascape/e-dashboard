@@ -511,7 +511,19 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
           )}
           </Grid>
 
-          <Grid size={{ xs: 12, md: 4 }}>
+          {/* display:flex + flexDirection:'column' (2026-08-24, instruksi
+              user: "tombol Cek Detail pojok kanan bawah tanpa merusak
+              layout") — grid item ini adalah flex-item baris `<Grid
+              container>` di atas, browser default `align-items:stretch`
+              MUI Grid v2 SUDAH membuatnya setinggi kolom chart di sebelah
+              (desktop, md+) tanpa perlu height:100%/percentage manual
+              apa pun. mt:'auto' di Box tombol tinggal manfaatkan sisa
+              ruang stretch itu utk dorong ke bawah — TIDAK menyentuh
+              tinggi/ukuran ComboChartWidget sama sekali (chart height
+              fixed piksel, bukan persentase). Di mobile (xs), kolom ini
+              row TERPISAH (bukan stretch bareng chart), mt:'auto' otomatis
+              tidak berefek — tombol tetap menempel wajar di bawah list. */}
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column' }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={280} />
             ) : (
@@ -602,7 +614,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               </Box>
             )}
             {!isLoading && (
-              <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'flex-start' }, mt: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto', pt: 1 }}>
                 <Button
                   size="small"
                   endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}

@@ -337,7 +337,14 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
             )}
             </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
+            {/* display:flex + flexDirection:'column' (2026-08-24, instruksi
+                user: "tombol Cek Detail pojok kanan bawah tanpa merusak
+                layout") — pola sama persis M1: align-items:stretch
+                default MUI Grid v2 SUDAH menyamakan tinggi kolom ini
+                dengan kolom chart di desktop (md+), mt:'auto' di Box
+                tombol tinggal manfaatkan sisa ruang itu. Tidak menyentuh
+                tinggi chart sama sekali (height chart fixed piksel). */}
+            <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column' }}>
               {isLoading ? (
                 <Skeleton variant="rectangular" height={200} />
               ) : (
@@ -393,7 +400,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                       );
                     })
                   )}
-                  <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'flex-start' }, mt: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto', pt: 1 }}>
                     <Button
                       size="small"
                       endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
