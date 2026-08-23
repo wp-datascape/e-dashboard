@@ -448,18 +448,18 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
         </Box>
 
         <Box sx={{ p: 2.5 }}>
-          {/* Layout grid 2-kolom KEMBALI (2026-08-24, koreksi user: "kenapa
-              mode desktop Top 5 juga ikut ke bawah chart, aku cuma minta
-              perbaiki mode mobile") — desktop (md+) tetap side-by-side
-              chart 7fr / Top5 3fr, mobile (xs) satu kolom (Top5 di bawah
-              chart otomatis via gridTemplateColumns 1fr). `minWidth: 0` di
-              kolom chart mencegah ResponsiveContainer memaksa lebar
-              intrinsik grid track keluar dari batas kolomnya (bug klasik
-              CSS Grid, default grid-item min-width:auto). TIDAK ada lagi
-              alignItems:'stretch'/height:'100%'/position:absolute —
-              sumber gangguan chart di percobaan-percobaan sebelumnya. */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2 }}>
-          <Box sx={{ minWidth: 0 }}>
+          {/* CSS Grid manual (sx display:'grid') DIGANTI komponen `<Grid>`
+              MUI (2026-08-24, instruksi user: "gabisa pakai grid col
+              responsive? pakai context7" — dicek dokumentasi resmi MUI,
+              pola `<Grid container><Grid size={{xs,md}}>` inilah yang
+              sudah dipakai konsisten di seluruh proyek ini, termasuk 3
+              KpiCard heatmap persis di bawah section ini — BUKAN CSS Grid
+              tulisan tangan via sx yang berulang kali bermasalah di mobile
+              beberapa iterasi terakhir). `minWidth: 0` tetap dipasang di
+              kolom chart sbg jaga-jaga (flex item MUI Grid v2 tetap bisa
+              kena default `min-width:auto` browser). */}
+          <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 8 }} sx={{ minWidth: 0 }}>
           {isLoading ? (
             <Skeleton variant="rectangular" height={360} />
           ) : (
@@ -509,9 +509,9 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               renderTooltip={(props) => <M1Tooltip {...props} />}
             />
           )}
-          </Box>
+          </Grid>
 
-          <Box>
+          <Grid size={{ xs: 12, md: 4 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={280} />
             ) : (
@@ -613,8 +613,8 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
                 </Button>
               </Box>
             )}
-          </Box>
-          </Box>
+          </Grid>
+          </Grid>
         </Box>
       </Card>
 
