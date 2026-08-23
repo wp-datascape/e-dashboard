@@ -293,18 +293,34 @@ export function clampToElapsedEnd(periodKey: string, calendarEnd: string, period
  * (bahkan periode lampau sembarang yang berbagi suffix), MEMOTONG bucket
  * yang seharusnya sudah tutup penuh jadi terlalu pendek.
  */
+/**
+ * Hari ke-berapa (1-indexed) sebuah TANGGAL itu, DIHITUNG DARI AWAL PERIODE
+ * AKTIF — bukan angka tanggal mentah 1-31 (2026-08-23, fix lanjutan: laporan
+ * user "cutoff 13 Agustus di granularitas Kuartal/Semester/Tahun malah
+ * menarik data 1-13 JULI/JANUARI, bukan Agustus yang sebenarnya dipilih").
+ * Root cause fix sebelumnya (JSDoc lama `clampEndToDay`, masih di bawah):
+ * pemanggil kirim angka tanggal MENTAH (13, dari "2026-08-13".split('-')[2])
+ * sbg `day`, lalu diterapkan ke bulan PERTAMA periode manapun — kalau
+ * tanggal yang dipilih user kebetulan jatuh di bulan ke-2/3 periode
+ * (kuartal/semester/tahun), maknanya HILANG, "13 Agustus" jadi "hari ke-13"
+ * generik yg diterapkan balik ke bulan pertama (Juli). Fungsi INI
+ * menghitung "sudah berapa hari sejak awal periode" (bukan angka tanggal
+ * mentah) sbg `day` param `clampEndToDay` — utk granularitas Bulanan
+ * hasilnya PERSIS SAMA angka tanggal mentah (awal periode = tanggal 1 bulan
+ * yang sama), cuma beda utk Kuartal/Semester/Tahun.
+ */
+export function daysSincePeriodStart(periodStart: string, dateStr: string): number {
+  const [sy, sm, sd] = periodStart.split('-').map(Number)
+  const [dy, dm, dd] = dateStr.split('-').map(Number)
+  const start = new Date(sy, sm - 1, sd)
+  const target = new Date(dy, dm - 1, dd)
+  return Math.round((target.getTime() - start.getTime()) / 86400000) + 1
+}
+
 export function clampEndToDay(periodStart: string, periodEnd: string, day: number, periodKey: string, periodType: PeriodType, today: Date = new Date()): string {
-  // "Hari ke-D" dihitung dari AWAL periode (2026-08-23, fix bug granularitas
-  // non-bulanan — laporan user: filter Kuartal + cutoff 10 Juli malah
-  // menarik data sampai hari ini). Versi lama ambil bulan dari periodEnd
-  // (akhir KALENDER periode, mis. akhir September utk Kuartal 3) lalu
-  // terapkan "hari ke-D" ke bulan itu — benar utk bulanan (periodEnd = bulan
-  // yang sama), tapi SALAH utk kuartal/semester/tahun (periodEnd bulannya
-  // BEDA dari bulan tempat tanggal cutoff aslinya berada). Sekarang: hari
-  // ke-D dihitung sbg "D-1 hari setelah awal periode" — utk bulanan hasilnya
-  // PERSIS SAMA (awal periode = tanggal 1 bulan itu), utk granularitas lain
-  // otomatis jatuh di bulan PERTAMA periode (tempat tanggal cutoff asli
-  // dipilih user), bukan bulan terakhir.
+  // `day` = hari ke-N SEJAK AWAL PERIODE (1-indexed, lihat `daysSincePeriodStart`
+  // di atas — WAJIB dipakai pemanggil, BUKAN angka tanggal mentah 1-31, lihat
+  // JSDoc-nya kenapa). Diterapkan sbg "N-1 hari setelah awal periode".
   const [y, m, d0] = periodStart.split('-').map(Number)
   const candidate = new Date(y, m - 1, d0 + (day - 1))
   const candidateStr = `${candidate.getFullYear()}-${pad2(candidate.getMonth() + 1)}-${pad2(candidate.getDate())}`

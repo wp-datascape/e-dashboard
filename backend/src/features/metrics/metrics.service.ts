@@ -12,7 +12,7 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // fitur Analisis (task016), sekarang juga dipakai granularitas M1 Cross
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
-import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod } from '@/features/analisis/period.util'
+import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -136,7 +136,13 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
       periodKey, calendarEnd, calendarStart: periodStartDate, periodType, buckets,
       applyDateCutoff: params.apply_date_cutoff,
       cutoffDay: params.cutoff_day,
-      fallbackDay: pd,
+      // fallbackDay = hari ke-N SEJAK AWAL PERIODE (2026-08-23, fix bug
+      // granularitas non-bulanan — laporan user: cutoff "13 Agustus" di
+      // Kuartal/Semester/Tahun malah menarik 1-13 Juli/Januari, krn `pd`
+      // (angka tanggal mentah 13) diterapkan balik ke bulan PERTAMA periode
+      // manapun, bukan ke bulan tempat tanggal itu sebenarnya dipilih).
+      // `daysSincePeriodStart` (period.util.ts) — REUSE, SATU sumber kebenaran.
+      fallbackDay: daysSincePeriodStart(periodStartDate, periodEnd),
       skipElapsedClamp: params.skip_elapsed_clamp,
     })
     const periodEndDate = resolved.periodEndDate
@@ -203,7 +209,10 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
       applyDateCutoff: params.apply_date_cutoff,
       cutoffDay: params.cutoff_day,
-      fallbackDay: pd,
+      // fallbackDay = hari ke-N SEJAK AWAL PERIODE, bukan angka tanggal
+      // mentah — lihat komentar `daysSincePeriodStart` di getCrossSellingMetrics
+      // di atas (2026-08-23, fix bug granularitas non-bulanan).
+      fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
       skipElapsedClamp: params.skip_elapsed_clamp,
     })
     const periodEndDate = resolved.periodEndDate

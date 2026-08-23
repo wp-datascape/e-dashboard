@@ -297,6 +297,25 @@ export function clampPeriodEndToToday(
  * walau toggle cutoff sudah aktif & filter tanggal lain di halaman sudah
  * benar (bug dilaporkan user 2026-08-23).
  */
+/**
+ * Hari ke-berapa (1-indexed) sebuah TANGGAL itu, DIHITUNG DARI AWAL PERIODE
+ * AKTIF — bukan angka tanggal mentah 1-31. Mirror backend
+ * `daysSincePeriodStart` (period.util.ts, 2026-08-23 — laporan user: cutoff
+ * "13 Agustus" di granularitas Kuartal/Semester/Tahun malah menarik data
+ * 1-13 Juli/Januari, krn dulu angka tanggal MENTAH (13) yang dikirim sbg
+ * `day`, diterapkan balik ke bulan PERTAMA periode manapun — bukan ke bulan
+ * tempat tanggal itu sebenarnya dipilih). WAJIB dipakai (bukan
+ * `dateStr.split('-')[2]` mentah) tiap kali menghitung `day`/`cutoff_day`
+ * utk `clampPeriodEndToDay` di bawah ATAU `DrilldownPeriodParams.cutoff_day`.
+ */
+export function daysSincePeriodStart(periodStart: string, dateStr: string): number {
+  const [sy, sm, sd] = periodStart.split('-').map(Number)
+  const [dy, dm, dd] = dateStr.split('-').map(Number)
+  const start = new Date(sy, sm - 1, sd)
+  const target = new Date(dy, dm - 1, dd)
+  return Math.round((target.getTime() - start.getTime()) / 86400000) + 1
+}
+
 export function clampPeriodEndToDay(
   periodType: AnalisisPeriodType,
   periodKey: string,
@@ -350,6 +369,10 @@ export interface DrilldownPeriodParams {
  * yang HARINYA beda dari hari filter halaman (mis. hari ini tgl 23) — kalau
  * cutoff_day ikut dari titik yang diklik, "dipotong" ke hari ITU SENDIRI,
  * tidak berefek apa pun (lihat komentar backend `resolveTrendPeriod`).
+ * Dihitung via `daysSincePeriodStart` (2026-08-23, fix lanjutan — bukan
+ * lagi angka tanggal mentah `pageriodEnd.split('-')[2]`, lihat JSDoc
+ * fungsi itu kenapa: salah utk granularitas Kuartal/Semester/Tahun kalau
+ * tanggal yg dipilih user jatuh di bulan ke-2/3 periode).
  *
  * `skip_elapsed_clamp` SELALU `true` — drilldown TIDAK PERNAH boleh ikut
  * clamp otomatis default (`clampToElapsedEnd`, backend), walau `apply_date_
@@ -362,11 +385,13 @@ export function buildDrilldownPeriodParams(
   pageriodEnd: string,
   applyDateCutoff: boolean,
 ): DrilldownPeriodParams {
-  const [, , d] = pageriodEnd.split('-').map(Number)
+  const [py, pm, pd] = pageriodEnd.split('-').map(Number)
+  const pageriodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+  const pageriodStart = getPeriodDateRange(periodType, pageriodKey).start
   return {
     period_type: periodType,
     apply_date_cutoff: applyDateCutoff,
-    cutoff_day: d,
+    cutoff_day: daysSincePeriodStart(pageriodStart, pageriodEnd),
     skip_elapsed_clamp: true,
   }
 }

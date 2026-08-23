@@ -63,7 +63,12 @@ const skipElapsedClampField = z
 // Field ini membawa hari filter halaman YANG SEBENARNYA secara terpisah,
 // dipakai HANYA kalau ada (fallback ke hari dari period_end kalau kosong,
 // behavior lama utk fetch trend utama tetap identik).
-const cutoffDayField = z.coerce.number().int().min(1).max(31).optional()
+// max 366 (2026-08-23, fix bug: sebelumnya max 31, asumsi lama "hari dalam
+// bulan") — sejak `cutoff_day` berarti "hari ke-N SEJAK AWAL PERIODE"
+// (daysSincePeriodStart, period.util.ts), nilainya bisa lebih dari 31 utk
+// granularitas Kuartal/Semester/Tahun (mis. periode Tahunan bisa sampai hari
+// ke-366 kalau tahun kabisat) — 31 cuma benar utk Bulanan.
+const cutoffDayField = z.coerce.number().int().min(1).max(366).optional()
 
 export const crossSellingQuerySchema = z.object({
   company_id: z
