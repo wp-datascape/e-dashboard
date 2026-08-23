@@ -29,7 +29,7 @@ import { useExpansionColumns } from './expansionHelpers';
 import { formatRupiah } from '@/utils/format';
 import { formatDateID } from '@/utils/date';
 import {
-  shiftDateByYears, formatPeriodLabel, getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday, clampPeriodEndToDay,
+  shiftDateByYears, formatPeriodLabel, getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday, clampPeriodEndToDay, daysSincePeriodStart,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 
@@ -79,6 +79,12 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
 
   const [py, pm, pd] = periodEnd.split('-').map(Number);
   const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd));
+  // cutoffDay = hari ke-N SEJAK AWAL PERIODE AKTIF (2026-08-23, fix bug
+  // granularitas non-bulanan — laporan user: cutoff "13 Agustus" di Kuartal/
+  // Semester/Tahun malah menarik 1-13 Juli/Januari krn dulu pakai `pd`
+  // mentah). Dihitung SEKALI di sini, dipakai click-handler drill-down
+  // (bukan `pd` langsung).
+  const cutoffDay = daysSincePeriodStart(getPeriodDateRange(periodType, periodKey).start, periodEnd);
   const yoyPeriodKey = getYoyPeriodKey(periodType, periodKey);
   const yoyPeriodEnd = shiftDateByYears(periodEnd, -1);
   const currentPeriodLabel = formatPeriodLabel(periodType, periodKey);
@@ -251,7 +257,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                       const range = getPeriodDateRange(periodType, month);
                       setDrillDate(
                         applyDateCutoff
-                          ? clampPeriodEndToDay(periodType, month, range.start, range.end, pd)
+                          ? clampPeriodEndToDay(periodType, month, range.start, range.end, cutoffDay)
                           : clampPeriodEndToToday(periodType, month, range.end),
                       );
                       setDrillDateFrom(range.start);
