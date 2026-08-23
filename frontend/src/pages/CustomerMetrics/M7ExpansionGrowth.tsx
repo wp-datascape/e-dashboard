@@ -252,15 +252,15 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
               />
             )}
 
-            {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
-                kode M7 branch main, ambil contoh layout darisana" — grid
-                2-kolom chart+Top5 SEMPAT dicoba, chart-nya melebar keluar
-                layar di mobile, tidak berhasil diperbaiki via CSS
-                (minWidth:0/alignItems/dsb). `main` (production) TIDAK
-                PERNAH taruh chart M7 di dalam grid sama sekali — chart
-                FULL WIDTH sendirian, Top Movers (fitur TAMBAHAN sesi ini,
-                tidak ada di main) sekarang taruh DI BAWAH chart, bukan di
-                samping — pola paling sederhana yang TERBUKTI tidak rusak. */}
+            {/* Layout grid 2-kolom KEMBALI (2026-08-24, koreksi user: "kenapa
+                mode desktop Top 5 juga ikut ke bawah chart, aku cuma minta
+                perbaiki mode mobile") — desktop (md+) side-by-side chart
+                7fr / Top Movers 3fr, mobile (xs) satu kolom. `minWidth: 0`
+                di kolom chart cegah ResponsiveContainer memaksa lebar
+                intrinsik grid track keluar batas kolomnya. TIDAK ada lagi
+                alignItems:'stretch'/height:'100%'/position:absolute. */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2 }}>
+            <Box sx={{ minWidth: 0 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={320} />
             ) : (
@@ -281,8 +281,9 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 }}
               />
             )}
+            </Box>
 
-            <Box sx={{ mt: 3 }}>
+            <Box>
               {isLoading || currentBreakdownLoading ? (
                 <Skeleton variant="rectangular" height={200} />
               ) : (
@@ -301,7 +302,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                     </MuiTooltip>
                   </Box>
                   <TopMoversTimeline items={topMoverItems} emptyMessage={t('customerMetrics.m7.emptyMessage')} />
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'flex-start' }, mt: 1 }}>
                     <Button
                       size="small"
                       endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
@@ -313,6 +314,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                   </Box>
                 </>
               )}
+            </Box>
             </Box>
           </Box>
         </Card>

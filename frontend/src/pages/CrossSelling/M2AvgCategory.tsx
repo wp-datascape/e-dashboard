@@ -291,13 +291,15 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
           </Box>
 
           <Box sx={{ p: 2.5 }}>
-            {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
-                kode M7 branch main, ambil contoh layout darisana" — grid
-                2-kolom chart+Top5 SEMPAT dicoba, chart-nya melebar keluar
-                layar di mobile, tidak berhasil diperbaiki via CSS. `main`
-                TIDAK PERNAH taruh chart M1/M2 di dalam grid 2-kolom —
-                chart FULL WIDTH sendirian. Top 5 sekarang taruh DI BAWAH
-                chart, bukan di samping. */}
+            {/* Layout grid 2-kolom KEMBALI (2026-08-24, koreksi user: "kenapa
+                mode desktop Top 5 juga ikut ke bawah chart, aku cuma minta
+                perbaiki mode mobile") — desktop (md+) side-by-side chart
+                7fr / Top5 3fr, mobile (xs) satu kolom. `minWidth: 0` di
+                kolom chart cegah ResponsiveContainer memaksa lebar
+                intrinsik grid track keluar batas kolomnya. TIDAK ada lagi
+                alignItems:'stretch'/height:'100%'/position:absolute. */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2 }}>
+            <Box sx={{ minWidth: 0 }}>
             {isLoading ? (
               <Skeleton variant="rectangular" height={360} />
             ) : (
@@ -334,8 +336,9 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                 }}
               />
             )}
+            </Box>
 
-            <Box sx={{ mt: 3 }}>
+            <Box>
               {isLoading ? (
                 <Skeleton variant="rectangular" height={200} />
               ) : (
@@ -391,7 +394,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                       );
                     })
                   )}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'flex-start' }, mt: 1 }}>
                     <Button
                       size="small"
                       endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
@@ -403,6 +406,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                   </Box>
                 </>
               )}
+            </Box>
             </Box>
           </Box>
         </Card>
