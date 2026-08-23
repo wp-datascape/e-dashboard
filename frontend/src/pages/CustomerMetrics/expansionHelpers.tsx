@@ -63,8 +63,16 @@ export function statusLabel(status: string, t: TFunction): string {
 // dihapus dari tabel M1") — konsisten dihapus di sini juga. Field
 // `customer_code` TETAP dipakai utk search (M7ExpansionGrowth.tsx), cuma
 // tidak lagi jadi kolom tampilan (pola sama M1).
-export function useExpansionColumns(t: TFunction): GridColDef[] {
-  return [
+// `snapshot` (2026-08-23, task029.md §31, instruksi user: "hapus revenue
+// sebelumnya dan % perubahan [di popup drill-down chart] ... di sini kita
+// hanya snapshot periode berjalan sama dengan yang lainnya") — popup
+// drill-down di halaman CHART (M7ExpansionGrowth.tsx) jadi snapshot murni
+// (pola sama M1/M2, tanpa kolom pembanding), sementara tabel di halaman
+// LAPORAN (pages/Report/Growth/index.tsx) TETAP butuh kolom pembanding
+// penuh (prev_revenue/change_pct, itu justru tempatnya) — SATU fungsi ini
+// tetap dipakai bareng, cuma beda parameter, BUKAN 2 fungsi terpisah.
+export function useExpansionColumns(t: TFunction, snapshot = false): GridColDef[] {
+  const columns: GridColDef[] = [
     { field: 'customer_name', headerName: t('customerMetrics.m4.colCustomer'), flex: 1,   minWidth: 160 },
     { field: 'branch',   headerName: t('common.branch'),                width: 130, sortable: false,
       renderCell: (p) => p.value ?? '—' },
@@ -72,13 +80,18 @@ export function useExpansionColumns(t: TFunction): GridColDef[] {
       renderCell: (p) => p.value ?? '—' },
     { field: 'channel',  headerName: t('customers.detail.channel'),     width: 150, sortable: false,
       renderCell: (p) => p.value ?? '—' },
-    { field: 'prev_revenue', headerName: t('customerMetrics.m7.colPrevRevenue'), width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => formatRupiah(p.value as number) },
-    { field: 'cur_revenue', headerName: t('customerMetrics.m7.colCurRevenue'), width: 130, align: 'right', headerAlign: 'right',
-      renderCell: (p) => formatRupiah(p.value as number) },
-    { field: 'change_pct', headerName: t('customerMetrics.m7.colChangePct'), width: 100, align: 'right', headerAlign: 'right',
-      renderCell: (p) => (p.value === null ? '—' : `${p.value}%`) },
-    { field: 'status', headerName: t('customerMetrics.m7.colStatus'), width: 110, align: 'center', headerAlign: 'center', sortable: false,
-      renderCell: (p) => <StatusChip label={statusLabel(p.value as string, t)} color={statusChipColor(p.value as string)} /> },
   ]
+  if (!snapshot) {
+    columns.push({ field: 'prev_revenue', headerName: t('customerMetrics.m7.colPrevRevenue'), width: 130, align: 'right', headerAlign: 'right',
+      renderCell: (p) => formatRupiah(p.value as number) })
+  }
+  columns.push({ field: 'cur_revenue', headerName: t(snapshot ? 'customerMetrics.m7.colRevenue' : 'customerMetrics.m7.colCurRevenue'), width: 130, align: 'right', headerAlign: 'right',
+    renderCell: (p) => formatRupiah(p.value as number) })
+  if (!snapshot) {
+    columns.push({ field: 'change_pct', headerName: t('customerMetrics.m7.colChangePct'), width: 100, align: 'right', headerAlign: 'right',
+      renderCell: (p) => (p.value === null ? '—' : `${p.value}%`) })
+  }
+  columns.push({ field: 'status', headerName: t('customerMetrics.m7.colStatus'), width: 110, align: 'center', headerAlign: 'center', sortable: false,
+    renderCell: (p) => <StatusChip label={statusLabel(p.value as string, t)} color={statusChipColor(p.value as string)} /> })
+  return columns
 }

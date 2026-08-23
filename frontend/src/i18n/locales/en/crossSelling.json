@@ -95,6 +95,8 @@
   "m1TabHeatmap": "Heatmap",
   "m1OverviewChartTitle": "Trend Summary (12 {{unit}})",
   "m1OverviewTopCustomersLabel": "Top 5 Customer Cross Selling",
+  "viewDetailInReport": "View Detail in Report",
+  "topCustomersComparisonInfo": "Up/down trend compared to the immediately previous period, based on the active granularity filter",
   "m1TooltipTitle": "Cross Selling — {{month}}",
   "m1TooltipCrossSellingCustomers": "Cross-Selling Customers",
   "m1TooltipSingleCategory": "Single-Category Customers",

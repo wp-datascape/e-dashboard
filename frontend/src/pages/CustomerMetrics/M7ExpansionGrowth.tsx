@@ -1,15 +1,21 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import Divider from '@mui/material/Divider';
+import MuiTooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@mui/material/styles';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog, Card } from '@/components/ui';
@@ -73,7 +79,11 @@ interface Props {
 export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, division, periodEnd, resolvedPeriodEnd, applyDateCutoff = false, periodType = 'monthly', excludeIntercompany }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const expansionColumns = useExpansionColumns(t);
+  const navigate = useNavigate();
+  // snapshot=true (2026-08-23, task029.md §31) — popup drill-down di
+  // halaman chart ini snapshot murni, tanpa kolom pembanding (itu tempatnya
+  // di halaman Laporan, lihat komentar `useExpansionColumns`).
+  const expansionColumns = useExpansionColumns(t, true);
 
   const current = trend[trend.length - 1];
 
@@ -242,42 +252,67 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
               />
             )}
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2, alignItems: 'start' }}>
-              <Box>
-                {isLoading ? (
-                  <Skeleton variant="rectangular" height={320} />
-                ) : (
-                  <ExpansionChart
-                    trend={trend}
-                    height={320}
-                    periodType={periodType}
-                    showHeader={false}
-                    onBarClick={(d) => {
-                      const month = String(d.month ?? '');
-                      const range = getPeriodDateRange(periodType, month);
-                      setDrillDate(
-                        applyDateCutoff
-                          ? clampPeriodEndToDay(periodType, month, range.start, range.end, cutoffDay)
-                          : clampPeriodEndToToday(periodType, month, range.end),
-                      );
-                      setDrillDateFrom(range.start);
-                    }}
-                  />
-                )}
-              </Box>
+            {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
+                kode M7 branch main, ambil contoh layout darisana" — grid
+                2-kolom chart+Top5 SEMPAT dicoba, chart-nya melebar keluar
+                layar di mobile, tidak berhasil diperbaiki via CSS
+                (minWidth:0/alignItems/dsb). `main` (production) TIDAK
+                PERNAH taruh chart M7 di dalam grid sama sekali — chart
+                FULL WIDTH sendirian, Top Movers (fitur TAMBAHAN sesi ini,
+                tidak ada di main) sekarang taruh DI BAWAH chart, bukan di
+                samping — pola paling sederhana yang TERBUKTI tidak rusak. */}
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={320} />
+            ) : (
+              <ExpansionChart
+                trend={trend}
+                height={320}
+                periodType={periodType}
+                showHeader={false}
+                onBarClick={(d) => {
+                  const month = String(d.month ?? '');
+                  const range = getPeriodDateRange(periodType, month);
+                  setDrillDate(
+                    applyDateCutoff
+                      ? clampPeriodEndToDay(periodType, month, range.start, range.end, cutoffDay)
+                      : clampPeriodEndToToday(periodType, month, range.end),
+                  );
+                  setDrillDateFrom(range.start);
+                }}
+              />
+            )}
 
-              <Box>
-                {isLoading || currentBreakdownLoading ? (
-                  <Skeleton variant="rectangular" height={280} />
-                ) : (
-                  <>
-                    <Box sx={{ pb: 1 }}>
-                      <SectionLabel label={t('customerMetrics.m7.overviewTopMoversLabel')} />
-                    </Box>
-                    <TopMoversTimeline items={topMoverItems} emptyMessage={t('customerMetrics.m7.emptyMessage')} />
-                  </>
-                )}
-              </Box>
+            <Box sx={{ mt: 3 }}>
+              {isLoading || currentBreakdownLoading ? (
+                <Skeleton variant="rectangular" height={200} />
+              ) : (
+                <>
+                  <Box sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <SectionLabel label={t('customerMetrics.m7.overviewTopMoversLabel')} />
+                    <MuiTooltip
+                      title={t('crossSelling.topCustomersComparisonInfo')}
+                      placement="top"
+                      arrow
+                      slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.6 } } }}
+                    >
+                      <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                        <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </MuiTooltip>
+                  </Box>
+                  <TopMoversTimeline items={topMoverItems} emptyMessage={t('customerMetrics.m7.emptyMessage')} />
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                    <Button
+                      size="small"
+                      endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => navigate('/report/growth?tab=expansion')}
+                      sx={{ textTransform: 'none', fontSize: 12 }}
+                    >
+                      {t('crossSelling.viewDetailInReport')}
+                    </Button>
+                  </Box>
+                </>
+              )}
             </Box>
           </Box>
         </Card>

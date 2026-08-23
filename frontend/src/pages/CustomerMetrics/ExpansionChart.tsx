@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { TooltipContentProps } from 'recharts';
@@ -92,12 +93,20 @@ function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<n
 export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitle, showHeader = true, caption, periodType = 'monthly' }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <BarChartWidget
       title={showHeader ? (title ?? t('customerMetrics.m7.chartTitle')) : undefined}
       subtitle={showHeader ? (subtitle ?? t('customerMetrics.m7.chartSubtitle')) : undefined}
       caption={caption}
+      // yAxisWidth diperkecil di mobile (2026-08-23, bug dilaporkan user:
+      // "offside" — label bulan default 120px FIXED menyisakan terlalu
+      // sedikit ruang utk bar di layar sempit, bar hijau jadi super tipis
+      // dan label persentasenya (di-tengah-kan) meluber ke area label
+      // bulan). Label bulan pendek ("Sep 25" dst, sudah lewat
+      // formatPeriodLabelShort) muat di ~56px, sisanya dikasih ke bar.
+      yAxisWidth={isMobile ? 56 : 120}
       data={trend.map((point) => ({
         month: point.month,
         up_rate: point.up_rate,
@@ -142,12 +151,21 @@ export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitl
       xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
       yAxisFormatter={(v) => `${Math.round(v)}%`}
       showLabels
-      // labelMinValue TIDAK di-override lagi (2026-08-23, koreksi user:
-      // "sembunyikan seperti production") — dulu di-paksa 0 supaya label kecil
-      // (mis. up_rate 1.7%) tetap dirender, tapi label yang dipaksa muat di
-      // segmen super tipis itu malah kepotong/tertutup segmen tetangga (jadi
-      // "1.7%" kelihatan cuma "7%"). Pakai default BarChartWidget (5) — sama
-      // persis production, angka di bawah threshold cukup disembunyikan.
+      // labelMinValue TIDAK di-override lagi utk desktop (2026-08-23, koreksi
+      // user: "sembunyikan seperti production") — dulu di-paksa 0 supaya
+      // label kecil (mis. up_rate 1.7%) tetap dirender, tapi label yang
+      // dipaksa muat di segmen super tipis itu malah kepotong/tertutup
+      // segmen tetangga (jadi "1.7%" kelihatan cuma "7%"). Pakai default
+      // BarChartWidget (5) di desktop — sama persis production.
+      //
+      // KHUSUS mobile, ambangnya dinaikkan ke 10 (susulan, bug dilaporkan
+      // user: "offside" — layar sempit py PIXEL PER PERSEN jauh lebih kecil
+      // drpd desktop, jadi label di-tengah-kan utk nilai 5-9% yg SEBENARNYA
+      // di atas ambang default TETAP meluber keluar segmennya yang cuma
+      // beberapa pixel, nabrak balik ke area sumbu-Y. Ambang 5 yg pas di
+      // desktop TIDAK cukup di mobile, perlu ambang lebih tinggi supaya
+      // segmen yg dikasih label memang cukup lebar menampung teksnya).
+      labelMinValue={isMobile ? 10 : 5}
       labelFormatter={(v) => `${v.toFixed(1)}%`}
       renderTooltip={(props) => <ExpansionTooltip {...props} periodType={periodType} />}
       onBarClick={onBarClick}

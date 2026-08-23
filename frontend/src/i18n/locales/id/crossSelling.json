@@ -95,6 +95,8 @@
   "m1TabHeatmap": "Heatmap",
   "m1OverviewChartTitle": "Ringkasan Tren (12 {{unit}})",
   "m1OverviewTopCustomersLabel": "Top 5 Customer Cross Selling",
+  "viewDetailInReport": "Cek Detail di Laporan",
+  "topCustomersComparisonInfo": "Tren naik/turun dibandingkan dengan periode langsung sebelumnya, mengikuti granularitas filter yang aktif",
   "m1TooltipTitle": "Cross Selling — {{month}}",
   "m1TooltipCrossSellingCustomers": "Cross-Selling Customers",
   "m1TooltipSingleCategory": "Single-Category Customers",

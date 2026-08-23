@@ -239,7 +239,10 @@ export const ComboChartWidget = ({
     : undefined;
 
   return (
-    <Card sx={{ p: 2, height: '100%' }}>
+    // overflow:hidden (2026-08-23, bug dilaporkan user: "cart itu melebar
+    // melebihi lebar layar" di mobile — M2 pakai widget ini) — jaring
+    // pengaman UNCONDITIONAL, sama persis BarChartWidget.tsx.
+    <Card sx={{ p: 2, height: '100%', overflow: 'hidden' }}>
       {headerContent ? (
         <Box sx={{ mb: 2 }}>{headerContent}</Box>
       ) : title && (
@@ -300,6 +303,15 @@ export const ComboChartWidget = ({
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => (formatBar ? formatBar(v) : v)}
+            // width mobile (2026-08-23, bug dilaporkan user: "cart tembus
+            // keluar container box" — sumbu KIRI ini tidak pernah dibatasi
+            // lebarnya, beda dari sumbu kanan yg sudah py `width={isMobile
+            // ? 36 : undefined}` sejak dulu. recharts auto-hitung lebar dari
+            // label terlebar (mis. "2200"), di layar sempit ini bikin total
+            // lebar sumbu kiri+kanan+plot area melebihi container). Sama
+            // persis pola sumbu kanan, cuma beda width dikit (angka polos
+            // tanpa suffix "jt", 4 digit muat di 32px).
+            width={isMobile ? 32 : undefined}
           />
           <YAxis
             yAxisId="right"

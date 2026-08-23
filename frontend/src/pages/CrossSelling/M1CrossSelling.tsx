@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
@@ -6,6 +7,7 @@ import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import MuiTooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import GridOnIcon from '@mui/icons-material/GridOn';
@@ -13,6 +15,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -30,7 +33,7 @@ import { formatRupiah } from '@/utils/format';
 import { formatDateID } from '@/utils/date';
 import {
   shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort,
-  getCurrentPeriodKey, getYoyPeriodKey,
+  getCurrentPeriodKey, getYoyPeriodKey, getMomComparisonPeriodEnd,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 import type { CrossSellingData, CrossSellingTrendPoint } from '@/types/metrics';
@@ -139,6 +142,7 @@ interface Props {
 export function M1CrossSelling({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const navigate = useNavigate();
 
   // periodEnd diparse manual (BUKAN `new Date(periodEnd)`) — komponen Date
   // lokal eksplisit (y,m,d), hindari pergeseran timezone dari parse string
@@ -167,6 +171,22 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     company_id: companyId,
     branch_id: branchId,
     period_end: yoyPeriodEnd,
+    period_type: periodType,
+    apply_date_cutoff: applyDateCutoff,
+    division,
+    exclude_intercompany: excludeIntercompany,
+  });
+
+  // Fetch MoM (task029.md §31, 2026-08-23, koreksi user: "Top 5 M1, M2 itu
+  // pakai MoM seperti Top 5 di M7" — basis pembanding panah tren Top 5
+  // DIUBAH dari YoY jadi periode LANGSUNG SEBELUMNYA, granularitas-aware,
+  // supaya konsisten dgn Top Movers M7 yang sudah MoM). `yoyData` di atas
+  // TETAP dipertahankan (masih dipakai KpiHeader, itu TETAP YoY sesuai
+  // keputusan user — cuma Top 5 yang basisnya ganti, bukan seluruh halaman).
+  const { data: momData } = useCrossSelling({
+    company_id: companyId,
+    branch_id: branchId,
+    period_end: getMomComparisonPeriodEnd(periodType, periodEnd),
     period_type: periodType,
     apply_date_cutoff: applyDateCutoff,
     division,
@@ -251,11 +271,14 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
   // (`yoyByCustomer`/`crossSellStatus`, category_count vs yoyData) alih-alih
   // bikin logic baru — cross-sell TREND yang relevan buat panel ini adalah
   // category_count (bukan revenue), sama definisi dgn tabel Breakdown.
-  const yoyCategoryCountByCustomer = useMemo(() => {
+  //
+  // Basisnya MoM sekarang (2026-08-23, task029.md §31), BUKAN lagi YoY —
+  // baca `momData` (fetch baru di atas), bukan `yoyData`.
+  const momCategoryCountByCustomer = useMemo(() => {
     const map = new Map<number, number>();
-    for (const r of yoyData?.detail ?? []) map.set(r.customer_id, r.category_count);
+    for (const r of momData?.detail ?? []) map.set(r.customer_id, r.category_count);
     return map;
-  }, [yoyData?.detail]);
+  }, [momData?.detail]);
 
   // Susulan (2026-08-22, instruksi user: "untuk heatmap, buat layout
   // seperti cross selling nya" — 3 KPI card di atas Heatmap M1.1, pola
@@ -425,153 +448,162 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
         </Box>
 
         <Box sx={{ p: 2.5 }}>
-          {/* alignItems: 'start' (2026-08-22, fix bug: kolom Top 5
-              Customers render KELUAR dari background card, "offside") —
-              default CSS Grid `align-items: stretch` + `height: '100%'`
-              di Card Top 5 SEHARUSNYA membuatnya pas menyamai tinggi
-              kolom chart, tapi height:100% di dalam grid item yang
-              tingginya sendiri hasil stretch itu tidak reliable di semua
-              kondisi render (ukuran row bisa dihitung SEBELUM stretch
-              diterapkan ke keturunan, height:100% keturunan bisa resolve
-              ke nilai yang salah). Fix: matikan stretch (`alignItems:
-              'start'`), tiap kolom cuma setinggi konten aslinya sendiri
-              — TIDAK ADA percentage-height chain lagi, tidak mungkin
-              overflow keluar card. */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2, alignItems: 'start' }}>
-            <Box>
-              {isLoading ? (
-                <Skeleton variant="rectangular" height={360} />
-              ) : (
-                <ComboChartWidget
-                  // headerContent (2026-08-22, koreksi keras user: "pindahkan
-                  // text ini ke container chart bukan diluarnya") — KpiHeader
-                  // (baris perbandingan periode) SEBELUMNYA render sbg
-                  // sibling SEBELUM <ComboChartWidget>, jadi visualnya di
-                  // LUAR border/background Card widget ini (cuma di dalam
-                  // Card UNIFIED yang lebih besar). Sekarang dikirim lewat
-                  // prop `headerContent`, dirender DI DALAM Card widget ini
-                  // sendiri, di posisi title/subtitle (atas, sebelum chart).
-                  headerContent={
-                    <KpiHeader
-                      current={data?.kpi1.rate ?? 0}
-                      yoy={yoyData?.kpi1.rate ?? 0}
-                      kpiType="rate"
-                      currentPeriodLabel={currentPeriodLabel}
-                      comparisonLabel={yoyComparisonLabel}
-                    />
-                  }
-                  // caption dihapus (2026-08-22, koreksi user: "hapus kotak
-                  // kuning") — teks "Bar = ... Line = ..." dianggap
-                  // redundan/tidak perlu, legend recharts (warna+nama
-                  // series) sudah cukup menjelaskan sendiri.
-                  data={data?.trend ?? []}
-                  barKey="total_active"
-                  barLabel={t('crossSelling.seriesActiveCustomers')}
-                  // Susulan (2026-08-22, koreksi user: "warna nya tidak
-                  // terlihat di mode terang background putih") — opacity
-                  // mode terang dinaikkan 0.30 -> 0.6 (warna basis SAMA,
-                  // cuma kurang pekat sebelumnya) — legend recharts
-                  // mewarnai TEKS label pakai warna fill series ini juga,
-                  // jadi opacity rendah bikin tulisan "Pelanggan Aktif" di
-                  // legend nyaris tak kebaca di background putih.
-                  barColor={theme.palette.mode === 'dark' ? 'rgba(148,163,184,0.35)' : 'rgba(100,116,139,0.6)'}
-                  bar2Key="multi_product"
-                  bar2Label={t('crossSelling.seriesMultiCategory')}
-                  bar2Color={theme.palette.primary.main}
-                  lineKey="ratio"
-                  lineLabel={t('crossSelling.seriesCrossSellRateShort')}
-                  lineColor={theme.palette.info.main}
-                  formatLine={(v) => `${v}%`}
-                  xKey="month"
-                  height={280}
-                  xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-                  renderTooltip={(props) => <M1Tooltip {...props} />}
+          {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
+              kode M7 branch main, ambil contoh layout darisana") — grid
+              2-kolom chart+Top5 DIBUANG, samakan pola M2/M7: chart FULL
+              WIDTH, Top 5 DI BAWAH chart (bukan di samping). */}
+          {isLoading ? (
+            <Skeleton variant="rectangular" height={360} />
+          ) : (
+            <ComboChartWidget
+              // headerContent (2026-08-22, koreksi keras user: "pindahkan
+              // text ini ke container chart bukan diluarnya") — KpiHeader
+              // (baris perbandingan periode) SEBELUMNYA render sbg
+              // sibling SEBELUM <ComboChartWidget>, jadi visualnya di
+              // LUAR border/background Card widget ini (cuma di dalam
+              // Card UNIFIED yang lebih besar). Sekarang dikirim lewat
+              // prop `headerContent`, dirender DI DALAM Card widget ini
+              // sendiri, di posisi title/subtitle (atas, sebelum chart).
+              headerContent={
+                <KpiHeader
+                  current={data?.kpi1.rate ?? 0}
+                  yoy={yoyData?.kpi1.rate ?? 0}
+                  kpiType="rate"
+                  currentPeriodLabel={currentPeriodLabel}
+                  comparisonLabel={yoyComparisonLabel}
                 />
-              )}
-            </Box>
+              }
+              // caption dihapus (2026-08-22, koreksi user: "hapus kotak
+              // kuning") — teks "Bar = ... Line = ..." dianggap
+              // redundan/tidak perlu, legend recharts (warna+nama
+              // series) sudah cukup menjelaskan sendiri.
+              data={data?.trend ?? []}
+              barKey="total_active"
+              barLabel={t('crossSelling.seriesActiveCustomers')}
+              // Susulan (2026-08-22, koreksi user: "warna nya tidak
+              // terlihat di mode terang background putih") — opacity
+              // mode terang dinaikkan 0.30 -> 0.6 (warna basis SAMA,
+              // cuma kurang pekat sebelumnya) — legend recharts
+              // mewarnai TEKS label pakai warna fill series ini juga,
+              // jadi opacity rendah bikin tulisan "Pelanggan Aktif" di
+              // legend nyaris tak kebaca di background putih.
+              barColor={theme.palette.mode === 'dark' ? 'rgba(148,163,184,0.35)' : 'rgba(100,116,139,0.6)'}
+              bar2Key="multi_product"
+              bar2Label={t('crossSelling.seriesMultiCategory')}
+              bar2Color={theme.palette.primary.main}
+              lineKey="ratio"
+              lineLabel={t('crossSelling.seriesCrossSellRateShort')}
+              lineColor={theme.palette.info.main}
+              formatLine={(v) => `${v}%`}
+              xKey="month"
+              height={280}
+              xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+              renderTooltip={(props) => <M1Tooltip {...props} />}
+            />
+          )}
 
-            {/* Susulan (2026-08-22, koreksi user: "hapus divider chart dan
-                top 5") — garis pembatas `borderLeft` (dipasang gantiin
-                Card box sebelumnya) DIHAPUS juga, tidak ada pemisah visual
-                sama sekali lagi antara kolom chart dan timeline, cuma
-                gap grid (2026-08-22) yang memisahkan. */}
-            <Box>
-              {isLoading ? (
-                <Skeleton variant="rectangular" height={280} />
-              ) : (
-                <>
-                  <Box sx={{ pb: 1 }}>
-                    <SectionLabel label={t('crossSelling.m1OverviewTopCustomersLabel')} />
-                  </Box>
-                  {overviewTopCustomers.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
-                  ) : (
-                    // Susulan (2026-08-22, instruksi user: "rubah layoutnya
-                    // menjadi model timeline tanpa tabel") — dari daftar
-                    // baris (rank+nama+persen sejajar horizontal, kesannya
-                    // "tabel") jadi TIMELINE vertikal: titik (dot) + garis
-                    // penghubung di kolom kiri, nama+persentase di kanan.
-                    // Custom Box+sx (bukan `@mui/lab` Timeline — belum
-                    // terpasang di proyek ini, tidak perlu dependency baru
-                    // buat pola visual sesederhana ini).
-                    overviewTopCustomers.map((r, i) => {
-                      const isLast = i === overviewTopCustomers.length - 1;
-                      const pct = totalRevenueAll > 0 ? Math.round((r.total_revenue / totalRevenueAll) * 100) : 0;
-                      const yoyCategoryCount = yoyCategoryCountByCustomer.get(r.customer_id);
-                      // 'new' (belum ada di YoY) diperlakukan sbg tren naik
-                      // (↗) — customer baru muncul = sinyal pertumbuhan,
-                      // cuma 3 status ikon yang diminta (↗↘→), tidak ada
-                      // ikon ke-4 khusus "baru".
-                      const trendDirection: 'up' | 'down' | 'flat' =
-                        yoyCategoryCount == null || r.category_count > yoyCategoryCount ? 'up'
-                          : r.category_count < yoyCategoryCount ? 'down' : 'flat';
-                      const TrendIcon = trendDirection === 'up' ? TrendingUpIcon : trendDirection === 'down' ? TrendingDownIcon : TrendingFlatIcon;
-                      const trendColor = trendDirection === 'up' ? theme.palette.success.main : trendDirection === 'down' ? theme.palette.error.main : theme.palette.text.disabled;
-                      return (
-                        <Box key={r.customer_id} sx={{ display: 'flex', gap: 1.5 }}>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0, mt: 0.5 }} />
-                            {!isLast && <Box sx={{ flex: 1, width: '2px', bgcolor: 'divider', my: 0.5 }} />}
-                          </Box>
-                          {/* Susulan (2026-08-22, koreksi user: "perkecil
-                              ukuran font nama customer, pindahkan nomor ke
-                              depan nama customer, seperti layout awal
-                              hanya modelnya bukan tabel tapi timeline") —
-                              konten kembali ke format awal (nomor+nama
-                              satu baris, persentase di ujung kanan, font
-                              lebih kecil `caption` bukan `body2`) — cuma
-                              bungkusnya (dot+garis di kiri) yang tetap
-                              timeline, bukan daftar baris polos lagi. */}
-                          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, pb: isLast ? 0.5 : 2 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
-                              {i + 1}. {r.customer_name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, flexShrink: 0 }}>
-                              {pct}%
-                            </Typography>
-                            {/* Chip BULAT (2026-08-22, koreksi user:
-                                "tambahkan chip bulat untuk icon nya bukan
-                                kapsul") — bukan `StatusChip` (itu oval/
-                                kapsul, atomic tapi bentuknya beda) — bulat
-                                penuh via `borderRadius:'50%'` + background
-                                tint warna tren. */}
-                            <Box
-                              sx={{
-                                width: 22, height: 22, borderRadius: '50%',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                bgcolor: alpha(trendColor, 0.15), flexShrink: 0,
-                              }}
-                            >
-                              <TrendIcon sx={{ fontSize: 14, color: trendColor }} />
-                            </Box>
+          <Box sx={{ mt: 3 }}>
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <Box>
+                <Box sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <SectionLabel label={t('crossSelling.m1OverviewTopCustomersLabel')} />
+                  {/* Info tooltip basis pembanding (2026-08-23, task029.md
+                      §31, instruksi user: "berikan icon informasi dengan
+                      tooltip bahwa pembanding nya periode sebelumnya") —
+                      pola sama persis info tooltip M2 chart title. */}
+                  <MuiTooltip
+                    title={t('crossSelling.topCustomersComparisonInfo')}
+                    placement="top"
+                    arrow
+                    slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.6 } } }}
+                  >
+                    <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                      <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </MuiTooltip>
+                </Box>
+                {overviewTopCustomers.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
+                ) : (
+                  // Susulan (2026-08-22, instruksi user: "rubah layoutnya
+                  // menjadi model timeline tanpa tabel") — dari daftar
+                  // baris (rank+nama+persen sejajar horizontal, kesannya
+                  // "tabel") jadi TIMELINE vertikal: titik (dot) + garis
+                  // penghubung di kolom kiri, nama+persentase di kanan.
+                  // Custom Box+sx (bukan `@mui/lab` Timeline — belum
+                  // terpasang di proyek ini, tidak perlu dependency baru
+                  // buat pola visual sesederhana ini).
+                  overviewTopCustomers.map((r, i) => {
+                    const isLast = i === overviewTopCustomers.length - 1;
+                    const pct = totalRevenueAll > 0 ? Math.round((r.total_revenue / totalRevenueAll) * 100) : 0;
+                    const momCategoryCount = momCategoryCountByCustomer.get(r.customer_id);
+                    // 'new' (belum ada di periode sebelumnya) diperlakukan
+                    // sbg tren naik (↗) — customer baru muncul = sinyal
+                    // pertumbuhan, cuma 3 status ikon yang diminta (↗↘→),
+                    // tidak ada ikon ke-4 khusus "baru".
+                    const trendDirection: 'up' | 'down' | 'flat' =
+                      momCategoryCount == null || r.category_count > momCategoryCount ? 'up'
+                        : r.category_count < momCategoryCount ? 'down' : 'flat';
+                    const TrendIcon = trendDirection === 'up' ? TrendingUpIcon : trendDirection === 'down' ? TrendingDownIcon : TrendingFlatIcon;
+                    const trendColor = trendDirection === 'up' ? theme.palette.success.main : trendDirection === 'down' ? theme.palette.error.main : theme.palette.text.disabled;
+                    return (
+                      <Box key={r.customer_id} sx={{ display: 'flex', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
+                          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0, mt: 0.5 }} />
+                          {!isLast && <Box sx={{ flex: 1, width: '2px', bgcolor: 'divider', my: 0.5 }} />}
+                        </Box>
+                        {/* Susulan (2026-08-22, koreksi user: "perkecil
+                            ukuran font nama customer, pindahkan nomor ke
+                            depan nama customer, seperti layout awal
+                            hanya modelnya bukan tabel tapi timeline") —
+                            konten kembali ke format awal (nomor+nama
+                            satu baris, persentase di ujung kanan, font
+                            lebih kecil `caption` bukan `body2`) — cuma
+                            bungkusnya (dot+garis di kiri) yang tetap
+                            timeline, bukan daftar baris polos lagi. */}
+                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, pb: isLast ? 0.5 : 2 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
+                            {i + 1}. {r.customer_name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                            {pct}%
+                          </Typography>
+                          {/* Chip BULAT (2026-08-22, koreksi user:
+                              "tambahkan chip bulat untuk icon nya bukan
+                              kapsul") — bukan `StatusChip` (itu oval/
+                              kapsul, atomic tapi bentuknya beda) — bulat
+                              penuh via `borderRadius:'50%'` + background
+                              tint warna tren. */}
+                          <Box
+                            sx={{
+                              width: 22, height: 22, borderRadius: '50%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              bgcolor: alpha(trendColor, 0.15), flexShrink: 0,
+                            }}
+                          >
+                            <TrendIcon sx={{ fontSize: 14, color: trendColor }} />
                           </Box>
                         </Box>
-                      );
-                    })
-                  )}
-                </>
-              )}
-            </Box>
+                      </Box>
+                    );
+                  })
+                )}
+              </Box>
+            )}
+            {!isLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                <Button
+                  size="small"
+                  endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => navigate('/report/growth?tab=cross_selling')}
+                  sx={{ textTransform: 'none', fontSize: 12 }}
+                >
+                  {t('crossSelling.viewDetailInReport')}
+                </Button>
+              </Box>
+            )}
           </Box>
         </Box>
       </Card>
