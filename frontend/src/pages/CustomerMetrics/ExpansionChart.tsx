@@ -94,32 +94,21 @@ export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitl
   const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Potong periode kosong di AWAL (2026-08-24, bug dilaporkan user: "GAP
-  // terlalu besar" — screenshot granularitas Semester: 12 periode trailing
-  // mundur 6 tahun, tapi histori company baru ada ~1,5 tahun terakhir,
-  // sebagian besar periode paling awal existing_customers=0 total (belum
-  // ada data sama sekali) — chart horizontal tetap render SEMUA baris
-  // Y-axis kosong tanpa bar apa pun di atasnya, jadi "gap" raksasa. Potong
-  // dari periode PERTAMA yang benar-benar punya data, bukan tampilkan 12
-  // titik mentah apa adanya. Kalau SEMUA periode kosong (findIndex -1),
-  // biarkan array asli (fallback aman, tidak crash).
-  const firstDataIdx = trend.findIndex((p) => p.existing_customers > 0);
-  const trimmedTrend = firstDataIdx > 0 ? trend.slice(firstDataIdx) : trend;
-
   return (
     <BarChartWidget
       title={showHeader ? (title ?? t('customerMetrics.m7.chartTitle')) : undefined}
       subtitle={showHeader ? (subtitle ?? t('customerMetrics.m7.chartSubtitle')) : undefined}
       headerContent={headerContent}
       caption={caption}
-      // yAxisWidth diperkecil di mobile (2026-08-23, bug dilaporkan user:
-      // "offside" — label bulan default 120px FIXED menyisakan terlalu
-      // sedikit ruang utk bar di layar sempit, bar hijau jadi super tipis
-      // dan label persentasenya (di-tengah-kan) meluber ke area label
-      // bulan). Label bulan pendek ("Sep 25" dst, sudah lewat
-      // formatPeriodLabelShort) muat di ~56px, sisanya dikasih ke bar.
-      yAxisWidth={isMobile ? 56 : 120}
-      data={trimmedTrend.map((point) => ({
+      // yAxisWidth diperkecil (2026-08-23 mobile, 2026-08-24 desktop juga —
+      // bug dilaporkan user: "GAP sebelah kiri cart terlalu lebar",
+      // screenshot: kolom Y-axis kosong raksasa di kiri chart) — label
+      // periode pendek ("Sep 25"/"S2 25"/"Q3 26" dst, sudah lewat
+      // formatPeriodLabelShort) TIDAK butuh 120px bawaan BarChartWidget
+      // (dirancang utk label lebih panjang di chart lain), muat jauh di
+      // bawah itu. 56px cukup di semua breakpoint, sisanya dikasih ke bar.
+      yAxisWidth={56}
+      data={trend.map((point) => ({
         month: point.month,
         up_rate: point.up_rate,
         flat_rate: point.flat_rate,
