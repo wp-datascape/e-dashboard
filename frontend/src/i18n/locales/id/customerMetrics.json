@@ -102,6 +102,7 @@
     "chartTitle": "Tren Ekspansi Pelanggan (12 Bulan)",
     "chartSubtitle": "Hijau = spending naik · Abu-abu = stabil/turun/tanpa transaksi (total = 100%)",
     "chartClickHint": "Klik untuk lihat detail",
+    "tooltipTitle": "Ekspansi Pelanggan — {{month}}",
     "seriesUp": "Spending Naik",
     "seriesDown": "Spending Turun",
     "seriesInactive": "Tidak Ada Transaksi",

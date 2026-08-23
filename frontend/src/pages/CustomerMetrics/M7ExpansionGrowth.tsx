@@ -4,7 +4,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
-import Divider from '@mui/material/Divider';
 import MuiTooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
@@ -13,11 +12,9 @@ import { useTheme } from '@mui/material/styles';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
-import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog, Card } from '@/components/ui';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { KpiHeader } from '@/components/dashboard/KpiHeader';
@@ -179,7 +176,8 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
             standarisasinya" — pola SAMA PERSIS M1CrossSelling.tsx/
             M2AvgCategory.tsx): 3 kartu KPI di ATAS card (bukan grid 5-kartu
             terpisah di bawah lagi), lalu 1 Card berisi Header (judul) ->
-            Divider -> Body (KpiHeader + grid chart 7fr/timeline Top-5 3fr).
+            Body (KpiHeader + grid chart 7fr/timeline Top-5 3fr) — divider
+            antara judul dan body DIHAPUS (2026-08-24, koreksi user).
             Footer TrendSummary DIHAPUS (M1/M2 juga sudah tidak pakai lagi).
             3 kartu KPI dipilih: Naik & Turun (2 rate paling actionable,
             sudah jadi fokus KpiHeader di atas chart) + Existing Customer
@@ -224,34 +222,16 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
 
         <Card>
           <Box sx={{ p: 2.5 }}>
-            {/* CTA chip "Klik bar untuk detail per customer" (2026-08-23,
-                instruksi user: "letakkan di pojok kanan atas seperti cart
-                diatasnya") — pola SAMA PERSIS heatmap M1 (StatusChip
-                icon={TouchAppIcon} color="info", justifyContent:
-                space-between di baris judul), teks CTA-nya dipindah dari
-                caption chart (dulu ikut nempel di kalimat legend warna)
-                jadi chip terpisah supaya lebih ter-notice. */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <SectionLabel label={t('metrics.expansion')} icon={TrendingUpIcon} />
-              <StatusChip icon={<TouchAppIcon />} label={t('customerMetrics.m7.chartClickHint')} color="info" />
-            </Box>
+            {/* Chip "Klik untuk lihat detail" DIHAPUS (2026-08-24, koreksi
+                user: "ganti sepenuhnya didalam tooltip cart" — chip
+                permanen di header rawan diabaikan/makan tempat mobile,
+                hint klik dipindah ke dalam ExpansionTooltip
+                (ExpansionChart.tsx), muncul persis saat user sudah
+                hover/tap titik chart). */}
+            <SectionLabel label={t('metrics.expansion')} icon={TrendingUpIcon} />
           </Box>
 
-          <Divider />
-
           <Box sx={{ p: 2.5 }}>
-            {isLoading ? (
-              <Skeleton variant="rectangular" height={80} sx={{ mb: 2 }} />
-            ) : (
-              <KpiHeader
-                current={current?.up_rate ?? 0}
-                yoy={yoyCurrent?.up_rate ?? 0}
-                kpiType="rate"
-                currentPeriodLabel={currentPeriodLabel}
-                comparisonLabel={yoyComparisonLabel}
-              />
-            )}
-
             {/* CSS Grid manual (sx display:'grid') DIGANTI komponen `<Grid>`
                 MUI (2026-08-24, instruksi user: "gabisa pakai grid col
                 responsive? pakai context7" — dicek dokumentasi resmi MUI,
@@ -268,6 +248,22 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 height={320}
                 periodType={periodType}
                 showHeader={false}
+                // headerContent (2026-08-24, koreksi user: "masukkan header
+                // cart ke dalam box cart") — KpiHeader dulu render sbg
+                // sibling SEBELUM Grid, jadi visualnya di LUAR border/
+                // background Card widget chart. Sekarang dikirim lewat
+                // prop `headerContent` (BarChartWidget baru dapat prop ini,
+                // pola sama persis ComboChartWidget M1/M2), dirender DI
+                // DALAM Card widget chart itu sendiri.
+                headerContent={
+                  <KpiHeader
+                    current={current?.up_rate ?? 0}
+                    yoy={yoyCurrent?.up_rate ?? 0}
+                    kpiType="rate"
+                    currentPeriodLabel={currentPeriodLabel}
+                    comparisonLabel={yoyComparisonLabel}
+                  />
+                }
                 onBarClick={(d) => {
                   const month = String(d.month ?? '');
                   const range = getPeriodDateRange(periodType, month);

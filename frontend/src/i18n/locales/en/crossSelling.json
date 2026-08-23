@@ -103,6 +103,7 @@
   "m1TooltipExistingCustomers": "Active Customers",
   "m1TooltipCrossSellRate": "Cross Sell Rate",
   "m1TooltipAvgCategories": "Avg Categories/Customer",
+  "m2TooltipTitle": "Average Category — {{month}}",
   "colCurrentCategoryCount": "Current Category Count",
   "tableSearchPlaceholder": "Search Customer",
   "tableSortLabel": "Sort",

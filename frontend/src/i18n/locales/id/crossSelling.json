@@ -103,6 +103,7 @@
   "m1TooltipExistingCustomers": "Active Customers",
   "m1TooltipCrossSellRate": "Cross Sell Rate",
   "m1TooltipAvgCategories": "Avg Categories/Customer",
+  "m2TooltipTitle": "Rata-rata Kategori — {{month}}",
   "colCurrentCategoryCount": "Category Count Saat Ini",
   "tableSearchPlaceholder": "Cari Customer",
   "tableSortLabel": "Urutkan",

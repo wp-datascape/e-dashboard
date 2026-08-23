@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import MuiTooltip from '@mui/material/Tooltip';
@@ -23,6 +22,7 @@ import type { TooltipContentProps } from 'recharts';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
 import { HeatmapWidget } from '@/components/charts/HeatmapWidget';
+import { ChartTooltipCard } from '@/components/charts/ChartTooltipCard';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { Dialog, Card } from '@/components/ui';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -81,42 +81,26 @@ import { relabelCategory } from './helpers';
 // (permintaan user) — field-nya TETAP ada di data (dipakai search), cuma
 // tidak ditampilkan sbg kolom; M2 (`M2AvgCategory.tsx`) py tabel sendiri,
 // TIDAK disentuh, masih tampilkan customer_code.
-function M1Tooltip({ active, payload }: TooltipContentProps<number, string>) {
-  const theme = useTheme();
+function M1Tooltip({ active, payload, periodType }: TooltipContentProps<number, string> & { periodType: PeriodGranularity }) {
   const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
   const d = payload[0].payload as CrossSellingTrendPoint;
   const singleCategory = d.total_active - d.multi_product;
 
+  // Judul tanggal diformat (2026-08-24, koreksi user: tooltip masih tampilkan
+  // raw "2026-01" alih-alih label manusiawi) — pakai `formatPeriodLabel`
+  // (bentuk penuh "Agustus 2026"/"Kuartal 3 Tahun 2026"), bukan raw d.month.
   return (
-    <Box sx={{ bgcolor: 'background.paper', border: `1px solid ${theme.palette.divider}`, p: 1.5, minWidth: 230, fontSize: 12 }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
-        {t('crossSelling.m1TooltipTitle', { month: d.month })}
-      </Typography>
-      <Divider sx={{ mb: 1 }} />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">{t('crossSelling.m1TooltipCrossSellingCustomers')}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>{d.multi_product}</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">{t('crossSelling.m1TooltipSingleCategory')}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>{singleCategory}</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">{t('crossSelling.m1TooltipExistingCustomers')}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>{d.total_active}</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">{t('crossSelling.m1TooltipCrossSellRate')}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>{d.ratio.toFixed(1)}%</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">{t('crossSelling.m1TooltipAvgCategories')}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>{d.avg_category.toFixed(2)}</Typography>
-        </Box>
-      </Box>
-    </Box>
+    <ChartTooltipCard
+      title={t('crossSelling.m1TooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      rows={[
+        { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: String(d.multi_product) },
+        { label: t('crossSelling.m1TooltipSingleCategory'), value: String(singleCategory) },
+        { label: t('crossSelling.m1TooltipExistingCustomers'), value: String(d.total_active) },
+        { label: t('crossSelling.m1TooltipCrossSellRate'), value: `${d.ratio.toFixed(1)}%` },
+        { label: t('crossSelling.m1TooltipAvgCategories'), value: d.avg_category.toFixed(2) },
+      ]}
+    />
   );
 }
 
@@ -506,7 +490,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               xKey="month"
               height={280}
               xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-              renderTooltip={(props) => <M1Tooltip {...props} />}
+              renderTooltip={(props) => <M1Tooltip {...props} periodType={periodType} />}
             />
           )}
           </Grid>

@@ -34,6 +34,12 @@ export interface BarChartWidgetProps {
   value?: string | number;
   change?: number;
   subtitle?: string;
+  /** Header custom (2026-08-24, koreksi user: "masukkan header cart ke
+   * dalam box cart" — SectionLabel M7 dulu render sbg Box terpisah DI
+   * LUAR widget chart, sekarang dikirim lewat prop ini, dirender DI DALAM
+   * Card widget — pola sama persis `headerContent` ComboChartWidget.
+   * Kalau diisi, ini yang dipakai, `title`/`subtitle` diabaikan. */
+  headerContent?: React.ReactNode;
   /** Caption di BAWAH chart, digabung dgn legend recharts (2026-08-22,
    * koreksi user: subtitle penjelasan chart dan legend warna itu SAMA-SAMA
    * legend, jangan dipisah atas-bawah — satukan di bawah chart). */
@@ -99,6 +105,7 @@ export const BarChartWidget = ({
   value,
   change,
   subtitle,
+  headerContent,
   caption,
   data,
   series,
@@ -144,7 +151,9 @@ export const BarChartWidget = ({
     // keluar Card ini.
     <Card sx={{ p: 2, height: '100%', overflow: 'hidden' }}>
       {/* Header */}
-      {(value !== undefined || title) && (
+      {headerContent ? (
+        <Box sx={{ mb: 2 }}>{headerContent}</Box>
+      ) : (value !== undefined || title) && (
         <Box sx={{ mb: 2 }}>
           {value !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>

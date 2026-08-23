@@ -13,18 +13,19 @@ import CategoryIcon from '@mui/icons-material/Category';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import type { GridColDef } from '@mui/x-data-grid';
+import type { TooltipContentProps } from 'recharts';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
+import { ChartTooltipCard } from '@/components/charts/ChartTooltipCard';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Dialog, Card } from '@/components/ui';
 import { KpiHeader } from '@/components/dashboard/KpiHeader';
 import { useCrossSelling, useCrossSellingDetail } from '@/hooks/useMetrics';
-import type { CrossSellingData } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingTrendPoint } from '@/types/metrics';
 import { SectionLabel, KpiCard } from './HelperComponents';
 import { formatRupiah } from '@/utils/format';
 import { formatDateID } from '@/utils/date';
@@ -60,6 +61,33 @@ import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 // dengan tabel") — `<BreakdownTable>` DIPINDAH ke Laporan > Growth
 // (`pages/Report/Growth/index.tsx`), sama seperti M1CrossSelling.tsx.
 // Dialog klik-titik per-bulan TIDAK berubah, tetap ada di sini.
+
+// Tooltip custom (2026-08-24, task029.md §31, koreksi user: "ganti sepenuhnya
+// didalam tooltip cart, sekaligus perbaikan format tanggal") — sebelumnya
+// pakai default recharts Tooltip (formatter angka doang, judul tanggal raw
+// "2026-01"), chip "Klik untuk lihat detail" terpisah di header (rawan
+// diabaikan/makan tempat di mobile). Sekarang custom pakai ChartTooltipCard
+// (atomic, sama dgn M1/M7) — judul tanggal diformat, hint klik dipindah ke
+// SINI (persis momen user sudah hover/tap titik chart, momen paling
+// relevan) — bukan lagi chip permanen.
+function M2Tooltip({ active, payload, periodType }: TooltipContentProps<number, string> & { periodType: PeriodGranularity }) {
+  const { t } = useTranslation();
+  if (!active || !payload?.[0]) return null;
+  const d = payload[0].payload as CrossSellingTrendPoint & { single_category: number };
+
+  return (
+    <ChartTooltipCard
+      title={t('crossSelling.m2TooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      rows={[
+        { label: t('crossSelling.m2SeriesSingleCategory'), value: String(d.single_category) },
+        { label: t('crossSelling.m2SeriesMultiCategory'), value: String(d.multi_product) },
+        { label: t('dashboard.charts.avgCategoryLabel'), value: d.avg_category.toFixed(2) },
+      ]}
+      hint={t('crossSelling.m2ChartHint')}
+    />
+  );
+}
+
 interface Props {
   data: CrossSellingData | undefined;
   isLoading: boolean;
@@ -258,35 +286,31 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
 
         <Card>
           <Box sx={{ p: 2.5 }}>
-            {/* CTA chip "Klik bar untuk detail per customer" (2026-08-23,
-                instruksi user: "lakukan hal yang sama untuk rata rata
-                kategory cart" — susulan M7) — pola sama persis heatmap M1/
-                M7: StatusChip icon={TouchAppIcon} color="info", pojok kanan
-                atas baris judul, dipindah dari caption chart (dulu ikut
-                nempel di kalimat subtitle) supaya lebih ter-notice.
-
-                Info tooltip (susulan sama hari, instruksi user: "tambahkan
-                info tooltip untuk cart rata rata kategory, dan hapus teks
+            {/* Info tooltip (2026-08-23, instruksi user: "tambahkan info
+                tooltip untuk cart rata rata kategory, dan hapus teks
                 dibawah legen") — pola sama persis judul chart utama M1
                 (MuiTooltip+IconButton+InfoOutlinedIcon di sebelah
                 SectionLabel), teks penjelasan (`m2ChartSubtitle`) PINDAH
                 dari caption di BAWAH chart (dihapus, lihat prop `caption`
-                ComboChartWidget di bawah) jadi isi tooltip ini. */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <SectionLabel label={t('crossSelling.labelM2')} icon={CategoryIcon} />
-                <MuiTooltip
-                  title={t('crossSelling.m2ChartSubtitle')}
-                  placement="top"
-                  arrow
-                  slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
-                >
-                  <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
-                    <InfoOutlinedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </MuiTooltip>
-              </Box>
-              <StatusChip icon={<TouchAppIcon />} label={t('crossSelling.m2ChartHint')} color="info" />
+                ComboChartWidget di bawah) jadi isi tooltip ini.
+
+                Chip "Klik untuk lihat detail" (2026-08-23) DIHAPUS
+                (2026-08-24, koreksi user: "ganti sepenuhnya didalam tooltip
+                cart" — chip permanen di header rawan diabaikan/makan
+                tempat mobile, hint klik dipindah ke dalam M2Tooltip di
+                atas, muncul persis saat user sudah hover/tap titik chart). */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <SectionLabel label={t('crossSelling.labelM2')} icon={CategoryIcon} />
+              <MuiTooltip
+                title={t('crossSelling.m2ChartSubtitle')}
+                placement="top"
+                arrow
+                slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+              >
+                <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </MuiTooltip>
             </Box>
           </Box>
 
@@ -329,6 +353,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                 xKey="month"
                 height={220}
                 xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+                renderTooltip={(props) => <M2Tooltip {...props} periodType={periodType} />}
                 onBarClick={(d) => {
                   const month = String(d.month ?? '');
                   setDrillDate(clampPeriodEndToToday(periodType, month, getPeriodDateRange(periodType, month).end));
