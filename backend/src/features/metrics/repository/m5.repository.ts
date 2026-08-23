@@ -8,7 +8,10 @@ export async function fetchHmBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: HmBreakdownRow[]; total_hm_revenue: number; hm_buyer_count: number; total_existing: number }> {
   const { filterDate, activeMonths } = p
-  const establishedCTE = cteEstablishedCustomers(p)
+  // periodStart (task029 §30.10, 2026-08-23) — M5 belum py filter
+  // granularitas periode (belum ada dateFrom), anchor ke awal BULAN kalender
+  // yang memuat filterDate (default "Bulanan"), bukan activeMonths mentah.
+  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -63,7 +66,7 @@ export async function fetchHmBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${cteEstablishedCustomers(p)}
+      WITH ${establishedCTE}
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>

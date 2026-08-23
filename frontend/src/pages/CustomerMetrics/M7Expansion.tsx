@@ -11,7 +11,8 @@ import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useExpansionBreakdown } from '@/hooks/useMetrics';
-import { monthToEndDate } from './helpers';
+import { resolvePeriodEnd, formatDateID } from '@/utils/date';
+import { getCurrentPeriodKey, getPeriodDateRange } from '@/utils/analisisPeriod';
 import { SectionLabel } from './HelperComponents';
 import { ExpansionChart } from './ExpansionChart';
 import { useExpansionColumns } from './expansionHelpers';
@@ -38,6 +39,17 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
     exclude_intercompany: excludeIntercompany,
   });
 
+  // Halaman ini hardcode bulanan (belum ada filter granularitas UI di
+  // Customer Metrics workbench) — rentang tanggal dialog (subtitle "Periode
+  // X s/d Y", standar layout drilldown) dihitung sbg bulan kalender penuh
+  // dari drillDate (pola sama M7ExpansionGrowth.tsx, versi granularitas-tetap).
+  const drillRange = (() => {
+    if (!drillDate) return null;
+    const [dy, dm, dd] = drillDate.split('-').map(Number);
+    const key = getCurrentPeriodKey('monthly', new Date(dy, dm - 1, dd));
+    return getPeriodDateRange('monthly', key);
+  })();
+
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
@@ -59,7 +71,7 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
         <ExpansionChart
           trend={trend}
           height={320}
-          onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
+          onBarClick={(d) => setDrillDate(resolvePeriodEnd(String(d.month ?? '')))}
         />
       )}
 
@@ -68,11 +80,17 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
         open={!!drillDate}
         onClose={() => setDrillDate(null)}
         maxWidth="md"
-        title={t('customerMetrics.m7.dialogTitle', { date: drillDate })}
+        title={t('customerMetrics.m7.dialogTitle')}
         showCloseButton
         contentSx={{ p: 1 }}
         subtitle={breakdown && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              {t('crossSelling.m11DialogSubtitle', {
+                start: drillRange ? formatDateID(drillRange.start) : '…',
+                end: drillRange ? formatDateID(drillRange.end) : '…',
+              })}
+            </Typography>
             {([
               [t('customerMetrics.m7.dialogUpCount'),       String(breakdown.up_count)],
               [t('customerMetrics.m7.dialogTotalExisting'), String(breakdown.total_existing)],

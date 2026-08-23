@@ -266,6 +266,13 @@ export interface DormantMetricsData {
 export interface CustomerMetricsData {
   trend: CustomerMetricsTrendPoint[]
   detail: unknown[]
+  /** Rentang tanggal periode aktif SETELAH resolveTrendPeriod (2026-08-23) —
+   * dipakai display kartu KPI (mis. "Existing Customer") supaya baca tanggal
+   * yang SUDAH di-clamp backend, bukan echo periodEnd mentah dari filter
+   * frontend (bug: M7ExpansionGrowth sempat tampil tanggal beda dari M1/M2
+   * krn baca periodEnd mentah, bukan hasil clamp). Mirror `period` di
+   * CrossSellingMetricsData. */
+  period: { start: string, end: string }
   high_margin_current: {
     bought_pct: number
     not_bought_pct: number

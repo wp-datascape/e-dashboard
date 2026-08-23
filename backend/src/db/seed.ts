@@ -398,6 +398,20 @@ const defaultPageSettings = [
   { page_key: 'growth', ready: true },
   { page_key: 'retention', ready: true },
   { page_key: 'value', ready: true },
+  // Laporan > Growth/Retention/Revenue (task029.md §30.19, 2026-08-22) —
+  // tabel breakdown dipindah dari inline chart Growth ke halaman terpisah
+  // (koreksi user: "terlalu kotor jika chart digabung dengan tabel").
+  // CATATAN: ini BUKAN pengaktifan kembali page_key lama `report-cross-
+  // selling`/`report-avg-category-per-customer`/dst (task026 Fase 3,
+  // 2026-08-09, baris masih ada di bawah tapi SUDAH ORPHAN — tidak ada
+  // entry route-nya lagi di routeConstants.tsx sejak konsolidasi Growth/
+  // Retention/Value 2026-08-19, dibiarkan harmless spt baris lama lain).
+  // Struktur BARU ini dikelompokkan per FRAMEWORK (Growth/Retention/Value),
+  // BUKAN per KPI individual spt sistem lama (10 halaman) — instruksi
+  // eksplisit user: "buat sub menu retention, revenue, dan growth".
+  { page_key: 'report-growth', ready: true },
+  { page_key: 'report-retention', ready: true },
+  { page_key: 'report-revenue', ready: true },
   // 'products-trend' (`/products/trend`, ProductsTrend) DIHAPUS — redundan,
   // digantikan `avg-category-per-customer` hasil pembelahan cross-selling
   // (task025 §14, 2026-08-07). Baris lama DIBIARKAN di DB (harmless, sudah

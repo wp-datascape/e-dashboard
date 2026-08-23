@@ -130,8 +130,8 @@ export async function handleGetHmCustomers(c: Context) {
 export async function handleGetCustomerProducts(c: Context) {
   const query = validateQuery(c, customerProductsQuerySchema)
   const scope = resolveScope(c, query.company_id)
-  const { data, total } = await getCustomerProducts(query, scope)
-  return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+  const { data, total, summary } = await getCustomerProducts(query, scope)
+  return paginated(c, data, { page: query.page, per_page: query.per_page, total, summary })
 }
 
 export async function handleGetUpsellTargets(c: Context) {

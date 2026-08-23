@@ -29,6 +29,7 @@ import {
 } from '@/utils/analisisPeriod'
 import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
 import { trendColor } from '@/utils/analisisComparison'
+import { clampDateNotFuture } from '@/utils/date'
 import type { AnalisisPeriodType, AnalisisRow } from '@/types/analisis'
 
 // Urutan terpendek -> terpanjang (UI/UX review 2026-07-31).
@@ -279,12 +280,15 @@ export default function AnalisisPage() {
             label={t('analisis.periodDataLabel')}
             value={endDate}
             onChange={(e) => {
-              // Tidak boleh pilih tanggal di masa depan — clamp ke hari ini
-              // (komponen DatePicker atomic tidak expose slotProps/max native).
-              const picked = e.target.value
-              setEndDate(picked && picked > todayStr ? todayStr : picked)
+              // Tidak boleh pilih tanggal di masa depan ATAU kosong
+              // (2026-08-23, bug dilaporkan user: tombol clear bawaan
+              // browser bikin value kosong → fetch error, seharusnya reset
+              // ke hari ini) — clampDateNotFuture (utils/date.ts) SATU
+              // tempat pusat. `max` di bawah cegah dari calendar widget.
+              setEndDate(clampDateNotFuture(e.target.value, todayStr))
               setPaginationModel((p) => ({ ...p, page: 0 }))
             }}
+            max={todayStr}
             sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}
           />
 

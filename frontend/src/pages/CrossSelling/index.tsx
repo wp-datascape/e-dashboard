@@ -13,6 +13,7 @@ import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercomp
 import { DatePicker } from '@/components/ui/DatePicker';
 import { KpiCard } from './HelperComponents';
 import { todayStr } from './helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M1CrossSelling } from './M1CrossSelling';
 import { M2AvgCategory } from './M2AvgCategory';
 
@@ -63,7 +64,8 @@ export default function CrossSelling() {
           <DatePicker
             size="small" label={t('crossSelling.filterDateEnd')}
             value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
+            onChange={(e) => setPeriodEnd(clampDateNotFuture(e.target.value, todayStr()))}
+            max={todayStr()}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />

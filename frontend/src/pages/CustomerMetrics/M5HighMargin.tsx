@@ -14,7 +14,7 @@ import { DonutChartWidget } from '@/components/charts/DonutChartWidget';
 import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useHmBreakdown } from '@/hooks/useMetrics';
-import { monthToEndDate } from './helpers';
+import { resolvePeriodEnd } from '@/utils/date';
 import { formatRupiah } from '@/utils/format';
 import { SectionLabel } from './HelperComponents';
 
@@ -84,7 +84,7 @@ export function M5HighMargin({ isLoading, hm, companyId, branchId, division, per
             centerValue={`${hm?.bought_pct ?? 0}%`}
             centerLabel={t('customerMetrics.m5.centerLabel')}
             height={240}
-            onChartClick={() => setHmDrillDate(monthToEndDate(periodEnd))}
+            onChartClick={() => setHmDrillDate(resolvePeriodEnd(periodEnd.slice(0, 7)))}
           />
         )}
       </Box>

@@ -346,13 +346,21 @@ export async function fetchCrossSellingHeatmap(p: SegmentParams, periodStart: st
       LIMIT 30
     )
     SELECT
-      tc.customer_id     AS customer_id,
-      c.customer_name    AS customer,
-      pc.item_type       AS category,
-      COUNT(*)::int      AS purchase_count,
-      SUM(ii.revenue)    AS category_revenue,
-      tc2.freq           AS cat_freq,
-      tc.revenue         AS customer_total_revenue
+      tc.customer_id                         AS customer_id,
+      c.customer_name                        AS customer,
+      pc.item_type                           AS category,
+      -- COUNT(DISTINCT invoice_id), BUKAN COUNT(*) baris item (2026-08-22,
+      -- koreksi user: "harusnya sama dengan jumlah invoice agar tidak
+      -- ambigu" — angka sel heatmap dulu = jumlah BARIS invoice_items
+      -- (bisa >1 per invoice kalau 1 invoice punya beberapa baris produk
+      -- di kategori sama), beda dari drill-down dialog yang nunjukkin
+      -- "Total Invoice" (COUNT DISTINCT invoice), bikin 2 angka yang
+      -- MESTINYA sama tapi keliatan beda. Sekarang keduanya pakai definisi
+      -- SAMA PERSIS: jumlah invoice unik.
+      COUNT(DISTINCT ii.invoice_id)::int     AS purchase_count,
+      SUM(ii.revenue)                        AS category_revenue,
+      tc2.freq                               AS cat_freq,
+      tc.revenue                             AS customer_total_revenue
     FROM top_customers tc
     JOIN customers c ON c.id = tc.customer_id
     JOIN inv         ON inv.customer_id = tc.customer_id

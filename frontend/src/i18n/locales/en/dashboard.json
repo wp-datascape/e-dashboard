@@ -78,11 +78,15 @@
   },
   "kpiHeader": {
     "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
+    "periodVs": "{{currentPeriod}} vs {{period}}",
+    "vs": "vs",
     "change": "Change",
     "ppValue": "{{value}} percentage points"
   },
   "trendSummary": {
     "sectionLabel": "{{metric}} — summary across the last {{count}} {{unit}} shown in the chart",
+    "periodSubtitle": "Summary across the last {{count}} {{unit}} shown in the chart",
+    "inlineTitle": "Trend Summary",
     "average": "Average",
     "highest": "Highest",
     "lowest": "Lowest"

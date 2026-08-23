@@ -10,6 +10,7 @@ import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { todayIsoDate } from './helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
 import { M5HighMargin }  from './M5HighMargin';
@@ -59,7 +60,8 @@ export default function CustomerMetrics() {
           <DatePicker
             size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
+            onChange={(e) => setPeriodEnd(clampDateNotFuture(e.target.value, todayIsoDate()))}
+            max={todayIsoDate()}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />

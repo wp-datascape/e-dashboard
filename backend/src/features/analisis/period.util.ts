@@ -221,100 +221,97 @@ export function shiftDateByYears(dateStr: string, deltaYears: number): string {
 }
 
 /**
- * Potong akhir periode ke titik yang ADIL kalau periode itu (atau padanan
- * tahun-nya, buat YoY) masih berjalan relatif ke HARI INI — supaya current
- * & pembanding YoY tetap apple-to-apple dan TIDAK tampil 0/kosong di tengah
- * periode (task029.md §30, instruksi user 2026-08-20: "pakai data per
- * tanggal hari ini untuk cutoff, begitu juga data pembanding YoY nya").
+ * Potong akhir periode ke HARI INI, HANYA kalau periode itu SENDIRI (bukan
+ * padanan tahun lalunya) yang genuinely masih berjalan — supaya tidak
+ * tampil 0/kosong di tengah periode (data invoice memang belum ada untuk
+ * tanggal yang belum terjadi).
  *
- * Bekerja TANPA perlu tahu apakah request ini "current" atau "YoY" — cukup
- * dari tahun di `periodKey` sendiri: kalau periodKey 1 tahun sebelum tahun
- * berjalan (kasus YoY), "hari ini" ikut digeser mundur setahun juga sebagai
- * referensi, jadi otomatis konsisten dengan current-nya tanpa parameter
- * tambahan dari caller. Periode yang SUDAH TUTUP penuh (calendarEnd sudah
- * lewat referensi "hari ini" versi periode itu) TIDAK terpotong sama sekali
- * — tetap tampil penuh, cuma periode yang genuinely masih berjalan yang kena
- * potong. Contoh: hari ini 2026-08-19, filter Kuartalan Q3 2026 (calendarEnd
- * 2026-09-30, masih berjalan) → dipotong ke 2026-08-19. Pembanding YoY-nya
- * Q3 2025 (calendarEnd 2025-09-30) → yearsBack=1 → referensi "hari ini"
- * digeser ke 2025-08-19 → dipotong ke 2025-08-19 juga (apple-to-apple, sama
- * "sejauh mana" ke dalam periode). Q1 2026 yang sudah tutup (calendarEnd
- * 2026-03-31, sudah lewat) TIDAK kena potong — tetap tampil 1 kuartal penuh.
+ * REVISI (2026-08-23, koreksi user: "kalau filter date cutoff tidak aktif,
+ * seharusnya SECARA GLOBAL fetch data periode PENUH — memang jadi tidak
+ * apple-to-apple, tapi datanya tetap VALID, dan justru karena itu kita buat
+ * filter TAMBAHAN 'Apply date cutoff' [utk kasus user MEMANG mau apple-to-
+ * apple]") — versi SEBELUMNYA fungsi ini JUGA otomatis memotong padanan
+ * YoY (tahun lalu, same periodKey suffix) SUPAYA "apple-to-apple", TANPA
+ * user perlu aktifkan toggle apa pun. Itu SALAH KONSEP: pemotongan otomatis
+ * yang tidak diminta itu MENYEMBUNYIKAN data valid (mis. KpiHeader teks
+ * "Semester 2 Tahun 2025" nunjuk 1.583 customer padahal datanya yang benar
+ * penuh 1 semester = 2.655 customer) — dan justru membuat toggle "Apply
+ * date cutoff" jadi ambigu/redundan (2 mekanisme beda diam-diam melakukan
+ * hal serupa). SEKARANG: fungsi ini CUMA memotong kalau periodKey PERSIS
+ * periode yang sedang berjalan sekarang (yearsBack === 0) — padanan YoY
+ * ATAU periode lampau mana pun (termasuk yang kebetulan berbagi suffix
+ * period-type yang sama, mis. beberapa S2 di tahun berbeda — bug lama,
+ * lihat riwayat git kalau perlu) TIDAK PERNAH lagi otomatis dipotong.
+ * Kalau user MEMANG mau perbandingan apple-to-apple (current vs YoY sama-
+ * sama dipotong ke titik elapsed yang sama), itu SEKARANG cuma lewat toggle
+ * eksplisit "Apply date cutoff" (`clampEndToDay`, dipanggil terpisah).
+ *
+ * Contoh: hari ini 2026-08-23, filter Semester 2 2026 (calendarEnd
+ * 2026-12-31, masih berjalan) → dipotong ke 2026-08-23 (periode ITU SENDIRI
+ * sedang berjalan). Semester 2 2025 (padanan YoY, calendarEnd 2025-12-31,
+ * SUDAH TUTUP total sejak Januari 2026) → TIDAK dipotong sama sekali, tetap
+ * tampil 1 semester penuh — walau itu berarti perbandingan "current vs YoY"
+ * jadi 54 hari lawan 184 hari (tidak apple-to-apple), itu memang pilihan
+ * defaultnya sekarang: valid tapi tidak apple-to-apple, KECUALI user aktifkan
+ * "Apply date cutoff".
  */
-/**
- * "Hari ini" yang digeser mundur sejumlah tahun = (tahun `today` − `year`) —
- * dipakai `clampToElapsedEnd`/`clampEndToDay` supaya request YoY (periodKey/
- * bucket-nya tahun lalu) otomatis dapat referensi "sejauh mana" yang SAMA
- * dengan request current-nya, TANPA caller perlu bilang eksplisit "ini
- * current" atau "ini YoY" — cukup dari selisih tahun `year` itu sendiri.
- */
-function referenceNowForYear(year: number, today: Date): string {
-  const yearsBack = today.getFullYear() - year
-  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
-  return shiftDateByYears(todayStr, -yearsBack)
-}
 
-// BUG ditemukan 2026-08-21 (user klik titik Desember 2025 di chart trend M2 —
-// popup drill-down 0 customer aktif, padahal invoice Des 2025 ada 12678+404):
-// `referenceNowForYear` cuma bandingin TAHUN periodKey vs tahun `today` buat
-// nebak "apa ini current period atau padanan YoY-nya" — periodKey="2025-12"
-// (Desember, SUDAH TUTUP 8 bulan) kena dianggap "yearsBack=1" krn tahunnya
-// beda 1 dari today (2026), lalu di-cap ke "21 Agustus 2025" (referenceNow),
-// yang JATUH SEBELUM periodStart Desember (1 Des 2025) → range invoice_date
-// >= 1-Des-2025 AND <= 21-Ags-2025 jadi TERBALIK/mustahil → 0 baris. Fix:
-// hanya boleh di-clamp kalau periodKey itu MEMANG current period ATAU
-// padanan YoY-nya (geser tahunnya ke tahun `today`, hasilnya harus PERSIS
-// sama dgn `getCurrentPeriodKey`) — bulan/kuartal/semester ikut dicek, tidak
-// cuma tahun. Periode lampau sembarang (drill-down klik titik chart) selalu
-// lolos tanpa clamp, sesuai niat awal komentar "periode yang sudah tutup
-// tidak kena potong sama sekali".
 export function clampToElapsedEnd(periodKey: string, calendarEnd: string, periodType: PeriodType, today: Date = new Date()): string {
-  const periodYear = Number(periodKey.slice(0, 4))
-  if (!periodYear) return calendarEnd
-  const shiftedToThisYear = `${today.getFullYear()}${periodKey.slice(4)}`
-  if (shiftedToThisYear !== getCurrentPeriodKey(periodType, today)) return calendarEnd
-  const referenceNow = referenceNowForYear(periodYear, today)
-  return calendarEnd > referenceNow ? referenceNow : calendarEnd
+  // yearsBack === 0 SAJA (2026-08-23, lihat JSDoc di atas) — bukan lagi
+  // "same period-type suffix, tahun berapa pun" (bug lama, sempat salah
+  // memotong YoY twin bahkan periode lampau sembarang yang kebetulan
+  // berbagi suffix, mis. S2 tahun-tahun sebelumnya).
+  if (periodKey !== getCurrentPeriodKey(periodType, today)) return calendarEnd
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  return calendarEnd > todayStr ? todayStr : calendarEnd
 }
 
 /**
  * Potong tanggal akhir SEBUAH periode ke hari ke-D bulan yang sama (dibatasi
  * hari terakhir bulan itu kalau D lebih besar) — dipakai mode "Apply date
  * cutoff" (task029.md §30, instruksi user 2026-08-20): user pilih hari
- * spesifik lewat date picker, SEMUA titik trend dipotong ke hari yang sama
- * setiap bulannya (mis. analisis "20 hari pertama tiap bulan, 12 bulan
- * terakhir") — BUKAN behavior default (`clampToElapsedEnd` di atas, yang
- * cuma memotong titik yang SEDANG berjalan, periode yang sudah tutup tetap
- * penuh). Ini mode terpisah, eksplisit dipilih user, bukan pengganti default.
+ * spesifik lewat date picker, SEMUA titik trend (termasuk padanan YoY-nya)
+ * dipotong ke hari yang sama setiap bulannya (mis. analisis "20 hari pertama
+ * tiap bulan, 12 bulan terakhir") — mode terpisah, eksplisit dipilih user,
+ * BEDA dari `clampToElapsedEnd` (default, cuma potong periode yang genuinely
+ * sedang berjalan, TANPA toggle apa pun — lihat JSDoc di sana, 2026-08-23).
  *
- * PENTING (bug ditemukan 2026-08-20 lewat pertanyaan user "apakah ini bekerja
- * untuk kuartalan/semesteran/tahunan?"): untuk granularitas > bulanan, bucket
- * `periodEnd` yang masuk ke sini adalah AKHIR KALENDER bulan TERAKHIR periode
- * itu (mis. Kuartal 3 → 30 September) — kalau periode itu SEDANG BERJALAN,
- * bulan terakhirnya bisa jadi bulan yang BELUM TERJADI SAMA SEKALI (hari ini
- * baru Agustus, bulan September belum mulai), jadi "hari ke-20 bulan itu"
- * jadi tanggal masa depan yang tidak masuk akal (hasilnya 0/kosong). Makanya
- * hasil akhirnya di-cap ke `referenceNowForYear` juga (sama seperti
- * `clampToElapsedEnd`) — periode yang SUDAH TUTUP tidak terdampak (hasil
- * clamp-nya sudah otomatis di masa lalu), cuma periode yang MASIH BERJALAN
- * yang kena batasi ke hari ini (atau padanan tahun-nya buat YoY).
+ * `clamped` (potong ke hari D bulan itu) SELALU dihitung & dipakai apa
+ * adanya utk SEMUA bucket, termasuk yang sudah tutup total (itu memang
+ * tujuan mode ini: "hari D tiap bulan", bukan cuma bucket berjalan).
  *
- * Fix sama seperti `clampToElapsedEnd` (bug 2026-08-21) — cap ke
- * `referenceNowForYear` cuma valid buat bucket yang MEMANG current period
- * atau padanan YoY-nya (dicek dari `periodKey`+`periodType` bucket itu, bukan
- * cuma tahun `periodEnd`) — bucket lampau sembarang (mis. Desember tahun
- * lalu di mode Apply date cutoff) harus lolos apa adanya, tidak boleh ikut
- * ke-cap ke tanggal yang jatuh SEBELUM bucket itu bahkan mulai.
+ * Guard `today`-cap DI BAWAH hanya utk 1 masalah SEMPIT: bucket yang
+ * GENUINELY sedang berjalan sekarang (yearsBack===0) py `periodEnd` = akhir
+ * KALENDER bulan terakhirnya (mis. Kuartal 3 berjalan → 30 September),
+ * padahal bulan itu bisa jadi BELUM MULAI SAMA SEKALI (hari ini baru
+ * Agustus) — "hari ke-20 bulan itu" jadi tanggal masa depan yang tidak
+ * masuk akal, WAJIB di-cap ke hari ini. Bucket LAIN (termasuk padanan YoY,
+ * atau periode lampau sembarang yang kebetulan berbagi suffix period-type)
+ * TIDAK butuh guard ini — bulan mereka sudah pasti tutup total, jadi "hari
+ * D bulan itu" otomatis selalu valid tanpa perlu di-cap tambahan. Bug lama
+ * (2026-08-21/23) — guard ini sempat ikut kepasang ke bucket YoY twin
+ * (bahkan periode lampau sembarang yang berbagi suffix), MEMOTONG bucket
+ * yang seharusnya sudah tutup penuh jadi terlalu pendek.
  */
-export function clampEndToDay(periodEnd: string, day: number, periodKey: string, periodType: PeriodType, today: Date = new Date()): string {
-  const [y, m] = periodEnd.split('-').map(Number)
-  const lastDay = lastDayOfMonth(y, m)
-  const d = Math.min(day, lastDay)
-  const clamped = `${y}-${pad2(m)}-${pad2(d)}`
-  const shiftedToThisYear = `${today.getFullYear()}${periodKey.slice(4)}`
-  if (shiftedToThisYear !== getCurrentPeriodKey(periodType, today)) return clamped
-  const referenceNow = referenceNowForYear(y, today)
-  return clamped > referenceNow ? referenceNow : clamped
+export function clampEndToDay(periodStart: string, periodEnd: string, day: number, periodKey: string, periodType: PeriodType, today: Date = new Date()): string {
+  // "Hari ke-D" dihitung dari AWAL periode (2026-08-23, fix bug granularitas
+  // non-bulanan — laporan user: filter Kuartal + cutoff 10 Juli malah
+  // menarik data sampai hari ini). Versi lama ambil bulan dari periodEnd
+  // (akhir KALENDER periode, mis. akhir September utk Kuartal 3) lalu
+  // terapkan "hari ke-D" ke bulan itu — benar utk bulanan (periodEnd = bulan
+  // yang sama), tapi SALAH utk kuartal/semester/tahun (periodEnd bulannya
+  // BEDA dari bulan tempat tanggal cutoff aslinya berada). Sekarang: hari
+  // ke-D dihitung sbg "D-1 hari setelah awal periode" — utk bulanan hasilnya
+  // PERSIS SAMA (awal periode = tanggal 1 bulan itu), utk granularitas lain
+  // otomatis jatuh di bulan PERTAMA periode (tempat tanggal cutoff asli
+  // dipilih user), bukan bulan terakhir.
+  const [y, m, d0] = periodStart.split('-').map(Number)
+  const candidate = new Date(y, m - 1, d0 + (day - 1))
+  const candidateStr = `${candidate.getFullYear()}-${pad2(candidate.getMonth() + 1)}-${pad2(candidate.getDate())}`
+  const clamped = candidateStr > periodEnd ? periodEnd : candidateStr
+  if (periodKey !== getCurrentPeriodKey(periodType, today)) return clamped
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
+  return clamped > todayStr ? todayStr : clamped
 }
 
 export function getCurrentPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
@@ -364,6 +361,74 @@ export function buildTrailingPeriods(periodType: PeriodType, currentKey: string,
     const range = getPeriodRange(periodType, k)
     return { label: k, start: range.start, end: range.end }
   })
+}
+
+export interface ResolveTrendPeriodParams {
+  /** periodKey titik TERAKHIR (biasanya = current period request ini). */
+  periodKey: string
+  /** Akhir kalender penuh periodKey itu (getPeriodRange(...).end, BELUM dipotong apa pun). */
+  calendarEnd: string
+  /** Awal kalender penuh periodKey itu (getPeriodRange(...).start) — dipakai
+   * `clampEndToDay` (mode "Apply date cutoff") sbg acuan "hari ke-D DARI AWAL
+   * periode", supaya benar utk granularitas non-bulanan (2026-08-23, fix bug
+   * kuartal — lihat JSDoc `clampEndToDay`). */
+  calendarStart: string
+  periodType: PeriodType
+  /** 12 (atau N) titik trend, SUDAH dibangun via buildTrailingPeriods — fungsi
+   * ini TIDAK mengubah array asli, mengembalikan array baru. */
+  buckets: TrailingPeriodBucket[]
+  /** Mode "Apply date cutoff" (toggle eksplisit user) — kalau true, SEMUA
+   * bucket dipotong ke `cutoffDay ?? fallbackDay`, prioritas PALING TINGGI
+   * (mengalahkan skipElapsedClamp — toggle eksplisit user tidak boleh
+   * ditimpa flag internal apa pun). */
+  applyDateCutoff?: boolean
+  /** Hari referensi eksplisit utk apply_date_cutoff (dipakai drilldown, di
+   * mana `periodEnd` request = tanggal bucket yang diklik, BUKAN tanggal
+   * filter halaman — lihat komentar `clampEndToDay`/`getCrossSellingMetrics`
+   * kenapa 2 hal itu beda). Fallback ke `fallbackDay` kalau kosong. */
+  cutoffDay?: number
+  /** Hari dari `period_end` REQUEST INI SENDIRI — dipakai sbg cutoffDay kalau
+   * cutoffDay tidak dikirim (behavior lama, benar utk fetch trend utama). */
+  fallbackDay: number
+  /** Bypass clampToElapsedEnd (drilldown klik-titik) — periode SELALU kalender
+   * penuh, walau periodKey kebetulan = current atau padanan YoY-nya. Prioritas
+   * DI BAWAH applyDateCutoff (toggle eksplisit user tetap menang). */
+  skipElapsedClamp?: boolean
+  today?: Date
+}
+
+/**
+ * SATU fungsi pusat yang memutuskan "periode ini dipotong ke tanggal apa" —
+ * dipakai SEMUA service metrics (M1/M2 `getCrossSellingMetrics`, M3-M7
+ * `getCustomerMetrics`, dan KPI mana pun berikutnya yang butuh trend/drilldown
+ * serupa) lewat SATU pemanggilan, BUKAN tiap service menulis ulang if/else
+ * prioritas apply_date_cutoff/skip_elapsed_clamp/clampToElapsedEnd sendiri²
+ * (2026-08-23, koreksi user: "filter ini fungsinya harus global... kalau
+ * [ditulis ulang di tiap fungsi] akan rawan bug di metric KPI lainnya" —
+ * PERSIS insiden yang baru terjadi: fix skip_elapsed_clamp dulu HANYA
+ * menyentuh getCrossSellingMetrics, lalu apply_date_cutoff drilldown baru
+ * ketahuan belum ikut diperbaiki krn prioritasnya beda-beda per tempat).
+ * Prioritas TETAP (satu-satunya sumber kebenaran, urutan TIDAK BOLEH beda
+ * antar caller): applyDateCutoff > skipElapsedClamp > default clampToElapsedEnd.
+ */
+export function resolveTrendPeriod(p: ResolveTrendPeriodParams): { periodEndDate: string, buckets: TrailingPeriodBucket[] } {
+  const { periodKey, calendarEnd, calendarStart, periodType, buckets, applyDateCutoff, cutoffDay, fallbackDay, skipElapsedClamp, today } = p
+
+  if (applyDateCutoff) {
+    const day = cutoffDay ?? fallbackDay
+    const clampedBuckets = buckets.map((b) => ({ ...b, end: clampEndToDay(b.start, b.end, day, b.label, periodType, today) }))
+    return { periodEndDate: clampEndToDay(calendarStart, calendarEnd, day, periodKey, periodType, today), buckets: clampedBuckets }
+  }
+
+  if (skipElapsedClamp) {
+    return { periodEndDate: calendarEnd, buckets }
+  }
+
+  const periodEndDate = clampToElapsedEnd(periodKey, calendarEnd, periodType, today)
+  const lastIdx = buckets.length - 1
+  const newBuckets = buckets.slice()
+  if (lastIdx >= 0) newBuckets[lastIdx] = { ...newBuckets[lastIdx]!, end: periodEndDate }
+  return { periodEndDate, buckets: newBuckets }
 }
 
 /**

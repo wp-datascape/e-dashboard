@@ -78,11 +78,15 @@
   },
   "kpiHeader": {
     "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
+    "periodVs": "{{currentPeriod}} vs {{period}}",
+    "vs": "vs",
     "change": "Perubahan",
     "ppValue": "{{value}} poin persentase"
   },
   "trendSummary": {
     "sectionLabel": "{{metric}} — ringkasan {{count}} {{unit}} terakhir yang tampil di chart",
+    "periodSubtitle": "Ringkasan {{count}} {{unit}} terakhir yang tampil di chart",
+    "inlineTitle": "Ringkasan Tren",
     "average": "Rata-rata",
     "highest": "Tertinggi",
     "lowest": "Terendah"

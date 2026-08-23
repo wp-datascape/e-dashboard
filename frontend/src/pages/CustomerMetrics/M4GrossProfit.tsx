@@ -20,7 +20,8 @@ import { Dialog } from '@/components/ui/Dialog';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useGpBreakdown } from '@/hooks/useMetrics';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
-import { fmtRp, monthToEndDate } from './helpers';
+import { fmtRp } from './helpers';
+import { resolvePeriodEnd } from '@/utils/date';
 import { SectionLabel, Row } from './HelperComponents';
 import { formatRupiah } from '@/utils/format';
 import { formatMonthLabel } from '@/utils/date';
@@ -161,7 +162,7 @@ export function M4GrossProfit({ trend, isLoading, companyId, branchId, division,
             renderTooltip={(props) => <M4Tooltip {...props} />}
             concentrationKey="top_gp_pct"
             concentrationThreshold={25}
-            onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
+            onBarClick={(d) => setDrillDate(resolvePeriodEnd(String(d.month ?? '')))}
           />
         )}
       </Box>

@@ -8,6 +8,7 @@ import {
   shiftDateByYears,
   shiftEndDate,
 } from '@/utils/analisisPeriod'
+import { clampDateNotFuture } from '@/utils/date'
 
 /** 4 granularitas resmi task029.md §21/§22/§30 — subset dari AnalisisPeriodType
  * (`ParetoPeriodType` sendiri sudah pas, tanpa 'ytd' yang khusus Analisis/task016). */
@@ -50,9 +51,12 @@ export function usePeriodTypeFilter(initialType: PeriodGranularity = 'monthly') 
   const isViewingInProgress = endDate === todayStr
 
   const setEndDate = (value: string) => {
-    // Tidak boleh pilih tanggal masa depan — clamp ke hari ini, sama seperti
-    // Analisis/index.tsx.
-    setEndDateState(value && value > todayStr ? todayStr : value)
+    // Tidak boleh pilih tanggal masa depan, ATAU kosong (2026-08-23, bug
+    // dilaporkan user: tombol clear bawaan browser bikin value kosong →
+    // fetch data error, seharusnya reset ke hari ini) — clampDateNotFuture
+    // (utils/date.ts) SATU tempat pusat, dipakai semua date/month picker
+    // filter periode di app ini.
+    setEndDateState(clampDateNotFuture(value, todayStr))
   }
 
   const periodKey = getCurrentPeriodKey(periodType, new Date(endDate))

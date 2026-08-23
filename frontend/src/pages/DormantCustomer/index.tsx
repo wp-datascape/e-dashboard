@@ -9,6 +9,7 @@ import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { todayIsoDate } from './helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M8DormantRate } from './M8DormantRate';
 import { M9DormantValue } from './M9DormantValue';
 import { M10ReactivationRate } from './M10ReactivationRate';
@@ -56,7 +57,8 @@ export default function DormantCustomer() {
           <DatePicker
             size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
+            onChange={(e) => setPeriodEnd(clampDateNotFuture(e.target.value, todayIsoDate()))}
+            max={todayIsoDate()}
             sx={{ minWidth: { xs: '100%', sm: 150 } }}
           />
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />

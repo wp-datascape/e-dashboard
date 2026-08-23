@@ -40,9 +40,13 @@
   "configFeatures": "Features",
   "groups": {
     "executiveDashboard": "Executive Dashboard",
+    "business": "Business",
     "growth": "Growth",
     "retention": "Retention",
     "value": "Value",
+    "revenue": "Revenue",
+    "report": "Report",
+    "data": "Data",
     "customerWorkbench": "Customer Workbench",
     "productPortfolio": "Product & Portfolio",
     "transactionRevenue": "Transaction & Revenue",

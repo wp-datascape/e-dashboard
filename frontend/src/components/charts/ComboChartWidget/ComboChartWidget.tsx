@@ -54,8 +54,24 @@ const renderDiamondDot = (color: string, size: number) => (props: DotRenderProps
 };
 
 export interface ComboChartWidgetProps {
-  title: string;
+  /** Judul di atas chart — opsional (2026-08-22, koreksi user: judul chart
+   * sendiri redundan kalau caller sudah punya judul card di luar, mis. M1/
+   * M2/M7 unified card §30.23 — dihilangkan dgn tidak mengirim prop ini). */
+  title?: string;
   subtitle?: string;
+  /** Caption di BAWAH chart, digabung dgn legend recharts (2026-08-22,
+   * koreksi user: subtitle penjelasan "Bar = ... Line = ..." dan legend
+   * warna itu SAMA-SAMA legend, jangan dipisah atas-bawah — satukan di
+   * bawah chart). */
+  caption?: string;
+  /** Konten arbitrer di ATAS chart, DI DALAM Card widget ini (2026-08-22,
+   * koreksi keras user: "pindahkan text ini ke container chart bukan
+   * diluarnya" — caller sebelumnya render `KpiHeader` sbg sibling SEBELUM
+   * `<ComboChartWidget>`, jadi visualnya di LUAR border/background Card
+   * widget ini). Dirender persis di posisi `title`/`subtitle` (atas,
+   * sebelum garis pemisah ke chart) — TIDAK bersamaan dgn `title` (kalau
+   * `headerContent` diisi, itu yang dipakai). */
+  headerContent?: React.ReactNode;
   data: object[];
   barKey: string;
   barLabel: string;
@@ -106,6 +122,8 @@ export interface ComboChartWidgetProps {
 export const ComboChartWidget = ({
   title,
   subtitle,
+  caption,
+  headerContent,
   data,
   barKey,
   barLabel,
@@ -222,16 +240,20 @@ export const ComboChartWidget = ({
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {subtitle}
+      {headerContent ? (
+        <Box sx={{ mb: 2 }}>{headerContent}</Box>
+      ) : title && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+            {title}
           </Typography>
-        )}
-      </Box>
+          {subtitle && (
+            <Typography variant="caption" color="text.secondary">
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
           (staggering supaya redraw banyak chart sekaligus tidak numpuk 1 tick JS) */}
@@ -330,6 +352,8 @@ export const ComboChartWidget = ({
                 fill="url(#combo-area-grad-bar)"
                 strokeWidth={2}
                 stackId={stacked ? 'stack' : undefined}
+                dot={renderCircleDot(barColor, dotSize)}
+                activeDot={renderCircleDot(barColor, activeDotSize)}
               />
               {bar2Key && (
                 <Area
@@ -341,6 +365,8 @@ export const ComboChartWidget = ({
                   fill="url(#combo-area-grad-bar2)"
                   strokeWidth={2}
                   stackId={stacked ? 'stack' : undefined}
+                  dot={renderCircleDot(bar2Color ?? theme.palette.secondary.main, dotSize)}
+                  activeDot={renderCircleDot(bar2Color ?? theme.palette.secondary.main, activeDotSize)}
                 />
               )}
             </>
@@ -440,6 +466,12 @@ export const ComboChartWidget = ({
           )}
         </ComposedChart>
       </ResponsiveContainer>
+
+      {caption && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.5 }}>
+          {caption}
+        </Typography>
+      )}
     </Card>
   );
 };

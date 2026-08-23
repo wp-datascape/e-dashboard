@@ -5,6 +5,9 @@ import {
   Growth,
   Retention,
   Value,
+  ReportGrowth,
+  ReportRetention,
+  ReportRevenue,
   Customers,
   CustomerMetrics,
   CrossSelling,
@@ -79,6 +82,13 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'growth':               { path: '/growth',                 element: withLayout(<Growth />),                protected: true, permissionKey: 'growth:view' },
   'retention':            { path: '/retention',               element: withLayout(<Retention />),             protected: true, permissionKey: 'retention:view' },
   'value':                { path: '/value',                   element: withLayout(<Value />),                 protected: true, permissionKey: 'value:view' },
+  // Laporan (task029.md §30.19, 2026-08-22) — tabel breakdown Growth/
+  // Retention/Revenue, dipisah dari halaman chart. permissionKey REUSE
+  // growth:view/retention:view/value:view (SAMA dgn chart-nya) — bukan
+  // permission baru.
+  'report-growth':        { path: '/report/growth',          element: withLayout(<ReportGrowth />),          protected: true, permissionKey: 'growth:view' },
+  'report-retention':     { path: '/report/retention',       element: withLayout(<ReportRetention />),       protected: true, permissionKey: 'retention:view' },
+  'report-revenue':       { path: '/report/revenue',         element: withLayout(<ReportRevenue />),         protected: true, permissionKey: 'value:view' },
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },

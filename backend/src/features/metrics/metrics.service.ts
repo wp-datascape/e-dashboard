@@ -12,7 +12,7 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // fitur Analisis (task016), sekarang juga dipakai granularitas M1 Cross
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
-import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, clampToElapsedEnd, clampEndToDay } from '@/features/analisis/period.util'
+import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -124,39 +124,29 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
     // diverifikasi numerik identik dgn query lama untuk granularitas monthly.
     const buckets = buildTrailingPeriods(periodType, periodKey, 12)
 
-    let periodEndDate: string
-    if (params.apply_date_cutoff) {
-      // Mode "Apply date cutoff" (instruksi user 2026-08-20) — SEMUA 12 titik
-      // dipotong ke hari yang sama (hari dari `periodEnd` literal, mis. tanggal
-      // 20), BUKAN cuma titik yang sedang berjalan. Mode analisis eksplisit
-      // ("20 hari pertama tiap bulan, 12 bulan terakhir") — user yang aktifkan
-      // sendiri lewat checkbox, BUKAN default (lihat clampEndToDay docstring).
-      // `start` bucket TIDAK disentuh (selalu batas kalender, §30.10).
-      for (let i = 0; i < buckets.length; i++) {
-        buckets[i] = { label: buckets[i]!.label, start: buckets[i]!.start, end: clampEndToDay(buckets[i]!.end, pd, buckets[i]!.label, periodType) }
-      }
-      periodEndDate = clampEndToDay(calendarEnd, pd, periodKey, periodType)
-    } else {
-      // Default — potong ke elapsed cutoff HANYA kalau periode ini (atau
-      // padanan tahunnya, buat request YoY) masih berjalan (§30, instruksi
-      // user 2026-08-20) — supaya current & pembanding YoY apple-to-apple,
-      // tetap keliatan data di tengah periode alih-alih 0%. Periode yang
-      // SUDAH TUTUP (mis. kuartal lalu) tidak kena potong sama sekali, tetap
-      // tampil 1 periode penuh. Lihat clampToElapsedEnd (period.util.ts)
-      // untuk penjelasan lengkap kenapa ini bekerja utk request YoY juga
-      // TANPA perlu tahu ini "current" atau "YoY". Titik TERAKHIR (periodKey,
-      // current) di-overwrite ke cutoff ini — titik-titik SEBELUMNYA (periode
-      // yang sudah tutup) TIDAK disentuh, tetap tampil penuh. `start` bucket
-      // terakhir TIDAK disentuh (selalu batas kalender, §30.10).
-      periodEndDate = clampToElapsedEnd(periodKey, calendarEnd, periodType)
-      buckets[buckets.length - 1] = { label: periodKey, start: buckets[buckets.length - 1]!.start, end: periodEndDate }
-    }
+    // Prioritas potong tanggal (apply_date_cutoff > skip_elapsed_clamp >
+    // default clampToElapsedEnd) SATU-SATUNYA sumber kebenaran di
+    // `resolveTrendPeriod` (period.util.ts) — dipakai jg getCustomerMetrics
+    // di bawah, JANGAN tulis ulang if/else ini di sini (2026-08-23, koreksi
+    // user: "kalau ditulis ulang di tiap fungsi, akan rawan bug di metric
+    // KPI lainnya" — insiden nyata: fix skip_elapsed_clamp sebelumnya cuma
+    // menyentuh fungsi ini, apply_date_cutoff drilldown baru ketahuan belum
+    // ikut diperbaiki krn logicnya sempat tercecer per tempat).
+    const resolved = resolveTrendPeriod({
+      periodKey, calendarEnd, calendarStart: periodStartDate, periodType, buckets,
+      applyDateCutoff: params.apply_date_cutoff,
+      cutoffDay: params.cutoff_day,
+      fallbackDay: pd,
+      skipElapsedClamp: params.skip_elapsed_clamp,
+    })
+    const periodEndDate = resolved.periodEndDate
+    const resolvedBuckets = resolved.buckets
 
     const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
 
     const [kpiRaw, trend, detailResult, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams, periodStartDate, periodEndDate),
-      fetchCrossSellingTrend(segParams, buckets),
+      fetchCrossSellingTrend(segParams, resolvedBuckets),
       fetchCrossSellingDetail(segParams, periodStartDate, periodEndDate),
       fetchCrossSellingHeatmap(segParams, periodStartDate, periodEndDate),
     ])
@@ -202,13 +192,22 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
 
     const buckets = buildTrailingPeriods(periodType, periodKey, 12)
 
-    // M3-M7 belum punya mode "Apply date cutoff" (§30.9 poin 2, di luar
-    // scope granularitas ini) — cuma elapsed cutoff default (periode yang
-    // MASIH BERJALAN dipotong ke hari ini, periode yang sudah tutup penuh
-    // tidak disentuh). Reuse clampToElapsedEnd apa adanya (SUDAH diperbaiki
-    // hari ini utk bug periode lampau, §30.11).
-    const periodEndDate = clampToElapsedEnd(periodKey, calendarRange.end, periodType)
-    buckets[buckets.length - 1] = { label: periodKey, start: buckets[buckets.length - 1]!.start, end: periodEndDate }
+    // Prioritas potong tanggal (apply_date_cutoff > skip_elapsed_clamp >
+    // default clampToElapsedEnd) — SATU fungsi pusat sama persis dgn
+    // getCrossSellingMetrics di atas, lihat komentar `resolveTrendPeriod`
+    // (period.util.ts). M3-M7 belum ada CALLER yang mengaktifkan
+    // apply_date_cutoff/skip_elapsed_clamp lewat UI saat ini — tapi
+    // kapabilitasnya sudah tersedia global, tidak perlu ditulis ulang kalau
+    // suatu saat dibutuhkan (mis. drilldown M3-M7 baru yang reuse fetch ini).
+    const resolved = resolveTrendPeriod({
+      periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
+      applyDateCutoff: params.apply_date_cutoff,
+      cutoffDay: params.cutoff_day,
+      fallbackDay: pd,
+      skipElapsedClamp: params.skip_elapsed_clamp,
+    })
+    const periodEndDate = resolved.periodEndDate
+    const resolvedBuckets = resolved.buckets
 
     // "Bucket sebelumnya" per titik (dipakai M7 up/flat/inactive/down —
     // window "previous" = bucket SEBELUM bucket itu, lebar sama, keputusan
@@ -217,9 +216,27 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
     // menghitung tanggal periode sendiri", CRITICAL_RULES.md). Label
     // dibuat SAMA PERSIS dgn bucket current-nya (bukan label periode
     // sebelumnya sendiri) supaya repository bisa JOIN by label langsung.
-    const prevBuckets = buckets.map((b) => {
+    const prevBuckets = resolvedBuckets.map((b) => {
       const prevKey = getPreviousPeriodKey(periodType, b.label)
       const prevRange = getPeriodRange(periodType, prevKey)
+      // Bucket ini terpotong (elapsed clamp default ATAU apply_date_cutoff) —
+      // window previous ikut dipersempit PROPORSIONAL (jumlah hari elapsed
+      // yang sama, dihitung dari awal previous), BUKAN dibiarkan kalender
+      // previous PENUH sebulan (2026-08-23, bug dilaporkan user: trend
+      // up_rate periode berjalan Agustus 2026 1,7% vs drilldown titik yang
+      // sama 2,0% — root cause: current dipotong ke tanggal berjalan tapi
+      // previous SELALU dipakai penuh sebulan, jadi baseline pembandingnya
+      // tidak apple-to-apple. `fetchExpansionBreakdown`/drilldown SUDAH
+      // benar dari awal — dipersempit proporsional lewat dateFrom/filterDate
+      // — trend ini yang menyusul supaya konsisten, BUKAN sebaliknya).
+      const fullRange = getPeriodRange(periodType, b.label)
+      if (b.end < fullRange.end) {
+        const elapsedDays = Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 86400000)
+        const prevEndDate = new Date(prevRange.start)
+        prevEndDate.setDate(prevEndDate.getDate() + elapsedDays)
+        const prevEndStr = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`
+        return { label: b.label, start: prevRange.start, end: prevEndStr < prevRange.end ? prevEndStr : prevRange.end }
+      }
       return { label: b.label, start: prevRange.start, end: prevRange.end }
     })
 
@@ -228,7 +245,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       loadThresholds(),
     ])
 
-    const trend = await fetchCustomerMetricsTrend(segParams, buckets, prevBuckets)
+    const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets)
 
     const trendPoints: CustomerMetricsTrendPoint[] = trend.map((row) => ({
       month:                  row.month,
@@ -272,6 +289,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
     return {
       trend:   trendPoints,
       detail:  [],
+      period:  { start: calendarRange.start, end: periodEndDate },
       high_margin_current: {
         bought_pct:     last?.high_margin_ratio ?? 0,
         not_bought_pct: parseFloat((100 - (last?.high_margin_ratio ?? 0)).toFixed(1)),
@@ -313,7 +331,32 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
     // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
     // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
     // "existing", tetap fixed).
-    const result = await fetchExpansionBreakdown(segParams, params.date_from)
+    //
+    // prevDateFrom/prevDateTo (2026-08-23, koreksi user: "membandingkan 1-7
+    // Agustus vs 26-31 Juli itu makesense?" — jawaban TIDAK, window
+    // "sebelumnya" harus PERIOD-ANCHORED, posisi relatif sama di periode
+    // sebelumnya (1-7 Juli utk 1-7 Agustus), BUKAN rolling-window mundur dari
+    // date_from — sama persis pola yang sudah dipakai `prevBuckets` di
+    // `getCustomerMetrics` di atas, REUSE bukan tulis ulang) — cuma dihitung
+    // kalau date_from+period_type dikirim (drilldown granularitas-aware),
+    // biar repository bisa fallback ke rolling-window lama utk caller yang
+    // belum wired (M7Expansion.tsx workbench).
+    let prevDateFrom: string | undefined
+    let prevDateTo: string | undefined
+    if (params.date_from && params.period_type) {
+      const periodType = params.period_type
+      const [y, m, d] = params.date_from.split('-').map(Number)
+      const periodKey = getCurrentPeriodKey(periodType, new Date(y, m - 1, d))
+      const prevKey = getPreviousPeriodKey(periodType, periodKey)
+      const prevRange = getPeriodRange(periodType, prevKey)
+      const elapsedDays = Math.round((new Date(filterDate).getTime() - new Date(params.date_from).getTime()) / 86400000)
+      const prevEndDate = new Date(prevRange.start)
+      prevEndDate.setDate(prevEndDate.getDate() + elapsedDays)
+      const prevEndStr = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`
+      prevDateFrom = prevRange.start
+      prevDateTo = prevEndStr < prevRange.end ? prevEndStr : prevRange.end
+    }
+    const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo)
     return {
       period_end:     filterDate,
       up_count:       result.up_count,
@@ -708,14 +751,18 @@ export async function getHmCustomers(
 export async function getCustomerProducts(
   params: CustomerProductsQuery,
   scope: MetricsScope = {},
-): Promise<{ data: object[]; total: number }> {
+): Promise<{ data: object[]; total: number; summary: Record<string, unknown> }> {
   try {
     const cid = params.company_id === 'all' ? 0 : params.company_id
+    // periodEnd — kalau period_start/period_end eksplisit dikirim (M1 heatmap
+    // drill-down, granularitas-aware), pakai LANGSUNG. Kalau tidak (jalur
+    // lama period_month+active_window, dipakai UpsellCustomerDialog.tsx),
+    // tetap hitung dari period_month spt sebelumnya — TIDAK diubah.
     const [py, pm] = params.period_month.split('-').map(Number)
     const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
-    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const periodEnd = params.period_end ?? `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const rows = await fetchCustomerProducts({
+    const { rows, summary } = await fetchCustomerProducts({
       cid,
       companyScopeIds: scope.companyScopeIds,
       branchScope:     scope.branchScope,
@@ -727,6 +774,7 @@ export async function getCustomerProducts(
       division:     params.division,
       branchFilter: params.branch_id,
       periodEnd,
+      periodStart:  params.period_start,
       activeWindow: params.active_window,
       page:         params.page,
       perPage:      params.per_page,
@@ -734,7 +782,7 @@ export async function getCustomerProducts(
 
     const total = rows[0]?.total_count ?? 0
     const data  = rows.map(({ total_count, ...row }) => ({ id: row.product_id, ...row }))
-    return { data, total }
+    return { data, total, summary: { ...summary } }
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil riwayat produk customer', 500)

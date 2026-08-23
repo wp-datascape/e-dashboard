@@ -6,19 +6,22 @@ import type { GpBreakdownRow } from '../metrics.types'
 
 export async function fetchGpBreakdown(
   p: SegmentParams,
-  // Rentang PENARIKAN DATA (SUM GP per customer) — task026 §8e koreksi user
-  // 2026-08-09: "window aktif utk parameter existing TIDAK BOLEH berubah,
-  // yang berubah PERIODE PENARIKAN DATANYA (end date dari filter, start
-  // date dari periode filter)". SENGAJA parameter TERPISAH dari `p.activeMonths`
-  // (dipakai `cteEstablishedCustomers` di bawah, TETAP dari business_configs,
-  // tidak disentuh sama sekali) — dua konsep beda: siapa yang qualify sbg
-  // "existing" (business rule, fixed) vs rentang tanggal invoice yang
-  // di-SUM utk existing customer itu (filter user, dinamis ikut periodType).
-  // Opsional — kalau kosong, fallback ke perilaku lama (activeMonths dari p).
+  // Rentang PENARIKAN DATA (SUM GP per customer) — task026 §8e (2026-08-09):
+  // "PERIODE PENARIKAN DATANYA (end date dari filter, start date dari
+  // periode filter)" dipisah dari kualifikasi "existing". Opsional — kalau
+  // kosong, fallback ke perilaku lama (activeMonths dari p).
+  //
+  // §8e JUGA bilang "window aktif utk parameter existing TIDAK BOLEH
+  // berubah" — itu SUDAH TIDAK berlaku lagi (task029 §30.10, 2026-08-23,
+  // instruksi user "patokan ke definisi terbaru"): kualifikasi existing
+  // SEKARANG anchor ke periodStart kalender juga (`cteEstablishedCustomers`
+  // param ke-2 di bawah), BUKAN lagi activeMonths fixed dari business_configs
+  // — reuse `dateFrom` yang sama (sudah = awal periode saat granularitas
+  // dikirim) drpd bikin parameter terpisah lagi.
   dateFrom?: string,
 ): Promise<{ rows: GpBreakdownRow[]; total_gp: number; median_threshold: number; total_existing: number }> {
   const { filterDate, activeMonths } = p
-  const establishedCTE = cteEstablishedCustomers(p)
+  const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
   const rangeStartCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
@@ -84,7 +87,7 @@ export async function fetchGpBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${cteEstablishedCustomers(p)}
+      WITH ${establishedCTE}
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     const tot = totRow as Record<string, unknown>

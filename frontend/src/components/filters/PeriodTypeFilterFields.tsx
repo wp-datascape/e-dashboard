@@ -12,6 +12,7 @@ import type { SxProps, Theme } from '@mui/material/styles'
 import { DatePicker } from '@/components/ui/DatePicker'
 import type { usePeriodTypeFilter, PeriodGranularity } from '@/hooks/usePeriodTypeFilter'
 import { FILTER_FIELD_WIDTH } from './filterFieldWidth'
+import { todayIsoDate } from '@/utils/date'
 
 type PeriodTypeFilter = ReturnType<typeof usePeriodTypeFilter>
 
@@ -95,6 +96,13 @@ export function PeriodTypeFilterFields({ filter, size = 'small', sx, showNavigat
             label={t('common.filters.asOfDate')}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
+            // max = hari ini (2026-08-23, permintaan user: "tidak bisa
+            // memilih tanggal bulan dan tahun masa depan di date picker") —
+            // `setEndDate` (usePeriodTypeFilter.ts) SUDAH clamp future date
+            // ke hari ini SETELAH dipilih, `max` di sini mencegah calendar
+            // widget bawaan browser bahkan MENAMPILKAN tanggal itu sbg bisa
+            // diklik sama sekali (termasuk navigasi bulan/tahun di kalender).
+            max={todayIsoDate()}
             sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH }, ...sx }}
           />
         )}

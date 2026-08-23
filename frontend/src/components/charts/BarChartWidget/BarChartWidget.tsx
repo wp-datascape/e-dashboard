@@ -27,10 +27,17 @@ export interface BarSeries {
 }
 
 export interface BarChartWidgetProps {
-  title: string;
+  /** Judul di atas chart — opsional (2026-08-22, koreksi user: judul chart
+   * sendiri redundan kalau caller sudah punya judul card di luar, mis. M7
+   * unified card §30.23 — dihilangkan dgn tidak mengirim prop ini). */
+  title?: string;
   value?: string | number;
   change?: number;
   subtitle?: string;
+  /** Caption di BAWAH chart, digabung dgn legend recharts (2026-08-22,
+   * koreksi user: subtitle penjelasan chart dan legend warna itu SAMA-SAMA
+   * legend, jangan dipisah atas-bawah — satukan di bawah chart). */
+  caption?: string;
   data: object[];
   series: BarSeries[];
   xKey?: string;
@@ -73,6 +80,18 @@ export interface BarChartWidgetProps {
    * bar hijau (positif) dan merah (negatif) cuma nempel tanpa batas yang
    * kelihatan jelas di mana titik 0-nya. */
   showZeroLine?: boolean;
+  /** Batas atas sumbu nilai (numeric axis) di layout horizontal — default
+   * 'auto' (recharts pilih angka "bulat" di atas nilai maksimum data, bisa
+   * melebihi nilai maksimum asli, mis. 120 utk data 100% stacked). Set 100
+   * utk chart 100%-stacked (mis. ExpansionChart) supaya sumbu berhenti
+   * PERSIS di 100, sama seperti referensi production. Tidak berpengaruh di
+   * layout vertical. */
+  xDomainMax?: number;
+  /** Tick eksplisit sumbu nilai (numeric axis) di layout horizontal —
+   * default undefined (recharts pilih otomatis, bisa jadi angka ganjil mis.
+   * 0/30/60/90/100). Set eksplisit (mis. [0,10,...,100]) utk kelipatan
+   * rapi. Tidak berpengaruh di layout vertical. */
+  xAxisTicks?: number[];
 }
 
 export const BarChartWidget = ({
@@ -80,6 +99,7 @@ export const BarChartWidget = ({
   value,
   change,
   subtitle,
+  caption,
   data,
   series,
   xKey = 'name',
@@ -99,6 +119,8 @@ export const BarChartWidget = ({
   yAxisWidth = 120,
   mobileNameInBar = false,
   showZeroLine = false,
+  xDomainMax,
+  xAxisTicks,
 }: BarChartWidgetProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -113,29 +135,33 @@ export const BarChartWidget = ({
   return (
     <Card sx={{ p: 2, height: '100%' }}>
       {/* Header */}
-      <Box sx={{ mb: 2 }}>
-        {value !== undefined && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1 }}>
-              {value}
+      {(value !== undefined || title) && (
+        <Box sx={{ mb: 2 }}>
+          {value !== undefined && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                {value}
+              </Typography>
+              {change !== undefined && (
+                <StatusChip
+                  label={`${isPositive ? '+' : ''}${change}%`}
+                  color={isPositive ? 'success' : 'error'}
+                />
+              )}
+            </Box>
+          )}
+          {title && (
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+              {title}
             </Typography>
-            {change !== undefined && (
-              <StatusChip
-                label={`${isPositive ? '+' : ''}${change}%`}
-                color={isPositive ? 'success' : 'error'}
-              />
-            )}
-          </Box>
-        )}
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {subtitle}
-          </Typography>
-        )}
-      </Box>
+          )}
+          {subtitle && (
+            <Typography variant="caption" color="text.secondary">
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* Chart */}
       {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap
@@ -168,7 +194,8 @@ export const BarChartWidget = ({
             <>
               <XAxis
                 type="number"
-                domain={[0, 'auto']}
+                domain={[0, xDomainMax ?? 'auto']}
+                ticks={xAxisTicks}
                 tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                 axisLine={false}
                 tickLine={false}
@@ -285,7 +312,7 @@ export const BarChartWidget = ({
                     const cy = y + h / 2;
                     const label = labelFormatter ? labelFormatter(val) : `${val}%`;
                     return (
-                      <text x={cx} y={cy} dy={4} textAnchor="middle" fontSize={11} fontWeight={600} fill={s.labelColor ?? theme.palette.getContrastText(s.color)}>
+                      <text x={cx} y={cy} dy={4} textAnchor="middle" fontSize={10} fontWeight={600} fill={s.labelColor ?? theme.palette.getContrastText(s.color)}>
                         {label}
                       </text>
                     );
@@ -312,6 +339,12 @@ export const BarChartWidget = ({
           ))}
         </BarChart>
       </ResponsiveContainer>
+
+      {caption && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.5 }}>
+          {caption}
+        </Typography>
+      )}
     </Card>
   );
 };

@@ -1,17 +1,22 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
+import { Card } from '@/components/ui';
 
 // Trend Summary (task029.md §28.6) — Average/Highest/Lowest, dihitung dari
 // SELURUH titik trend yang tampil di chart (bukan diam-diam ambil 1 titik
 // terakhir — larangan eksplisit §28.6).
 //
-// 2026-08-19, iterasi ke-5: dipadatkan jadi 1 baris — judul section di
-// atas (nyebut metrik + jumlah bulan, TIDAK diulang lagi di tiap item),
-// lalu SATU baris "Label: Value | Label: Value | Label: Value" dipisah
-// pipe (sama pola dgn KpiHeader). Spasi judul ke baris key:value diperkecil.
+// 2026-08-22, iterasi ke-6 (koreksi user, mockup — sama seperti
+// KpiHeader.tsx): dari 1 baris teks jadi card — judul + subjudul di atas,
+// 3 angka besar berdampingan (Rata-rata/Tertinggi/Terendah). Pakai `Card`
+// atomic (`@/components/ui/Card`, SAMA dipakai StatCard/SummaryCard/dkk
+// di seluruh app) — TIDAK ada styling border/shadow/radius baru ditulis
+// di sini (percobaan pertama pakai `Paper` mentah + `borderRadius`/
+// `boxShadow` custom sendiri SALAH, ditegur user: "kenapa card nya beda
+// dengan yang lain? padahal componennya atomic" — lihat KpiHeader.tsx).
 interface TrendSummaryProps<T> {
-  /** Nama KPI, mis. "Cross-Sell Rate" — dipakai di judul section (bukan diulang di tiap item lagi). */
+  /** Nama KPI, mis. "Cross-Sell Rate" — jadi judul card. */
   metricLabel: string;
   data: T[];
   accessor: (row: T) => number;
@@ -21,19 +26,34 @@ interface TrendSummaryProps<T> {
    * 2026-08-20) — default "bulan" (dashboard.periodUnit.monthly) kalau caller
    * belum granularitas-aware. */
   unit?: string;
+  /** 2026-08-22 (instruksi user: "1 layout dengan chart cross selling
+   * sebagai header chart... card dibawah chart jadikan footer chart" —
+   * merujuk §28.11 "Struktur Final Setiap KPI Card": 1 Card berisi
+   * header+chart+footer, dipisah Divider, BUKAN card terpisah-pisah).
+   * `bare=true`: skip `<Card>` pembungkus + margin-top sendiri — dipakai
+   * sbg footer DI DALAM Card lain (caller yang kasih Divider+padding). */
+  bare?: boolean;
 }
 
-function Item({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ value, label, sub }: { value: string; label: string; sub?: string }) {
   return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, whiteSpace: 'nowrap' }}>
-      <Typography component="span" variant="body2" color="text.secondary">{label}:</Typography>
-      <Typography component="span" variant="body2" sx={{ fontWeight: 700 }}>{value}</Typography>
-      {sub && <Typography component="span" variant="caption" color="text.disabled">({sub})</Typography>}
+    <Box>
+      <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
+        {value}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        {label}
+      </Typography>
+      {sub && (
+        <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }}>
+          ({sub})
+        </Typography>
+      )}
     </Box>
   );
 }
 
-export function TrendSummary<T>({ metricLabel, data, accessor, labelAccessor, formatValue, unit }: TrendSummaryProps<T>) {
+export function TrendSummary<T>({ metricLabel, data, accessor, labelAccessor, formatValue, unit, bare = false }: TrendSummaryProps<T>) {
   const { t } = useTranslation();
   if (data.length === 0) return null;
   const resolvedUnit = unit ?? t('dashboard.periodUnit.monthly');
@@ -48,18 +68,28 @@ export function TrendSummary<T>({ metricLabel, data, accessor, labelAccessor, fo
     if (v < values[lowestIdx]) lowestIdx = i;
   });
 
-  return (
-    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
-      <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 0.25 }}>
-        {t('dashboard.trendSummary.sectionLabel', { metric: metricLabel, count: data.length, unit: resolvedUnit })}
+  const content = (
+    <>
+      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        {metricLabel}
       </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
-        <Item label={t('dashboard.trendSummary.average')} value={formatValue(average)} />
-        <Typography color="text.disabled">|</Typography>
-        <Item label={t('dashboard.trendSummary.highest')} value={formatValue(values[highestIdx])} sub={labelAccessor(data[highestIdx])} />
-        <Typography color="text.disabled">|</Typography>
-        <Item label={t('dashboard.trendSummary.lowest')} value={formatValue(values[lowestIdx])} sub={labelAccessor(data[lowestIdx])} />
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+        {t('dashboard.trendSummary.periodSubtitle', { count: data.length, unit: resolvedUnit })}
+      </Typography>
+
+      <Box sx={{ display: 'flex', justifyContent: 'center', gap: { xs: 3, sm: 5 }, flexWrap: 'wrap' }}>
+        <Stat value={formatValue(average)} label={t('dashboard.trendSummary.average')} />
+        <Stat value={formatValue(values[highestIdx])} label={t('dashboard.trendSummary.highest')} sub={labelAccessor(data[highestIdx])} />
+        <Stat value={formatValue(values[lowestIdx])} label={t('dashboard.trendSummary.lowest')} sub={labelAccessor(data[lowestIdx])} />
       </Box>
-    </Box>
+    </>
+  );
+
+  if (bare) return <Box sx={{ textAlign: 'center' }}>{content}</Box>;
+
+  return (
+    <Card sx={{ mt: 2, p: 2.5, textAlign: 'center' }}>
+      {content}
+    </Card>
   );
 }

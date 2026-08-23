@@ -20,7 +20,8 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
 import { useThemeMode } from '@/theme/theme.context';
 import { PALETTES } from '@/theme/palettes';
-import { fmtRp, monthToEndDate } from './helpers';
+import { fmtRp } from './helpers';
+import { resolvePeriodEnd } from '@/utils/date';
 import { SectionLabel, Row } from './HelperComponents';
 import { formatRupiah } from '@/utils/format';
 import { formatMonthLabel } from '@/utils/date';
@@ -201,7 +202,7 @@ export function M3Revenue({ trend, isLoading, companyId, branchId, division, exc
           formatBar={(v) => fmtRp(v)}
           formatLine={(v) => fmtRp(v)}
           renderTooltip={(props) => <M3Tooltip {...props} />}
-          onBarClick={(d) => setDrillDate(monthToEndDate(String(d.month ?? '')))}
+          onBarClick={(d) => setDrillDate(resolvePeriodEnd(String(d.month ?? '')))}
         />
       )}
 

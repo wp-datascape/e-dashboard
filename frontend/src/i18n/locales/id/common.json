@@ -113,5 +113,8 @@
     "moreCount": "+{{count}} lainnya",
     "superadminBadge": "Superadmin — akses penuh",
     "allDivisions": "Semua divisi"
+  },
+  "report": {
+    "comingSoon": "Belum ada tabel di halaman ini — akan ditambahkan kemudian."
   }
 }

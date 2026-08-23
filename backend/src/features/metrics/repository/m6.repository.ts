@@ -8,7 +8,10 @@ export async function fetchRorBreakdown(
   p: SegmentParams,
 ): Promise<{ rows: RorBreakdownRow[]; repeat_count: number; total_existing: number }> {
   const { filterDate, activeMonths, division } = p
-  const establishedCTE = cteEstablishedCustomers(p)
+  // periodStart (task029 §30.10, 2026-08-23) — M6 belum py filter
+  // granularitas periode (belum ada dateFrom), anchor ke awal BULAN kalender
+  // yang memuat filterDate (default "Bulanan"), bukan activeMonths mentah.
+  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -58,7 +61,7 @@ export async function fetchRorBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${cteEstablishedCustomers(p)}
+      WITH ${establishedCTE}
       SELECT COUNT(*)::int AS total_existing FROM established_customers
     `) as unknown[]
     return { rows: [], repeat_count: 0, total_existing: Number((totRow as Record<string, unknown>)?.total_existing ?? 0) }
