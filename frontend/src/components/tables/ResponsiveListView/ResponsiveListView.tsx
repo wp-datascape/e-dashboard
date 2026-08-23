@@ -1,5 +1,5 @@
 // frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx
-import { useState, useEffect, type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -315,9 +315,18 @@ export function ResponsiveListView({
   // bikin halaman sekarang jadi kosong/di luar jangkauan) — bukan cuma
   // begitu rows.length berubah, karena isi rows bisa berubah TOTAL
   // (mis. ganti sort) walau panjangnya kebetulan sama.
-  useEffect(() => {
+  //
+  // Adjust saat render, BUKAN useEffect (2026-08-24, fix lint
+  // react-hooks/set-state-in-effect) — pola resmi React "Adjusting state
+  // when a prop changes" (react.dev): simpan referensi `rows` sebelumnya,
+  // bandingkan tiap render, setState kalau berubah. React re-render ulang
+  // sebelum paint ke layar (bukan commit terpisah spt effect), jadi tidak
+  // ada flash halaman lama.
+  const [prevRows, setPrevRows] = useState(rows);
+  if (rows !== prevRows) {
+    setPrevRows(rows);
     setMobilePage(0);
-  }, [rows]);
+  }
   const visibleRows = isServerPaginated
     ? rows
     : rows.slice(mobilePage * pageSize, (mobilePage + 1) * pageSize);

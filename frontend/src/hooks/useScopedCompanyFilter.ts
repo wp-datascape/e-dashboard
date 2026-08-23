@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useCompanies, useBranchesByCompany } from './useCompanies';
 import { useDivisionOptions } from './useDivisionOptions';
 import { useMyScope } from './useMyScope';
@@ -35,11 +35,16 @@ export function useScopedCompanyFilter() {
   // 1 company (RBAC scope di backend tetap final authority, ini murni state
   // UI). Guard `companyId === 'all'` mencegah override kalau nanti ada alur
   // lain yang sengaja set companyId lebih dulu.
-  useEffect(() => {
-    if (companies.length === 1 && companyId === 'all') {
-      setCompanyIdState(companies[0]!.id);
-    }
-  }, [companies, companyId]);
+  //
+  // Adjust saat render, BUKAN useEffect (2026-08-24, fix lint
+  // react-hooks/set-state-in-effect) — kondisi `companyId === 'all'` OTOMATIS
+  // jadi false setelah setState ini jalan, jadi aman dari infinite loop tanpa
+  // perlu state pembanding tambahan. Pola resmi React ("Adjusting state
+  // during render", react.dev) — React re-render ulang sebelum paint ke
+  // layar, tidak ada commit/paint terpisah spt effect.
+  if (companies.length === 1 && companyId === 'all') {
+    setCompanyIdState(companies[0]!.id);
+  }
   // Division sekarang FK integer per company (task012 v2) — division_id, bukan
   // string key lagi.
   const [division, setDivision] = useState<number | ''>('');
