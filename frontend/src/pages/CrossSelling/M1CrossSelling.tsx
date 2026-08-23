@@ -448,10 +448,18 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
         </Box>
 
         <Box sx={{ p: 2.5 }}>
-          {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
-              kode M7 branch main, ambil contoh layout darisana") — grid
-              2-kolom chart+Top5 DIBUANG, samakan pola M2/M7: chart FULL
-              WIDTH, Top 5 DI BAWAH chart (bukan di samping). */}
+          {/* Layout grid 2-kolom KEMBALI (2026-08-24, koreksi user: "kenapa
+              mode desktop Top 5 juga ikut ke bawah chart, aku cuma minta
+              perbaiki mode mobile") — desktop (md+) tetap side-by-side
+              chart 7fr / Top5 3fr, mobile (xs) satu kolom (Top5 di bawah
+              chart otomatis via gridTemplateColumns 1fr). `minWidth: 0` di
+              kolom chart mencegah ResponsiveContainer memaksa lebar
+              intrinsik grid track keluar dari batas kolomnya (bug klasik
+              CSS Grid, default grid-item min-width:auto). TIDAK ada lagi
+              alignItems:'stretch'/height:'100%'/position:absolute —
+              sumber gangguan chart di percobaan-percobaan sebelumnya. */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2 }}>
+          <Box sx={{ minWidth: 0 }}>
           {isLoading ? (
             <Skeleton variant="rectangular" height={360} />
           ) : (
@@ -501,8 +509,9 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               renderTooltip={(props) => <M1Tooltip {...props} />}
             />
           )}
+          </Box>
 
-          <Box sx={{ mt: 3 }}>
+          <Box>
             {isLoading ? (
               <Skeleton variant="rectangular" height={280} />
             ) : (
@@ -593,7 +602,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               </Box>
             )}
             {!isLoading && (
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'flex-start' }, mt: 1 }}>
                 <Button
                   size="small"
                   endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
@@ -604,6 +613,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
                 </Button>
               </Box>
             )}
+          </Box>
           </Box>
         </Box>
       </Card>
