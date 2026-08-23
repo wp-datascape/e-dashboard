@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import Grid from '@mui/material/Grid';
 import MuiTooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import CategoryIcon from '@mui/icons-material/Category';
@@ -13,6 +15,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import type { GridColDef } from '@mui/x-data-grid';
 
 import { ComboChartWidget } from '@/components/charts/ComboChartWidget';
@@ -28,7 +31,7 @@ import { formatDateID } from '@/utils/date';
 import {
   shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort,
   getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday,
-  buildDrilldownPeriodParams,
+  buildDrilldownPeriodParams, getMomComparisonPeriodEnd,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 
@@ -79,6 +82,7 @@ interface Props {
 export function M2AvgCategory({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const navigate = useNavigate();
 
   const periodUnit = t(`dashboard.periodUnit.${periodType}`);
 
@@ -109,6 +113,19 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     company_id: companyId,
     branch_id: branchId,
     period_end: yoyPeriodEnd,
+    period_type: periodType,
+    apply_date_cutoff: applyDateCutoff,
+    division,
+    exclude_intercompany: excludeIntercompany,
+  });
+
+  // Fetch MoM (task029.md §31, 2026-08-23) — sama persis M1CrossSelling.tsx,
+  // basis pembanding Top 5 diganti dari YoY ke periode langsung sebelumnya.
+  // `yoyData` di atas TETAP dipertahankan (masih dipakai KpiHeader).
+  const { data: momData } = useCrossSelling({
+    company_id: companyId,
+    branch_id: branchId,
+    period_end: getMomComparisonPeriodEnd(periodType, periodEnd),
     period_type: periodType,
     apply_date_cutoff: applyDateCutoff,
     division,
@@ -181,11 +198,13 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
   // Icon tren (2026-08-22, instruksi user "buat layout seperti diatas" —
   // REUSE pola persis M1CrossSelling.tsx: yoyByCustomer/crossSellStatus,
   // category_count vs yoyData, sama definisi dgn tabel Breakdown).
-  const yoyCategoryCountByCustomer = useMemo(() => {
+  //
+  // Basisnya MoM sekarang (2026-08-23, task029.md §31), baca `momData`.
+  const momCategoryCountByCustomer = useMemo(() => {
     const map = new Map<number, number>();
-    for (const r of yoyData?.detail ?? []) map.set(r.customer_id, r.category_count);
+    for (const r of momData?.detail ?? []) map.set(r.customer_id, r.category_count);
     return map;
-  }, [yoyData?.detail]);
+  }, [momData?.detail]);
 
   return (
     <Box>
@@ -272,95 +291,118 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
           </Box>
 
           <Box sx={{ p: 2.5 }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 3fr' }, gap: 2, alignItems: 'start' }}>
-              <Box>
-                {isLoading ? (
-                  <Skeleton variant="rectangular" height={360} />
-                ) : (
-                  <ComboChartWidget
-                    headerContent={
-                      <KpiHeader
-                        current={data?.kpi2.avg_categories ?? 0}
-                        yoy={yoyData?.kpi2.avg_categories ?? 0}
-                        kpiType="value"
-                        formatValue={(v) => v.toFixed(2)}
-                        currentPeriodLabel={currentPeriodLabel}
-                        comparisonLabel={yoyComparisonLabel}
-                      />
-                    }
-                    data={trendWithBuckets}
-                    barKey="single_category"
-                    barLabel={t('crossSelling.m2SeriesSingleCategory')}
-                    barColor={theme.palette.warning.main}
-                    bar2Key="multi_product"
-                    bar2Label={t('crossSelling.m2SeriesMultiCategory')}
-                    bar2Color={theme.palette.primary.main}
-                    stacked
-                    barVariant="area"
-                    lineKey="avg_category"
-                    lineLabel={t('dashboard.charts.avgCategoryLabel')}
-                    lineColor={theme.palette.success.main}
-                    formatLine={(v) => v.toFixed(2)}
-                    xKey="month"
-                    height={220}
-                    xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
-                    onBarClick={(d) => {
-                      const month = String(d.month ?? '');
-                      setDrillDate(clampPeriodEndToToday(periodType, month, getPeriodDateRange(periodType, month).end));
-                    }}
+            {/* Layout DIGANTI TOTAL (2026-08-24, instruksi keras user: "cek
+                kode M7 branch main, ambil contoh layout darisana" — grid
+                2-kolom chart+Top5 SEMPAT dicoba, chart-nya melebar keluar
+                layar di mobile, tidak berhasil diperbaiki via CSS. `main`
+                TIDAK PERNAH taruh chart M1/M2 di dalam grid 2-kolom —
+                chart FULL WIDTH sendirian. Top 5 sekarang taruh DI BAWAH
+                chart, bukan di samping. */}
+            {isLoading ? (
+              <Skeleton variant="rectangular" height={360} />
+            ) : (
+              <ComboChartWidget
+                headerContent={
+                  <KpiHeader
+                    current={data?.kpi2.avg_categories ?? 0}
+                    yoy={yoyData?.kpi2.avg_categories ?? 0}
+                    kpiType="value"
+                    formatValue={(v) => v.toFixed(2)}
+                    currentPeriodLabel={currentPeriodLabel}
+                    comparisonLabel={yoyComparisonLabel}
                   />
-                )}
-              </Box>
+                }
+                data={trendWithBuckets}
+                barKey="single_category"
+                barLabel={t('crossSelling.m2SeriesSingleCategory')}
+                barColor={theme.palette.warning.main}
+                bar2Key="multi_product"
+                bar2Label={t('crossSelling.m2SeriesMultiCategory')}
+                bar2Color={theme.palette.primary.main}
+                stacked
+                barVariant="area"
+                lineKey="avg_category"
+                lineLabel={t('dashboard.charts.avgCategoryLabel')}
+                lineColor={theme.palette.success.main}
+                formatLine={(v) => v.toFixed(2)}
+                xKey="month"
+                height={220}
+                xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+                onBarClick={(d) => {
+                  const month = String(d.month ?? '');
+                  setDrillDate(clampPeriodEndToToday(periodType, month, getPeriodDateRange(periodType, month).end));
+                }}
+              />
+            )}
 
-              <Box>
-                {isLoading ? (
-                  <Skeleton variant="rectangular" height={280} />
-                ) : (
-                  <>
-                    <Box sx={{ pb: 1 }}>
-                      <SectionLabel label={t('crossSelling.m2OverviewTopCustomersLabel')} />
-                    </Box>
-                    {overviewTopCustomers.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
-                    ) : (
-                      overviewTopCustomers.map((r, i) => {
-                        const isLast = i === overviewTopCustomers.length - 1;
-                        const yoyCategoryCount = yoyCategoryCountByCustomer.get(r.customer_id);
-                        const trendDirection: 'up' | 'down' | 'flat' =
-                          yoyCategoryCount == null || r.category_count > yoyCategoryCount ? 'up'
-                            : r.category_count < yoyCategoryCount ? 'down' : 'flat';
-                        const TrendIcon = trendDirection === 'up' ? TrendingUpIcon : trendDirection === 'down' ? TrendingDownIcon : TrendingFlatIcon;
-                        const trendColor = trendDirection === 'up' ? theme.palette.success.main : trendDirection === 'down' ? theme.palette.error.main : theme.palette.text.disabled;
-                        return (
-                          <Box key={r.customer_id} sx={{ display: 'flex', gap: 1.5 }}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0, mt: 0.5 }} />
-                              {!isLast && <Box sx={{ flex: 1, width: '2px', bgcolor: 'divider', my: 0.5 }} />}
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, pb: isLast ? 0.5 : 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
-                                {i + 1}. {r.customer_name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, flexShrink: 0 }}>
-                                {r.category_count} {t('crossSelling.m2CategoryCountSuffix')}
-                              </Typography>
-                              <Box
-                                sx={{
-                                  width: 22, height: 22, borderRadius: '50%',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  bgcolor: alpha(trendColor, 0.15), flexShrink: 0,
-                                }}
-                              >
-                                <TrendIcon sx={{ fontSize: 14, color: trendColor }} />
-                              </Box>
+            <Box sx={{ mt: 3 }}>
+              {isLoading ? (
+                <Skeleton variant="rectangular" height={200} />
+              ) : (
+                <>
+                  <Box sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <SectionLabel label={t('crossSelling.m2OverviewTopCustomersLabel')} />
+                    <MuiTooltip
+                      title={t('crossSelling.topCustomersComparisonInfo')}
+                      placement="top"
+                      arrow
+                      slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.6 } } }}
+                    >
+                      <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                        <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </MuiTooltip>
+                  </Box>
+                  {overviewTopCustomers.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">{t('crossSelling.m2EmptyMessage')}</Typography>
+                  ) : (
+                    overviewTopCustomers.map((r, i) => {
+                      const isLast = i === overviewTopCustomers.length - 1;
+                      const momCategoryCount = momCategoryCountByCustomer.get(r.customer_id);
+                      const trendDirection: 'up' | 'down' | 'flat' =
+                        momCategoryCount == null || r.category_count > momCategoryCount ? 'up'
+                          : r.category_count < momCategoryCount ? 'down' : 'flat';
+                      const TrendIcon = trendDirection === 'up' ? TrendingUpIcon : trendDirection === 'down' ? TrendingDownIcon : TrendingFlatIcon;
+                      const trendColor = trendDirection === 'up' ? theme.palette.success.main : trendDirection === 'down' ? theme.palette.error.main : theme.palette.text.disabled;
+                      return (
+                        <Box key={r.customer_id} sx={{ display: 'flex', gap: 1.5 }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0, mt: 0.5 }} />
+                            {!isLast && <Box sx={{ flex: 1, width: '2px', bgcolor: 'divider', my: 0.5 }} />}
+                          </Box>
+                          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, pb: isLast ? 0.5 : 2 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
+                              {i + 1}. {r.customer_name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                              {r.category_count} {t('crossSelling.m2CategoryCountSuffix')}
+                            </Typography>
+                            <Box
+                              sx={{
+                                width: 22, height: 22, borderRadius: '50%',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                bgcolor: alpha(trendColor, 0.15), flexShrink: 0,
+                              }}
+                            >
+                              <TrendIcon sx={{ fontSize: 14, color: trendColor }} />
                             </Box>
                           </Box>
-                        );
-                      })
-                    )}
-                  </>
-                )}
-              </Box>
+                        </Box>
+                      );
+                    })
+                  )}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                    <Button
+                      size="small"
+                      endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => navigate('/report/growth?tab=cross_selling')}
+                      sx={{ textTransform: 'none', fontSize: 12 }}
+                    >
+                      {t('crossSelling.viewDetailInReport')}
+                    </Button>
+                  </Box>
+                </>
+              )}
             </Box>
           </Box>
         </Card>

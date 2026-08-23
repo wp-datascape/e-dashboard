@@ -3263,3 +3263,86 @@ perbandingan, chart 70% + Top 5 Customers 30% di sampingnya dgn format
 "1. TOKOPEDIA BOS (14%)" dst, TrendSummary footer) → Heatmap. Tidak ada
 lagi chart Cross-Selling duplikat. M2/M7 diverifikasi TIDAK terpengaruh
 (screenshot scroll ke bawah, render normal apa adanya).
+
+---
+
+## 31. Pembanding MoM vs YoY per KPI — penyelarasan halaman Chart vs Laporan (2026-08-23)
+
+Bermula dari laporan bug "cutoff_day salah utk granularitas non-bulanan"
+(sudah fix, lihat commit `67d0298`), diskusi berkembang ke pertanyaan
+lebih besar: KPI mana pakai basis pembanding apa, dan kenapa beda-beda.
+
+### 31.1 Audit basis pembanding existing (diverifikasi via grep, bukan tebakan)
+
+| KPI | Bar chart 12-titik | Header ("X 2025 vs X 2026") | Top 5/Top Movers | Drill-down popup |
+|---|---|---|---|---|
+| M1/M2 (Cross Selling) | Snapshot murni (rate/avg_category BUKAN hasil pembanding) | YoY (fetch 2x, `period_end` -1 tahun, murni frontend) | YoY (`yoyCategoryCountByCustomer`) | Snapshot murni, TIDAK ada kolom pembanding |
+| M7 (Expansion) | MoM, TERTANAM di query backend (`prevBuckets`, beda dari M1/M2 krn nilai bar MEMANG hasil pembanding by definisi) | YoY (fetch 2x terpisah, sama pola M1/M2) | MoM (`fetchExpansionBreakdown`, window periode sebelumnya) | Ada kolom pembanding (Revenue Sebelumnya/Sekarang), tapi basisnya MoM |
+| M3-M6 | Snapshot murni | Tidak ada sama sekali | Tidak ada Top 5 | Snapshot murni |
+| M8-M10 | Snapshot murni (M10 reactivation_rate formulanya sendiri MoM-derived tapi tidak di-expose sbg delta) | Backend SUDAH hitung YoY (`comparison_value`), tapi YATIM — tidak pernah sampai frontend (`DormantData` type tidak deklarasikan field itu, komponen `KpiSummaryStrip` yang disebut di komentar backend sudah tidak ada) | — | — |
+
+Halaman **Dashboard Overview** (`/dashboard`, terpisah dari Growth/Value/
+Retention) sudah tampilkan YoY utk SEMUA KPI (M3-M6, M8-M10 termasuk)
+lewat mekanisme sendiri (`dashboard.service.ts`) — tidak terhubung ke
+halaman KPI manapun yang dibahas di atas.
+
+Laporan (`pages/Report/Growth/index.tsx`, `BreakdownTable.tsx`,
+`expansionHelpers.tsx`) — SUDAH punya kolom pembanding lengkap: Cross
+Selling YoY (`yoy_category_count`, `category_change`, `cross_sell_status`),
+Expansion MoM (`prev_revenue`/`cur_revenue`). Basisnya HARDCODE
+(Cross Selling selalu YoY, Expansion selalu MoM) — tidak bisa dipilih.
+
+### 31.2 Keputusan user — pembagian tanggung jawab Chart vs Laporan
+
+Supaya tidak menimbulkan kebingungan (user lihat panah tren di Top 5 tapi
+tidak bisa verifikasi di popup drill-down), dan supaya tidak melebar jadi
+"pasang toggle MoM/YoY di semua kartu 10 KPI" (scope creep yang disadari
+sendiri oleh user) — pembagian tanggung jawabnya:
+
+- **Summary card** (KpiCard di atas chart) — TETAP snapshot periode
+  terpilih, TIDAK ada pembanding. Tidak berubah.
+- **Header + trend chart 12-titik** — TETAP YoY (M1/M2 sudah begini,
+  M7 headernya juga sudah YoY). Trend chart 12-titik sendiri (isi bar)
+  TIDAK berubah cara hitungnya (M1/M2 snapshot, M7 tetap MoM di bar-nya
+  — itu inherent, bukan pilihan).
+- **Top 5 (M1/M2) — DIUBAH dari YoY jadi MoM**, supaya SAMA basisnya
+  dengan Top Movers M7 (yang sudah MoM) — 3 KPI ini jadi konsisten 1
+  basis pembanding personal-level (MoM), bukan campur YoY/MoM.
+- **Link "Cek Detail" BARU** ditambahkan di bawah tiap Top 5/Top Movers
+  (M1, M2, M7) — mengarah ke halaman Laporan (`/report/growth`, tab
+  sesuai KPI-nya).
+- **Toggle MoM/YoY BARU** ditaruh DI HALAMAN LAPORAN (bukan di halaman
+  chart) — mengontrol kolom pembanding BreakdownTable (Cross Selling)
+  DAN tabel Expansion sekaligus. Cross Selling: kolom bisa gonta-ganti
+  YoY/MoM (backend TIDAK berubah, cuma frontend pilih `period_end`
+  pembanding mana yang di-fetch). Expansion: backend PERLU tambahan
+  param `comparison_basis` (schema `expansionBreakdownQuerySchema`,
+  service `getExpansionBreakdown`, repository `fetchExpansionBreakdown`)
+  supaya bisa pilih `getYoyPeriodKey` selain `getPreviousPeriodKey` yang
+  sudah ada.
+
+### 31.3 Implementasi (rencana)
+
+1. Frontend: fungsi baru `getMomComparisonPeriodEnd(periodType, periodEnd)`
+   di `utils/analisisPeriod.ts` — reuse PERSIS pola `daysSincePeriodStart`
+   + `getPreviousPeriodKey` yang sudah ada dari fix cutoff_day kemarin,
+   BUKAN tulis ulang. Mirror `shiftDateByYears` yang sudah dipakai utk YoY.
+2. `M1CrossSelling.tsx`/`M2AvgCategory.tsx`: tambah fetch MoM baru
+   (terpisah dari fetch YoY yang sudah ada, tetap dipakai header) —
+   Top 5 pindah baca dari data MoM ini, bukan `yoyData` lagi.
+3. `M1CrossSelling.tsx`/`M2AvgCategory.tsx`/`M7ExpansionGrowth.tsx`:
+   tambah link "Cek Detail" di bawah Top 5/Top Movers, navigasi ke
+   `/report/growth`.
+4. Backend `expansionBreakdownQuerySchema` + `getExpansionBreakdown` +
+   `fetchExpansionBreakdown`: tambah param `comparison_basis` ('mom'
+   default | 'yoy'), pilih `getPreviousPeriodKey` vs `getYoyPeriodKey`
+   sbg basis prevKey (mekanisme elapsed-day-anchor yg SUDAH ADA dipakai
+   utk keduanya, cuma beda sumber periodKey).
+5. `pages/Report/Growth/index.tsx`: tambah toggle MoM/YoY di filter bar
+   (pola sama "Apply date cutoff" checkbox yg sudah ada) — Cross Selling
+   tab pilih `period_end` pembanding sesuai toggle (reuse §31.3.1), fetch
+   Expansion kirim `comparison_basis` sesuai toggle.
+6. `BreakdownTable.tsx`: label kolom pembanding ("YoY Category Count" dst)
+   perlu jadi dinamis sesuai basis aktif, bukan hardcode "YoY" di teksnya.
+
+**Belum dikerjakan** — draft rencana, implementasi menyusul turn berikutnya.

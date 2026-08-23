@@ -80,6 +80,22 @@ export function shiftDateByYears(dateStr: string, deltaYears: number): string {
   return `${targetYear}-${pad2(m)}-${pad2(Math.min(d, maxDay))}`
 }
 
+/** `period_end` utk fetch pembanding MoM (periode LANGSUNG SEBELUMNYA,
+ * granularitas-aware) — mirror `shiftDateByYears` (YoY) tapi anchor ke
+ * PERIODE, bukan geser tanggal mentah (2026-08-23, task029.md §31, dipakai
+ * Top 5 M1/M2 supaya basisnya SAMA dgn Top Movers M7). Reuse
+ * `getPreviousPeriodKey`+`getPeriodDateRange` yang sudah ada — periode
+ * sebelumnya SELALU sudah tutup penuh (relatif ke periode yang sedang
+ * dilihat), jadi aman pakai akhir kalendernya apa adanya, tidak perlu
+ * elapsed-day-anchor spt fix cutoff_day (itu urusan mode "Apply date
+ * cutoff", beda konteks dari fetch pembanding Top 5 ini). */
+export function getMomComparisonPeriodEnd(periodType: AnalisisPeriodType, periodEnd: string): string {
+  const [y, m, d] = periodEnd.split('-').map(Number)
+  const periodKey = getCurrentPeriodKey(periodType, new Date(y, m - 1, d))
+  const prevKey = getPreviousPeriodKey(periodType, periodKey)
+  return getPeriodDateRange(periodType, prevKey).end
+}
+
 const PERIOD_STEP_MONTHS: Record<AnalisisPeriodType, number> = {
   monthly: 1, ytd: 1, quarter: 3, semester: 6, annual: 12,
 }

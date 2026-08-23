@@ -133,7 +133,16 @@ export const BarChartWidget = ({
   const effectiveYAxisWidth = showNameInBar ? 0 : yAxisWidth;
 
   return (
-    <Card sx={{ p: 2, height: '100%' }}>
+    // overflow:hidden (2026-08-23, bug dilaporkan user: "cart itu melebar
+    // melebihi lebar layar" — mobile) — Legend recharts di bawah TIDAK
+    // pernah dibatasi ukuran/wrap (beda dari ComboChartWidget yang sudah py
+    // legendFontSize mobile-aware), teks label panjang (mis. "Stabil/Turun/
+    // Tanpa Transaksi") bisa mendorong konten SVG lebih lebar dari
+    // container-nya, dan tanpa overflow:hidden di sini itu ikut mendorong
+    // Card/halaman jadi scroll horizontal. Jaring pengaman UNCONDITIONAL —
+    // apapun penyebab elemen internal jadi kelebaran, TIDAK BISA lagi bocor
+    // keluar Card ini.
+    <Card sx={{ p: 2, height: '100%', overflow: 'hidden' }}>
       {/* Header */}
       {(value !== undefined || title) && (
         <Box sx={{ mb: 2 }}>
@@ -257,7 +266,11 @@ export const BarChartWidget = ({
               }
             />
           )}
-          {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+          {/* fontSize mobile-aware (2026-08-23) — samakan pola
+              ComboChartWidget.tsx (legendFontSize), teks label panjang
+              (mis. "Stabil/Turun/Tanpa Transaksi") lebih kecil di layar
+              sempit supaya tidak mendorong chart melebar. */}
+          {series.length > 1 && <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />}
           {series.map((s, idx) => (
             <Bar
               key={s.key}
