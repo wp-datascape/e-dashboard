@@ -3346,3 +3346,143 @@ sendiri oleh user) — pembagian tanggung jawabnya:
    perlu jadi dinamis sesuai basis aktif, bukan hardcode "YoY" di teksnya.
 
 **Belum dikerjakan** — draft rencana, implementasi menyusul turn berikutnya.
+
+## 32. PENDING — Gap definisi New/Existing SSOT §30.10 di drill-down M3-M7 + M9 + filter Pareto tidak fungsional (2026-08-24)
+
+Ditemukan sambil mengerjakan fix gerbang populasi "existing" M8-M10 (lihat
+§30.9b lanjutan di bawah, granularitas M8-M10) — dicatat sbg 3 pending item
+TERPISAH, dikerjakan SATU PER SATU (instruksi user: "kerjakan 1 per satu"),
+BUKAN sekaligus.
+
+### 32.1 5 fungsi drill-down M3-M7 — KOREKSI, cuma 3+1 yang genuinely bermasalah
+
+**Klaim awal SALAH** ("5 fungsi semua definisi lama") — setelah dicek detail
+per fungsi (`cteEstablishedCustomers`/`cteExistingCustomersByPeriod` itu
+SECARA STRUKTUR SQL identik, `first_date < periodStart`; bedanya cuma NILAI
+`periodStart` yang dikirim CALLER-nya), ternyata:
+
+| Fungsi | KPI | Status sebenarnya |
+|---|---|---|
+| `fetchRevenueBreakdown` | M3 | Genuinely belum ada param `dateFrom` sama sekali (schema/service/repository) — hardcode `${filterDate.slice(0,7)}-01` (awal bulan kalender berisi filterDate). **Perlu fix penuh.** |
+| `fetchGpBreakdown` | M4 | Backend SUDAH siap (fix 2026-08-23, terima param `dateFrom` opsional). Frontend (`M4GrossProfit.tsx`) TIDAK mengirim `date_from` DAN tidak py prop `periodType` sama sekali — TAPI dicek lebih lanjut (2026-08-24): komponen ini dipakai di 3 tempat (Value/index.tsx, CustomerMetrics workbench, Dashboard) yang KETIGANYA **tidak py filter granularitas sama sekali** (Value page cuma Entitas+Tanggal, tidak ada Kuartal/Semester/Tahun). Jadi drill-down M4 SELALU bulanan di semua tempat dia dipakai saat ini — fallback hardcode `${filterDate.slice(0,7)}-01` utk kasus bulanan HASILNYA SAMA PERSIS dgn `dateFrom` kalau granularitasnya bulanan. **Bukan bug aktif** (tidak ada jalur UI yang bisa memicunya jadi salah) — backend readiness 2026-08-23 itu persiapan utk suatu saat Value page dapat filter granularitas, BELUM ada action item sekarang. **DIKELUARKAN dari daftar kerja saat ini.** |
+| `fetchHmBreakdown` | M5 | Sama seperti M3 — TIDAK ada param dateFrom sama sekali. **Perlu fix penuh.** |
+| `fetchRorBreakdown` | M6 | Sama seperti M3 — TIDAK ada param dateFrom sama sekali. **Perlu fix penuh.** |
+| `fetchExpansionBreakdown` | M7 | **SUDAH BENAR sepenuhnya** — backend+frontend (`date_from`+`period_type`) sudah tersambung end-to-end sejak kerjaan granularitas M7 sebelumnya. **Tidak perlu perbaikan.** |
+
+Konsekuensi (utk M3/M5/M6, dan M4 sebelum frontend-nya diperbaiki): klik
+titik trend chart (populasi SSOT, granularitas-aware) vs data yang muncul
+di dialog drill-down (populasi bulan-kalender hardcode, TIDAK granularitas-
+aware) bisa BEDA angka utk KPI yang sama, titik yang sama — mirip gejala
+bug §30.17 (SELESAI, tapi soal window tanggal, bukan soal definisi
+Existing). M1 TIDAK termasuk daftar ini (drill-down-nya sudah SSOT dari
+awal, KPI pilot §30.10).
+
+**Rencana (urutan pengerjaan, "1 per satu" — instruksi user) — REVISI
+setelah dicek caller M3/M5 juga (2026-08-24)**:
+
+M3 (`M3Revenue.tsx`) dan M5 (`M5HighMargin.tsx`) dipakai di 3 tempat yang
+SAMA PERSIS dgn M4 (Value/index.tsx, CustomerMetrics workbench, Dashboard)
+— KETIGANYA tanpa filter granularitas. Jadi M3 dan M5 statusnya SAMA
+seperti M4: **tidak ada bug aktif sekarang**, DIKELUARKAN juga dari daftar
+kerja saat ini.
+
+1. ~~M4~~ — DIKELUARKAN, tidak ada bug aktif.
+2. ~~M3~~ — DIKELUARKAN, tidak ada bug aktif (caller sama dgn M4, cek 2026-08-24).
+3. ~~M5~~ — DIKELUARKAN, tidak ada bug aktif (caller sama dgn M4, cek 2026-08-24).
+4. **M6 — SELESAI (2026-08-24).** `fetchRorBreakdown` (m6.repository.ts)
+   +`rorBreakdownQuerySchema`+`getRorBreakdown`+frontend (`getRorBreakdown`
+   api, `useRorBreakdown` hook, `M6RepeatOrder.tsx` — Top 5 fetch DAN dialog
+   drilldown, keduanya kirim `date_from`) — pola SAMA PERSIS M4/M7
+   (`dateFrom ?? fallback bulan lama`). Diverifikasi langsung ke DB, Kuartal
+   3 2026: total_existing drilldown SEBELUM fix 32.631 (SALAH, beda 1.195
+   dari trend chart 31.436), SESUDAH fix 31.436 (cocok persis). repeat_count
+   ikut berubah 275 → 630 (window agregat sebelumnya cuma 1 bulan, sekarang
+   lebar kuartal penuh Jul-Agu).
+
+Tiap langkah diverifikasi query langsung ke DB (populasi/angka sebelum-
+sesudah) sebelum dianggap selesai, sama seperti pola verifikasi migrasi-
+migrasi SSOT sebelumnya.
+
+### 32.2 `fetchDormantValueRanking` (M9) tidak punya gate New/Existing sama sekali
+
+Beda kasus dari §32.1 (bukan "definisi lama", tapi TIDAK ADA gate sama
+sekali) — `cust_last` CTE (`m8m10.repository.ts`) cuma syarat
+`MAX(invoice_date) <= filterDate - ambang`, tanpa cek `first_invoice_date`
+vs periode apa pun. Customer yang first-purchase-nya BARU tapi sudah lewat
+ambang dormant (kasus langka tapi mungkin, mis. B2C ambang 6 bulan, first
+purchase 7 bulan lalu tanpa order lagi) tetap masuk ranking — secara
+definisi §30.10 seharusnya "New" (belum genap 1 periode penuh sbg
+customer), bukan populasi yang relevan utk KPI berbasis "Existing".
+
+**SELESAI (2026-08-24).** `fetchDormantValueRanking(p, limit, existingSince?)`
+— param baru `existingSince`, reuse `cteEstablishedCustomers(p, existingSince
+?? awal-bulan-filterDate)` (SSOT §30.10, CTE yang sama dipakai M4/M6/M7,
+BUKAN nulis logic existing baru) di-JOIN ke `cust_last`. Titik referensi:
+diputuskan TANPA nanya ulang ke user — reuse pola yang SUDAH disepakati utk
+`is_existing_at_me` (`fetchDormantTrend`): `liveBucket.start` (awal kalender
+ASLI label yang sedang dilihat), caller `getDormantCustomerMetrics` kirim
+`liveBucket.start` (current) / `comparisonBuckets.at(-1)!.start` (YoY).
+Caller kedua (`getDormantBreakdown`, dialog drilldown M8 yg reuse fungsi
+ini) BELUM kirim `existingSince` eksplisit (endpoint itu belum terima
+`period_type`/`date_from` sama sekali) — jatuh ke fallback awal-bulan.
+
+**Temuan verifikasi DB (2 tahap, tahap 1 SALAH — dikoreksi user)**:
+
+Tahap 1 (mode default, TANPA "Apply date cutoff"): gate SECARA STRUKTURAL
+vacuous (tidak pernah mengecualikan siapa pun). Sebabnya matematis: desain
+"geser 1 periode" (§32 atas, "Dormant Agustus") membuat `filterDate` (akhir
+window data, mis. 31 Juli) SELALU persis 1 hari SEBELUM `existingSince`
+(awal label, 1 Agustus) — sementara syarat dormant (`HAVING MAX(invoice_
+date) <= filterDate - ambang bulan`) mengharuskan `first_invoice_date`
+sudah minimal `ambang` (3-12 bulan) SEBELUM filterDate, kontradiksi kalau
+first ≥ existingSince. Diverifikasi: dgn gate vs tanpa gate → SAMA PERSIS
+19.304 baris, 0 customer terkecuali (`company_id=all`, filterDate 31 Juli
+2026, mode default).
+
+Dari temuan tahap 1 ini saya sempat salah simpulkan ke user: "mode
+`apply_date_cutoff` ... belum/tidak terlihat di UI M9 saat ini" — **SALAH**,
+ditegur user ("Bukankah date cutoff sudah terpasang di frontend menu
+retention?"). Toggle "Apply date cutoff" MEMANG sudah ada & aktif di
+Retention page (`Retention/index.tsx` baris 171-178), dikirim ke
+`useDormantCustomer` yang SAMA-SAMA memberi data ke M9 (`dcData` dipakai
+bersama M6/M8/M9/M10) — bukan skenario hipotetis, REACHABLE user hari ini
+tinggal centang toggle.
+
+Tahap 2 (setelah dikoreksi, verifikasi ulang dgn `apply_date_cutoff: true`):
+- Granularitas **Semester**: `existingSince`(1 Jul)→`filterDate`(hari ini,
+  ~24 Agu) cuma ~54 hari, masih < ambang minimum (3 bulan) → 0 customer
+  terkecuali, gate MEMANG vacuous utk kombinasi ini.
+- Granularitas **Tahunan**: `existingSince`(1 Jan)→`filterDate`(~24 Agu)
+  ~236 hari (~7.8 bulan) — CUKUP LEBAR utk memotong customer ambang
+  3-6 bulan. Hasil nyata (`company_id=all`): **3.226 customer** yang
+  SEBELUMNYA salah masuk ranking M9 (first-purchase mereka sendiri jatuh
+  DI DALAM tahun berjalan, harusnya "New" bukan "Existing"/dormant),
+  sekarang benar dikecualikan — total dari 21.051 jadi 17.825 customer,
+  `estimated_lost_value` gabungan turun dari Rp44.492.817.963 jadi
+  Rp42.341.090.688 (selisih Rp2.151.727.275). Ini SIGNIFIKAN, bukan efek
+  samping kecil — user yg pilih granularitas Tahunan + Apply date cutoff
+  di halaman Retention akan lihat total "Potensi Kerugian" M9 turun ~4.8%
+  dan Top 20 ranking bisa berubah komposisinya setelah fix ini deploy.
+
+Kesimpulan: fix BENAR dan MATERIAL berdampak (bukan no-op) utk kombinasi
+granularitas lebar (terutama Tahunan) + Apply date cutoff — kombinasi yang
+sudah reachable user sekarang. Utk mode default (bulanan/kuartalan, tanpa
+cutoff) tetap vacuous secara matematis, itu bagian yang sudah benar
+diverifikasi. `tsc --noEmit` bersih.
+
+### 32.3 Filter "Pareto" di halaman Retention tidak fungsional (dead UI, ditemukan 2026-08-24)
+
+`Retention/index.tsx`: `const [, setOnlyPareto] = useState(false)` — nilai
+`onlyPareto` DIBUANG (destructure kosong), tidak pernah dibaca di mana pun.
+`ParetoFilterToggle` ada di UI (bisa diklik), tapi TIDAK ada satu pun fetch
+(`useCustomerMetrics`/`useDormantCustomer`) yang menerima parameter pareto
+— klik toggle-nya tidak mengubah data sama sekali. Berlaku utk SEMUA KPI di
+halaman Retention (M6/M8/M9/M10), bukan cuma satu. Sudah ada SEBELUM sesi
+ini, bukan regresi baru.
+
+**Rencana**: belum didiskusikan detail implementasinya (apa itu artinya
+"Pareto" utk tiap KPI — filter ke customer kategori A saja? butuh
+klarifikasi definisi dulu sebelum coding).
+
+**Status semua 3 item di atas: PENDING, belum dikerjakan — dicatat di sini
+biar tidak hilang, dikerjakan satu per satu di sesi ini/berikutnya.**

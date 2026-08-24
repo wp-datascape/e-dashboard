@@ -65,9 +65,30 @@ export default function DormantCustomer() {
         </Box>
       </Box>
 
-      <M8DormantRate data={data} isLoading={isLoading} />
-      <M9DormantValue data={data} isLoading={isLoading} />
-      <M10ReactivationRate data={data} isLoading={isLoading} />
+      <M8DormantRate
+        data={data}
+        isLoading={isLoading}
+        companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
+      />
+      <M9DormantValue
+        data={data}
+        isLoading={isLoading}
+        companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
+      />
+      <M10ReactivationRate
+        data={data}
+        isLoading={isLoading}
+        companyId={companyId}
+        branchId={branchId === 'all' ? undefined : branchId}
+        division={division || undefined}
+        excludeIntercompany={excludeIntercompany}
+      />
     </Box>
   );
 }

@@ -182,6 +182,10 @@ export interface DormantTrendRow {
 }
 
 export interface DormantValueRow {
+  // ranking (2026-08-24, endpoint breakdown M8 baru) — ROW_NUMBER() by
+  // estimated_lost_value DESC, unconditional (M9 top-20 tidak pernah pakai
+  // field ini, tapi ditambahkan di query yang sama, bukan query terpisah).
+  ranking: number
   customer_id: number
   customer_name: string
   customer_code: string | null
@@ -190,23 +194,87 @@ export interface DormantValueRow {
   // kolom pertama — sebelumnya tidak ada di query ini, ditambah (murni
   // penarikan data, bukan perubahan aturan bisnis).
   company_name: string
+  // division_label (2026-08-25, drilldown M9 — instruksi user: "info Nama
+  // customer, divisi, berapa lama dia dormant, tanggal transaksi terakhir")
+  // — resolve dari COALESCE(division_override_id, cust_division) sama pola
+  // m3m7.repository.ts/hm-customers.repository.ts, bukan logic baru.
+  division_label: string | null
   last_invoice_date: string
   months_dormant: number
   avg_monthly_revenue: number
   estimated_lost_value: number
 }
 
-export interface ReactivatedCustomerRow {
+// Riwayat revenue bulanan per customer (2026-08-25, drilldown M9) — dipakai
+// list "revenue 12 bulan terakhir" di dialog klik-bar ranking, window SAMA
+// PERSIS `recent_12m_rev` di fetchDormantValueRanking.
+export interface DormantValueHistoryRow {
+  month: string // 'YYYY-MM'
+  revenue: number
+}
+
+export interface DormantValueHistoryData {
+  customer_id: number
+  rows: DormantValueHistoryRow[]
+}
+
+// Breakdown drill-down M8 (2026-08-24, instruksi user: "Buatkan end poin
+// dril down breakdown singkat, lengkapnya nanti di tabel laporan") — SEMUA
+// customer dormant di 1 periode (period_end, hasil klik titik chart),
+// bukan cuma top 20 by value spt DormantValueRow/value_ranking. Row shape
+// SAMA PERSIS DormantValueRow (reuse fetchDormantValueRanking limit=null,
+// bukan query terpisah) — versi "singkat", kolom lebih lengkap (revenue
+// history dst) menyusul di halaman Laporan nanti.
+export interface DormantBreakdownData {
+  period_end: string
+  rows: DormantValueRow[]
+}
+
+// Status log per customer (2026-08-24, susulan pertanyaan user soal
+// ambiguitas reaktivasi: "datanya juga butuh existing, dormant, active,
+// reactive, dan yang active tapi dormant lagi dalam periode tersebut...
+// tercatat kapan masuk active kapan masuk dormant, tapi dalam perhitungan
+// masukkan status terakhir saja"). Ini PEMBONGKARAN per-customer dari angka
+// agregat fetchDormantTrend (dormant_count/reactivated_count TETAP net
+// status akhir saja, TIDAK berubah) — dipakai drill-down + bahan laporan.
+//
+// - 'active'      — sudah aktif sebelum periode ini, TETAP aktif.
+// - 'dormant'     — dormant di akhir periode (baik sudah dormant sebelumnya
+//                    tanpa order baru, atau baru jadi dormant periode ini).
+// - 'reactivated' — dormant di awal periode, order dalam periode, DAN masih
+//                    aktif di akhir periode (net transisi dormant->aktif).
+// - 'relapsed'    — dormant di awal periode, sempat order dalam periode,
+//                    TAPI dormant LAGI di akhir periode (lebar bucket >
+//                    ambang dormant) — kasus ambigu yang ditanyakan user.
+export type DormantCustomerStatus = 'active' | 'dormant' | 'reactivated' | 'relapsed'
+
+export interface CustomerDormantStatusRow {
   customer_id: number
   customer_name: string
   customer_code: string | null
   company_name: string
-  // Tanggal transaksi terakhir SEBELUM customer dormant (kapan dia "hilang")
-  previous_last_invoice_date: string
-  // Tanggal transaksi PERTAMA setelah dormant, dalam window bulan berjalan
-  // (kapan dia "kembali")
-  reactivation_date: string
-  months_was_dormant: number
+  status: DormantCustomerStatus
+  // Invoice terakhir SEBELUM periode ini (null kalau belum pernah beli sama sekali)
+  last_invoice_before_period: string | null
+  // Invoice PERTAMA dalam periode ini SETELAH sebelumnya dormant (null kalau
+  // tidak ada order sama sekali dalam periode, atau tidak sedang dormant di awal periode)
+  reactivation_date: string | null
+  // Invoice TERAKHIR sampai akhir periode ini
+  last_invoice_in_period: string | null
+  // Rata-rata revenue bulanan 12 bulan trailing SEBELUM customer dormant
+  // (2026-08-24, instruksi user: "urutkan berdasarkan avg revenue nya
+  // tertinggi diantara reactivation lainnya" — dipakai sortir Top 5 M10,
+  // definisi SAMA PERSIS avg_monthly_revenue di fetchDormantValueRanking/M9).
+  avg_monthly_revenue: number
+  // Tanggal pasti melewati ambang dormant (last_invoice_in_period + ambang
+  // bulan) — hanya terisi kalau status akhir 'dormant'/'relapsed'
+  dormant_since_date: string | null
+}
+
+export interface DormantStatusBreakdownData {
+  period_start: string
+  period_end: string
+  rows: CustomerDormantStatusRow[]
 }
 
 export interface DormantValueTrendPoint {
@@ -257,10 +325,13 @@ export interface DormantMetricsData {
   // sama) — dipakai KpiSummaryStrip halaman Nilai Hilang (KPI9).
   value_ranking_total_current: number
   value_ranking_total_comparison: number
-  // Daftar customer yang reaktivasi di bulan berjalan (KPI10 tabel, top 20
-  // by tanggal reaktivasi terbaru) — konsisten dgn perhitungan
-  // reactivation_current (bulan sama, definisi sama persis).
-  reactivated_customers: ReactivatedCustomerRow[]
+  // Daftar customer yang reaktivasi di periode berjalan (KPI10 top 5/tabel,
+  // top 20 by tanggal reaktivasi terbaru) — REUSE fetchCustomerDormantStatusLog
+  // pada bucket TERAKHIR trend (2026-08-24, susulan "buatkan juga 3 card
+  // summary diatas cart, dan top 5" M10), filter status reactivated+relapsed
+  // di service layer. Granularitas-aware (dulu fetchReactivatedCustomers,
+  // hardcode window 1 bulan kalender — DIHAPUS, sudah tidak dipakai lagi).
+  reactivated_customers: CustomerDormantStatusRow[]
 }
 
 export interface CustomerMetricsData {

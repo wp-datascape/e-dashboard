@@ -81,11 +81,22 @@
     "emptyMessage": "Tidak ada existing customer yang membeli produk high margin bulan ini"
   },
   "m6": {
-    "sectionLabel": "M6 · Repeat Order Rate — Bulan Berjalan",
     "tooltipInfo": "\"Repeat order\" di sini artinya transaksi LEBIH DARI 1x dalam bulan berjalan — bukan sekadar pernah beli sebelumnya. Target garis hijau diatur di Settings → Threshold, bukan selalu 100%.",
     "chartTitle": "Repeat Order Rate",
-    "chartSubtitle": "Hijau ≥ {{thresholdPct}}% (on target) · Klik untuk lihat daftar customer",
-    "dialogTitle": "Repeat Order Buyers — {{date}}",
+    "thresholdLabel": "Target Min {{thresholdPct}}%",
+    "lineLabel": "Repeat Order Rate (%)",
+    "targetBarLabel": "Target (%)",
+    "tooltipTitle": "Repeat Order Rate — {{month}}",
+    "tooltipClickHint": "Klik untuk lihat daftar customer",
+    "summaryRate": "Repeat Order Rate",
+    "summaryOnTarget": "Sudah mencapai target",
+    "summaryOffTarget": "Di bawah target {{thresholdPct}}%",
+    "summaryExisting": "Total Existing Customer",
+    "summaryRepeatCount": "Customer Repeat Order",
+    "overviewTopCustomersLabel": "Top 5 Customer Repeat Order",
+    "topCustomersInfo": "Diurutkan dari jumlah order terbanyak periode ini",
+    "viewDetailInReport": "Cek Detail di Laporan",
+    "dialogTitle": "Repeat Order Buyers",
     "dialogTotalExisting": "Total existing customer",
     "dialogRepeatCount": "Customer repeat order (>1x)",
     "dialogRate": "Repeat order rate",
@@ -94,7 +105,7 @@
     "colCode": "Kode",
     "colOrderCount": "Jumlah Order",
     "colTotalRevenue": "Total Revenue",
-    "emptyMessage": "Tidak ada existing customer yang order lebih dari 1x bulan ini"
+    "emptyMessage": "Tidak ada existing customer yang order lebih dari 1x periode ini"
   },
   "m7": {
     "sectionLabel": "Ekspansi Pelanggan · Spending Naik vs Turun",

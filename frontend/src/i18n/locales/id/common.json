@@ -114,5 +114,12 @@
   },
   "report": {
     "comingSoon": "Belum ada tabel di halaman ini — akan ditambahkan kemudian."
+  },
+  "period": {
+    "months": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
+    "monthsShort": ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"],
+    "quarterLabel": "Kuartal {{q}} Tahun {{year}}",
+    "semesterLabel": "Semester {{s}} Tahun {{year}}",
+    "ytdLabel": "s.d. {{month}} {{year}}"
   }
 }

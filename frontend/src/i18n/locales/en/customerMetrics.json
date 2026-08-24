@@ -81,11 +81,22 @@
     "emptyMessage": "No existing customer bought high margin products this month"
   },
   "m6": {
-    "sectionLabel": "M6 · Repeat Order Rate — Current Month",
     "tooltipInfo": "\"Repeat order\" here means MORE THAN 1 transaction within the current month — not just having bought before. The green target line is configured in Settings → Threshold, not always 100%.",
     "chartTitle": "Repeat Order Rate",
-    "chartSubtitle": "Green ≥ {{thresholdPct}}% (on target) · Click to view customer list",
-    "dialogTitle": "Repeat Order Buyers — {{date}}",
+    "thresholdLabel": "Target Min {{thresholdPct}}%",
+    "lineLabel": "Repeat Order Rate (%)",
+    "targetBarLabel": "Target (%)",
+    "tooltipTitle": "Repeat Order Rate — {{month}}",
+    "tooltipClickHint": "Click to view customer list",
+    "summaryRate": "Repeat Order Rate",
+    "summaryOnTarget": "Target reached",
+    "summaryOffTarget": "Below target {{thresholdPct}}%",
+    "summaryExisting": "Total Existing Customers",
+    "summaryRepeatCount": "Repeat Order Customers",
+    "overviewTopCustomersLabel": "Top 5 Repeat Order Customers",
+    "topCustomersInfo": "Sorted by highest order count this period",
+    "viewDetailInReport": "View Detail in Report",
+    "dialogTitle": "Repeat Order Buyers",
     "dialogTotalExisting": "Total existing customers",
     "dialogRepeatCount": "Customers with repeat orders (>1x)",
     "dialogRate": "Repeat order rate",
@@ -94,7 +105,7 @@
     "colCode": "Code",
     "colOrderCount": "Order Count",
     "colTotalRevenue": "Total Revenue",
-    "emptyMessage": "No existing customer ordered more than once this month"
+    "emptyMessage": "No existing customer ordered more than once this period"
   },
   "m7": {
     "sectionLabel": "Customer Expansion · Spending Up vs Down",

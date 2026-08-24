@@ -6,8 +6,10 @@
  * dibutuhkan versi frontend sendiri untuk hitung label/navigasi tanpa
  * round-trip ke server tiap klik prev/next.
  */
+import type { TFunction } from 'i18next'
 import type { AnalisisPeriodType } from '@/types/analisis'
 import type { ParetoPeriodType } from '@/types/paretoThresholds'
+import { formatDateID } from '@/utils/date'
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')
@@ -168,35 +170,55 @@ export function getYoyPeriodKey(periodType: AnalisisPeriodType, periodKey: strin
   return `${Number(yearStr) - 1}-S${sStr}`
 }
 
-const MONTH_NAMES_ID = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-]
-
 /**
- * Label periode, format rapi (revisi 2026-07-31):
- *   monthly  → "Juni 2026"
- *   ytd      → "s.d. Juni 2026"
- *   quarter  → "Kuartal (2) Tahun 2026"
- *   semester → "Semester (1) Tahun 2026"
- *   annual   → "2026"
+ * Label periode, format rapi (revisi 2026-08-25 — koreksi KERAS user:
+ * "SEMESTER INI TIDAK ADA KETERANGAN... integrasi i18n nya jadi tidak
+ * tercover" — sebelumnya HARDCODE teks Indonesia total, tidak pernah pakai
+ * `t()` sama sekali walau dipanggil dari 9 file yang semuanya sudah py
+ * `useTranslation()`. Sekarang WAJIB terima `t` sbg parameter pertama,
+ * nama bulan + template Kuartal/Semester dari `common.period.*`:
+ *   monthly  → "Juni 2026" / "June 2026"
+ *   ytd      → "s.d. Juni 2026" / "through June 2026"
+ *   quarter  → "Kuartal 2 Tahun 2026" / "Quarter 2 2026"
+ *   semester → "Semester 1 Tahun 2026" / "Semester 1 2026"
+ *   annual   → "2026" (angka tahun, sama di semua bahasa)
  */
-export function formatPeriodLabel(periodType: AnalisisPeriodType, periodKey: string): string {
+export function formatPeriodLabel(t: TFunction, periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return periodKey
+  const months = t('common.period.months', { returnObjects: true }) as string[]
   if (periodType === 'monthly') {
     const [year, month] = periodKey.split('-')
-    return `${MONTH_NAMES_ID[Number(month) - 1]} ${year}`
+    return `${months[Number(month) - 1]} ${year}`
   }
   if (periodType === 'ytd') {
     const [year, month] = periodKey.split('-')
-    return `s.d. ${MONTH_NAMES_ID[Number(month) - 1]} ${year}`
+    return t('common.period.ytdLabel', { month: months[Number(month) - 1], year })
   }
   if (periodType === 'quarter') {
     const [year, q] = periodKey.split('-Q')
-    return `Kuartal ${q} Tahun ${year}`
+    return t('common.period.quarterLabel', { q, year })
   }
   const [year, s] = periodKey.split('-S')
-  return `Semester ${s} Tahun ${year}`
+  return t('common.period.semesterLabel', { s, year })
+}
+
+/**
+ * Sub-text kartu ringkasan "periode data ini apa" (2026-08-24, susulan
+ * instruksi user: "menu growth mencantumkan periodenya" — pola M1/M2/M7
+ * `crossSelling.activeCustomerSub`, digeneralisasi ke M6/M8/M9/M10 di
+ * halaman Retention). Bulanan → rentang tanggal eksplisit (pola ASLI
+ * Growth, "Periode 01-08-2026 s/d 24-08-2026" — user: "jika bulan adalah
+ * date range"), granularitas lebih lebar → label periode ringkas ("Kuartal
+ * 3 Tahun 2026"/"Semester 2 Tahun 2026"/"2026" — user: "jika quarta quarta
+ * berapa tahun berapa, semester juga sama") krn rentang tanggal mentah
+ * (mis. "01-07-2026 s/d 30-09-2026") kurang terbaca dibanding label
+ * kuartalnya langsung.
+ */
+export function formatPeriodRangeSub(t: TFunction, periodType: AnalisisPeriodType, periodKey: string, start: string, end: string): string {
+  if (periodType === 'monthly') {
+    return t('crossSelling.activeCustomerSub', { start: formatDateID(start), end: formatDateID(end) })
+  }
+  return formatPeriodLabel(t, periodType, periodKey)
 }
 
 /**
@@ -209,16 +231,18 @@ export function formatPeriodLabel(periodType: AnalisisPeriodType, periodKey: str
  *   semester → "S1 26"
  *   annual   → "2026"
  */
-export function formatPeriodLabelShort(periodType: AnalisisPeriodType, periodKey: string): string {
+export function formatPeriodLabelShort(t: TFunction, periodType: AnalisisPeriodType, periodKey: string): string {
   if (periodType === 'annual') return periodKey
   if (periodType === 'monthly' || periodType === 'ytd') {
     const [year, month] = periodKey.split('-')
     const y = Number(year)
     const m = Number(month)
     if (!y || !m) return periodKey
-    const d = new Date(y, m - 1, 1)
-    return d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+    const monthsShort = t('common.period.monthsShort', { returnObjects: true }) as string[]
+    return `${monthsShort[m - 1]} ${String(y).slice(2)}`
   }
+  // "Q"/"S" (2026-08-25) — singkatan Kuartal/Semester, sama di ID & EN
+  // (Quarter/Semester), tidak perlu i18n key terpisah.
   if (periodType === 'quarter') {
     const [year, q] = periodKey.split('-Q')
     return `Q${q} ${year.slice(2)}`
@@ -350,11 +374,12 @@ export function clampPeriodEndToDay(
 }
 
 /** "1-30 Juni 2026" / "1 Jan - 31 Mar 2026" — rentang tanggal manusiawi. Semua tipe periode Analisis selalu dalam 1 tahun kalender, jadi tahun cukup ditulis sekali di akhir. */
-export function formatDateRange(range: PeriodDateRange): string {
+export function formatDateRange(t: TFunction, range: PeriodDateRange): string {
   const [sy, sm, sd] = range.start.split('-').map(Number)
   const [, em, ed] = range.end.split('-').map(Number)
-  if (sm === em) return `${sd}–${ed} ${MONTH_NAMES_ID[sm - 1]} ${sy}`
-  return `${sd} ${MONTH_NAMES_ID[sm - 1]} – ${ed} ${MONTH_NAMES_ID[em - 1]} ${sy}`
+  const months = t('common.period.months', { returnObjects: true }) as string[]
+  if (sm === em) return `${sd}–${ed} ${months[sm - 1]} ${sy}`
+  return `${sd} ${months[sm - 1]} – ${ed} ${months[em - 1]} ${sy}`
 }
 
 /** Params yang WAJIB dikirim tiap fetch drilldown (klik-titik chart) ke

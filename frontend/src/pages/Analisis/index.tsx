@@ -125,8 +125,8 @@ export default function AnalisisPage() {
   const periodStart = getPeriodDateRange(periodType, periodKey).start
   const currentRange = { start: periodStart, end: endDate }
   const comparisonRange = { start: shiftDateByYears(periodStart, -1), end: shiftDateByYears(endDate, -1) }
-  const currentRangeText = formatDateRange(currentRange)
-  const comparisonRangeText = formatDateRange(comparisonRange)
+  const currentRangeText = formatDateRange(t, currentRange)
+  const comparisonRangeText = formatDateRange(t, comparisonRange)
 
   const { data, isLoading } = useAnalisis({
     company_id: companyId,
@@ -327,7 +327,7 @@ export default function AnalisisPage() {
           </IconButton>
           <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <Typography variant="subtitle2" noWrap sx={{ maxWidth: '100%' }}>
-              {formatPeriodLabel(periodType, periodKey)}
+              {formatPeriodLabel(t, periodType, periodKey)}
             </Typography>
             <Typography
               variant="caption"

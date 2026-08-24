@@ -1,7 +1,7 @@
 // src/api/metrics.api.ts
 import { api } from './axios';
 import type { ApiResponse } from '@/types/api';
-import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData } from '@/types/metrics';
+import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
 
 export const metricsApi = {
   getCrossSelling: async (params?: {
@@ -50,6 +50,16 @@ export const metricsApi = {
   getDormantCustomer: async (params?: {
     company_id?: number | 'all';
     period_end?: string;
+    // Granularitas trend (2026-08-24, susulan task029.md §30.9 — M8-M10
+    // sebelumnya hardcode bulanan, sekarang mirror getCustomerMetrics.
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    // skip_elapsed_clamp (2026-08-24, koreksi user: threshold dormant
+    // dikonfigurasi dalam BULAN bulat — snapshot dormant HARUS di akhir
+    // periode kalender, bukan di-potong ke hari-ini/elapsed, kecuali
+    // apply_date_cutoff eksplisit diaktifkan) — caller dormant selalu
+    // kirim true, lihat Retention/index.tsx & DormantCustomer/index.tsx.
+    skip_elapsed_clamp?: boolean;
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
@@ -78,8 +88,48 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getRorBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RorBreakdownData> => {
+  // date_from (2026-08-24, M6 dipakai di Retention page yg py filter
+  // granularitas — pola sama persis getGpBreakdown/getExpansionBreakdown).
+  getRorBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RorBreakdownData> => {
     const res = await api.get<ApiResponse<RorBreakdownData>>('/metrics/ror-breakdown', { params });
+    return res.data.data;
+  },
+
+  // Drill-down M8 (2026-08-24) — pola sama persis getRorBreakdown.
+  getDormantBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<DormantBreakdownData> => {
+    const res = await api.get<ApiResponse<DormantBreakdownData>>('/metrics/dormant-breakdown', { params });
+    return res.data.data;
+  },
+
+  // Status per customer utk 1 titik (2026-08-24, susulan pertanyaan user
+  // soal ambiguitas reaktivasi) — date_from = awal bucket, period_end =
+  // akhir bucket, period_type dipakai hitung window "sebelumnya".
+  getDormantStatusBreakdown: async (params: {
+    period_end?: string;
+    date_from?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    company_id?: number | 'all';
+    division?: number;
+    branch_id?: number;
+    exclude_intercompany?: boolean;
+    status?: DormantCustomerStatus;
+  }): Promise<DormantStatusBreakdownData> => {
+    const res = await api.get<ApiResponse<DormantStatusBreakdownData>>('/metrics/dormant-status-breakdown', { params });
+    return res.data.data;
+  },
+
+  // Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
+  // ranking M9. ref_date = last_invoice_date baris yang diklik (WAJIB,
+  // window 12 bulan dihitung mundur dari situ).
+  getDormantValueHistory: async (params: {
+    customer_id: number;
+    ref_date: string;
+    company_id?: number | 'all';
+    division?: number;
+    branch_id?: number;
+    exclude_intercompany?: boolean;
+  }): Promise<DormantValueHistoryData> => {
+    const res = await api.get<ApiResponse<DormantValueHistoryData>>('/metrics/dormant-value-history', { params });
     return res.data.data;
   },
 };

@@ -1,7 +1,7 @@
 // src/hooks/useMetrics.ts
 import { useQuery } from '@tanstack/react-query';
 import { metricsApi } from '@/api/metrics.api';
-import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData } from '@/types/metrics';
+import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
 import type { DrilldownPeriodParams } from '@/utils/analisisPeriod';
 
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
@@ -134,10 +134,13 @@ export function useHmBreakdown(params: { period_end: string | null; company_id?:
 }
 
 // ── M6 ROR Drill-down ─────────────────────────────────────────────────────────
-export function useRorBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+// date_from (2026-08-24) — dipakai M6RepeatOrder.tsx di Retention page
+// (filter granularitas Kuartal/Semester/Tahun), pola sama persis
+// useGpBreakdown/useExpansionBreakdown.
+export function useRorBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
   return useQuery<RorBreakdownData>({
     queryKey: ['metrics', 'ror-breakdown', params],
-    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -149,6 +152,9 @@ export function useRorBreakdown(params: { period_end: string | null; company_id?
 export function useDormantCustomer(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  skip_elapsed_clamp?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
@@ -157,6 +163,62 @@ export function useDormantCustomer(params?: {
     queryKey: ['metrics', 'dormant-customer', params],
     queryFn: () => metricsApi.getDormantCustomer(params),
     enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Drill-down M8 (2026-08-24) — pola sama persis useRorBreakdown (M6).
+export function useDormantBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+  return useQuery<DormantBreakdownData>({
+    queryKey: ['metrics', 'dormant-breakdown', params],
+    queryFn: () => metricsApi.getDormantBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    enabled: !!params.period_end,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Status per customer utk 1 titik chart M10 (2026-08-24, susulan pertanyaan
+// user soal ambiguitas reaktivasi) — date_from = awal bucket yang diklik.
+export function useDormantStatusBreakdown(params: {
+  period_end: string | null;
+  date_from?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  status?: DormantCustomerStatus;
+}) {
+  return useQuery<DormantStatusBreakdownData>({
+    queryKey: ['metrics', 'dormant-status-breakdown', params],
+    queryFn: () => metricsApi.getDormantStatusBreakdown({ ...params, period_end: params.period_end! }),
+    enabled: !!params.period_end,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
+// ranking M9. `customerId`/`refDate` null = query disabled (dialog belum
+// dibuka).
+export function useDormantValueHistory(params: {
+  customerId: number | null;
+  refDate: string | null;
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+}) {
+  return useQuery<DormantValueHistoryData>({
+    queryKey: ['metrics', 'dormant-value-history', params],
+    queryFn: () => metricsApi.getDormantValueHistory({
+      customer_id: params.customerId!,
+      ref_date: params.refDate!,
+      company_id: params.company_id,
+      division: params.division,
+      branch_id: params.branch_id,
+      exclude_intercompany: params.exclude_intercompany,
+    }),
+    enabled: !!params.customerId && !!params.refDate,
     staleTime: STALE_TIME,
   });
 }

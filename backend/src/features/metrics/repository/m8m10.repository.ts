@@ -1,29 +1,71 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
-import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql } from '../segment.helper'
-import type { DormantTrendRow, DormantValueRow, ReactivatedCustomerRow } from '../metrics.types'
+import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, cteEstablishedCustomers } from '../segment.helper'
+import type { DormantTrendRow, DormantValueRow, CustomerDormantStatusRow, DormantValueHistoryRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
+import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 
 /**
- * Tren 12 bulan untuk M8 (dormant rate) + M10 (reactivation rate).
+ * Tren 12 titik (Bulanan/Kuartalan/Semesteran/Tahunan, 2026-08-24, susulan
+ * task029.md §30.9 poin 1) untuk M8 (dormant rate) + M10 (reactivation
+ * rate) — generalisasi dari versi lama yang hardcode 12 bulan kalender
+ * (`generate_series`). Pola bucket VALUES-list + `prevBuckets` (window
+ * "sebelumnya" per titik, dihitung DI SERVICE LAYER, label SAMA dgn bucket
+ * current-nya) SAMA PERSIS `fetchCustomerMetricsTrend` (M3-M7,
+ * `m3m7.repository.ts`) — REUSE pola, bukan tulis ulang. `dormant_threshold`
+ * (dalam BULAN, business config per kategori divisi) TIDAK berubah maknanya
+ * — durasi kalender tetap, independen dari lebar bucket granularitas.
+ *
+ * `buckets` VS `liveBuckets` (2026-08-24, definisi final dikonfirmasi
+ * berkali-kali oleh user, termasuk ditegur keras): titik berlabel "Agustus"
+ * di `buckets` isinya rentang tanggal bulan SEBELUMNYA (Juli) — "dormant
+ * Agustus = tidak ada transaksi Mei, Juni, 31 Juli", customer yang tidak
+ * transaksi DI Agustus baru masuk hitungan dormant BULAN SEPTEMBER. Field
+ * snapshot (total_customers/dormant_count/active_count/dormant_rate) SEMUA
+ * pakai `buckets` ini. TAPI reaktivasi beda sifat — itu EVENT (order
+ * terjadi/tidak), bukan kondisi absen yang baru pasti begitu bulan tutup:
+ * "reaktivasi adalah data dormant yang telah diaktivasi DI PERIODE
+ * BERJALAN" — jadi numerator reaktivasi butuh `liveBuckets` (periode ASLI
+ * titik ini, dipotong elapsed ke hari ini kalau genuinely masih berjalan),
+ * BUKAN `buckets` yang sudah digeser. Baseline/denominator reaktivasi tetap
+ * dormant_count row yang SAMA (pakai `buckets`/`me`) — populasi dormant
+ * yang "diaktivasi" itu adalah populasi dormant milik LABEL itu sendiri.
  */
-export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendRow[]> {
-  const { cid, filterDate, division, companyScopeIds } = p
+export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], liveBuckets: TrailingPeriodBucket[]): Promise<DormantTrendRow[]> {
+  const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
 
+  const bucketValues = sql.join(
+    buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
+  const prevBucketValues = sql.join(
+    prevBuckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
+  const liveBucketValues = sql.join(
+    liveBuckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
+
   const rawRows = await db.execute(sql`
     WITH
     ${cteCustDivision(p)},
-    months AS (
-      SELECT generate_series(
-        date_trunc('month', ${filterDate}::date) - INTERVAL '11 months',
-        date_trunc('month', ${filterDate}::date),
-        INTERVAL '1 month'
-      )::date AS ms
-    ),
+    buckets(label, ps, pe) AS (VALUES ${bucketValues}),
+    prev_buckets(label, ps, pe) AS (VALUES ${prevBucketValues}),
+    -- live_buckets (2026-08-24, susulan koreksi user: "reaktivasi adalah
+    -- data dormant yang telah diaktivasi DI PERIODE BERJALAN") — beda dari
+    -- buckets (yang isinya digeser mundur 1 periode dari labelnya, lihat
+    -- JSDoc di bawah), live_buckets itu bulan/kuartal/dst ASLI titik ini
+    -- (label == periode kalendernya sendiri), dipotong elapsed ke hari ini
+    -- KALAU itu periode yang genuinely masih berjalan. Dipakai KHUSUS utk
+    -- numerator reaktivasi (order beneran terjadi kapan pun sampai hari
+    -- ini di periode berjalan), BUKAN utk snapshot dormant (yang butuh
+    -- bulan sudah tutup penuh).
+    live_buckets(label, ps, pe) AS (VALUES ${liveBucketValues}),
 
     -- Semua invoice dalam scope (company + division)
     inv AS (
@@ -65,49 +107,68 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
     ),
 
-    -- Customer × bulan: hitung last invoice date per titik waktu
-    -- me di-cap filterDate agar bulan berjalan tidak pakai month_end masa depan
-    -- → dormant cutoff konsisten dengan customer page (pakai filterDate, bukan month_end)
+    -- Customer x bucket: hitung last invoice date per titik waktu (bucket
+    -- current DAN bucket sebelumnya, lebar sama dgn current, join by
+    -- label, pola SAMA PERSIS m3m7.repository.ts). TIDAK di-cap filterDate
+    -- lagi (2026-08-24, bug ditemukan: filterDate/segParams dipakai FUNGSI
+    -- LAIN — mis. fetchDormantValueRanking, M9 — sbg snapshot point "Dormant
+    -- Agustus" = 31 Juli; kalau dipakai jg buat cap live_me di sini,
+    -- window reaktivasi Agustus IKUT terpotong ke 31 Juli, reactivated_count
+    -- selalu 0. b.pe/lb.pe SUDAH benar-benar final dari service layer
+    -- (buckets = sudah digeser + tutup penuh; liveBuckets = sudah
+    -- elapsed-clamp ke hari ini via resolveTrendPeriod) — tidak perlu guard
+    -- tambahan lagi di sini.
     cxm AS (
       SELECT
         sc.cid,
-        m.ms                                                                    AS month_start,
-        LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
-              ${filterDate}::date)                                              AS me,
-        (m.ms - INTERVAL '1 day')::date                                        AS prev_me,
+        b.label                                                                 AS bucket_label,
+        b.ps                                                                    AS bucket_start,
+        b.pe                                                                    AS me,
+        pb.pe                                                                   AS prev_me,
+        lb.pe                                                                   AS live_me,
         sc.first_date                                                           AS first_date,
         sc.dormant_threshold                                                    AS dormant_threshold,
-        -- "not new" (§30.10, 2026-08-23 — instruksi user "patokan ke
-        -- definisi terbaru") — Existing = first invoice SEBELUM AWAL
-        -- bucket kalender (m.ms), BUKAN activeMonths mundur dari me/prev_me
-        -- (formula lama, task028, punya bug off-by-one JUGA: pola sama
-        -- persis yang ditemukan & diperbaiki di m3m7.repository.ts existing/
-        -- new_cust CTE hari yang sama). Dihitung SEKALI di sini (bukan
-        -- diulang di 11 tempat FILTER di bawah) supaya 1 sumber kebenaran,
-        -- konsisten dgn cteEstablishedCustomers/cteExistingCustomersByPeriod
-        -- (segment.helper.ts).
-        (sc.first_date < m.ms)                                                  AS is_existing_at_me,
-        (sc.first_date < (m.ms - INTERVAL '1 month')::date)                     AS is_existing_at_prev_me,
+        -- "not new" (§30.10) — koreksi user 2026-08-24: "customer yang
+        -- masuk Januari sampai Maret Q1 2025, pada Q2 2025 itu sudah jadi
+        -- existing" — gate populasi HARUS pakai awal kalender ASLI label
+        -- (lb.ps, dari live_buckets — TIDAK ikut digeser), BUKAN awal
+        -- bucket data yang sudah digeser (b.ps) — itu 2 konsep beda:
+        -- me/last_at_me (evaluasi dormant) MEMANG digeser 1 periode
+        -- (definisi "Dormant Agustus"), tapi "kapan seorang customer
+        -- berhenti dianggap New" TIDAK ikut geser, tetap relatif ke label
+        -- kalendernya sendiri (Q2 2025 mulai 1 April — siapa saja yang
+        -- gabung sebelum itu, termasuk yang gabung Jan-Mar/Q1, SUDAH
+        -- existing di titik Q2). Utk is_existing_at_prev_me (dipakai
+        -- prev_dormant_count, "titik SEBELUMNYA" = label b.label sendiri
+        -- kalau dilihat sbg titik tersendiri) — awal kalender aslinya
+        -- PERSIS b.ps (b.ps sudah = awal bucket DATA b.label, yang mana
+        -- itu AWAL KALENDER ASLI dari label sebelumnya, getPreviousPeriodKey
+        -- (b.label) — kebetulan sama, bukan salah ketik).
+        (sc.first_date < lb.ps)                                                 AS is_existing_at_me,
+        (sc.first_date < b.ps)                                                  AS is_existing_at_prev_me,
         MAX(inv.invoice_date) FILTER (
-          WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
-                                         ${filterDate}::date)
+          WHERE inv.invoice_date <= b.pe
         )                                                                       AS last_at_me,
         MAX(inv.invoice_date) FILTER (
-          WHERE inv.invoice_date <= (m.ms - INTERVAL '1 day')::date
+          WHERE inv.invoice_date <= pb.pe
         )                                                                       AS last_at_prev_me,
-        BOOL_OR(
-          inv.invoice_date >= m.ms
-          AND inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date,
-                                        ${filterDate}::date)
-        )                                                                       AS active_in_month
+        -- last_at_live_me (2026-08-24) — order TERAKHIR sampai HARI INI di
+        -- periode berjalan yang ASLI (bukan bucket yang sudah digeser),
+        -- dipakai numerator reaktivasi ("sudah diaktivasi di periode
+        -- berjalan"), lihat JSDoc fungsi ini.
+        MAX(inv.invoice_date) FILTER (
+          WHERE inv.invoice_date <= lb.pe
+        )                                                                       AS last_at_live_me
       FROM scoped_cust sc
-      CROSS JOIN months m
+      CROSS JOIN buckets b
+      JOIN prev_buckets pb ON pb.label = b.label
+      JOIN live_buckets lb ON lb.label = b.label
       LEFT JOIN inv ON inv.customer_id = sc.cid
-      GROUP BY sc.cid, m.ms, sc.first_date, sc.dormant_threshold
+      GROUP BY sc.cid, b.label, b.ps, b.pe, pb.ps, pb.pe, lb.ps, lb.pe, sc.first_date, sc.dormant_threshold
     )
 
     SELECT
-      TO_CHAR(month_start, 'YYYY-MM') AS month,
+      bucket_label AS month,
       -- "not new" (§30.10, 2026-08-23) — pakai is_existing_at_me/
       -- is_existing_at_prev_me yang sudah dihitung 1x di CTE cxm (bukan
       -- activeMonths mundur dari me/prev_me lagi, formula lama task028
@@ -162,27 +223,42 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
           AND is_existing_at_prev_me
           AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS prev_dormant_count,
+      -- reactivated_count (2026-08-24, definisi FINAL user: "reaktivasi
+      -- adalah data dormant yang telah diaktivasi DI PERIODE BERJALAN
+      -- bulanan, kuartalan, semesteran, tahunan") — denominator = populasi
+      -- dormant LABEL INI SENDIRI (predikat SAMA PERSIS dormant_count di
+      -- atas, pakai me/buckets yang sudah digeser — "Dormant Agustus"),
+      -- numerator = subset itu yang net-aktif per HARI INI di periode
+      -- berjalan ASLI (live_me/live_buckets, BUKAN me yang sudah
+      -- digeser) — order beneran sudah terjadi = fakta, tidak perlu nunggu
+      -- bulan tutup, beda dari dormant (kondisi absen, baru pasti kalau
+      -- bulan sudah tutup penuh). "Net aktif" (bukan cuma "sempat order")
+      -- tetap dipakai (koreksi user sebelumnya soal ambiguitas Q2/dormant-
+      -- lagi) — kondisi last_at_live_me > live_me minus dormant_threshold
+      -- PERSIS predikat active_count, cuma diukur di live_me bukan me.
       COUNT(*) FILTER (
-        WHERE last_at_prev_me IS NOT NULL
-          AND is_existing_at_prev_me
-          AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
-          AND active_in_month = true
+        WHERE last_at_me IS NOT NULL
+          AND is_existing_at_me
+          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+          AND last_at_live_me IS NOT NULL
+          AND last_at_live_me > live_me - dormant_threshold * INTERVAL '1 month'
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
-          WHERE last_at_prev_me IS NOT NULL
-            AND is_existing_at_prev_me
-            AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
-            AND active_in_month = true
+          WHERE last_at_me IS NOT NULL
+            AND is_existing_at_me
+            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+            AND last_at_live_me IS NOT NULL
+            AND last_at_live_me > live_me - dormant_threshold * INTERVAL '1 month'
         )::numeric / NULLIF(COUNT(*) FILTER (
-          WHERE last_at_prev_me IS NOT NULL
-            AND is_existing_at_prev_me
-            AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
+          WHERE last_at_me IS NOT NULL
+            AND is_existing_at_me
+            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate
     FROM cxm
-    GROUP BY month_start
-    ORDER BY month_start
+    GROUP BY bucket_label, bucket_start
+    ORDER BY bucket_start
   `)
 
   return (rawRows as unknown[]).map((r) => {
@@ -203,9 +279,29 @@ export async function fetchDormantTrend(p: SegmentParams): Promise<DormantTrendR
 }
 
 /**
- * Top 20 dormant customer diranking berdasarkan estimated lost value (M9).
+ * Dormant customer diranking berdasarkan estimated lost value (M9, top 20
+ * default). `limit=null` (2026-08-24, endpoint breakdown drill-down M8 baru,
+ * instruksi user: "Buatkan end poin dril down breakdown singkat") — kembalikan
+ * SEMUA baris (bukan cuma top 20), dipakai `getDormantBreakdown` (service)
+ * untuk dialog klik-titik-chart M8, query SAMA PERSIS (reuse penuh, bukan
+ * duplikasi) — cuma LIMIT beda. `ranking` (ROW_NUMBER) ditambahkan
+ * unconditional, konsisten dgn pola `fetchRorBreakdown` (M6).
+ *
+ * `existingSince` (2026-08-24, task029.md §32.2) — gate New/Existing SSOT
+ * §30.10 ("not new": first_invoice_date < awal periode label yang sedang
+ * dilihat), SEBELUMNYA fungsi ini TIDAK PUNYA gate ini sama sekali —
+ * customer yang first-purchase-nya baru tapi sudah lewat ambang dormant
+ * (kasus langka, mis. B2C ambang 6bln, first purchase 7bln lalu tanpa
+ * order lagi) ikut masuk ranking, padahal seharusnya "New" bukan populasi
+ * relevan KPI berbasis Existing. Titik referensi = awal kalender ASLI
+ * label periode yang sedang dilihat (caller kirim `liveBucket.start`,
+ * SAMA PERSIS `lb.ps` di `fetchDormantTrend`/`is_existing_at_me` —
+ * konsisten, M9 dan M8/M10 sama-sama snapshot dari `segParams` yang sudah
+ * digeser 1 periode, gate "New" tetap relatif ke kalender label ASLI,
+ * bukan window data yang sudah digeser). Optional dgn fallback awal bulan
+ * kalender `filterDate` (KPI lama tanpa filter granularitas eksplisit).
  */
-export async function fetchDormantValueRanking(p: SegmentParams): Promise<DormantValueRow[]> {
+export async function fetchDormantValueRanking(p: SegmentParams, limit: number | null = 20, existingSince?: string): Promise<DormantValueRow[]> {
   const { cid, filterDate, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
@@ -214,6 +310,7 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
   const rawRows = await db.execute(sql`
     WITH
     ${cteCustDivision(p)},
+    ${cteEstablishedCustomers(p, existingSince ?? `${filterDate.slice(0, 7)}-01`)},
     inv AS (
       SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
       FROM invoices i
@@ -236,14 +333,17 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
         c.customer_name,
         c.customer_code,
         co.name                 AS company_name,
+        d.label                 AS division_label,
         MAX(inv.invoice_date)   AS last_invoice_date
       FROM customers c
       JOIN inv ON inv.customer_id = c.id
+      JOIN established_customers ec ON ec.id = c.id
       JOIN companies co ON co.id = c.company_id
       LEFT JOIN cust_division cdv ON cdv.cid = c.id
+      LEFT JOIN divisions d ON d.id = COALESCE(c.division_override_id, cdv.division_id, (SELECT id FROM divisions WHERE company_id = c.company_id AND key = 'other'))
       WHERE c.is_placeholder = false
         AND ${companyCondC}
-      GROUP BY c.id, c.customer_name, c.customer_code, co.name, c.division_override_id, cdv.division_id
+      GROUP BY c.id, c.customer_name, c.customer_code, co.name, d.label, c.division_override_id, cdv.division_id
       HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantThresholdSql} * INTERVAL '1 month'
     ),
     -- avg_monthly_revenue dibatasi 12 bulan kalender terakhir SEBELUM customer dormant
@@ -253,39 +353,80 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
     -- waktu tetap. Konsisten dengan pola avgMonthlyExpr di customers.repository.ts.
     cust_agg AS (
       SELECT
-        cl.customer_id, cl.customer_name, cl.customer_code, cl.company_name, cl.last_invoice_date,
+        cl.customer_id, cl.customer_name, cl.customer_code, cl.company_name, cl.division_label, cl.last_invoice_date,
         COALESCE(SUM(inv.rev) FILTER (
           WHERE inv.invoice_date <= cl.last_invoice_date
             AND inv.invoice_date >= DATE_TRUNC('month', cl.last_invoice_date::date - INTERVAL '11 months')
         ), 0) AS recent_12m_rev
       FROM cust_last cl
       LEFT JOIN inv ON inv.customer_id = cl.customer_id
-      GROUP BY cl.customer_id, cl.customer_name, cl.customer_code, cl.company_name, cl.last_invoice_date
+      GROUP BY cl.customer_id, cl.customer_name, cl.customer_code, cl.company_name, cl.division_label, cl.last_invoice_date
+    ),
+    -- ranked (2026-08-24, fix bug) — estimated_lost_value DIMATERIALKAN di
+    -- CTE terpisah dulu, BARU dipakai ROW_NUMBER() OVER (ORDER BY ...) di
+    -- SELECT luar. Postgres TIDAK BISA reference alias kolom yang
+    -- didefinisikan di SELECT list yang SAMA dari dalam window function
+    -- (500 error "column estimated_lost_value does not exist" kalau
+    -- ROW_NUMBER ditaruh 1 level sama persis dgn definisi alias-nya).
+    ranked AS (
+      SELECT
+        customer_id,
+        customer_name,
+        customer_code,
+        company_name,
+        division_label,
+        last_invoice_date::text,
+        -- months_dormant (2026-08-25, koreksi KERAS user: "CUTOFF APRIL
+        -- ITU AKHIR BULAN... SEHARUSNYA TERHITUNG MEI, JUNI, JULI TANPA
+        -- ORDERAN, MASUK DORMANT DI AGUSTUS") — SEBELUMNYA selisih HARI
+        -- mentah dibagi 30 (mis. transaksi terakhir 15 April, filterDate
+        -- 31 Juli = 107 hari / 30 = 3.57 dibulatkan 4, padahal cuma Mei-
+        -- Juni-Juli = 3 bulan kalender PENUH tanpa transaksi, bulan April-
+        -- nya sendiri tetap dihitung "aktif" krn ada transaksi di situ).
+        -- Sekarang selisih BULAN KALENDER murni (tahun*12+bulan), TIDAK
+        -- peduli tanggal presisi dalam bulan — start = awal bulan transaksi
+        -- terakhir, end = akhir bulan filterDate, granularitas SELALU
+        -- bulan penuh sesuai instruksi user ("start date awal periode
+        -- tanggal 1, end date akhir bulan").
+        GREATEST(
+          (EXTRACT(YEAR FROM ${filterDate}::date)::int * 12 + EXTRACT(MONTH FROM ${filterDate}::date)::int)
+          - (EXTRACT(YEAR FROM last_invoice_date)::int * 12 + EXTRACT(MONTH FROM last_invoice_date)::int)
+        , 1)                                                                                        AS months_dormant,
+        ROUND(recent_12m_rev / 12.0)::bigint                                                        AS avg_monthly_revenue,
+        ROUND(
+          recent_12m_rev / 12.0
+          * GREATEST(
+              (EXTRACT(YEAR FROM ${filterDate}::date)::int * 12 + EXTRACT(MONTH FROM ${filterDate}::date)::int)
+              - (EXTRACT(YEAR FROM last_invoice_date)::int * 12 + EXTRACT(MONTH FROM last_invoice_date)::int)
+            , 1)
+        )::bigint                                                                                   AS estimated_lost_value
+      FROM cust_agg
     )
     SELECT
+      ROW_NUMBER() OVER (ORDER BY estimated_lost_value DESC NULLS LAST)::int AS ranking,
       customer_id,
       customer_name,
       customer_code,
       company_name,
-      last_invoice_date::text,
-      GREATEST(ROUND((${filterDate}::date - last_invoice_date) / 30.0)::int, 1)                  AS months_dormant,
-      ROUND(recent_12m_rev / 12.0)::bigint                                                        AS avg_monthly_revenue,
-      ROUND(
-        recent_12m_rev / 12.0
-        * GREATEST(ROUND((${filterDate}::date - last_invoice_date) / 30.0), 1)
-      )::bigint                                                                                   AS estimated_lost_value
-    FROM cust_agg
+      division_label,
+      last_invoice_date,
+      months_dormant,
+      avg_monthly_revenue,
+      estimated_lost_value
+    FROM ranked
     ORDER BY estimated_lost_value DESC NULLS LAST
-    LIMIT 20
+    ${limit != null ? sql`LIMIT ${limit}` : sql``}
   `)
 
   return (rawRows as unknown[]).map((r) => {
     const row = r as Record<string, unknown>
     return {
+      ranking:              Number(row.ranking),
       customer_id:          Number(row.customer_id),
       customer_name:        String(row.customer_name),
       customer_code:        row.customer_code != null ? String(row.customer_code) : null,
       company_name:         String(row.company_name ?? ''),
+      division_label:       row.division_label != null ? String(row.division_label) : null,
       last_invoice_date:    String(row.last_invoice_date ?? ''),
       months_dormant:       Number(row.months_dormant ?? 0),
       avg_monthly_revenue:  Number(row.avg_monthly_revenue ?? 0),
@@ -295,15 +436,83 @@ export async function fetchDormantValueRanking(p: SegmentParams): Promise<Dorman
 }
 
 /**
- * Daftar customer yang reaktivasi (M10 tabel) — dormant sampai akhir bulan
- * SEBELUM filterDate, lalu bertransaksi lagi di bulan berjalan (window sama
- * persis dengan yang dipakai fetchDormantTrend utk hitung `reactivated_count`
- * bulan terakhir — supaya jumlah baris di tabel ini KONSISTEN dgn angka
- * reactivation_current/chart, bukan definisi window yang beda sendiri).
- * Top 20 by tanggal reaktivasi terbaru.
+ * Riwayat revenue bulanan (12 bulan trailing dari `refDate`) untuk SATU
+ * customer (2026-08-25, drilldown M9 — instruksi user: "list revenue
+ * customer tersebut selama 12 bulan"). Window SAMA PERSIS `recent_12m_rev`
+ * di `fetchDormantValueRanking` di atas (DATE_TRUNC awal bulan `refDate` -
+ * 11 bulan, s.d. `refDate`) — `refDate` WAJIB `last_invoice_date` baris
+ * ranking yang diklik (dikirim frontend, BUKAN dihitung ulang di sini),
+ * supaya list-nya PERSIS window yang menghasilkan avg_monthly_revenue yang
+ * sudah ditampilkan di kartu/dialog. Pola CTE generate_series + LEFT JOIN
+ * reuse `findCustomerDetail` (customers.repository.ts) — kondisi scope
+ * (branch/division/exclude_intercompany) pakai `resolveInvoiceScopeConditions`
+ * yang SAMA dgn fungsi lain di file ini (bukan subset lebih tipis).
  */
-export async function fetchReactivatedCustomers(p: SegmentParams): Promise<ReactivatedCustomerRow[]> {
-  const { cid, filterDate, division, companyScopeIds } = p
+export async function fetchDormantValueHistory(p: SegmentParams, customerId: number, refDate: string): Promise<DormantValueHistoryRow[]> {
+  const { division } = p
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+
+  const rawRows = await db.execute(sql`
+    WITH months AS (
+      SELECT TO_CHAR(m, 'YYYY-MM') AS month
+      FROM generate_series(
+        DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months'),
+        DATE_TRUNC('month', ${refDate}::date),
+        INTERVAL '1 month'
+      ) AS m
+    ),
+    actuals AS (
+      SELECT
+        TO_CHAR(i.invoice_date::date, 'YYYY-MM') AS month,
+        COALESCE(SUM(i.total_revenue::numeric), 0) AS revenue
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+      WHERE i.customer_id = ${customerId}
+        AND i.deleted_at IS NULL
+        AND i.invoice_date::date >= DATE_TRUNC('month', ${refDate}::date - INTERVAL '11 months')
+        AND i.invoice_date::date <= ${refDate}::date
+        AND ${companyCondI}
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+      GROUP BY 1
+    )
+    SELECT m.month, COALESCE(a.revenue, 0)::text AS revenue
+    FROM months m
+    LEFT JOIN actuals a ON a.month = m.month
+    ORDER BY m.month
+  `)
+
+  return (rawRows as unknown[]).map((r) => {
+    const row = r as Record<string, unknown>
+    return { month: String(row.month), revenue: Number(row.revenue ?? 0) }
+  })
+}
+
+/**
+ * Status per customer (Active/Dormant/Reactivated/Relapsed) untuk SATU
+ * periode (2026-08-24, susulan pertanyaan user soal ambiguitas reaktivasi —
+ * lihat JSDoc CustomerDormantStatusRow di metrics.types.ts). Pembongkaran
+ * per-customer dari angka agregat fetchDormantTrend, bukan pengganti angka
+ * itu (dormant_count/reactivated_count TETAP net status akhir saja). Dipakai
+ * drill-down klik-titik-chart M10 + bahan tabel laporan nanti.
+ *
+ * bucket/prevBucket TERPISAH dari parameter buckets[]/prevBuckets[] milik
+ * fetchDormantTrend (array 12 titik) — di sini cuma SATU titik yang diklik,
+ * dihitung service layer via pola SAMA PERSIS getExpansionBreakdown (M7,
+ * prevDateFrom/prevDateTo period-anchored + proporsional).
+ */
+export async function fetchCustomerDormantStatusLog(
+  p: SegmentParams,
+  bucket: { start: string; end: string },
+  prevBucket: { start: string; end: string },
+): Promise<CustomerDormantStatusRow[]> {
+  const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
@@ -311,15 +520,8 @@ export async function fetchReactivatedCustomers(p: SegmentParams): Promise<React
   const rawRows = await db.execute(sql`
     WITH
     ${cteCustDivision(p)},
-    bounds AS (
-      SELECT
-        date_trunc('month', ${filterDate}::date)::date AS month_start,
-        (date_trunc('month', ${filterDate}::date) - INTERVAL '1 day')::date AS prev_me,
-        LEAST((date_trunc('month', ${filterDate}::date) + INTERVAL '1 month' - INTERVAL '1 day')::date,
-              ${filterDate}::date)                                          AS me
-    ),
     inv AS (
-      SELECT i.customer_id, i.invoice_date
+      SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
@@ -334,57 +536,129 @@ export async function fetchReactivatedCustomers(p: SegmentParams): Promise<React
         AND ${excludeIntercompanyCond}
     ),
     scoped_cust AS (
-      SELECT DISTINCT c.id AS cid
+      SELECT DISTINCT c.id AS cid, c.first_invoice_date AS first_date,
+        ${dormantThresholdSql} AS dormant_threshold
       FROM customers c
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false
         AND ${companyCondC}
         AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
     ),
-    cust_agg AS (
+    -- last_at_me/reactivation_date TIDAK di-cap p.filterDate lagi (2026-08-24,
+    -- bug: caller (Top 5 M10) kirim segParams.filterDate = baseline dormant
+    -- SNAPSHOT (mis. 31 Juli), beda arti dari bucket.end yang di sini bisa
+    -- jadi window LIVE periode berjalan (mis. 24 Agustus) — LEAST(...)
+    -- keduanya diam-diam motong balik ke 31 Juli, reaktivasi selalu 0
+    -- baris. bucket.end dari caller SUDAH final (elapsed-clamp sudah
+    -- terjadi di service layer), tidak perlu guard tambahan.
+    cxm AS (
       SELECT
-        c.id                    AS customer_id,
+        sc.cid,
         c.customer_name,
         c.customer_code,
-        co.name                 AS company_name,
-        MAX(inv.invoice_date) FILTER (WHERE inv.invoice_date <= b.prev_me) AS last_before,
+        co.name                                                              AS company_name,
+        sc.dormant_threshold,
+        (sc.first_date < ${bucket.start}::date)                              AS is_existing_at_me,
+        MAX(inv.invoice_date) FILTER (
+          WHERE inv.invoice_date <= ${bucket.end}::date
+        )                                                                    AS last_at_me,
+        MAX(inv.invoice_date) FILTER (
+          WHERE inv.invoice_date <= ${prevBucket.end}::date
+        )                                                                    AS last_at_prev_me,
         MIN(inv.invoice_date) FILTER (
-          WHERE inv.invoice_date > b.prev_me AND inv.invoice_date <= b.me
-        )                                                                  AS reactivation_date,
-        ${dormantThresholdSql}                                             AS dormant_threshold
+          WHERE inv.invoice_date > ${prevBucket.end}::date
+            AND inv.invoice_date <= ${bucket.end}::date
+        )                                                                    AS reactivation_date
       FROM scoped_cust sc
       JOIN customers c ON c.id = sc.cid
       JOIN companies co ON co.id = c.company_id
-      CROSS JOIN bounds b
-      LEFT JOIN inv ON inv.customer_id = c.id
-      LEFT JOIN cust_division cdv ON cdv.cid = c.id
-      GROUP BY c.id, c.customer_name, c.customer_code, co.name, b.prev_me, b.me, c.division_override_id, cdv.division_id
+      LEFT JOIN inv ON inv.customer_id = sc.cid
+      GROUP BY sc.cid, c.customer_name, c.customer_code, co.name, sc.dormant_threshold, sc.first_date
+    ),
+    -- avg_monthly_revenue (2026-08-24, instruksi user: "urutkan berdasarkan
+    -- avg revenue nya tertinggi diantara reactivation lainnya" — tie-break
+    -- Top 5 M10 yang sebelumnya kebetulan alfabetis, bukan kriteria bisnis)
+    -- — rev 12 bulan trailing SEBELUM customer dormant (last_at_prev_me,
+    -- SUDAH dihitung di cxm), pola SAMA PERSIS cust_agg/avg_monthly_revenue
+    -- di fetchDormantValueRanking (M9) di atas — REUSE definisi, bukan
+    -- kriteria baru. Perlu CTE terpisah krn agregat tidak boleh nested
+    -- (SUM(...) pakai batas dari MAX(...) row yang sama).
+    rev_agg AS (
+      SELECT
+        cxm.cid,
+        COALESCE(SUM(inv.rev) FILTER (
+          WHERE inv.invoice_date <= cxm.last_at_prev_me
+            AND inv.invoice_date >= DATE_TRUNC('month', cxm.last_at_prev_me::date - INTERVAL '11 months')
+        ), 0) AS recent_12m_rev
+      FROM cxm
+      LEFT JOIN inv ON inv.customer_id = cxm.cid
+      GROUP BY cxm.cid, cxm.last_at_prev_me
+    ),
+    -- classified (materialisasi was_dormant_at_prev/is_dormant_at_me DULU di
+    -- CTE terpisah, supaya SELECT luar bisa pakai alias itu berkali-kali di
+    -- CASE WHEN status TANPA menulis ulang kondisinya — sama alasan CTE
+    -- ranked di fetchDormantValueRanking, Postgres larang window function
+    -- reference alias sendiri, tapi CASE WHEN biasa aman asal DARI CTE lain).
+    classified AS (
+      SELECT
+        cxm.cid, cxm.customer_name, cxm.customer_code, cxm.company_name,
+        cxm.last_at_prev_me::text                                            AS last_invoice_before_period,
+        cxm.reactivation_date::text                                          AS reactivation_date,
+        cxm.last_at_me::text                                                 AS last_invoice_in_period,
+        ROUND(rev_agg.recent_12m_rev / 12.0)::bigint                         AS avg_monthly_revenue,
+        (cxm.last_at_prev_me IS NOT NULL
+          AND cxm.last_at_prev_me <= ${prevBucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
+        )                                                                    AS was_dormant_at_prev,
+        (cxm.last_at_me IS NOT NULL
+          AND cxm.last_at_me <= ${bucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
+        )                                                                    AS is_dormant_at_me,
+        CASE
+          WHEN cxm.last_at_me IS NOT NULL
+            AND cxm.last_at_me <= ${bucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
+          THEN (cxm.last_at_me + cxm.dormant_threshold * INTERVAL '1 month')::date::text
+          ELSE NULL
+        END                                                                  AS dormant_since_date
+      FROM cxm
+      JOIN rev_agg ON rev_agg.cid = cxm.cid
+      WHERE cxm.is_existing_at_me
     )
     SELECT
-      customer_id,
-      customer_name,
-      customer_code,
-      company_name,
-      last_before::text        AS previous_last_invoice_date,
-      reactivation_date::text  AS reactivation_date,
-      GREATEST(ROUND(((SELECT prev_me FROM bounds) - last_before) / 30.0)::int, 1) AS months_was_dormant
-    FROM cust_agg
-    WHERE last_before IS NOT NULL
-      AND last_before <= (SELECT prev_me FROM bounds) - dormant_threshold * INTERVAL '1 month'
-      AND reactivation_date IS NOT NULL
-    ORDER BY reactivation_date DESC
-    LIMIT 20
+      cid AS customer_id, customer_name, customer_code, company_name,
+      CASE
+        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me  THEN 'relapsed'
+        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND NOT is_dormant_at_me THEN 'reactivated'
+        WHEN is_dormant_at_me                                                            THEN 'dormant'
+        ELSE 'active'
+      END                                                                    AS status,
+      last_invoice_before_period,
+      reactivation_date,
+      last_invoice_in_period,
+      avg_monthly_revenue,
+      dormant_since_date
+    FROM classified
+    ORDER BY
+      CASE
+        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me  THEN 0
+        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND NOT is_dormant_at_me THEN 1
+        WHEN is_dormant_at_me                                                            THEN 2
+        ELSE 3
+      END,
+      customer_name
   `)
 
   return (rawRows as unknown[]).map((r) => {
     const row = r as Record<string, unknown>
     return {
-      customer_id:                Number(row.customer_id),
+      customer_id:                 Number(row.customer_id),
       customer_name:               String(row.customer_name),
-      customer_code:               row.customer_code != null ? String(row.customer_code) : null,
-      company_name:                String(row.company_name ?? ''),
-      previous_last_invoice_date:  String(row.previous_last_invoice_date ?? ''),
-      reactivation_date:           String(row.reactivation_date ?? ''),
-      months_was_dormant:          Number(row.months_was_dormant ?? 0),
+      customer_code:                row.customer_code != null ? String(row.customer_code) : null,
+      company_name:                 String(row.company_name ?? ''),
+      status:                       row.status as CustomerDormantStatusRow['status'],
+      last_invoice_before_period:   row.last_invoice_before_period != null ? String(row.last_invoice_before_period) : null,
+      reactivation_date:            row.reactivation_date != null ? String(row.reactivation_date) : null,
+      last_invoice_in_period:       row.last_invoice_in_period != null ? String(row.last_invoice_in_period) : null,
+      avg_monthly_revenue:          Number(row.avg_monthly_revenue ?? 0),
+      dormant_since_date:           row.dormant_since_date != null ? String(row.dormant_since_date) : null,
     }
   })
 }

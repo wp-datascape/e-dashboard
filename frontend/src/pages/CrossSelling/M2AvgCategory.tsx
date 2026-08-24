@@ -28,9 +28,8 @@ import { useCrossSelling, useCrossSellingDetail } from '@/hooks/useMetrics';
 import type { CrossSellingData, CrossSellingTrendPoint } from '@/types/metrics';
 import { SectionLabel, KpiCard } from './HelperComponents';
 import { formatRupiah } from '@/utils/format';
-import { formatDateID } from '@/utils/date';
 import {
-  shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort,
+  shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort, formatPeriodRangeSub,
   getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday,
   buildDrilldownPeriodParams, getMomComparisonPeriodEnd,
 } from '@/utils/analisisPeriod';
@@ -77,7 +76,7 @@ function M2Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
 
   return (
     <ChartTooltipCard
-      title={t('crossSelling.m2TooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      title={t('crossSelling.m2TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
         { label: t('crossSelling.m2SeriesSingleCategory'), value: String(d.single_category) },
         { label: t('crossSelling.m2SeriesMultiCategory'), value: String(d.multi_product) },
@@ -112,8 +111,6 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
   const theme = useTheme();
   const navigate = useNavigate();
 
-  const periodUnit = t(`dashboard.periodUnit.${periodType}`);
-
   // Chart Trend Analysis (koreksi user 2026-08-21: "1. Total customer -> tinggi
   // stacked bar/area, 2. Single Category -> bagian pertama, 3. Multi Category ->
   // bagian kedua, 4. Avg Category -> line") — single_category DIHITUNG di sini
@@ -132,8 +129,14 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
   const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd));
   const yoyPeriodKey = getYoyPeriodKey(periodType, periodKey);
   const yoyPeriodEnd = shiftDateByYears(periodEnd, -1);
-  const currentPeriodLabel = formatPeriodLabel(periodType, periodKey);
-  const yoyComparisonLabel = formatPeriodLabel(periodType, yoyPeriodKey);
+  const currentPeriodLabel = formatPeriodLabel(t, periodType, periodKey);
+  const yoyComparisonLabel = formatPeriodLabel(t, periodType, yoyPeriodKey);
+  // periodPhrase (2026-08-25, koreksi KERAS user di M1 — pola sama persis
+  // diterapkan di sini) — huruf kecil di awal, dipakai sisipan tengah
+  // kalimat (`kpi2Sub`).
+  const periodPhrase = data?.period
+    ? (() => { const s = formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end); return s.charAt(0).toLowerCase() + s.slice(1) })()
+    : '';
 
   // Header Current/YoY/Change — fetch terpisah, endpoint sama cuma period_end
   // digeser -1 tahun (pola sama persis M1CrossSelling.tsx).
@@ -162,6 +165,11 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
 
   // ─── Drill-down (klik titik grafik avg-category) ────────────────────────
   const [drillDate, setDrillDate] = useState<string | null>(null);
+  // drillMonth (2026-08-25, susulan koreksi user di M1 — dialog subtitle
+  // butuh label periode NATURAL titik yang diklik, bukan cuma tanggal akhir
+  // query, spy formatPeriodRangeSub bisa tampilkan "Kuartal 3 Tahun 2026"
+  // bukan cuma rentang tanggal utk granularitas lebar).
+  const [drillMonth, setDrillMonth] = useState<string | null>(null);
   // periodParams dirakit SATU tempat pusat (buildDrilldownPeriodParams,
   // utils/analisisPeriod.ts) dari state filter halaman (periodType/periodEnd/
   // applyDateCutoff) — bukan diturunkan ulang di sini (2026-08-23, koreksi
@@ -264,7 +272,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
               <KpiCard
                 label={t('crossSelling.kpi2Label')}
                 value={data?.kpi2.avg_categories ?? 0}
-                sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, unit: periodUnit })}
+                sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, period: periodPhrase })}
                 color={theme.palette.info.main}
               />
             )}
@@ -274,10 +282,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
               <KpiCard
                 label={t('crossSelling.activeCustomerLabel')}
                 value={data?.kpi1.active_count ?? 0}
-                sub={t('crossSelling.activeCustomerSub', {
-                  start: data?.period.start ? formatDateID(data.period.start) : '—',
-                  end: data?.period.end ? formatDateID(data.period.end) : '—',
-                })}
+                sub={data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
                 color={theme.palette.success.main}
               />
             )}
@@ -352,10 +357,11 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
                 formatLine={(v) => v.toFixed(2)}
                 xKey="month"
                 height={220}
-                xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+                xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
                 renderTooltip={(props) => <M2Tooltip {...props} periodType={periodType} />}
                 onBarClick={(d) => {
                   const month = String(d.month ?? '');
+                  setDrillMonth(month);
                   setDrillDate(clampPeriodEndToToday(periodType, month, getPeriodDateRange(periodType, month).end));
                 }}
               />
@@ -448,7 +454,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
           AreaChartWidget.tsx) */}
       <Dialog
         open={!!drillDate}
-        onClose={() => setDrillDate(null)}
+        onClose={() => { setDrillDate(null); setDrillMonth(null); }}
         maxWidth="md"
         title={t('crossSelling.m2DialogTitle')}
         showCloseButton
@@ -460,13 +466,16 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
         // periode), pola sama persis dialog drill-down M1.1 (heatmap cell) —
         // reuse key `m11DialogSubtitle` yang sama, jadi standar di semua
         // dialog drilldown, bukan duplikasi teks per KPI.
+        //
+        // formatPeriodRangeSub (2026-08-25, koreksi KERAS user di M1) —
+        // granularitas lebar tampilkan label ("Kuartal 3 Tahun 2026"),
+        // bukan rentang tanggal mentah. `drillMonth` = periodKey NATURAL
+        // titik yang diklik (BUKAN dihitung ulang dari drillData.period,
+        // yang cuma tanggal, tidak py info periodKey-nya sendiri).
         subtitle={drillData && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary">
-              {t('crossSelling.m11DialogSubtitle', {
-                start: formatDateID(drillData.period.start),
-                end: formatDateID(drillData.period.end),
-              })}
+              {drillMonth ? formatPeriodRangeSub(t, periodType, drillMonth, drillData.period.start, drillData.period.end) : ''}
             </Typography>
             {([
               [t('crossSelling.m2DialogAvgCategories'), String(drillData.kpi2.avg_categories)],

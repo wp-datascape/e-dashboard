@@ -6,12 +6,21 @@ import type { RorBreakdownRow } from '../metrics.types'
 
 export async function fetchRorBreakdown(
   p: SegmentParams,
+  // dateFrom (2026-08-24, koreksi user: M6RepeatOrder.tsx sekarang dipakai
+  // di Retention page yang SUDAH py filter granularitas Kuartal/Semester/
+  // Tahun — sebelumnya drilldown ini SELALU anchor ke awal BULAN kalender
+  // dari filterDate, salah utk granularitas non-bulanan (populasi "existing"
+  // & window agregat repeat_buyers beda dari yang dipakai trend chart).
+  // Pola SAMA PERSIS fetchGpBreakdown (M4)/fetchExpansionBreakdown (M7) —
+  // opsional, fallback ke awal bulan lama kalau kosong (caller belum wired,
+  // mis. Value/CustomerMetrics workbench yang memang belum py granularitas).
+  dateFrom?: string,
 ): Promise<{ rows: RorBreakdownRow[]; repeat_count: number; total_existing: number }> {
   const { filterDate, activeMonths, division } = p
-  // periodStart (task029 §30.10, 2026-08-23) — M6 belum py filter
-  // granularitas periode (belum ada dateFrom), anchor ke awal BULAN kalender
-  // yang memuat filterDate (default "Bulanan"), bukan activeMonths mentah.
-  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
+  const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
+  const rangeStartCond = dateFrom
+    ? sql`i.invoice_date >= ${dateFrom}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -28,7 +37,7 @@ export async function fetchRorBreakdown(
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
         AND ${companyCondI}
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${rangeStartCond}
         AND i.invoice_date <= ${filterDate}::date
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND ${branchCond}

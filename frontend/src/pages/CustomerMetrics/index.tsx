@@ -106,10 +106,10 @@ export default function CustomerMetrics() {
             isLoading={isLoading}
             value={ror?.value ?? 0}
             thresholdPct={ror?.target_pct ?? 80}
+            trend={data?.trend}
             companyId={companyId}
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
-            periodEnd={periodEnd}
             excludeIntercompany={excludeIntercompany}
           />
         </Grid>

@@ -44,9 +44,18 @@ interface KpiHeaderProps {
   currentPeriodLabel: string;
   /** Label periode pembanding YoY, mis. "Kuartal 2 Tahun 2025" */
   comparisonLabel: string;
+  /** Apakah "naik" = bagus untuk metrik ini — default true (Revenue,
+   * Cross-Sell Rate, Repeat Order Rate, Reactivation Rate, dst — SEMUA
+   * caller sebelum ini). Set `false` utk metrik yang arahnya kebalik (mis.
+   * Dormant Rate — naik = customer makin banyak hilang, harus MERAH bukan
+   * HIJAU). 2026-08-24, ditemukan user via screenshot: "ini kenaikan
+   * dormant, bukan omset, kenapa kamu pakai warna hijau?" — panah TETAP
+   * ikut arah angka sebenarnya (naik tetap panah ke atas), cuma WARNA
+   * chip yang dibalik. */
+  higherIsBetter?: boolean;
 }
 
-export function KpiHeader({ current, yoy, kpiType, formatValue, currentPeriodLabel, comparisonLabel }: KpiHeaderProps) {
+export function KpiHeader({ current, yoy, kpiType, formatValue, currentPeriodLabel, comparisonLabel, higherIsBetter = true }: KpiHeaderProps) {
   const { t } = useTranslation();
   const fmt = formatValue ?? ((v: number) => v.toLocaleString('id-ID'));
 
@@ -68,7 +77,10 @@ export function KpiHeader({ current, yoy, kpiType, formatValue, currentPeriodLab
     changeLabel = `${diff >= 0 ? '+' : ''}${fmt(diff)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
     direction = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
   }
-  const chipColor = direction === 'up' ? 'success' : direction === 'down' ? 'error' : 'default';
+  // Ikon panah TETAP ikut arah angka sebenarnya (naik = panah ke atas),
+  // cuma warna "bagus/buruk" yang dibalik utk metrik higherIsBetter=false.
+  const isGood = direction === 'flat' ? null : (direction === 'up') === higherIsBetter;
+  const chipColor = isGood === null ? 'default' : isGood ? 'success' : 'error';
   const TrendIcon = direction === 'up' ? TrendingUpIcon : direction === 'down' ? TrendingDownIcon : RemoveIcon;
 
   return (
