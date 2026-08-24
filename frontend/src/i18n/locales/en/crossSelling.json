@@ -62,7 +62,6 @@
   "heatmapKpiAvgCategorySub": "From the top {{count}} customers",
   "heatmapKpiTopCategoryLabel": "Most Popular Category",
   "heatmapKpiTopCategorySub": "{{count}} of {{total}} customers bought this category",
-  "heatmapSubtitle2": "Click to see detail",
   "heatmapTooltip": "Row = customer (top 30 by revenue).\nColumn = product category.\nCell value = transaction count for that customer in that category, \"—\" = never bought.\nTotal Revenue = that customer's total purchases across all categories.",
   "m11ColProduct": "Product",
   "m11ColRevenue": "Revenue",

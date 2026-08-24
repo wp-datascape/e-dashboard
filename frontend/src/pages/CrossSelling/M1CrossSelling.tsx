@@ -13,7 +13,6 @@ import GridOnIcon from '@mui/icons-material/GridOn';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
@@ -685,29 +684,16 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
                       </IconButton>
                     </MuiTooltip>
                   </Box>
-                  {/* Susulan (2026-08-22, instruksi user: "untuk teks ini
-                      [Klik sel untuk melihat detail produk] letakkan di
-                      sebelah kanan, tambahkan chip supaya lebih membuat
-                      orang ter-notice") — dari teks caption polos baris
-                      sendiri, PINDAH ke kanan (justifyContent:
-                      'space-between', 1 baris sama dgn chip kategori),
-                      DAN dibungkus `StatusChip` (atomic, warna `info` —
-                      beda dari Chip abu-abu "6 kategori" di sebelahnya,
-                      biar kontras & kelihatan lebih menonjol/
-                      "notice-able" sesuai instruksi). */}
-                  {/* Susulan (2026-08-22, instruksi user: "text 6 kategori
-                      samakan ukuran teks sesuai dengan klik sel...") —
-                      Chip MUI polos (`size="small"` default font ~0.81rem)
-                      diganti `StatusChip` (atomic, sama persis dipakai
-                      chip CTA di sampingnya, font 0.68rem) — biar 2 chip
-                      ini SAMA besar tulisannya, `color="default"` (abu2,
-                      beda dari CTA yang "info"/cyan) biar tetap kebeda
-                      secara peran (info netral vs ajakan aksi). */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 0.5 }}>
+                  {/* Chip "Klik untuk lihat detail" DIHAPUS (2026-08-24,
+                      koreksi user: "tooltip heatmap belum kamu perbaiki" —
+                      pola sama persis M1/M2/M7 chart: chip permanen di
+                      header dihapus, hint klik dipindah ke tooltip cell
+                      heatmap sendiri (HeatmapWidget.tsx), muncul persis
+                      saat user hover/tap sel yang bisa diklik). */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     {data?.categories && data.categories.length > 0 && (
                       <StatusChip label={t('crossSelling.categoriesCountChip', { count: data.categories.length })} color="default" />
                     )}
-                    <StatusChip icon={<TouchAppIcon />} label={t('crossSelling.heatmapSubtitle2')} color="info" />
                   </Box>
 
                   {/* Susulan (2026-08-22, instruksi user: "apakah lebih baik
