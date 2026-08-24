@@ -2,9 +2,11 @@ import { Card } from '@/components/ui';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
+import Divider from '@mui/material/Divider';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ChartTooltipCard } from '@/components/charts/ChartTooltipCard';
 import { formatIDR } from '@/utils/format';
 
@@ -43,20 +45,40 @@ export interface HeatmapWidgetProps {
   icon?: React.ElementType;
 }
 
-// ─── Matrix Heatmap (dipakai mobile MAUPUN desktop) ────────────────────────────
-// Sebelumnya mobile pakai layout terpisah (card per-customer + chip produk),
-// desktop pakai matrix. Koreksi user (2026-08-24, "heatmap kalau
-// mempertahankan bentuknya untuk mode mobile bisa?" lalu "perkecil ukuran
-// kotaknya, jadi tidak ada scroll horisontal") — SATU layout matrix dipakai
-// di semua breakpoint, ROW_LABEL_WIDTH/COL_MIN_WIDTH diperkecil khusus
-// mobile supaya kolom kategori yang wajar (4-6) muat tanpa scroll horizontal
-// di layar ~360-390px. `overflowX:'auto'` TETAP dipertahankan sbg fallback
-// aman (bukan dihapus) — kalau company py kategori sangat banyak (dinamis,
-// tidak ada batas atas), tetap bisa discroll, bukan layout pecah.
-const COL_MIN_WIDTH_DESKTOP = 80;
-const COL_MIN_WIDTH_MOBILE = 42;
-const ROW_LABEL_WIDTH_DESKTOP = 160;
-const ROW_LABEL_WIDTH_MOBILE = 76;
+// Konten tooltip cell (2026-08-24) — dipusatkan, dipakai matrix desktop
+// MAUPUN grid mobile (di bawah), supaya format tooltip selalu identik
+// di kedua layout tanpa duplikasi logic.
+function CellTooltipContent({
+  t, customer, label, val, revenue, bought, clickable,
+}: {
+  t: TFunction; customer: string; label: string; val: number; revenue: number; bought: boolean; clickable: boolean;
+}) {
+  return (
+    <ChartTooltipCard
+      title={t('common.heatmap.cellTooltipTitle', { customer, label })}
+      rows={
+        bought
+          ? [
+              { label: t('common.heatmap.rowTransactionCount'), value: String(val) },
+              { label: t('common.heatmap.colTotalRevenue'), value: formatIDR(revenue) },
+            ]
+          : [{ label: t('common.heatmap.rowStatus'), value: t('common.heatmap.statusNo') }]
+      }
+      hint={clickable ? t('common.heatmap.cellClickHint') : undefined}
+      minWidth={200}
+    />
+  );
+}
+
+// arrow DIHAPUS, tooltip background transparan (2026-08-24) — tooltip chart
+// M1/M2/M7 (recharts, ChartTooltipCard sbg content) juga box polos tanpa
+// panah, disamakan biar layoutnya IDENTIK persis. Dipakai matrix desktop
+// MAUPUN grid mobile.
+const cellTooltipSlotProps = { tooltip: { sx: { bgcolor: 'transparent', p: 0, maxWidth: 'none', boxShadow: 'none' } } };
+
+// ─── Desktop: Full Heatmap Matrix ─────────────────────────────────────────────
+const COL_MIN_WIDTH = 80;
+const ROW_LABEL_WIDTH = 160;
 
 function HeatmapMatrixView({
   xLabels,
@@ -68,20 +90,16 @@ function HeatmapMatrixView({
   onCellClick?: (row: HeatmapRow, label: string) => void;
 }) {
   const { t } = useTranslation();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const colMinWidth = isMobile ? COL_MIN_WIDTH_MOBILE : COL_MIN_WIDTH_DESKTOP;
-  const rowLabelWidth = isMobile ? ROW_LABEL_WIDTH_MOBILE : ROW_LABEL_WIDTH_DESKTOP;
   const hasRevenue = data.some((r) => r.totalRevenue !== undefined);
-  const innerMinWidth = rowLabelWidth + (xLabels.length + (hasRevenue ? 1 : 0)) * colMinWidth;
+  const innerMinWidth = ROW_LABEL_WIDTH + (xLabels.length + (hasRevenue ? 1 : 0)) * COL_MIN_WIDTH;
 
   return (
     <Box sx={{ overflowX: 'auto' }}>
       {/* Header row */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75, minWidth: innerMinWidth }}>
-        <Box sx={{ width: rowLabelWidth, flexShrink: 0 }} />
+        <Box sx={{ width: ROW_LABEL_WIDTH, flexShrink: 0 }} />
         {xLabels.map((label) => (
-          <Box key={label} sx={{ flex: 1, textAlign: 'center', px: 0.5, minWidth: colMinWidth }}>
+          <Box key={label} sx={{ flex: 1, textAlign: 'center', px: 0.5, minWidth: COL_MIN_WIDTH }}>
             <Typography
               variant="caption"
               sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}
@@ -91,7 +109,7 @@ function HeatmapMatrixView({
           </Box>
         ))}
         {hasRevenue && (
-          <Box sx={{ flex: 1, textAlign: 'center', px: 0.5, minWidth: colMinWidth }}>
+          <Box sx={{ flex: 1, textAlign: 'center', px: 0.5, minWidth: COL_MIN_WIDTH }}>
             <Typography
               variant="caption"
               sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}
@@ -111,7 +129,7 @@ function HeatmapMatrixView({
           {/* Sticky row label */}
           <Box
             sx={{
-              width: rowLabelWidth,
+              width: ROW_LABEL_WIDTH,
               flexShrink: 0,
               pr: 1,
               position: 'sticky',
@@ -142,34 +160,21 @@ function HeatmapMatrixView({
             return (
               <Tooltip
                 key={label}
-                // Layout disamakan ChartTooltipCard (2026-08-24, koreksi
-                // user: "kenapa layout tidak sama dengan tooltip lainnya"
-                // — sebelumnya string polos, sekarang atomic component
-                // sama persis M1/M2/M7 chart. Hint klik cuma ditambahkan
-                // utk sel yang BENAR-BENAR bisa diklik (bought &&
-                // onCellClick) — sel kosong tidak ada aksi apa pun.
                 title={
-                  <ChartTooltipCard
-                    title={t('common.heatmap.cellTooltipTitle', { customer: row.customer, label })}
-                    rows={
-                      bought
-                        ? [
-                            { label: t('common.heatmap.rowTransactionCount'), value: String(val) },
-                            { label: t('common.heatmap.colTotalRevenue'), value: formatIDR(revenue) },
-                          ]
-                        : [{ label: t('common.heatmap.rowStatus'), value: t('common.heatmap.statusNo') }]
-                    }
-                    hint={bought && onCellClick ? t('common.heatmap.cellClickHint') : undefined}
-                    minWidth={200}
+                  <CellTooltipContent
+                    t={t}
+                    customer={row.customer}
+                    label={label}
+                    val={val}
+                    revenue={revenue}
+                    bought={bought}
+                    clickable={bought && !!onCellClick}
                   />
                 }
-                // arrow DIHAPUS (2026-08-24) — tooltip chart M1/M2/M7
-                // (recharts, ChartTooltipCard sbg content) juga box polos
-                // tanpa panah, disamakan biar layoutnya IDENTIK persis.
-                slotProps={{ tooltip: { sx: { bgcolor: 'transparent', p: 0, maxWidth: 'none', boxShadow: 'none' } } }}
+                slotProps={cellTooltipSlotProps}
                 placement="top"
               >
-                <Box sx={{ flex: 1, px: 0.5, minWidth: colMinWidth }}>
+                <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH }}>
                   <Box
                     onClick={bought && onCellClick ? () => onCellClick(row, label) : undefined}
                     sx={{
@@ -196,7 +201,7 @@ function HeatmapMatrixView({
 
           {/* Total revenue column */}
           {hasRevenue && (
-            <Box sx={{ flex: 1, px: 0.5, minWidth: colMinWidth, textAlign: 'center' }}>
+            <Box sx={{ flex: 1, px: 0.5, minWidth: COL_MIN_WIDTH, textAlign: 'center' }}>
               <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'success.main' }}>
                 {formatIDR(row.totalRevenue ?? 0)}
               </Typography>
@@ -206,7 +211,121 @@ function HeatmapMatrixView({
       ))}
 
       {/* Legend */}
-      <Box sx={{ display: 'flex', gap: 2, mt: 1.5, minWidth: innerMinWidth, pl: `${rowLabelWidth}px` }}>
+      <Box sx={{ display: 'flex', gap: 2, mt: 1.5, minWidth: innerMinWidth, pl: `${ROW_LABEL_WIDTH}px` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ width: 14, height: 14, bgcolor: 'success.main', borderRadius: 0.5 }} />
+          <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+            {t('common.heatmap.legendBought')}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ width: 14, height: 14, bgcolor: 'action.hover', borderRadius: 0.5 }} />
+          <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+            {t('common.heatmap.legendNotBought')}
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// ─── Mobile: Grid 2-kolom per Customer ─────────────────────────────────────────
+// Koreksi user (2026-08-24, "Aku ingin menghindar scroll ke samping dan
+// mencegah text tidak terbaca" -> "Kalau dibuat jadi 2 kolom heatmap
+// seperti ini? Tetap memakai kotak kotak tersebut") — matrix sejajar-kolom
+// TIDAK dipakai lagi di mobile (jumlah kategori dinamis tidak ada batas
+// atas, mustahil dijamin muat tanpa scroll DAN teks tetap terbaca kalau
+// tetap dipaksa 1 baris per customer). Tiap customer jadi blok: nama+total
+// revenue di atas (selalu terlihat), lalu grid 2-kolom TETAP (bukan
+// flex-wrap ikut panjang teks — itu bikin tepian berantakan) berisi kotak
+// kategori (label+jumlah di dalam kotak, karena kolom antar-baris kategori
+// tidak lagi sejajar seperti matrix). Wrap otomatis ke baris berikutnya
+// kalau kategori > 2, TANPA scroll horizontal sama sekali.
+function HeatmapMobileGridView({
+  xLabels,
+  data,
+  onCellClick,
+}: {
+  xLabels: string[];
+  data: HeatmapRow[];
+  onCellClick?: (row: HeatmapRow, label: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Box>
+      {data.map((row, idx) => (
+        <Box key={row.customer}>
+          {idx > 0 && <Divider sx={{ my: 1.5 }} />}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 600, fontSize: '0.8rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {row.customer}
+            </Typography>
+            {row.totalRevenue !== undefined && (
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.main', flexShrink: 0 }}>
+                {formatIDR(row.totalRevenue)}
+              </Typography>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+            {xLabels.map((label) => {
+              const val = row.values[label] ?? 0;
+              const bought = val > 0;
+              const revenue = row.revenues?.[label] ?? 0;
+              return (
+                <Tooltip
+                  key={label}
+                  title={
+                    <CellTooltipContent
+                      t={t}
+                      customer={row.customer}
+                      label={label}
+                      val={val}
+                      revenue={revenue}
+                      bought={bought}
+                      clickable={bought && !!onCellClick}
+                    />
+                  }
+                  slotProps={cellTooltipSlotProps}
+                  placement="top"
+                >
+                  <Box
+                    onClick={bought && onCellClick ? () => onCellClick(row, label) : undefined}
+                    sx={{
+                      bgcolor: bought ? 'success.main' : 'action.hover',
+                      color: bought ? 'common.white' : 'text.disabled',
+                      borderRadius: 0.5,
+                      py: 0.75,
+                      px: 0.5,
+                      textAlign: 'center',
+                      cursor: bought && onCellClick ? 'pointer' : 'default',
+                      transition: 'opacity 0.15s',
+                      '&:active': { opacity: 0.8 },
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{ display: 'block', fontSize: '0.66rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {label}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                      {bought ? val : '—'}
+                    </Typography>
+                  </Box>
+                </Tooltip>
+              );
+            })}
+          </Box>
+        </Box>
+      ))}
+
+      {/* Legend */}
+      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box sx={{ width: 14, height: 14, bgcolor: 'success.main', borderRadius: 0.5 }} />
           <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
@@ -226,6 +345,9 @@ function HeatmapMatrixView({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const HeatmapWidget = ({ title, subtitle, headerContent, xLabels, data, onCellClick, icon: Icon }: HeatmapWidgetProps) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
     <Card sx={{ p: 2 }}>
       {/* Header — title/subtitle keduanya opsional (2026-08-21, koreksi user:
@@ -250,10 +372,14 @@ export const HeatmapWidget = ({ title, subtitle, headerContent, xLabels, data, o
         </Box>
       )}
 
-      {/* Satu layout matrix di semua breakpoint (2026-08-24, lihat komentar
-          HeatmapMatrixView) — mobileSubtitle override & MobileCustomerListView
-          DIHAPUS, tidak relevan lagi krn tidak ada lagi layout kartu terpisah. */}
-      <HeatmapMatrixView xLabels={xLabels} data={data} onCellClick={onCellClick} />
+      {/* Mobile: grid 2-kolom per customer (HeatmapMobileGridView). Desktop:
+          matrix sejajar-kolom (HeatmapMatrixView) — lihat komentar
+          masing-masing di atas. */}
+      {isMobile ? (
+        <HeatmapMobileGridView xLabels={xLabels} data={data} onCellClick={onCellClick} />
+      ) : (
+        <HeatmapMatrixView xLabels={xLabels} data={data} onCellClick={onCellClick} />
+      )}
     </Card>
   );
 };
