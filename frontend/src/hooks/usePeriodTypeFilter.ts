@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ParetoPeriodType } from '@/types/paretoThresholds'
 import {
   getCurrentPeriodKey,
@@ -39,6 +40,7 @@ function todayISODate(): string {
  * granularitas ini (rencana: 1 KPI dulu jadi contoh, baru KPI lain).
  */
 export function usePeriodTypeFilter(initialType: PeriodGranularity = 'monthly') {
+  const { t } = useTranslation()
   const [periodType, setPeriodType] = useState<PeriodGranularity>(initialType)
   // "Tanggal" — user pilih tanggal PERSIS (bukan bulan/kuartal), start range
   // selalu awal periode yang mengandung tanggal itu, end selalu tanggal itu
@@ -67,9 +69,9 @@ export function usePeriodTypeFilter(initialType: PeriodGranularity = 'monthly') 
     end: shiftDateByYears(endDate, -1),
   }
 
-  const periodLabel = formatPeriodLabel(periodType, periodKey)
-  const currentRangeText = formatDateRange(currentRange)
-  const comparisonRangeText = formatDateRange(comparisonRange)
+  const periodLabel = formatPeriodLabel(t, periodType, periodKey)
+  const currentRangeText = formatDateRange(t, currentRange)
+  const comparisonRangeText = formatDateRange(t, comparisonRange)
 
   const goToPrevious = () => setEndDateState(shiftEndDate(periodType, endDate, -1))
   const goToNext = () => {

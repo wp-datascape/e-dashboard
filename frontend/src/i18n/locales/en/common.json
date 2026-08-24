@@ -114,5 +114,12 @@
   },
   "report": {
     "comingSoon": "No tables here yet — will be added later."
+  },
+  "period": {
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "monthsShort": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "quarterLabel": "Quarter {{q}} {{year}}",
+    "semesterLabel": "Semester {{s}} {{year}}",
+    "ytdLabel": "through {{month}} {{year}}"
   }
 }

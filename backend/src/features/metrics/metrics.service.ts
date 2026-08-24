@@ -1,7 +1,7 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, resolveDormantCategory, resolveDormantMonths, getDormantCategoryMap } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
-import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchReactivatedCustomers, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCustomerDormantStatusLog, fetchDormantValueHistory, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
 // Reuse fetchDormantValueTrend (task025 §19, 2026-08-07) — sebelumnya cuma
 // dipakai Dashboard summary card, sekarang dipakai juga halaman KPI9
 // (Nilai Hilang) supaya bisa averageLastMonths sama seperti KPI8/KPI10.
@@ -13,11 +13,12 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
 import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart } from '@/features/analisis/period.util'
+import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, ProductTrendData } from './metrics.types'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
+import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData } from './metrics.types'
 
 // "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
 // sama sekali (bukan cuma angkanya, chip-nya juga) — beda dari data transaksi
@@ -428,28 +429,168 @@ function shiftDateByYears(dateStr: string, years: number): string {
 
 export async function getDormantCustomerMetrics(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantMetricsData> {
   try {
-    const filterDate = params.period_end ?? todayDate()
+    const periodEnd = params.period_end ?? todayDate()
+    const periodType = params.period_type ?? 'monthly'
+
+    // Granularitas periode (2026-08-24, susulan task029.md §30.9 poin 1 —
+    // M8-M10 sebelumnya hardcode 12 bulan kalender via generate_series,
+    // sekarang pola SAMA PERSIS getCustomerMetrics (M3-M7) di atas, REUSE
+    // bukan tulis ulang.
+    const [py, pm, pd] = periodEnd.split('-').map(Number)
+    const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+    const calendarRange = getPeriodRange(periodType, periodKey)
+
+    // Label bucket TETAP kalender asli (trailing 12 bulan sampai bulan
+    // berjalan — titik "Agustus" TETAP ada di trend hari ini), TAPI
+    // rentang TANGGAL DATA tiap bucket adalah bulan SEBELUM labelnya
+    // (2026-08-24, definisi FINAL dari user, dikonfirmasi berkali-kali:
+    // "customer dormant agustus adalah customer yang tidak ada transaksi
+    // sepanjang mei, juni, 31 juli" — DAN "customer yang tidak transaksi
+    // di bulan agustus ini baru masuk dormant di bulan september". Berlaku
+    // utk SEMUA field titik "Agustus" — dormant_count, total_customers,
+    // reactivated_count, dst, BUKAN cuma reactivation (percobaan sebelumnya
+    // yang cuma geser reactivation SALAH menurut user).
+    //
+    // PENTING: label yang ditampilkan ke user (chart, tooltip, judul
+    // dialog drilldown) SELALU pakai LABEL ini ("Agustus"/"2026-08"),
+    // TIDAK PERNAH bulan data mentahnya ("Juli"/"2026-07") — kebocoran itu
+    // yang bikin user marah ("NGAPAIN LU BERI JUDUL DORMANT 07-2026").
+    //
+    // Dikecualikan kalau `apply_date_cutoff` eksplisit aktif — mode lama,
+    // user SENGAJA minta potongan hari tertentu termasuk periode berjalan,
+    // pilihan eksplisit, TIDAK digeser (label = data bulan yang sama).
+    let resolvedBuckets: TrailingPeriodBucket[]
+    let liveBuckets: TrailingPeriodBucket[]
+    let periodEndDate: string
+    if (params.apply_date_cutoff) {
+      const buckets = buildTrailingPeriods(periodType, periodKey, 12)
+      const resolved = resolveTrendPeriod({
+        periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
+        applyDateCutoff: params.apply_date_cutoff,
+        cutoffDay: params.cutoff_day,
+        fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+        skipElapsedClamp: params.skip_elapsed_clamp,
+      })
+      periodEndDate = resolved.periodEndDate
+      resolvedBuckets = resolved.buckets
+      // Mode cutoff eksplisit: TIDAK ada konsep "live" terpisah, label = data
+      // bulan yang sama, jadi live_buckets = buckets biasa (lihat JSDoc
+      // fetchDormantTrend).
+      liveBuckets = resolved.buckets
+    } else {
+      const labelBuckets = buildTrailingPeriods(periodType, periodKey, 12)
+      resolvedBuckets = labelBuckets.map((b) => {
+        const dataKey = getPreviousPeriodKey(periodType, b.label)
+        const dataRange = getPeriodRange(periodType, dataKey)
+        return { label: b.label, start: dataRange.start, end: dataRange.end }
+      })
+      periodEndDate = resolvedBuckets.at(-1)!.end
+
+      // live_buckets (2026-08-24, definisi FINAL user: "reaktivasi adalah
+      // data dormant yang telah diaktivasi DI PERIODE BERJALAN bulanan,
+      // kuartalan, semesteran, tahunan") — periode ASLI titik ini (label ==
+      // periodenya sendiri, BUKAN digeser spt resolvedBuckets di atas),
+      // dipotong elapsed ke hari ini KALAU genuinely masih berjalan — reuse
+      // resolveTrendPeriod TANPA apply_date_cutoff (default clampToElapsedEnd,
+      // periode yang sudah tutup otomatis tidak terdampak).
+      const liveResolved = resolveTrendPeriod({
+        periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets: labelBuckets,
+        applyDateCutoff: false,
+        fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+        skipElapsedClamp: params.skip_elapsed_clamp,
+      })
+      liveBuckets = liveResolved.buckets
+    }
+
+    // "Bucket sebelumnya" per titik — relatif ke bulan DATA sebenarnya
+    // tiap bucket (bukan label-nya langsung, karena di mode default
+    // label != bulan data, lihat di atas). Bucket "2026-08" (data Juli)
+    // → sebelumnya Juni, BUKAN Juli.
+    const prevBuckets = resolvedBuckets.map((b) => {
+      const dataKey = params.apply_date_cutoff ? b.label : getPreviousPeriodKey(periodType, b.label)
+      const prevKey = getPreviousPeriodKey(periodType, dataKey)
+      const prevRange = getPeriodRange(periodType, prevKey)
+      const fullRange = getPeriodRange(periodType, dataKey)
+      if (params.apply_date_cutoff && b.end < fullRange.end) {
+        const elapsedDays = Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 86400000)
+        const prevEndDate = new Date(prevRange.start)
+        prevEndDate.setDate(prevEndDate.getDate() + elapsedDays)
+        const prevEndStr = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`
+        return { label: b.label, start: prevRange.start, end: prevEndStr < prevRange.end ? prevEndStr : prevRange.end }
+      }
+      return { label: b.label, start: prevRange.start, end: prevRange.end }
+    })
+
     // comparisonFilterDate (task025 lanjutan, 2026-08-07): tanggal yang sama
     // setahun lalu — dipakai utk komponen KpiSummaryStrip (pola "apple to
-    // apple" dgn Revenue/Retention, SEMUA halaman KPI selalu YoY). Threshold
-    // dormant/scope TETAP dari segParams yang SAMA (resolusi 1x, di-reuse
-    // dgn filterDate di-override) — TIDAK ada aturan bisnis yang berubah,
-    // cuma dihitung ulang di 2 titik waktu.
-    const comparisonFilterDate = shiftDateByYears(filterDate, -1)
+    // apple" dgn Revenue/Retention). CATATAN (2026-08-24): field
+    // `comparison_value` hasil dari sini TIDAK dipakai frontend saat ini
+    // (DormantData FE belum expose field itu) — tetap dihitung (backend
+    // type sudah ada, jangan hapus kapabilitas), buckets comparison
+    // dihitung SEDERHANA (kalender penuh, tanpa elapsed-clamp proporsional)
+    // karena tidak ada UI yang membaca presisinya.
+    const comparisonFilterDate = shiftDateByYears(periodEndDate, -1)
+    const [ccpy, ccpm, ccpd] = comparisonFilterDate.split('-').map(Number)
+    const comparisonPeriodKey = getCurrentPeriodKey(periodType, new Date(ccpy, ccpm - 1, ccpd))
+    const comparisonBuckets = buildTrailingPeriods(periodType, comparisonPeriodKey, 12)
+    const comparisonPrevBuckets = comparisonBuckets.map((b) => {
+      const prevKey = getPreviousPeriodKey(periodType, b.label)
+      const prevRange = getPeriodRange(periodType, prevKey)
+      return { label: b.label, start: prevRange.start, end: prevRange.end }
+    })
+
     const [segParams, thresholds] = await Promise.all([
-      resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
       loadThresholds(),
     ])
     const comparisonSegParams = { ...segParams, filterDate: comparisonFilterDate }
 
-    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, reactivatedCustomers, valueTrend] = await Promise.all([
-      fetchDormantTrend(segParams),
-      fetchDormantValueRanking(segParams),
-      fetchDormantTrend(comparisonSegParams),
-      fetchDormantValueRanking(comparisonSegParams),
-      fetchReactivatedCustomers(segParams),
+    // Top reaktivasi (2026-08-24) — bucket = LIVE periode berjalan (Agustus
+    // 1 s.d hari ini), prevBucket = baseline "Dormant Agustus" (Mei/Jun/Jul,
+    // resolvedBuckets.at(-1) — SAMA PERSIS baseline yang dipakai trend fix
+    // di atas), BUKAN lagi resolvedBuckets/prevBuckets (Juli/Juni, salah —
+    // itu window SEBELUM digeser, tidak merepresentasikan "reaktivasi di
+    // periode berjalan Agustus" yang diminta user).
+    const liveBucket = liveBuckets.at(-1)!
+    const dormantBaselineBucket = resolvedBuckets.at(-1)!
+
+    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, statusLog, valueTrend] = await Promise.all([
+      fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets),
+      // existingSince = liveBucket.start (task029.md §32.2, 2026-08-24) —
+      // gate New/Existing SSOT §30.10, titik referensi SAMA PERSIS lb.ps
+      // di fetchDormantTrend/is_existing_at_me (awal kalender ASLI label
+      // yang sedang dilihat, bukan window data yang sudah digeser).
+      fetchDormantValueRanking(segParams, 20, liveBucket.start),
+      // Comparison (YoY) TIDAK dipakai UI apa pun saat ini (lihat komentar
+      // di atas) — comparisonBuckets dipakai juga sbg liveBuckets (kalender
+      // penuh, tanpa shift/elapsed-clamp, sudah pasti periode lampau tutup).
+      fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
+      fetchDormantValueRanking(comparisonSegParams, 20, comparisonBuckets.at(-1)!.start),
+      fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket),
       fetchDormantValueTrend(segParams),
     ])
+
+    // Top reaktivasi periode berjalan (2026-08-24, susulan instruksi user
+    // "buatkan juga 3 card summary diatas cart, dan top 5" M10) — filter
+    // status log bucket TERAKHIR ke kategori reaktivasi saja (reactivated +
+    // relapsed), diurutkan tanggal reaktivasi terbaru. Reuse
+    // fetchCustomerDormantStatusLog yang SUDAH granularitas-aware, bukan
+    // fetchReactivatedCustomers lama (hardcode window 1 bulan kalender,
+    // DIHAPUS — sudah tidak dipakai lagi di mana pun).
+    // Sort: reactivation_date terbaru dulu, tie-break avg_monthly_revenue
+    // tertinggi (2026-08-24, koreksi user: "kalau berdasarkan abjad masih
+    // ada yang lebih abjad awal, seharusnya urutkan berdasarkan avg revenue
+    // nya tertinggi diantara reactivation lainnya" — sebelumnya tie utk
+    // tanggal sama jatuh ke urutan alfabetis nama, efek samping ORDER BY
+    // SQL, BUKAN kriteria bisnis).
+    const reactivatedCustomers = statusLog
+      .filter((r) => r.status === 'reactivated' || r.status === 'relapsed')
+      .sort((a, b) => {
+        const dateCompare = (b.reactivation_date ?? '').localeCompare(a.reactivation_date ?? '')
+        if (dateCompare !== 0) return dateCompare
+        return b.avg_monthly_revenue - a.avg_monthly_revenue
+      })
+      .slice(0, 20)
 
     const last = trend.at(-1)
     const comparisonLast = comparisonTrend.at(-1)
@@ -492,7 +633,7 @@ export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsS
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchRorBreakdown(segParams)
+    const result = await fetchRorBreakdown(segParams, params.date_from)
     return {
       period_end:     filterDate,
       repeat_count:   result.repeat_count,
@@ -502,6 +643,96 @@ export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsS
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil ROR breakdown', 500)
+  }
+}
+
+// Breakdown drill-down M8 (2026-08-24, instruksi user: "Buatkan end poin
+// dril down breakdown singkat, lengkapnya nanti di tabel laporan") — pola
+// SAMA PERSIS getRorBreakdown (M6) di atas, cuma repository-nya reuse
+// fetchDormantValueRanking dgn limit=null (SEMUA customer dormant di
+// period_end, bukan top 20 spt M9).
+export async function getDormantBreakdown(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantBreakdownData> {
+  try {
+    const filterDate = params.period_end ?? todayDate()
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const rows = await fetchDormantValueRanking(segParams, null)
+    return {
+      period_end: filterDate,
+      rows,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil dormant breakdown', 500)
+  }
+}
+
+// Status breakdown per customer utk 1 titik (2026-08-24, susulan pertanyaan
+// user soal ambiguitas reaktivasi — lihat JSDoc CustomerDormantStatusRow di
+// metrics.types.ts). prevDateFrom/prevDateTo period-anchored + proporsional
+// kalau bucket terpotong — pola SAMA PERSIS getExpansionBreakdown (M7) di
+// atas, REUSE bukan tulis ulang.
+export async function getDormantStatusBreakdown(params: DormantStatusBreakdownQuery, scope: MetricsScope = {}): Promise<DormantStatusBreakdownData> {
+  try {
+    const filterDate = params.period_end ?? todayDate()
+    const bucketStart = params.date_from ?? filterDate
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+
+    // Bucket sebelumnya SELALU akhir kalender penuh (2026-08-24, koreksi
+    // user: "DORMAN JULI ITU JUMLAH AKHIR JUNI SEHARUSNYA" — maksudnya
+    // bucket sebelumnya jangan ikut terpotong gara2 bucket current belum
+    // tutup) — TIDAK ada penyempitan proporsional di sini sama sekali,
+    // beda dari getExpansionBreakdown (M7, agregat, lebar window relevan).
+    // Dormant itu snapshot per-titik, periode sebelumnya sudah TUTUP,
+    // selalu pakai batas kalendernya sendiri.
+    let prevStart = bucketStart
+    let prevEnd = filterDate
+    if (params.date_from && params.period_type) {
+      const periodType = params.period_type
+      const [y, m, d] = params.date_from.split('-').map(Number)
+      const periodKey = getCurrentPeriodKey(periodType, new Date(y, m - 1, d))
+      const prevKey = getPreviousPeriodKey(periodType, periodKey)
+      const prevRange = getPeriodRange(periodType, prevKey)
+      prevStart = prevRange.start
+      prevEnd = prevRange.end
+    }
+
+    const rows = await fetchCustomerDormantStatusLog(
+      segParams,
+      { start: bucketStart, end: filterDate },
+      { start: prevStart, end: prevEnd },
+    )
+    const filtered = params.status ? rows.filter((r) => r.status === params.status) : rows
+
+    return {
+      period_start: bucketStart,
+      period_end:   filterDate,
+      rows:         filtered,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil status breakdown dormant customer', 500)
+  }
+}
+
+// Riwayat revenue bulanan per customer (2026-08-25, drilldown M9 — klik bar
+// ranking "Potensi Omset Hilang", instruksi user: "Nama customer, divisi,
+// berapa lama dia dormant, tanggal transaksi terakhirnya... list revenue
+// customer tersebut selama 12 bulan"). `ref_date` (bukan `todayDate()`)
+// dipakai sbg filterDate segParams JUGA — customer ini SUDAH dormant,
+// scope company/branch/division-nya tidak berubah krn tanggal filter,
+// tapi `resolveSegmentParams` tetap butuh SATU tanggal, `ref_date` yang
+// paling relevan (sama dgn window revenue yang dihitung).
+export async function getDormantValueHistory(params: DormantValueHistoryQuery, scope: MetricsScope = {}): Promise<DormantValueHistoryData> {
+  try {
+    const segParams = await resolveSegmentParams(params.company_id, params.ref_date, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const rows = await fetchDormantValueHistory(segParams, params.customer_id, params.ref_date)
+    return {
+      customer_id: params.customer_id,
+      rows,
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil riwayat revenue customer dormant', 500)
   }
 }
 

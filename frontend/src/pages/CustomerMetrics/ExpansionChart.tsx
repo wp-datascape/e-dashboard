@@ -76,7 +76,7 @@ function ExpansionTooltip({ active, payload, periodType }: TooltipContentProps<n
 
   return (
     <ChartTooltipCard
-      title={t('customerMetrics.m7.tooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      title={t('customerMetrics.m7.tooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       minWidth={240}
       rows={[
         { label: t('customerMetrics.m7.seriesUp'), value: withCount(d.up_rate, d.up_count) },
@@ -149,7 +149,7 @@ export function ExpansionChart({ trend, height = 320, onBarClick, title, subtitl
       // 10 agar lebih jelas") — bukan lagi tick otomatis recharts yang bisa
       // ganjil (mis. 0/30/60/90/100).
       xAxisTicks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
-      xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+      xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
       yAxisFormatter={(v) => `${Math.round(v)}%`}
       showLabels
       // labelMinValue TIDAK di-override lagi utk desktop (2026-08-23, koreksi

@@ -30,9 +30,8 @@ import { KpiCard } from '../CrossSelling/HelperComponents';
 import { ExpansionChart } from './ExpansionChart';
 import { useExpansionColumns } from './expansionHelpers';
 import { formatRupiah } from '@/utils/format';
-import { formatDateID } from '@/utils/date';
 import {
-  shiftDateByYears, formatPeriodLabel, getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday, clampPeriodEndToDay, daysSincePeriodStart,
+  shiftDateByYears, formatPeriodLabel, formatPeriodRangeSub, getCurrentPeriodKey, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday, clampPeriodEndToDay, daysSincePeriodStart,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 
@@ -94,8 +93,8 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
   const cutoffDay = daysSincePeriodStart(getPeriodDateRange(periodType, periodKey).start, periodEnd);
   const yoyPeriodKey = getYoyPeriodKey(periodType, periodKey);
   const yoyPeriodEnd = shiftDateByYears(periodEnd, -1);
-  const currentPeriodLabel = formatPeriodLabel(periodType, periodKey);
-  const yoyComparisonLabel = formatPeriodLabel(periodType, yoyPeriodKey);
+  const currentPeriodLabel = formatPeriodLabel(t, periodType, periodKey);
+  const yoyComparisonLabel = formatPeriodLabel(t, periodType, yoyPeriodKey);
 
   // Header Current/YoY — fetch terpisah, endpoint sama cuma period_end
   // digeser -1 tahun (pola sama persis M2AvgCategory.tsx).
@@ -118,6 +117,10 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
   // tahun). date_from = awal bucket yang diklik (getPeriodDateRange(...).start).
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [drillDateFrom, setDrillDateFrom] = useState<string | undefined>(undefined);
+  // drillMonth (2026-08-25, susulan koreksi user di M1 — dialog subtitle
+  // butuh label periode NATURAL titik yang diklik, pola sama persis
+  // M2AvgCategory.tsx).
+  const [drillMonth, setDrillMonth] = useState<string | null>(null);
   const { data: drillBreakdown, isLoading: drillLoading } = useExpansionBreakdown({
     period_end: drillDate,
     date_from: drillDateFrom,
@@ -210,10 +213,10 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
               <KpiCard
                 label={t('customerMetrics.m7.summaryExisting')}
                 value={(current?.existing_customers ?? 0).toLocaleString('id-ID')}
-                sub={t('crossSelling.activeCustomerSub', {
-                  start: formatDateID(getPeriodDateRange(periodType, periodKey).start),
-                  end: formatDateID(resolvedPeriodEnd ?? periodEnd),
-                })}
+                // formatPeriodRangeSub (2026-08-25, koreksi KERAS user di M1,
+                // pola sama diterapkan di sini) — granularitas lebar
+                // tampilkan label ("Kuartal 3 Tahun 2026"), bukan tanggal.
+                sub={formatPeriodRangeSub(t, periodType, periodKey, getPeriodDateRange(periodType, periodKey).start, resolvedPeriodEnd ?? periodEnd)}
                 color={theme.palette.info.main}
               />
             )}
@@ -267,6 +270,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 onBarClick={(d) => {
                   const month = String(d.month ?? '');
                   const range = getPeriodDateRange(periodType, month);
+                  setDrillMonth(month);
                   setDrillDate(
                     applyDateCutoff
                       ? clampPeriodEndToDay(periodType, month, range.start, range.end, cutoffDay)
@@ -326,7 +330,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
           M7Expansion.tsx, direuse via useExpansionColumns) */}
       <Dialog
         open={!!drillDate}
-        onClose={() => setDrillDate(null)}
+        onClose={() => { setDrillDate(null); setDrillMonth(null); }}
         maxWidth="md"
         title={t('customerMetrics.m7.dialogTitle')}
         showCloseButton
@@ -335,15 +339,15 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
         // judul dan periode ini" — title cuma nama entitas, subtitle baris
         // pertama = rentang tanggal SEBENARNYA yang dipakai query
         // (drillDateFrom..drillDate, bukan cuma nama periode), pola sama
-        // persis dialog drill-down M1.1/M2 — reuse key `crossSelling.
-        // m11DialogSubtitle` yang sama).
+        // persis dialog drill-down M1.1/M2.
+        //
+        // formatPeriodRangeSub (2026-08-25, koreksi KERAS user di M1) —
+        // granularitas lebar tampilkan label ("Kuartal 3 Tahun 2026"),
+        // bukan rentang tanggal mentah.
         subtitle={drillBreakdown && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary">
-              {t('crossSelling.m11DialogSubtitle', {
-                start: drillDateFrom ? formatDateID(drillDateFrom) : '…',
-                end: drillDate ? formatDateID(drillDate) : '…',
-              })}
+              {drillMonth && drillDateFrom && drillDate ? formatPeriodRangeSub(t, periodType, drillMonth, drillDateFrom, drillDate) : ''}
             </Typography>
             {([
               [t('customerMetrics.m7.dialogUpCount'),       String(drillBreakdown.up_count)],

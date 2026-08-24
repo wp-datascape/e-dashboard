@@ -29,9 +29,8 @@ import { KpiHeader } from '@/components/dashboard/KpiHeader';
 import { useCustomerProducts } from '@/hooks/useProducts';
 import { useCrossSelling } from '@/hooks/useMetrics';
 import { formatRupiah } from '@/utils/format';
-import { formatDateID } from '@/utils/date';
 import {
-  shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort,
+  shiftDateByYears, formatPeriodLabel, formatPeriodLabelShort, formatPeriodRangeSub,
   getCurrentPeriodKey, getYoyPeriodKey, getMomComparisonPeriodEnd,
 } from '@/utils/analisisPeriod';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
@@ -91,7 +90,7 @@ function M1Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
   // (bentuk penuh "Agustus 2026"/"Kuartal 3 Tahun 2026"), bukan raw d.month.
   return (
     <ChartTooltipCard
-      title={t('crossSelling.m1TooltipTitle', { month: formatPeriodLabel(periodType, d.month) })}
+      title={t('crossSelling.m1TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
         { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: String(d.multi_product) },
         { label: t('crossSelling.m1TooltipSingleCategory'), value: String(singleCategory) },
@@ -141,9 +140,18 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
   // pakai periode ini, harus keterangan eksplisit" — KpiHeader dulu pakai
   // teks generik "periode ini", sekarang label periode BENERAN, mis.
   // "Kuartal 3 Tahun 2026", pola sama dgn yoyComparisonLabel).
-  const currentPeriodLabel = formatPeriodLabel(periodType, periodKey);
-  const yoyComparisonLabel = formatPeriodLabel(periodType, yoyPeriodKey);
+  const currentPeriodLabel = formatPeriodLabel(t, periodType, periodKey);
+  const yoyComparisonLabel = formatPeriodLabel(t, periodType, yoyPeriodKey);
   const periodUnit = t(`dashboard.periodUnit.${periodType}`);
+  // periodPhrase (2026-08-25, koreksi KERAS user: kartu "Rata-rata Kategori"
+  // cuma bilang "periode semester ini" tanpa nyebut semester/tahun berapa)
+  // — versi huruf kecil di awal utk disisipkan di TENGAH kalimat
+  // ("...terjual dalam periode Semester 1 Tahun 2026"), beda dari
+  // `formatPeriodRangeSub` mentah yang dipakai berdiri sendiri (kartu
+  // "Customer Aktif", huruf besar di awal krn baris sendiri).
+  const periodPhrase = data?.period
+    ? (() => { const s = formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end); return s.charAt(0).toLowerCase() + s.slice(1) })()
+    : '';
 
   // Header Current/YoY/Change (task029.md §28.2) — fetch terpisah, endpoint
   // sama cuma period_end digeser -1 tahun (pola sama dgn drill-down dialog).
@@ -339,7 +347,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               // activeCustomerLabel, total_distinct_cats DIHITUNG dari
               // periodStart/periodEnd granularitas-aware (m1.repository.ts,
               // CTE `inv` yang sama dgn active_count), bukan activeWindow.
-              sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, unit: periodUnit })}
+              sub={t('crossSelling.kpi2Sub', { distinct: data?.kpi2.total_distinct_cats ?? 0, period: periodPhrase })}
               color={theme.palette.info.main}
             />
           )}
@@ -363,10 +371,15 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               // period.start/end (raw 'YYYY-MM-DD') dilempar mentah ke
               // teks, sekarang DD-MM-YYYY, pola sama persis heatmapHelperText
               // di bawah (util yang SAMA, sudah diimpor di file ini).
-              sub={t('crossSelling.activeCustomerSub', {
-                start: data?.period.start ? formatDateID(data.period.start) : '—',
-                end: data?.period.end ? formatDateID(data.period.end) : '—',
-              })}
+              // formatPeriodRangeSub (2026-08-25, koreksi KERAS user:
+              // "SEMESTER INI TIDAK ADA KETERANGAN SEMESTER BERAPA TAHUN
+              // BERAPA... RENTANG SEMESTER KENAPA TANGGAL YANG TERTULIS" —
+              // kartu ini SEBELUMNYA selalu tampilkan rentang tanggal
+              // mentah TANPA PEDULI granularitas, padahal fungsi granularitas-
+              // aware-nya SUDAH ada, cuma lupa disambungkan ke sini) —
+              // Bulanan tetap rentang tanggal, Kuartal/Semester/Tahunan
+              // tampilkan label ("Semester 1 Tahun 2026"), bukan tanggal.
+              sub={data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
               color={theme.palette.success.main}
             />
           )}
@@ -488,7 +501,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               formatLine={(v) => `${v}%`}
               xKey="month"
               height={280}
-              xAxisFormatter={(label) => formatPeriodLabelShort(periodType, label)}
+              xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
               renderTooltip={(props) => <M1Tooltip {...props} periodType={periodType} />}
             />
           )}
@@ -704,10 +717,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
                       di-center (`textAlign:'center'`), bukan rata kiri
                       lagi. */}
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, textAlign: 'center' }}>
-                    {t('crossSelling.heatmapHelperText', {
-                      start: data?.period.start ? formatDateID(data.period.start) : '…',
-                      end: data?.period.end ? formatDateID(data.period.end) : '…',
-                    })}
+                    {t('crossSelling.heatmapHelperText', { period: periodPhrase || '…' })}
                   </Typography>
                 </>
               }
@@ -752,10 +762,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
         subtitle={
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary">
-              {t('crossSelling.m11DialogSubtitle', {
-                start: data?.period.start ? formatDateID(data.period.start) : '…',
-                end: data?.period.end ? formatDateID(data.period.end) : '…',
-              })}
+              {data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
             </Typography>
             {productSummary && ([
               [t('crossSelling.m11SummaryProducts'), String(productSummary.product_count ?? 0)],

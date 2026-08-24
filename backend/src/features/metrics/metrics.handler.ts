@@ -2,8 +2,8 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -75,6 +75,34 @@ export async function handleGetDormantMetrics(c: Context) {
   const query = validateQuery(c, dormantCustomerQuerySchema)
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getDormantCustomerMetrics(query, scope)
+  return success(c, data)
+}
+
+// Drill-down M8 (2026-08-24) — query params SAMA PERSIS dormantCustomerQuerySchema
+// (reuse langsung, bukan schema baru — pola sama rorBreakdownQuerySchema/
+// dormantCustomerQuerySchema yang shape-nya juga identik).
+export async function handleGetDormantBreakdown(c: Context) {
+  const query = validateQuery(c, dormantCustomerQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getDormantBreakdown(query, scope)
+  return success(c, data)
+}
+
+// Status breakdown per customer (2026-08-24) — drill-down klik-titik-chart
+// M10, lihat JSDoc getDormantStatusBreakdown (metrics.service.ts).
+export async function handleGetDormantStatusBreakdown(c: Context) {
+  const query = validateQuery(c, dormantStatusBreakdownQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getDormantStatusBreakdown(query, scope)
+  return success(c, data)
+}
+
+// Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
+// ranking M9, lihat JSDoc getDormantValueHistory (metrics.service.ts).
+export async function handleGetDormantValueHistory(c: Context) {
+  const query = validateQuery(c, dormantValueHistoryQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getDormantValueHistory(query, scope)
   return success(c, data)
 }
 

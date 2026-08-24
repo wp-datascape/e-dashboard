@@ -204,6 +204,10 @@ export const rorBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  // date_from (2026-08-24, M6 dipakai di Retention page yg SUDAH py filter
+  // granularitas — pola sama persis gpBreakdownQuerySchema/M4) — opsional,
+  // fallback ke awal bulan kalender lama kalau kosong.
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
 })
 
 export type RorBreakdownQuery = z.infer<typeof rorBreakdownQuerySchema>
@@ -214,12 +218,63 @@ export const dormantCustomerQuerySchema = z.object({
     .optional()
     .default('all'),
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  // Granularitas periode (2026-08-24, susulan task029.md §30.9 poin 1 —
+  // M8-M10 sebelumnya hardcode bulanan spt M3-M7 dulu, sekarang reuse
+  // periodTypeField yang SAMA, pola identik customerMetricsQuerySchema.
+  // apply_date_cutoff/cutoff_day disediakan sekalian — dipakai
+  // resolveTrendPeriod (period.util.ts) di getDormantCustomerMetrics,
+  // menggantikan workaround frontend `dormantPeriodEnd` (Retention/index.tsx)
+  // yang sebelumnya perlu ada krn backend ini belum bisa self-clamp.
+  period_type: periodTypeField,
+  apply_date_cutoff: applyDateCutoffField,
+  cutoff_day: cutoffDayField,
+  skip_elapsed_clamp: skipElapsedClampField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
 })
 
 export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>
+
+// Drill-down status per customer (2026-08-24, susulan pertanyaan user soal
+// ambiguitas reaktivasi — lihat JSDoc CustomerDormantStatusRow di
+// metrics.types.ts). date_from = awal bucket yang diklik, period_end = akhir
+// bucket (SUDAH di-clamp oleh frontend, pola SAMA PERSIS onPointClick M8) —
+// period_type dipakai hitung window "sebelumnya" (period-anchored, pola SAMA
+// PERSIS expansionBreakdownQuerySchema).
+export const dormantStatusBreakdownQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
+  period_type: z.enum(['monthly', 'quarter', 'semester', 'annual']).optional(),
+  division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
+  status: z.enum(['active', 'dormant', 'reactivated', 'relapsed']).optional(),
+})
+
+export type DormantStatusBreakdownQuery = z.infer<typeof dormantStatusBreakdownQuerySchema>
+
+// Riwayat revenue bulanan per customer (2026-08-25, drilldown M9 — klik bar
+// ranking "Potensi Omset Hilang"). `customer_id`/`ref_date` WAJIB —
+// ref_date = last_invoice_date baris yang diklik (window 12 bulan dihitung
+// mundur dari situ, SAMA PERSIS avg_monthly_revenue yang sudah ditampilkan).
+export const dormantValueHistoryQuerySchema = z.object({
+  company_id: z
+    .union([z.coerce.number().int().positive(), z.literal('all')])
+    .optional()
+    .default('all'),
+  customer_id: z.coerce.number().int().positive(),
+  ref_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD'),
+  division: divisionEnum,
+  branch_id: z.coerce.number().int().positive().optional(),
+  exclude_intercompany: excludeIntercompanyField,
+})
+
+export type DormantValueHistoryQuery = z.infer<typeof dormantValueHistoryQuerySchema>
 
 function currentMonth(): string {
   const now = new Date()

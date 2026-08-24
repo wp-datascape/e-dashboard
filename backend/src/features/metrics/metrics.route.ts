@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -20,6 +20,14 @@ metricsRoutes.get('/gp-breakdown',          requirePermission('customer.gross.pr
 metricsRoutes.get('/hm-breakdown',          requirePermission('high.margin.penetration:view'), handleGetHmBreakdown)
 metricsRoutes.get('/ror-breakdown',         requirePermission('repeat.order:view'), handleGetRorBreakdown)
 metricsRoutes.get('/dormant-customer',      requirePermission('churn.risk:view'), handleGetDormantMetrics)
+// Drill-down M8 (2026-08-24) — permission SAMA dgn /dormant-customer
+// (churn.risk:view TIDAK dipecah per-KPI M8/M9/M10, beda dari
+// expansion:view/repeat.order:view di atas — lihat catatan seed.ts).
+metricsRoutes.get('/dormant-breakdown',     requirePermission('churn.risk:view'), handleGetDormantBreakdown)
+metricsRoutes.get('/dormant-status-breakdown', requirePermission('churn.risk:view'), handleGetDormantStatusBreakdown)
+// Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
+// ranking M9, permission SAMA dgn dormant lain (churn.risk:view).
+metricsRoutes.get('/dormant-value-history', requirePermission('churn.risk:view'), handleGetDormantValueHistory)
 metricsRoutes.get('/category-performance',  requirePermission('product:view'), handleGetCategoryPerformance)
 metricsRoutes.get('/product-performance',   requirePermission('product:view'), handleGetProductPerformance)
 metricsRoutes.get('/product-categories',    requirePermission('product:view'), handleGetProductCategoryOptions)

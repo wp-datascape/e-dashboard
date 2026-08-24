@@ -237,6 +237,14 @@ export interface DormantTrendPoint {
   month: string;
   total_customers: number;
   dormant_count: number;
+  // active_count/dormant_light_count/dormant_severe_count (2026-08-24) —
+  // backend SUDAH kirim field ini di tiap titik trend sejak lama (task027
+  // §8e, DormantTrendRow), tipe FE sebelumnya belum deklarasikan (gap
+  // ketikan, bukan field baru) — dibutuhkan sekarang utk kartu ringkasan
+  // dialog drilldown M8 ("info tambahan seperti total pelanggan").
+  active_count: number;
+  dormant_light_count: number;
+  dormant_severe_count: number;
   dormant_rate: number;
   prev_dormant_count: number;
   reactivated_count: number;
@@ -244,13 +252,66 @@ export interface DormantTrendPoint {
 }
 
 export interface DormantValueRankingRow {
+  // ranking (2026-08-24, endpoint breakdown M8 baru) — ROW_NUMBER() by
+  // estimated_lost_value DESC, sudah ditambahkan di query backend M9 juga
+  // (unconditional, dipakai bareng breakdown).
+  ranking: number;
   customer_id: number;
   customer_name: string;
   customer_code: string | null;
+  // division_label (2026-08-25, drilldown M9 — instruksi user: "info Nama
+  // customer, divisi, berapa lama dia dormant, tanggal transaksi terakhir").
+  division_label: string | null;
   last_invoice_date: string;
   months_dormant: number;
   avg_monthly_revenue: number;
   estimated_lost_value: number;
+}
+
+// Riwayat revenue bulanan per customer (2026-08-25, drilldown M9 — klik bar
+// ranking "Potensi Omset Hilang"). Window SAMA PERSIS avg_monthly_revenue.
+export interface DormantValueHistoryRow {
+  month: string; // 'YYYY-MM'
+  revenue: number;
+}
+
+export interface DormantValueHistoryData {
+  customer_id: number;
+  rows: DormantValueHistoryRow[];
+}
+
+// Breakdown drill-down M8 (2026-08-24, instruksi user: "Buatkan end poin
+// dril down breakdown singkat, lengkapnya nanti di tabel laporan") — pola
+// sama persis RorBreakdownData (M6), row shape reuse DormantValueRankingRow.
+export interface DormantBreakdownData {
+  period_end: string;
+  rows: DormantValueRankingRow[];
+}
+
+// Status per customer (2026-08-24, susulan pertanyaan user soal ambiguitas
+// reaktivasi: "datanya juga butuh existing, dormant, active, reactive, dan
+// yang active tapi dormant lagi dalam periode tersebut... tercatat kapan
+// masuk active kapan masuk dormant, tapi dalam perhitungan masukkan status
+// terakhir saja"). Lihat JSDoc backend CustomerDormantStatusRow.
+export type DormantCustomerStatus = 'active' | 'dormant' | 'reactivated' | 'relapsed';
+
+export interface CustomerDormantStatusRow {
+  customer_id: number;
+  customer_name: string;
+  customer_code: string | null;
+  company_name: string;
+  status: DormantCustomerStatus;
+  last_invoice_before_period: string | null;
+  reactivation_date: string | null;
+  last_invoice_in_period: string | null;
+  avg_monthly_revenue: number;
+  dormant_since_date: string | null;
+}
+
+export interface DormantStatusBreakdownData {
+  period_start: string;
+  period_end: string;
+  rows: CustomerDormantStatusRow[];
 }
 
 export interface DormantRateCurrent {
@@ -258,12 +319,18 @@ export interface DormantRateCurrent {
   dormant_count: number;
   total_customers: number;
   alert_pct: number;
+  // comparison_value (2026-08-24, YoY, sudah dihitung backend sejak lama —
+  // dulu tidak pernah disambung ke UI, sekarang dipakai KpiHeader M8/M10
+  // pola sama persis M7 Growth, ditegur user "sudah bilang Growth standar
+  // layout").
+  comparison_value: number;
 }
 
 export interface ReactivationCurrent {
   value: number;
   target_low: number;
   target_high: number;
+  comparison_value: number;
 }
 
 export interface DormantData {
@@ -271,4 +338,13 @@ export interface DormantData {
   value_ranking: DormantValueRankingRow[];
   dormant_rate_current: DormantRateCurrent;
   reactivation_current: ReactivationCurrent;
+  // Total estimated_lost_value dari value_ranking, current vs setahun lalu
+  // (2026-08-24, sudah dihitung backend sejak lama, YATIM — sekarang dipakai
+  // KpiHeader M9, "Tata layout M9 seperti layout lainnya").
+  value_ranking_total_current: number;
+  value_ranking_total_comparison: number;
+  // Daftar customer reaktivasi periode berjalan (2026-08-24, susulan "buatkan
+  // juga 3 card summary diatas cart, dan top 5" M10) — top 20 by tanggal
+  // reaktivasi terbaru, sudah difilter status reactivated+relapsed di backend.
+  reactivated_customers: CustomerDormantStatusRow[];
 }
