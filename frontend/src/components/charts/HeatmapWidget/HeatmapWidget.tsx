@@ -229,18 +229,19 @@ function HeatmapMatrixView({
   );
 }
 
-// ─── Mobile: Grid 2-kolom per Customer ─────────────────────────────────────────
+// ─── Mobile: Grid 3-kolom per Customer ─────────────────────────────────────────
 // Koreksi user (2026-08-24, "Aku ingin menghindar scroll ke samping dan
 // mencegah text tidak terbaca" -> "Kalau dibuat jadi 2 kolom heatmap
-// seperti ini? Tetap memakai kotak kotak tersebut") — matrix sejajar-kolom
+// seperti ini? Tetap memakai kotak kotak tersebut" -> susulan "Coba pakai
+// 3 kolom, sepertinya masih ada ruang yang cukup") — matrix sejajar-kolom
 // TIDAK dipakai lagi di mobile (jumlah kategori dinamis tidak ada batas
 // atas, mustahil dijamin muat tanpa scroll DAN teks tetap terbaca kalau
 // tetap dipaksa 1 baris per customer). Tiap customer jadi blok: nama+total
-// revenue di atas (selalu terlihat), lalu grid 2-kolom TETAP (bukan
+// revenue di atas (selalu terlihat), lalu grid 3-kolom TETAP (bukan
 // flex-wrap ikut panjang teks — itu bikin tepian berantakan) berisi kotak
 // kategori (label+jumlah di dalam kotak, karena kolom antar-baris kategori
 // tidak lagi sejajar seperti matrix). Wrap otomatis ke baris berikutnya
-// kalau kategori > 2, TANPA scroll horizontal sama sekali.
+// kalau kategori > 3, TANPA scroll horizontal sama sekali.
 function HeatmapMobileGridView({
   xLabels,
   data,
@@ -271,7 +272,7 @@ function HeatmapMobileGridView({
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
             {xLabels.map((label) => {
               const val = row.values[label] ?? 0;
               const bought = val > 0;
@@ -372,7 +373,7 @@ export const HeatmapWidget = ({ title, subtitle, headerContent, xLabels, data, o
         </Box>
       )}
 
-      {/* Mobile: grid 2-kolom per customer (HeatmapMobileGridView). Desktop:
+      {/* Mobile: grid 3-kolom per customer (HeatmapMobileGridView). Desktop:
           matrix sejajar-kolom (HeatmapMatrixView) — lihat komentar
           masing-masing di atas. */}
       {isMobile ? (
