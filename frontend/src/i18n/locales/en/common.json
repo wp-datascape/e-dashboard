@@ -75,17 +75,15 @@
   "radialTargetLabel": "Target ≥ {{threshold}}%",
   "viewDetailOf": "View {{title}} detail",
   "heatmap": {
-    "summaryLine": "{{count}} customers · green chip = has transaction",
-    "productsCount": "{{bought}}/{{total}} products",
-    "totalTransactions": "Total {{count}} transactions",
-    "cellTooltip": "{{customer}} — {{label}}: {{status}}",
+    "cellTooltipTitle": "{{customer}} — {{label}}",
+    "rowStatus": "Status",
+    "rowTransactionCount": "Transaction Count",
     "statusYes": "Yes ({{count}} transactions · {{revenue}})",
     "statusNo": "No transactions",
+    "cellClickHint": "Click to see detail",
     "legendBought": "Bought (value = transaction count)",
     "legendNotBought": "Not bought",
-    "mobileSubtitle": "Mobile view: products purchased per customer",
-    "colTotalRevenue": "Total Revenue",
-    "totalRevenue": "Total revenue: {{value}}"
+    "colTotalRevenue": "Total Revenue"
   },
   "filters": {
     "entity": "Entity",

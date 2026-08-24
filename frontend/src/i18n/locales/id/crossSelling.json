@@ -62,7 +62,6 @@
   "heatmapKpiAvgCategorySub": "Dari {{count}} customer teratas",
   "heatmapKpiTopCategoryLabel": "Kategori Terpopuler",
   "heatmapKpiTopCategorySub": "{{count}} dari {{total}} customer beli kategori ini",
-  "heatmapSubtitle2": "Klik untuk lihat detail",
   "heatmapTooltip": "Baris = customer (top 30 berdasarkan revenue).\nKolom = kategori produk.\nAngka di sel = jumlah transaksi customer itu di kategori itu, \"—\" = tidak pernah beli.\nTotal Revenue = total pembelian customer itu di semua kategori.",
   "m11ColProduct": "Produk",
   "m11ColRevenue": "Revenue",
