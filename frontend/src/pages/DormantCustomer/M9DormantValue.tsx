@@ -179,7 +179,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
               title={t('dormantCustomer.m9TooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />

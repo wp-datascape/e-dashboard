@@ -32,14 +32,27 @@ export function ChartTooltipCard({ title, rows, hint, minWidth = 230 }: ChartToo
 
   return (
     <Box sx={{ bgcolor: 'background.paper', border: `1px solid ${theme.palette.divider}`, p: 1.5, minWidth, fontSize: 12 }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+      {/* color eksplisit (2026-08-25, koreksi user: "text tooltip tidak
+          terbaca di mode terang") — sebelumnya tanpa color, warisi default
+          MUI Tooltip (#fff, diasumsikan background gelap). bgcolor Box ini
+          SUDAH `background.paper` (terang di light mode) tapi color-nya
+          tidak ikut di-override, jadi judul putih di atas box putih. Baris
+          label/value di bawah aman krn sudah py color eksplisit
+          (text.secondary/text.primary/warning.main). */}
+      <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5, color: 'text.primary' }}>
         {title}
       </Typography>
       <Divider sx={{ mb: 1 }} />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
         {rows.map((r, i) => (
           <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-            <Typography variant="caption" color={r.highlight ? 'warning.main' : 'text.secondary'}>
+            {/* sx.color, BUKAN prop `color=` (2026-08-25, susulan koreksi
+                title di atas) — prop `color` Typography cuma terima token
+                pendek ('textSecondary', BUKAN 'text.secondary' berbentuk
+                path). Nilai path bertitik yang lama gagal senyap (bukan
+                error), warisi putih default Tooltip persis spt bug title.
+                Baris value sebelah sudah py pola sx yang benar, disamakan. */}
+            <Typography variant="caption" sx={{ color: r.highlight ? 'warning.main' : 'text.secondary' }}>
               {r.label}
             </Typography>
             <Typography variant="caption" sx={{ fontWeight: 600, color: r.highlight ? 'warning.main' : 'text.primary' }}>

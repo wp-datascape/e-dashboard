@@ -227,7 +227,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
               title={t('customerMetrics.m6.tooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 300, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />
@@ -352,8 +352,8 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
               {drillMonth && drillDateFrom && drillDate ? formatPeriodRangeSub(t, periodType, drillMonth, drillDateFrom, drillDate) : ''}
             </Typography>
             {([
-              [t('customerMetrics.m6.dialogTotalExisting'),     String(breakdown.total_existing)],
-              [t('customerMetrics.m6.dialogRepeatCount'), String(breakdown.repeat_count)],
+              [t('customerMetrics.m6.dialogTotalExisting'),     breakdown.total_existing.toLocaleString('id-ID')],
+              [t('customerMetrics.m6.dialogRepeatCount'), breakdown.repeat_count.toLocaleString('id-ID')],
               [t('customerMetrics.m6.dialogRate'),           `${value}%`],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>

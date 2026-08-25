@@ -68,7 +68,9 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getRevenueBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RevenueBreakdownData> => {
+  // date_from (2026-08-25, task029.md §33 — M3 dipakai di Value page yg
+  // SEKARANG py filter granularitas) — pola sama persis getGpBreakdown/getExpansionBreakdown.
+  getRevenueBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RevenueBreakdownData> => {
     const res = await api.get<ApiResponse<RevenueBreakdownData>>('/metrics/revenue-breakdown', { params });
     return res.data.data;
   },
@@ -78,12 +80,15 @@ export const metricsApi = {
     return res.data.data;
   },
 
-  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
+  // date_from (2026-08-25) — backend SUDAH siap sejak task026 §8e, FE
+  // baru sekarang benar-benar mengirimnya (Value page dapat filter granularitas).
+  getGpBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
     const res = await api.get<ApiResponse<GpBreakdownData>>('/metrics/gp-breakdown', { params });
     return res.data.data;
   },
 
-  getHmBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<HmBreakdownData> => {
+  // date_from (2026-08-25, task029.md §33) — pola sama persis getGpBreakdown.
+  getHmBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<HmBreakdownData> => {
     const res = await api.get<ApiResponse<HmBreakdownData>>('/metrics/hm-breakdown', { params });
     return res.data.data;
   },

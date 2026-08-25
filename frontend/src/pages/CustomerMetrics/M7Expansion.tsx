@@ -58,7 +58,7 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
           title={t('customerMetrics.m7.tooltipInfo')}
           placement="top"
           arrow
-          slotProps={{ tooltip: { sx: { maxWidth: 300, fontSize: 12, lineHeight: 1.5 } } }}
+          slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
         >
           <IconButton size="small" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
             <InfoOutlinedIcon sx={{ fontSize: 14 }} />
@@ -92,8 +92,11 @@ export function M7Expansion({ trend, isLoading, companyId, branchId, division, e
               })}
             </Typography>
             {([
-              [t('customerMetrics.m7.dialogUpCount'),       String(breakdown.up_count)],
-              [t('customerMetrics.m7.dialogTotalExisting'), String(breakdown.total_existing)],
+              // .toLocaleString('id-ID') (2026-08-25, koreksi user: "gunakan
+              // . untuk ribuan") — samakan pola M7ExpansionGrowth.tsx.
+              [t('customerMetrics.m7.dialogUpCount'),       breakdown.up_count.toLocaleString('id-ID')],
+              [t('customerMetrics.m7.dialogActiveCount'),   breakdown.active_count.toLocaleString('id-ID')],
+              [t('customerMetrics.m7.dialogTotalExisting'), breakdown.total_existing.toLocaleString('id-ID')],
               [t('customerMetrics.m7.dialogUpRate'),        `${breakdown.total_existing > 0 ? ((breakdown.up_count / breakdown.total_existing) * 100).toFixed(1) : '0.0'}%`],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>

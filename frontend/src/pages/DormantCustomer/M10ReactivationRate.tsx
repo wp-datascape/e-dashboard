@@ -253,7 +253,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
               title={t('dormantCustomer.m10TooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />
@@ -374,11 +374,11 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
               {drillMonth && drillStart && drillEnd ? formatPeriodRangeSub(t, periodType, drillMonth, drillStart, drillEnd) : ''}
             </Typography>
             {([
-              [t('dormantCustomer.m10SummaryAll'), String(breakdown.rows.length)],
-              [t('dormantCustomer.m10SummaryActive'), String(counts.active)],
-              [t('dormantCustomer.m10SummaryDormant'), String(counts.dormant)],
-              [t('dormantCustomer.m10SummaryReactivated'), String(counts.reactivated)],
-              [t('dormantCustomer.m10SummaryRelapsed'), String(counts.relapsed)],
+              [t('dormantCustomer.m10SummaryAll'), breakdown.rows.length.toLocaleString('id-ID')],
+              [t('dormantCustomer.m10SummaryActive'), counts.active.toLocaleString('id-ID')],
+              [t('dormantCustomer.m10SummaryDormant'), counts.dormant.toLocaleString('id-ID')],
+              [t('dormantCustomer.m10SummaryReactivated'), counts.reactivated.toLocaleString('id-ID')],
+              [t('dormantCustomer.m10SummaryRelapsed'), counts.relapsed.toLocaleString('id-ID')],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

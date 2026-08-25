@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { cteEstablishedCustomers, resolveInvoiceScopeConditions } from '../segment.helper'
+import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RevenueBreakdownRow, ExpansionBreakdownRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
@@ -33,6 +33,16 @@ export type TrendRow = {
   flat_count: number
   inactive_count: number
   down_count: number
+  // Populasi M7 (koreksi 2026-08-25, task029.md §34-lanjutan) — existing
+  // DAN belum melewati ambang dormant per kategori bisnis divisi (SAMA
+  // PERSIS ambang M8, reuse dormantThresholdCaseSql). Existing yang SUDAH
+  // resmi dormant DIKELUARKAN dari expansion_rate/flat_rate/inactive_rate/
+  // down_rate — itu ranah M8, bukan lagi soal "expansion". Existing yang
+  // baru absen TAPI belum lewat ambang TETAP masuk (biasanya jatuh ke
+  // inactive_rate/down_rate — sinyal dini yang masih actionable, beda dari
+  // yang sudah lama mati). Pembagi BARU utk 4 rate + 4 raw count M7 (GANTI
+  // dari `existing_customers`/COUNT(DISTINCT e.id) kumulatif).
+  existing_not_dormant_count: number
   active_existing_count: number
   active_new_count: number
   median_revenue: number
@@ -77,6 +87,9 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  // M7 dormant threshold (2026-08-25) — SAMA PERSIS pola m8m10.repository.ts
+  // (dormantThresholdCaseSql + cteCustDivision), reuse bukan tulis ulang.
+  const dormantThresholdSql = dormantThresholdCaseSql(p)
 
   const bucketValues = sql.join(
     buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
@@ -192,6 +205,59 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
             AND ${excludeIntercompanyCond}
             AND i.invoice_date <= b.pe
         )
+    ),
+
+    -- M7: populasi "existing DAN belum lewat ambang dormant" per bucket
+    -- (2026-08-25, task029.md §34-lanjutan, koreksi user via diskusi
+    -- panjang: "customer baru tidak ada pembanding" [new dikeluarkan,
+    -- SUDAH via CTE existing di atas] + "dormant tidak akan punya
+    -- pembanding periode sebelumnya" [customer yang SUDAH resmi dormant
+    -- dikeluarkan juga] + "perlihatkan tidak papa, tapi tidak dimasukkan
+    -- ke perhitungan" [kategori "Tidak Aktif" TETAP tampil di chart, tapi
+    -- HANYA utk yang baru absen belum lewat ambang — bukan disembunyikan,
+    -- tapi juga tidak mencampur yang sudah lama mati]. Ambang SAMA PERSIS
+    -- M8 (dormantThresholdCaseSql, per kategori bisnis divisi) — 1 sumber
+    -- kebenaran, bukan aturan baru.
+    ${cteCustDivision(p)},
+    cust_dormant_threshold AS (
+      SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
+      FROM customers c
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
+      WHERE c.is_placeholder = false AND ${companyCondC}
+    ),
+    -- Invoice TANPA batas bawah tanggal (beda dari raw_inv yang dibatasi ke
+    -- window trailing-buckets) — status dormant butuh tahu transaksi
+    -- TERAKHIR sungguhan, bisa jauh sebelum window trend 12 titik dimulai.
+    -- Pola SAMA PERSIS m8m10.repository.ts CTE 'inv'.
+    last_inv_unbounded AS (
+      SELECT i.customer_id, i.invoice_date
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+      WHERE i.deleted_at IS NULL
+        AND ${companyCondI}
+        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
+        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+    ),
+    last_inv_per_bucket AS (
+      SELECT b.label, e.id AS customer_id, b.pe AS bucket_end, cdt.dormant_threshold,
+        MAX(li.invoice_date) AS last_inv_before_be
+      FROM buckets b
+      JOIN existing e ON e.label = b.label
+      JOIN cust_dormant_threshold cdt ON cdt.cid = e.id
+      LEFT JOIN last_inv_unbounded li ON li.customer_id = e.id AND li.invoice_date <= b.pe
+      GROUP BY b.label, e.id, b.pe, cdt.dormant_threshold
+    ),
+    existing_not_dormant AS (
+      SELECT label, customer_id
+      FROM last_inv_per_bucket
+      WHERE last_inv_before_be IS NOT NULL
+        AND last_inv_before_be > bucket_end - dormant_threshold * INTERVAL '1 month'
     ),
 
     -- Revenue + GP per existing customer per bucket (window: SELURUH
@@ -312,34 +378,53 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     SELECT
       b.label AS month,
 
-      COUNT(DISTINCT e.id)::int AS existing_customers,
+      -- Populasi M3/M4/M5/M6 (2026-08-25, task029.md §34 — GANTI dari
+      -- COUNT(DISTINCT e.id) "existing kumulatif" TERMASUK yang sudah
+      -- dormant, ke COUNT(DISTINCT cur.customer_id) "existing DAN masih
+      -- bertransaksi periode ini") — sesuai dokumen SSOT resmi
+      -- (DEFINISI_OPERASIONAL_CUSTOMER_LOYAL_DASHBOARD.docx): "Existing
+      -- Customer adalah customer yang sudah memiliki riwayat transaksi
+      -- sebelum periode berjalan DAN MASIH MELAKUKAN PEMBELIAN PADA
+      -- PERIODE TERSEBUT" — jadi customer dormant SECARA DEFINISI bukan
+      -- "Existing" utk 4 KPI ini, bukan cuma "existing yang dilute rata-
+      -- rata". Alias 'cur' = active_inv_agg (sudah di-JOIN, HANYA berisi
+      -- customer dgn invoice DI DALAM bucket ini) — REUSE, tidak perlu
+      -- CTE/JOIN baru. M5 (high_margin_ratio) numerator TETAP dari alias
+      -- 'hia', denominator ikut disamakan ke populasi Existing
+      -- yang sama (keputusan user 2026-08-25: M5 pakai definisi "Existing",
+      -- bukan "Customer Aktif" spt M1/M2).
+      COUNT(DISTINCT cur.customer_id)::int AS existing_customers,
 
       COALESCE(SUM(cur.rev), 0) AS total_revenue_existing,
 
       ROUND(
-        COALESCE(SUM(cur.rev), 0) / NULLIF(COUNT(DISTINCT e.id), 0), 0
+        COALESCE(SUM(cur.rev), 0) / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 0
       ) AS avg_revenue,
 
       ROUND(
-        COALESCE(SUM(cur.gp), 0) / NULLIF(COUNT(DISTINCT e.id), 0), 0
+        COALESCE(SUM(cur.gp), 0) / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 0
       ) AS avg_gross_profit,
 
       ROUND(
         COUNT(DISTINCT hia.customer_id)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+        / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 1
       ) AS high_margin_ratio,
 
       ROUND(
         COUNT(DISTINCT CASE WHEN cur.invoice_count > 1 THEN cur.customer_id END)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+        / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 1
       ) AS repeat_order_rate,
 
-      -- M7: existing yang spend naik vs periode sebelumnya
+      -- M7: existing (belum lewat ambang dormant, alias 'nd' =
+      -- existing_not_dormant) yang spend naik vs periode sebelumnya
+      -- (2026-08-25, task029.md §34-lanjutan — GANTI pembagi dari e.id
+      -- kumulatif ke nd.customer_id, lihat CTE existing_not_dormant di atas
+      -- + JOIN di FROM clause bawah).
       ROUND(
         COUNT(DISTINCT CASE
           WHEN COALESCE(cur.rev, 0) > COALESCE(prv.rev, 0)
-          THEN e.id END)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+          THEN nd.customer_id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT nd.customer_id), 0), 1
       ) AS expansion_rate,
 
       -- M7 3-way split (koreksi user 2026-08-10: "pisahkan flat/turun jadi
@@ -358,39 +443,49 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       -- flat_rate (cur=prev, DAN cur>0 — genuinely tidak berubah) vs
       -- inactive_rate (cur=prev=0 — tidak ada sinyal sama sekali,
       -- kategori terpisah, BUKAN bagian dari "stabil").
+      --
+      -- inactive_rate/down_rate (2026-08-25, susulan) — TETAP tampil di
+      -- chart (keputusan user: "perlihatkan tidak papa"), TAPI populasinya
+      -- SEKARANG cuma existing yang BELUM lewat ambang dormant (alias 'nd')
+      -- — yang SUDAH resmi dormant dikeluarkan dari perhitungan sama sekali
+      -- ("tidak dimasukkan ke perhitungan"), jadi bukan lagi disembunyikan
+      -- (dulu) atau mendominasi (90%, metrics_docs.md) tapi murni sinyal
+      -- "baru absen, belum lewat ambang" yang actionable.
       ROUND(
         COUNT(DISTINCT CASE
           WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0) AND COALESCE(cur.rev, 0) > 0
-          THEN e.id END)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+          THEN nd.customer_id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT nd.customer_id), 0), 1
       ) AS flat_rate,
       ROUND(
         COUNT(DISTINCT CASE
           WHEN COALESCE(cur.rev, 0) = 0 AND COALESCE(prv.rev, 0) = 0
-          THEN e.id END)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+          THEN nd.customer_id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT nd.customer_id), 0), 1
       ) AS inactive_rate,
       ROUND(
         COUNT(DISTINCT CASE
           WHEN COALESCE(cur.rev, 0) < COALESCE(prv.rev, 0)
-          THEN e.id END)::numeric * 100
-        / NULLIF(COUNT(DISTINCT e.id), 0), 1
+          THEN nd.customer_id END)::numeric * 100
+        / NULLIF(COUNT(DISTINCT nd.customer_id), 0), 1
       ) AS down_rate,
 
       -- Jumlah mentah (2026-08-22, "butuh data jumlah, bukan cuma
       -- persentase") — CASE WHEN sama persis rate di atas, tanpa *100/…
       COUNT(DISTINCT CASE
         WHEN COALESCE(cur.rev, 0) > COALESCE(prv.rev, 0)
-        THEN e.id END)::int AS up_count,
+        THEN nd.customer_id END)::int AS up_count,
       COUNT(DISTINCT CASE
         WHEN COALESCE(cur.rev, 0) = COALESCE(prv.rev, 0) AND COALESCE(cur.rev, 0) > 0
-        THEN e.id END)::int AS flat_count,
+        THEN nd.customer_id END)::int AS flat_count,
       COUNT(DISTINCT CASE
         WHEN COALESCE(cur.rev, 0) = 0 AND COALESCE(prv.rev, 0) = 0
-        THEN e.id END)::int AS inactive_count,
+        THEN nd.customer_id END)::int AS inactive_count,
       COUNT(DISTINCT CASE
         WHEN COALESCE(cur.rev, 0) < COALESCE(prv.rev, 0)
-        THEN e.id END)::int AS down_count,
+        THEN nd.customer_id END)::int AS down_count,
+
+      COUNT(DISTINCT nd.customer_id)::int AS existing_not_dormant_count,
 
       COALESCE(MAX(me.active_existing_count), 0)::int AS active_existing_count,
       COALESCE(MAX(ncc.cnt), 0)::int                   AS active_new_count,
@@ -410,6 +505,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
 
     FROM buckets b
     LEFT JOIN existing e          ON e.label = b.label
+    LEFT JOIN existing_not_dormant nd ON nd.label = b.label AND nd.customer_id = e.id
     LEFT JOIN active_inv_agg cur  ON cur.label = b.label AND cur.customer_id = e.id
     LEFT JOIN prev_inv_agg   prv  ON prv.label = b.label AND prv.customer_id = e.id
     LEFT JOIN hm_inv_agg hia      ON hia.label = b.label AND hia.customer_id = e.id
@@ -442,6 +538,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       flat_count:             Number(row.flat_count ?? 0),
       inactive_count:         Number(row.inactive_count ?? 0),
       down_count:             Number(row.down_count ?? 0),
+      existing_not_dormant_count: Number(row.existing_not_dormant_count ?? 0),
       active_existing_count:  Number(row.active_existing_count ?? 0),
       active_new_count:       Number(row.active_new_count ?? 0),
       median_revenue:         Number(row.median_revenue ?? 0),
@@ -466,13 +563,16 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
 // bukan total_gp, sebagai basis tier/ranking.
 export async function fetchRevenueBreakdown(
   p: SegmentParams,
+  // dateFrom (2026-08-25, task029.md §33 — M3 dipakai di Value page yg
+  // SEKARANG py filter granularitas, pola sama persis fetchGpBreakdown/M4)
+  // — opsional, fallback ke perilaku activeMonths lama kalau kosong.
+  dateFrom?: string,
 ): Promise<{ rows: RevenueBreakdownRow[]; total_revenue: number; median_threshold: number; total_existing: number; hm_revenue: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
-  // periodStart (task029 §30.10, 2026-08-23) — M3 belum py filter granularitas
-  // periode (belum ada `dateFrom`, beda dari M4/M7), anchor ke awal BULAN
-  // kalender yang memuat filterDate (default "Bulanan"), bukan activeMonths
-  // mentah task028.
-  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
+  const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
+  const rangeStartCond = dateFrom
+    ? sql`i.invoice_date >= ${dateFrom}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -486,7 +586,7 @@ export async function fetchRevenueBreakdown(
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${rangeStartCond}
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
         AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
@@ -517,7 +617,7 @@ export async function fetchRevenueBreakdown(
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${rangeStartCond}
         AND i.invoice_date <= ${filterDate}::date
         AND ${companyCondI}
         AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
@@ -626,7 +726,7 @@ export async function fetchExpansionBreakdown(
   dateFrom?: string,
   prevDateFrom?: string,
   prevDateTo?: string,
-): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; total_existing: number }> {
+): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; active_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   // periodStart (task029 §30.10, 2026-08-23 — "patokan ke definisi terbaru")
   // — kalau dateFrom dikirim (klik-titik chart granularitas-aware), itu
@@ -635,6 +735,8 @@ export async function fetchExpansionBreakdown(
   // kalender yang memuat filterDate — lebih benar drpd activeMonths mentah
   // task028, konsisten dgn default granularitas "Bulanan" KPI lain.
   const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
+  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
+  const dormantThresholdSql = dormantThresholdCaseSql(p)
   const curRangeCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date AND i.invoice_date <= ${filterDate}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date`
@@ -654,6 +756,42 @@ export async function fetchExpansionBreakdown(
   const rows = await db.execute(sql`
     WITH
     ${establishedCTE},
+    -- Gerbang "belum lewat ambang dormant" (2026-08-25, task029.md
+    -- §34-lanjutan — konsistensi dgn fetchCustomerMetricsTrend di atas,
+    -- cegah bug class §30.17: chart trend vs dialog drilldown beda
+    -- populasi). Ambang SAMA PERSIS M8/trend M7 (dormantThresholdCaseSql).
+    -- Referensi "as of" = filterDate (titik snapshot yang sedang dilihat,
+    -- sama pola dgn b.pe di fetchCustomerMetricsTrend).
+    ${cteCustDivision(p)},
+    cust_dormant_threshold AS (
+      SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
+      FROM customers c
+      LEFT JOIN cust_division cdv ON cdv.cid = c.id
+      WHERE c.is_placeholder = false AND ${companyCondC}
+    ),
+    last_inv_unbounded AS (
+      SELECT i.customer_id, i.invoice_date
+      FROM invoices i
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND cd.company_id = i.company_id
+      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+      WHERE i.deleted_at IS NULL
+        AND ${companyCondI}
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+    ),
+    established_not_dormant AS (
+      SELECT ec.id
+      FROM established_customers ec
+      JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
+      LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
+      GROUP BY ec.id, cdt.dormant_threshold
+      HAVING MAX(li.invoice_date) IS NOT NULL
+        AND MAX(li.invoice_date) > ${filterDate}::date - cdt.dormant_threshold * INTERVAL '1 month'
+    ),
     inv_current AS (
       SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
       FROM invoices i
@@ -721,6 +859,7 @@ export async function fetchExpansionBreakdown(
         COALESCE(ip.revenue, 0)  AS prev_revenue,
         li.branch_id, li.channel_name, li.division_id
       FROM established_customers ec
+      JOIN established_not_dormant nd ON nd.id = ec.id
       LEFT JOIN inv_current  ic ON ic.customer_id = ec.id
       LEFT JOIN inv_previous ip ON ip.customer_id = ec.id
       LEFT JOIN latest_inv   li ON li.customer_id = ec.id
@@ -754,6 +893,13 @@ export async function fetchExpansionBreakdown(
       COUNT(*) FILTER (WHERE cur_revenue = prev_revenue AND cur_revenue > 0) OVER ()::int AS flat_count,
       COUNT(*) FILTER (WHERE cur_revenue = prev_revenue AND cur_revenue = 0) OVER ()::int AS inactive_count,
       COUNT(*) FILTER (WHERE cur_revenue < prev_revenue) OVER ()::int       AS down_count,
+      -- Total customer Active (2026-08-25, susulan user: "info drilldown
+      -- total customer active") — cur_revenue > 0, TANPA syarat naik/
+      -- turun/flat, murni "genuinely bertransaksi periode ini". Selalu
+      -- subset existing_not_dormant (siapa pun cur>0 otomatis "belum
+      -- lewat ambang dormant" — transaksi barusan), jadi TIDAK perlu
+      -- gerbang dormant tambahan di sini, cukup filter cur_revenue.
+      COUNT(*) FILTER (WHERE cur_revenue > 0) OVER ()::int                  AS active_count,
       COUNT(*) OVER ()::int                                                 AS total_existing
     FROM combined
     LEFT JOIN company_branches cb ON cb.id = combined.branch_id
@@ -764,11 +910,42 @@ export async function fetchExpansionBreakdown(
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
     const [totRow] = await db.execute(sql`
-      WITH ${establishedCTE}
-      SELECT COUNT(*)::int AS total_existing FROM established_customers
+      WITH
+      ${establishedCTE},
+      ${cteCustDivision(p)},
+      cust_dormant_threshold AS (
+        SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
+        FROM customers c
+        LEFT JOIN cust_division cdv ON cdv.cid = c.id
+        WHERE c.is_placeholder = false AND ${companyCondC}
+      ),
+      last_inv_unbounded AS (
+        SELECT i.customer_id, i.invoice_date
+        FROM invoices i
+        LEFT JOIN channel_divisions cd
+          ON cd.channel_name = i.channel_name
+          AND cd.company_id = i.company_id
+        LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+        WHERE i.deleted_at IS NULL
+          AND ${companyCondI}
+          AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
+          AND ${branchCond}
+          AND ${divisionScopeCond}
+          AND ${excludeIntercompanyCond}
+      ),
+      established_not_dormant AS (
+        SELECT ec.id
+        FROM established_customers ec
+        JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
+        LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
+        GROUP BY ec.id, cdt.dormant_threshold
+        HAVING MAX(li.invoice_date) IS NOT NULL
+          AND MAX(li.invoice_date) > ${filterDate}::date - cdt.dormant_threshold * INTERVAL '1 month'
+      )
+      SELECT COUNT(*)::int AS total_existing FROM established_not_dormant
     `) as unknown[]
     const tot = totRow as Record<string, unknown>
-    return { rows: [], up_count: 0, flat_count: 0, inactive_count: 0, down_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
+    return { rows: [], up_count: 0, flat_count: 0, inactive_count: 0, down_count: 0, active_count: 0, total_existing: Number(tot?.total_existing ?? 0) }
   }
 
   const first = rawRows[0] as Record<string, unknown>
@@ -790,13 +967,17 @@ export async function fetchExpansionBreakdown(
 
   return {
     // up_count/flat_count/inactive_count/down_count/total_existing TETAP
-    // dari window function di atas kohort established PENUH (§ formula
-    // resmi, metrics_docs.md: "Denominator = semua existing, bukan hanya
-    // yang aktif di kedua periode") — TIDAK ikut kena filter di bawah.
+    // dari window function di atas kohort established_not_dormant PENUH
+    // (2026-08-25, task029.md §34.1 — DIPERBAIKI dari "semua existing"
+    // ke "existing belum dormant", lihat established_not_dormant CTE di
+    // atas) — TIDAK ikut kena filter tampilan baris di bawah.
     up_count:       Number(first.up_count ?? 0),
     flat_count:     Number(first.flat_count ?? 0),
     inactive_count: Number(first.inactive_count ?? 0),
     down_count:     Number(first.down_count ?? 0),
+    // active_count (2026-08-25) — cur_revenue > 0, TANPA syarat naik/
+    // turun/flat (beda dari up_count yang mensyaratkan cur>prev).
+    active_count:   Number(first.active_count ?? 0),
     total_existing: Number(first.total_existing ?? 0),
     // `rows` (baris DITAMPILKAN, beda dari angka KPI di atas) DIFILTER
     // cuma yang py sinyal revenue (2026-08-21, user: "maksudmu kamu tarik

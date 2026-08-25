@@ -92,9 +92,9 @@ function M1Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
     <ChartTooltipCard
       title={t('crossSelling.m1TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
-        { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: String(d.multi_product) },
-        { label: t('crossSelling.m1TooltipSingleCategory'), value: String(singleCategory) },
-        { label: t('crossSelling.m1TooltipExistingCustomers'), value: String(d.total_active) },
+        { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: d.multi_product.toLocaleString('id-ID') },
+        { label: t('crossSelling.m1TooltipSingleCategory'), value: singleCategory.toLocaleString('id-ID') },
+        { label: t('crossSelling.m1TooltipExistingCustomers'), value: d.total_active.toLocaleString('id-ID') },
         { label: t('crossSelling.m1TooltipCrossSellRate'), value: `${d.ratio.toFixed(1)}%` },
         { label: t('crossSelling.m1TooltipAvgCategories'), value: d.avg_category.toFixed(2) },
       ]}
@@ -765,8 +765,8 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               {data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
             </Typography>
             {productSummary && ([
-              [t('crossSelling.m11SummaryProducts'), String(productSummary.product_count ?? 0)],
-              [t('crossSelling.m11SummaryInvoices'), String(productSummary.invoice_count ?? 0)],
+              [t('crossSelling.m11SummaryProducts'), (productSummary.product_count ?? 0).toLocaleString('id-ID')],
+              [t('crossSelling.m11SummaryInvoices'), (productSummary.invoice_count ?? 0).toLocaleString('id-ID')],
               [t('crossSelling.m11SummaryRevenue'), formatRupiah(productSummary.total_revenue ?? 0)],
               [t('crossSelling.m11SummaryGp'), formatRupiah(productSummary.total_gp ?? 0)],
             ] as [string, string][]).map(([label, val]) => (

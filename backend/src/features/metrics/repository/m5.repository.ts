@@ -6,12 +6,15 @@ import type { HmBreakdownRow } from '../metrics.types'
 
 export async function fetchHmBreakdown(
   p: SegmentParams,
+  // dateFrom (2026-08-25, task029.md §33 — M5 dipakai di Value page yg
+  // SEKARANG py filter granularitas) — pola sama persis fetchGpBreakdown/M4.
+  dateFrom?: string,
 ): Promise<{ rows: HmBreakdownRow[]; total_hm_revenue: number; hm_buyer_count: number; total_existing: number }> {
   const { filterDate, activeMonths } = p
-  // periodStart (task029 §30.10, 2026-08-23) — M5 belum py filter
-  // granularitas periode (belum ada dateFrom), anchor ke awal BULAN kalender
-  // yang memuat filterDate (default "Bulanan"), bukan activeMonths mentah.
-  const establishedCTE = cteEstablishedCustomers(p, `${filterDate.slice(0, 7)}-01`)
+  const establishedCTE = cteEstablishedCustomers(p, dateFrom ?? `${filterDate.slice(0, 7)}-01`)
+  const rangeStartCond = dateFrom
+    ? sql`i.invoice_date >= ${dateFrom}::date`
+    : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
@@ -33,7 +36,7 @@ export async function fetchHmBreakdown(
         AND ${companyCondI}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
-        AND i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'
+        AND ${rangeStartCond}
         AND i.invoice_date <= ${filterDate}::date
         AND ${branchCond}
         AND ${divisionScopeCond}

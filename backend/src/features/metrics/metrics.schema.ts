@@ -130,6 +130,9 @@ export const revenueBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  // date_from (2026-08-25, task029.md §33 — M3 dipakai di Value page yg
+  // SEKARANG py filter granularitas) — pola sama persis gpBreakdownQuerySchema/M4.
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
 })
 
 export type RevenueBreakdownQuery = z.infer<typeof revenueBreakdownQuerySchema>
@@ -191,6 +194,9 @@ export const hmBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  // date_from (2026-08-25, task029.md §33 — M5 dipakai di Value page yg
+  // SEKARANG py filter granularitas) — pola sama persis gpBreakdownQuerySchema/M4.
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
 })
 
 export type HmBreakdownQuery = z.infer<typeof hmBreakdownQuerySchema>

@@ -30,6 +30,11 @@ export interface CustomerMetricsTrendPoint {
   flat_rate: number
   inactive_rate: number
   down_rate: number
+  // Populasi M7 (2026-08-25, task029.md §34-lanjutan) — existing yang
+  // BELUM lewat ambang dormant (ambang sama persis M8, per kategori
+  // bisnis divisi). Pembagi expansion_rate/flat_rate/inactive_rate/
+  // down_rate — GANTI dari existing_customers kumulatif.
+  existing_not_dormant_count: number
   // M3 enrichment
   active_existing_count: number
   active_new_count: number
@@ -98,6 +103,10 @@ export interface ExpansionBreakdownData {
   flat_count: number
   inactive_count: number
   down_count: number
+  // Total customer dgn cur_revenue > 0 (2026-08-25) — TANPA syarat naik/
+  // turun/flat vs periode sebelumnya, murni "genuinely bertransaksi
+  // periode ini". Beda dari up_count (mensyaratkan cur>prev).
+  active_count: number
   total_existing: number
   rows: ExpansionBreakdownRow[]
 }

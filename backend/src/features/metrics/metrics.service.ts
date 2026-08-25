@@ -283,6 +283,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       flat_count:              row.flat_count,
       inactive_count:          row.inactive_count,
       down_count:              row.down_count,
+      existing_not_dormant_count: row.existing_not_dormant_count,
       active_existing_count:   row.active_existing_count,
       active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
@@ -319,7 +320,7 @@ export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: 
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchRevenueBreakdown(segParams)
+    const result = await fetchRevenueBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_revenue:    result.total_revenue,
@@ -373,6 +374,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
       flat_count:     result.flat_count,
       inactive_count: result.inactive_count,
       down_count:     result.down_count,
+      active_count:   result.active_count,
       total_existing: result.total_existing,
       rows:           result.rows,
     }
@@ -406,7 +408,7 @@ export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsSco
   try {
     const filterDate = params.period_end ?? todayDate()
     const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchHmBreakdown(segParams)
+    const result = await fetchHmBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_hm_revenue: result.total_hm_revenue,

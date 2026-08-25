@@ -208,7 +208,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
               title={t('dormantCustomer.m8TooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />
@@ -334,9 +334,9 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
               {t('dormantCustomer.dialogPeriodLabel', { label: drillLabel ? formatPeriodLabel(t, periodType, drillLabel) : '…' })}
             </Typography>
             {([
-              [t('dormantCustomer.m8SummaryTotal'), String(drillTrendPoint?.total_customers ?? 0)],
-              [t('dormantCustomer.m8SummaryActive'), String(drillTrendPoint?.active_count ?? 0)],
-              [t('dormantCustomer.dialogDormantCount'), String(breakdown.rows.length)],
+              [t('dormantCustomer.m8SummaryTotal'), (drillTrendPoint?.total_customers ?? 0).toLocaleString('id-ID')],
+              [t('dormantCustomer.m8SummaryActive'), (drillTrendPoint?.active_count ?? 0).toLocaleString('id-ID')],
+              [t('dormantCustomer.dialogDormantCount'), breakdown.rows.length.toLocaleString('id-ID')],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

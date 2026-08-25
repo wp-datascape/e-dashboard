@@ -3486,3 +3486,485 @@ klarifikasi definisi dulu sebelum coding).
 
 **Status semua 3 item di atas: PENDING, belum dikerjakan — dicatat di sini
 biar tidak hilang, dikerjakan satu per satu di sesi ini/berikutnya.**
+
+## 33. Standarisasi Menu Revenue/Value (M3/M4/M5) ke pola Growth/Retention (2026-08-25)
+
+Instruksi user: "lanjut kerjakan MENU REVENUE, STANDARTKAN SESUAI LAYOUT 2
+MENU SEBELUMNYA JANGAN ADA YANG TERLEWAT SAMA SEKALI" — menu ketiga
+("Revenue", key internal `value`, `/value`) berisi M3 Average Revenue, M4
+Average Gross Profit, M5 High Margin Penetration — SAMA SEKALI belum
+tersentuh standarisasi yang sudah diterapkan ke Growth (M1/M2/M7) dan
+Retention (M6/M8/M9/M10) sepanjang sesi ini. Audit lengkap (baca file
+langsung, bukan tebakan):
+
+### Temuan `Value/index.tsx` (halaman)
+- Filter MASIH pola LAMA: 1 `DatePicker` bulanan polos, TIDAK ada
+  `usePeriodTypeFilter`, TIDAK ada panel Filter Lanjutan
+  (Cabang/Divisi/Granularitas/Exclude Intercompany), TIDAK ada "Apply date
+  cutoff" — beda total dari Growth/Retention.
+- `useCustomerMetrics` dipanggil TANPA `period_type`/`apply_date_cutoff`
+  sama sekali.
+
+### Temuan `M3Revenue.tsx`
+- TIDAK ada `periodType` prop — hardcode bulanan total.
+- TIDAK ada KpiHeader (current vs YoY).
+- TIDAK ada 3 kartu ringkasan (pola M1/M6/M8/M9/M10).
+- TIDAK ada Top 5 sidebar + tombol "Cek Detail di Laporan".
+- Dialog title masih `{ date: drillDate }` mentah (bug class SAMA yang
+  diperbaiki di M6 — title harus nama entitas saja, periode di subtitle).
+- `onBarClick` pakai `resolvePeriodEnd` (helper lama, cuma paham bulanan),
+  bukan `getPeriodDateRange`+`clampPeriodEndToToday`.
+- `xAxisFormatter={formatMonthLabel}` hardcode, bukan
+  `formatPeriodLabelShort` granularitas-aware.
+- Tooltip custom SUDAH ada (`M3Tooltip`) tapi styling manual (Box+Divider),
+  BUKAN `ChartTooltipCard` shared component — inkonsistensi kecil, bukan
+  prioritas utama.
+- Backend `fetchRevenueBreakdown` TIDAK terima `dateFrom` sama sekali
+  (schema `revenueBreakdownQuerySchema` juga tidak punya field itu) — beda
+  dari M4/M7 yang sudah py.
+
+### Temuan `M4GrossProfit.tsx`
+- Sama persis M3 (tidak ada periodType/KpiHeader/kartu/Top5/tombol laporan,
+  dialog title mentah, onBarClick lama, xAxisFormatter hardcode,
+  M4Tooltip custom manual bukan ChartTooltipCard).
+- BEDA dari M3: backend `fetchGpBreakdown` SUDAH terima `dateFrom` end-to-
+  end (schema+service+repository, task026 §8e) — cuma FRONTEND yang belum
+  pernah mengirimnya (selalu `undefined`, jatuh ke fallback activeMonths
+  lama). Quick win — tinggal sambung dari sisi FE.
+
+### Temuan `M5HighMargin.tsx`
+- BEDA ARSITEKTUR dari M3/M4/M6/M8/M9/M10: donut chart SNAPSHOT 1 titik
+  (`hm: {bought_pct, not_bought_pct}` dari `data.high_margin_current`),
+  BUKAN trend 12 titik — jadi TIDAK BUTUH `periodType` label chart/axis
+  spt yang lain, tapi TETAP butuh:
+  - YoY comparison (fetch snapshot periode sama setahun lalu, pola sama
+    M1/M2 kartu, BUKAN KpiHeader trend-based — perlu dipikirkan bentuknya,
+    mis. badge delta di sebelah center donut).
+  - Dialog title masih mentah (bug class sama).
+  - `onChartClick` pakai `resolvePeriodEnd` (lama).
+  - Backend `fetchHmBreakdown` TIDAK terima `dateFrom` sama sekali (sama
+    kasus M3).
+- TIDAK ada 3 kartu ringkasan/Top 5/tombol laporan (sama kasus M3/M4) —
+  utk M5 relevansi "Top 5" perlu dipikirkan (Top 5 pembeli HM? sudah ada
+  di kolom tabel dialog, tinggal dipindah jadi sidebar spt KPI lain).
+
+### Yang SUDAH benar (tidak perlu disentuh)
+- `getCustomerMetrics` (trend M3-M7 shared, `metrics.service.ts`) SUDAH
+  granularitas-aware (`period_type`/`apply_date_cutoff`) sejak task029
+  §30.9 — PR #134/#135 sudah live. Trend M3/M4 otomatis granularitas-aware
+  begitu `Value/index.tsx` mengirim `period_type`.
+- `cteEstablishedCustomers`/definisi Existing SSOT §30.10 sudah dipakai
+  trend M3-M7 (migrasi lama, task029 §30.10) — TIDAK perlu diulang, cuma
+  breakdown drilldown M3/M5 yang belum py `dateFrom`.
+
+### Rencana eksekusi (urutan, 1 per satu, verifikasi DB tiap langkah)
+1. **Backend M3** (SELESAI): `fetchRevenueBreakdown` + `revenueBreakdownQuerySchema`
+   + `getRevenueBreakdown` — tambah `dateFrom`, pola SAMA PERSIS M4/M6.
+2. **Backend M5** (SELESAI): `fetchHmBreakdown` + `hmBreakdownQuerySchema` +
+   `getHmBreakdown` — tambah `dateFrom`, pola sama.
+3. **`Value/index.tsx`** (SELESAI): rebuild filter total — `usePeriodTypeFilter`
+   (draft+applied staged pola Growth/Retention), panel Filter Lanjutan,
+   "Apply date cutoff", kirim `period_type`/`apply_date_cutoff` ke
+   `useCustomerMetrics`.
+4. **`M3Revenue.tsx`** (SELESAI): periodType prop, KpiHeader (current vs YoY trend
+   terakhir), 3 kartu ringkasan, Top 5 + tombol "Cek Detail di Laporan",
+   dialog title→subtitle (formatPeriodRangeSub), onBarClick
+   granularitas-aware, xAxisFormatter→formatPeriodLabelShort, sambung
+   `date_from` breakdown.
+5. **`M4GrossProfit.tsx`** (SELESAI): SAMA PERSIS poin 4 (backend sudah siap,
+   tinggal FE).
+6. **`M5HighMargin.tsx`** (SELESAI): dialog title→subtitle, onChartClick
+   granularitas-aware (walau snapshot, `date_from` tetap relevan utk
+   drilldown biar konsisten SSOT §30.10), YoY comparison (bentuk
+   disesuaikan krn bukan trend, gated on `yoyHm` truthy biar tidak
+   menampilkan yoy=0 palsu di halaman workbench CustomerMetrics yang
+   tidak fetch YoY), sambung `date_from` breakdown.
+
+   Sekalian, saat ekstraksi kolom tabel utk poin 7: ditemukan
+   `tierChipColor`/`tierLabel` duplikat IDENTIK antara M3Revenue.tsx dan
+   M4GrossProfit.tsx (pelanggaran "Centralize UI" yang sudah ada sebelum
+   task ini) — dipindah bareng `useRevenueColumns`/`useGpColumns`/
+   `useHmColumns` ke file baru `CustomerMetrics/valueHelpers.tsx`, dipakai
+   M3/M4/M5 DAN Report/Revenue (poin 7), 1 sumber bukan 3.
+7. **Halaman Laporan baru** `Report/Revenue/index.tsx` (SELESAI — route
+   `/report/revenue`, bukan `/report/value` seperti draf awal rencana ini;
+   `nav.groups.revenue`, permission `expansion:view` sama seperti
+   `Value/index.tsx` krn 1 sumber data `useCustomerMetrics`) — 3 tab
+   Revenue/GP/HM (search+sort+`ResponsiveListView`, kolom dari
+   `valueHelpers.tsx`), pola filter (quick+advanced, `?tab=` deep-link)
+   sama persis Report/Growth. 3 tombol "Cek Detail di Laporan" M3/M4/M5
+   sudah diarahkan ke `/report/revenue?tab=revenue|gp|hm`. Tab label baru
+   `metrics.avgRevenueShort`/`avgGrossProfitShort`/`highMarginShort`
+   ditambahkan ke `metrics.json` (id+en), pola sama `crossSellingShort`/
+   `expansionShort` yang sudah ada.
+8. Audit ulang i18n (SELESAI): `formatPeriodLabel` dkk sudah granularitas+
+   i18n-aware dari perbaikan sesi ini; M3/M4/M5 dikonfirmasi pakai fungsi
+   yang sama (formatPeriodRangeSub/formatPeriodLabelShort), bukan
+   `formatMonthLabel`/`resolvePeriodEnd` lama. Key JSON mati (`chartTitle`/
+   `chartSubtitle` M3/M4/M5, sudah tidak dipakai sejak title pindah ke
+   SectionLabel) dibiarkan di file JSON (tidak dihapus) — konsisten dgn
+   precedent M1/M2/M7 yang juga menyisakan key lama tak terpakai daripada
+   berisiko menghapus key yang ternyata masih dirujuk tempat lain.
+
+**Status: SELESAI (2026-08-25). Verifikasi: `tsc --noEmit` bersih,
+`eslint` bersih (0 error), `vite build` sukses (chunk baru
+`Revenue-*.js`, `valueHelpers-*.js` ter-generate). Belum di-commit/push —
+menunggu instruksi eksplisit.**
+
+## 34. Generalisasi populasi "Existing Aktif" (§30.10) dari M1 ke M2-M7 (2026-08-25)
+
+### Kronologi temuan
+
+Berawal dari pertanyaan eksplorasi user soal M5 tren + "2 bar keseluruhan
+produk terjual vs high margin" (dibatalkan, scope-nya berubah arah), lalu
+pertanyaan "apakah new customer sudah termasuk di M1-M10" — audit ke SQL
+backend (bukan tebakan) menemukan SEMUA M1-M10 basisnya "existing", TAPI
+ternyata M1 dan M3-M7 punya DUA DEFINISI "existing" YANG BERBEDA:
+
+- **M1/M2** (`fetchCrossSellingTrend`, m1.repository.ts): existing = first
+  invoice SEBELUM awal periode **DAN** py minimal 1 transaksi DI DALAM
+  periode itu ("aktif-per-periode") — ini definisi FINAL yang sudah
+  diputuskan user 2026-08-20 (§30.10, kutipan persis: *"Customer aktif
+  berarti yang ada transaksi >= 1 di periode filter"*), diimplementasi
+  sbg **pilot M1 saja**, dgn catatan eksplisit di dokumen saat itu:
+  *"M3-M10 masih pakai cteEstablishedCustomers/activeMonths... memang
+  BEDA definisi dan sengaja tidak diubah scope-nya di sini"* — status
+  *"BELUM diputuskan mau di-generalisasi ke M2-M10 atau tetap M1-only"*.
+  Generalisasi itu TIDAK PERNAH dilanjutkan sampai sekarang.
+- **M3-M7** (`fetchCustomerMetricsTrend`, m3m7.repository.ts, CTE
+  `existing` baris 155-194): first invoice sebelum awal periode SAJA,
+  TANPA syarat aktif — EXISTS ke invoices `<=` akhir bucket TANPA lower
+  bound, jadi TERMASUK customer yang cuma transaksi 1x bertahun-tahun
+  lalu lalu dormant selamanya ("existing kumulatif"). ~93% populasi ini
+  ternyata tidak genuinely aktif bulan yang diukur (lihat audit di
+  bawah).
+
+### Audit dampak nyata (verifikasi DB, bukan estimasi)
+
+2 riset via query langsung ke Postgres lokal (33.041 customers, 246rb+
+invoices, semua entitas, Sep 2025-Agu 2026):
+
+1. Basis "existing+new customer" (M1/M2/M5/M6 — dibahas duluan, tapi
+   TIDAK jadi scope eksekusi, cuma riset): dilusi signifikan konsisten
+   di M1 (-4.3pp) & M2 (-0.13 kategori), nyaris nol di M5, JUSTRU NAIK
+   di M6 (+0.4pp) — kejanggalan M6 inilah yang membongkar gap definisi
+   di atas.
+2. Basis "existing kumulatif vs existing aktif-periode" (M3-M7, riset
+   utama) — laporan lengkap dipublikasikan sbg artifact terpisah
+   ("Distorsi Populasi Existing"). Ringkasan: rata-rata cuma **7,2%**
+   populasi existing M3-M7 genuinely aktif per bulan. M3/M4 (Avg
+   Revenue/GP) understated rata-rata **15,8×** (membesar dari 10× ke
+   38× sepanjang 12 bulan, karena populasi kumulatif terus menumpuk
+   tanpa pernah "keluar"). M6 (Repeat Order Rate) understated **+23,1pp**
+   (<3% sekarang vs ~20-30% seharusnya). M7 (Expansion Rate) selisih
+   terbesar **+67,3pp**, TAPI numerator-nya bercampur "genuinely
+   ekspansi" dgn "reaktivasi dari nol" — butuh dekomposisi lanjutan
+   sebelum jadi angka resmi (dicatat sbg catatan, BUKAN diperbaiki di
+   task ini).
+
+### Keputusan scope (dibahas eksplisit dgn user sebelum eksekusi)
+
+Sempat dipertimbangkan refactor M3-M7 jadi 5 file/query terpisah demi
+keterbacaan — DIBENCHMARK dulu (bukan asumsi): split jadi 5 query DB
+independen = **3,0× lebih lambat** (2.713ms → 8.204ms, replikasi query
+persis + EXPLAIN ANALYZE, DB lokal sama). **Keputusan: TIDAK di-split**,
+fokus balik ke generalisasi §30.10 (instruksi user: *"kita fokus ke data
+pilot M1 tadi yang belum diterapkan ke KPI lain"*).
+
+**Scope IN**:
+- `fetchCustomerMetricsTrend` (m3m7.repository.ts) — field
+  `existing_customers` DAN 5 formula turunannya (`avg_revenue`,
+  `avg_gross_profit`, `high_margin_ratio`, `repeat_order_rate`,
+  `expansion_rate`) ganti denominator dari `COUNT(DISTINCT e.id)`
+  (kumulatif) ke populasi aktif-per-bucket — field `active_existing_count`
+  SUDAH DIHITUNG di query yang sama (CTE `monthly_extras`, dari
+  `active_inv_agg`), TIDAK perlu CTE/join baru, TIDAK ada biaya query
+  tambahan (numerator SEMUA formula ini SUDAH inheren terbatas ke
+  customer yang aktif di bucket, cuma denominator-nya yang salah acu).
+- M2 otomatis ikut (share fungsi M1, sudah benar sejak §30.10).
+
+**Scope OUT (sengaja tidak disentuh)**:
+- Fungsi drill-down (`fetchRevenueBreakdown`/`fetchGpBreakdown`/
+  `fetchHmBreakdown`/`fetchRorBreakdown`/`fetchExpansionBreakdown`) —
+  field `total_existing` di sana SENGAJA memakai cohort `established_
+  customers` TETAP (fixed, tidak ikut window filter) per keputusan
+  TERPISAH & LEBIH DULU ("template standar KPI4", 2026-08-10,
+  [[feedback_kpi4_card_template_standard]]: *"kartu Total HARUS fixed
+  cohort... BUKAN rata-rata snapshot bulanan"*) — beda pertanyaan dari
+  §30.10, TIDAK diubah di sini supaya tidak bentrok dgn keputusan itu.
+  §32.1 (gap `dateFrom` di drill-down) juga topik terpisah, tidak
+  tumpang tindih dgn task ini.
+- M8/M9/M10 — dormant/reactivation SECARA STRUKTUR butuh precondition
+  "PERNAH aktif LALU berhenti", bukan "aktif SEKARANG" — generalisasi
+  §30.10 apa adanya tidak masuk akal utk metrik ini (customer dormant
+  BY DEFINITION tidak aktif periode ini). Perlu analisis terpisah,
+  bukan bagian task ini.
+
+### Rencana eksekusi (ASLI, direvisi — lihat §34.1 di bawah utk M7)
+1. Ubah `m3m7.repository.ts` `fetchCustomerMetricsTrend`: ganti
+   denominator `existing_customers`/`avg_revenue`/`avg_gross_profit`/
+   `high_margin_ratio`/`repeat_order_rate`/`expansion_rate` dari
+   `COUNT(DISTINCT e.id)` ke count aktif-per-bucket.
+2. Verifikasi query langsung ke DB (12 bulan, semua entitas) — angka
+   HARUS cocok dgn kolom "Existing Aktif"/nilai "Aktif" di audit artifact
+   di atas (yang sudah dihitung independen lewat replikasi manual).
+3. Audit copy i18n (tooltip `tooltipInfo` M3/M4/M5/M6/M7) — pastikan
+   teks tidak lagi menyiratkan populasi "semua yang pernah beli"
+   (semantik lama), sesuaikan ke "yang aktif periode ini" kalau perlu.
+4. `tsc --noEmit` + `eslint` + `vite build` bersih (frontend TIDAK perlu
+   perubahan kode — field `existing_customers` namanya tetap sama,
+   cuma nilainya berubah jadi lebih kecil/akurat).
+
+**KOREKSI PENTING (2026-08-25, ditemukan lewat dialog panjang dgn user
+sebelum eksekusi M7)**: rencana poin 1 di atas (samakan `expansion_rate`
+M7 ke denominator `active_existing_count` sama seperti M3/M4/M6) TERNYATA
+SALAH — lihat §34.1 di bawah, M7 butuh populasi BEDA (existing yang
+"belum lewat ambang dormant", bukan "aktif periode ini persis"), krn
+struktur breakdown 4-arahnya sendiri (kategori "Tidak Aktif") butuh
+customer yang TIDAK bertransaksi tapi masih relevan dibandingkan.
+
+**Status per KPI (2026-08-25, akhir sesi ini):**
+- **M1/M2**: SELESAI (populasi diubah TOTAL, bukan cuma denominator —
+  lihat §34.0 di bawah, ini beda kasus dari M3-M7).
+- **M7**: SELESAI — lihat §34.1 (desain populasi baru, bukan sekadar
+  swap ke `active_existing_count`).
+- **M3/M4/M6**: BELUM dieksekusi — tooltip `tooltipInfo` sudah diupdate
+  duluan (mendeskripsikan definisi TARGET "existing aktif periode ini",
+  bukan behavior SEKARANG yang masih kumulatif) — **copy sudah mendahului
+  implementasi**, backend-nya MASIH pakai `COUNT(DISTINCT e.id)`
+  kumulatif seperti sebelumnya. Perlu dieksekusi supaya kode menyusul
+  tooltip-nya, JANGAN dibiarkan lama (gap copy-vs-implementasi
+  menyesatkan kalau dibiarkan).
+- **M5**: BELUM diputuskan — dokumen SSOT ambigu ("customer aktif" di
+  kalimat pembuka vs "customer existing" di definisi rinci), user belum
+  menjawab klarifikasi mana yang dipakai.
+
+### 34.0 M1/M2 — eksekusi (SELESAI, 2026-08-25)
+
+Beda dari M3-M7 (yang cuma soal DENOMINATOR salah), M1/M2 ternyata punya
+gerbang EXTRA yang seharusnya TIDAK ADA sama sekali — pilot §30.10
+(2026-08-20) keliru mengklasifikasikan M1/M2 sbg "Existing" (first
+invoice sebelum periode), padahal dokumen SSOT resmi (di-review user
+2026-08-25, "DEFINISI_OPERASIONAL_CUSTOMER_LOYAL_DASHBOARD.docx")
+eksplisit: populasi M1 ("Cross Sell Ratio") & M2 ("Avg Category")
+adalah **"Customer Aktif"** murni (≥1 transaksi periode ini, TANPA
+syarat riwayat) — beda total dari M3/M4/M6/M7 yang MEMANG "Existing
+Customer" (py riwayat + masih beli).
+
+**Perubahan** (`m1.repository.ts`):
+- `CS_INV_CTE` (dipakai `fetchCrossSellingKPI`/`fetchCrossSellingDetail`/
+  `fetchCrossSellingHeatmap`) — CTE `cteExistingCustomersByPeriod`
+  DIHAPUS total dari WITH clause, JOIN `existing_customers ec` dihapus
+  dari CTE `inv`. Import `cteExistingCustomersByPeriod`/
+  `cteFirstInvoiceDate` dihapus (sudah tidak dipakai).
+- `fetchCrossSellingTrend` — JOIN `first_invoice_date fid ON fid.first_
+  date < bk.ps` dihapus dari CTE `per_bucket`. CTE `first_invoice_date`
+  (`cteFirstInvoiceDate(p)`) dihapus dari WITH clause (tidak dipakai lagi
+  di fungsi ini).
+
+**Verifikasi DB (12 bulan, semua entitas, cocok persis dgn 2 sumber
+independen — angka lama dari riset audit sebelumnya DAN replikasi query
+manual baru)**:
+
+| Bulan | Populasi Lama (existing-gated) | Populasi Baru (customer aktif) | M1 Rate Lama→Baru | M2 Avg Lama→Baru |
+|---|---|---|---|---|
+| Sep 2025 | 1.247 | 2.798 | 34,2%→29,0% | 1,72→1,54 |
+| Okt 2025 | 1.331 | 3.815 | 33,5%→23,2% | 1,72→1,43 |
+| Nov 2025 | 1.518 | 3.877 | 29,1%→21,7% | 1,63→1,41 |
+| Des 2025 | 1.787 | 4.195 | 27,8%→22,1% | 1,57→1,40 |
+| Jan 2026 | 1.989 | 4.248 | 28,1%→23,8% | 1,55→1,42 |
+| Feb 2026 | 1.993 | 3.893 | 27,7%→24,0% | 1,54→1,43 |
+| Mar 2026 | 1.752 | 3.236 | 24,5%→21,2% | 1,48→1,38 |
+| Apr 2026 | 2.153 | 4.067 | 25,7%→22,6% | 1,49→1,40 |
+| Mei 2026 | 1.469 | 2.590 | 26,9%→25,3% | 1,60→1,51 |
+| Jun 2026 | 1.561 | 2.589 | 30,4%→26,9% | 1,65→1,54 |
+| Jul 2026 | 1.674 | 2.869 | 29,8%→26,7% | 1,61→1,52 |
+| Agu 2026* | 855 | 1.218 | 28,9%→28,7% | 1,60→1,58 |
+
+*Agustus cuma 17 hari (MAX(invoice_date) di DB), bukan bulan penuh.
+
+Populasi hampir 2× lebih besar di semua bulan (customer baru sekarang
+ikut terhitung), rate/rata-rata turun sedikit di semua titik (customer
+baru belum tentu langsung cross-sell di transaksi pertama — masuk akal,
+bukan bug). `tsc --noEmit` bersih (backend+frontend, frontend TIDAK
+perlu perubahan kode). Sudah dilaporkan ke user dlm bentuk tabel di
+percakapan, TIDAK diulang jadi artifact terpisah (user cukup dgn tabel
+teks).
+
+### 34.1 M7 — desain ulang populasi (SELESAI, 2026-08-25)
+
+**Kenapa BUKAN sekadar swap denominator seperti M3/M4/M6 (dikoreksi via
+dialog Socratic dgn user sebelum coding, bukan diasumsikan)**:
+
+M7 punya breakdown 4-arah (Naik/Flat/Turun/Tidak Aktif) yang HARUS sum
+ke 100% dari 1 populasi yang sama. Kategori "Tidak Aktif" (`cur=prev=0`)
+SECARA DEFINISI butuh customer yang **tidak** bertransaksi periode ini —
+kalau denominator dipersempit ke "aktif periode ini" (pola M3/M4/M6),
+kategori ini otomatis SELALU 0%, breakdown-nya rusak total secara
+matematis. Ada juga catatan desain terdokumentasi sebelumnya
+(`shared/metrics_docs.md`, 2026-08-21) yang eksplisit MEMBELA populasi
+kumulatif: *"'Flat' gabungan lama tampil ~90,2%, MENYEMBUNYIKAN fakta
+bahwa hampir semuanya sebenarnya 'tidak ada transaksi'... tapi itu bukan
+'stabil'"* — tujuannya supaya "Tidak Aktif" TERLIHAT jelas, bukan
+disembunyikan.
+
+**Resolusi (dicapai lewat tanya-jawab bergiliran dgn user, bukan
+diputuskan sepihak)**:
+- Customer baru (first invoice DI DALAM periode ini) — TETAP dikeluarkan
+  (gerbang "Existing" tidak berubah, sudah benar sejak awal, first invoice
+  = 0 pembanding "prev" mustahil bermakna).
+- Customer yang SUDAH RESMI dormant (lewat ambang, ambang SAMA PERSIS M8
+  per kategori bisnis divisi, `dormantThresholdCaseSql`) — DIKELUARKAN
+  dari perhitungan sama sekali (ranah M8, bukan lagi "expansion"). Kutipan
+  user: *"perlihatkan tidak papa, tapi tidak dimasukkan ke perhitungan"*.
+- Customer yang BARU absen tapi BELUM lewat ambang — TETAP masuk hitungan,
+  biasanya jatuh ke "Tidak Aktif"/"Turun" — sinyal dini yang actionable,
+  BUKAN dicampur dgn yang sudah lama mati. Ini yang membuat kategori
+  "Tidak Aktif" tetap terlihat (memenuhi rasionale metrics_docs.md) TAPI
+  jadi jauh lebih bermakna (bukan didominasi >80% akun mati bertahun-tahun).
+
+**Perubahan** (`m3m7.repository.ts`):
+- `fetchCustomerMetricsTrend`: CTE baru `cust_dormant_threshold`
+  (reuse `dormantThresholdCaseSql`+`cteCustDivision`, SAMA PERSIS pola
+  M8), `last_inv_unbounded` (scan invoice TANPA batas bawah tanggal —
+  beda dari `raw_inv` yg dibatasi window trailing-buckets, dormant butuh
+  tahu transaksi TERAKHIR sungguhan), `last_inv_per_bucket`,
+  `existing_not_dormant`. `expansion_rate`/`flat_rate`/`inactive_rate`/
+  `down_rate` + 4 raw count (`up_count` dst) ganti basis dari `e.id`
+  (existing kumulatif) ke `nd.customer_id` (existing_not_dormant) —
+  numerator DAN denominator sama-sama diganti (CASE WHEN return
+  `nd.customer_id`, NULL kalau customer sudah dormant → otomatis
+  ter-exclude dari COUNT DISTINCT). Field baru `existing_not_dormant_
+  count` ditambahkan ke `TrendRow`/`CustomerMetricsTrendPoint`
+  (backend+frontend).
+- `fetchExpansionBreakdown` (drilldown klik-bar) — SAMA PERSIS
+  ditambahkan gerbang `established_not_dormant` (evaluasi "as of"
+  `filterDate`, bukan per-bucket krn ini snapshot 1 titik), `combined`
+  CTE JOIN (bukan LEFT JOIN) ke situ. Sengaja disamakan SEKALIGUS dgn
+  trend (bukan ditunda) — mencegah bug class §30.17 (chart trend vs
+  dialog drilldown beda populasi/angka utk titik yg sama).
+- Frontend: `M7ExpansionGrowth.tsx` kartu "Total Existing" ganti dari
+  `current?.existing_customers` (kumulatif, TIDAK BERUBAH oleh fix ini)
+  ke `current?.existing_not_dormant_count` (field baru) — supaya kartu
+  ringkasan konsisten dgn pembagi breakdown 4-arah di bawahnya.
+- i18n: `customerMetrics.m7.tooltipInfo` (id+en) — rumus + penjelasan
+  populasi baru. `customerMetrics.m7.dialogTotalExisting` (id+en) — teks
+  lama "Total Established (Active+Existing)" SUDAH USANG (menjelaskan
+  populasi lama), diganti "Total Existing Belum Dormant"/"Total Existing
+  Not-Yet-Dormant".
+
+**Verifikasi (Mei 2026, bulan penuh, semua entitas)**:
+
+| Metode | Populasi | Up | Flat | Inactive | Down | Sum |
+|---|---|---|---|---|---|---|
+| Lama (existing kumulatif) | 29.287 | 3,7% | 0,3% | 83,5% | 12,4% | 99,9% |
+| Baru (existing not-dormant) | 14.208 | 7,7% | 0,7% | 66,0% | 25,6% | 100,0% |
+
+Populasi baru (14.208) tepat di antara "existing kumulatif" (29.287) dan
+"aktif periode ini murni" (1.469, dari audit §34 sebelumnya) — sesuai
+desain. "Inactive" turun dari 83,5%→66,0% (masih substansial tapi bukan
+lagi didominasi akun mati bertahun-tahun), "Down" naik 12,4%→25,6%
+(sinyal declining yg sekarang tidak lagi tenggelam di rata-rata
+kumulatif). Sum 4-arah tetap ~100% di kedua basis (matematis konsisten).
+
+**Konsistensi trend vs drilldown** (diverifikasi via script `bun run`
+langsung manggil `getCustomerMetrics`+`getExpansionBreakdown`, BUKAN
+cuma query manual) — titik Mei 2026: `existing_not_dormant_count` (trend)
+= `total_existing` (drilldown) = **14.208** persis, `up_count`/
+`flat_count`/`inactive_count`/`down_count` SAMA PERSIS di kedua sumber
+(1.087/97/9.384/3.640) — tidak ada gap §30.17-class.
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih (frontend, 0
+error), `vite build` sukses. Belum di-commit/push.
+
+### 34.2 M7 drilldown — tambah info "Total Customer Active" (2026-08-25)
+
+Susulan langsung setelah §34.1 (instruksi user: *"Tambahkan info
+drildown total customer aCTIVE"*) — dialog drilldown M7 (klik bar chart)
+sebelumnya cuma tampilkan Up Count/Total Existing/Up Rate, tidak ada
+info berapa customer yang GENUINELY bertransaksi periode ini (`cur_
+revenue > 0`, TANPA syarat naik/turun/flat vs periode sebelumnya — beda
+dari `up_count` yang mensyaratkan `cur > prev`).
+
+**Perubahan**: `fetchExpansionBreakdown` (`m3m7.repository.ts`) tambah
+field `active_count` — `COUNT(*) FILTER (WHERE cur_revenue > 0) OVER
+()`. TIDAK perlu gerbang dormant tambahan (siapa pun `cur_revenue > 0`
+otomatis "belum lewat ambang dormant", transaksi barusan — subset
+`established_not_dormant` yang sudah ada). Field baru diteruskan lewat
+`ExpansionBreakdownData` (backend+frontend), ditambahkan sbg baris info
+baru di dialog `M7ExpansionGrowth.tsx` DAN `M7Expansion.tsx` (workbench
+lama, disamakan supaya konsisten) — key i18n `dialogActiveCount`
+("Total Customer Active"/"Total Active Customer").
+
+Komentar usang di return object (`fetchExpansionBreakdown`) yang masih
+mengutip rasionale `metrics_docs.md` lama ("Denominator = semua
+existing") sekalian diperbaiki jadi merujuk `established_not_dormant`
+(§34.1), bukan "semua existing" lagi.
+
+**Verifikasi (Mei 2026, bulan penuh)**: `active_count` = **1.469** —
+cocok PERSIS dgn kolom "Existing Aktif" dari audit populasi §34
+sebelumnya (dihitung independen). `active_count (1.469) ≥ up_count
+(1.087) + flat_count (97) = 1.184` — benar (selisih 285 dari customer
+"Turun" yang `cur_revenue` masih > 0, cuma lebih kecil dari periode
+sebelumnya).
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih, `vite build`
+sukses. Belum di-commit/push.
+
+### 34.3 M3/M4/M5/M6 — eksekusi rencana asli (SELESAI, 2026-08-25)
+
+Kasus JAUH lebih sederhana dari M7 (§34.1) — tidak ada kendala breakdown
+4-arah yang butuh populasi "tidak aktif" tetap terlihat, jadi rencana
+ASLI (swap denominator murni) yang dilaksanakan apa adanya, TANPA
+CTE/JOIN baru.
+
+**M5 sempat tertahan** (ambiguitas dokumen SSOT: kalimat pembuka bilang
+"customer AKTIF", definisi rinci bilang "customer EXISTING") —
+DIPUTUSKAN via AskUserQuestion: **"Existing"** (Recommended, konsisten
+M3/M4/M6/M7 — kutipan definisi rinci dokumen: *"Customer Existing yang
+Membeli High Margin Product"*).
+
+**Perubahan** (`fetchCustomerMetricsTrend`, `m3m7.repository.ts`) — 5
+tempat, `COUNT(DISTINCT e.id)` (existing kumulatif, TERMASUK dormant) →
+`COUNT(DISTINCT cur.customer_id)` (alias `cur` = `active_inv_agg`, SUDAH
+di-JOIN sebelumnya, HANYA berisi customer dgn invoice DI DALAM bucket
+ini — reuse murni, 0 biaya query tambahan):
+- `existing_customers` (field top-level, dipakai kartu "Total Existing
+  Customer" M3/M4/M5/M6 — SEKARANG numerik identik dgn `active_existing_
+  count` yang sudah ada, redundan tapi tidak masalah, keduanya tetap
+  diekspos).
+- `avg_revenue` (M3), `avg_gross_profit` (M4) — denominator.
+- `high_margin_ratio` (M5) — numerator TETAP dari `hia`/hm_inv_agg
+  (customer yang beli HM), cuma denominator yang diganti.
+- `repeat_order_rate` (M6) — denominator.
+
+CTE turunan lain (`monthly_extras`/`top_contrib`/`gp_median_per_month`/
+`gp_tier_breakdown`/`top_contrib_gp`) DICEK, TERNYATA SUDAH BENAR sejak
+awal (semua sourced langsung dari `active_inv_agg`, bukan dari `existing`
+kumulatif) — tidak ada perubahan di situ, bug HANYA ada di 5 titik SELECT
+akhir.
+
+**Frontend TIDAK ada perubahan kode** (sesuai rencana awal) — nama field
+`existing_customers` tidak berubah, cuma nilainya, jadi UI M3/M4/M5/M6
+otomatis menampilkan angka baru yang benar.
+
+**Verifikasi** (fungsi asli `getCustomerMetrics` dipanggil langsung via
+`bun run`, bukan replikasi manual — Mei 2026, semua entitas): SEMUA
+angka cocok PERSIS dgn kolom "Aktif" di tabel audit populasi §34
+(dihitung independen SEBELUM kode ini diubah sama sekali):
+
+| Field | Hasil fungsi (sesudah fix) | Audit "Aktif" (sebelum fix, independen) |
+|---|---|---|
+| `existing_customers` | 1.469 | 1.469 |
+| `avg_revenue` (M3) | Rp7.132.141 | Rp7.132.141 |
+| `avg_gross_profit` (M4) | Rp1.414.161 | Rp1.414.161 |
+| `high_margin_ratio` (M5) | 3,4% | 3,40% |
+| `repeat_order_rate` (M6) | 23,1% | 23,1% |
+
+`tsc --noEmit` bersih (backend+frontend). Backend tidak punya skrip
+lint (beda dari frontend), `tsc` cukup. `vite build` frontend bersih
+(tidak ada perubahan kode, murni smoke test). Belum di-commit/push.
+
+**Status §34 keseluruhan: SELESAI semua (M1/M2 §34.0, M3/M4/M5/M6 §34.3,
+M7 §34.1+§34.2). M8/M9/M10 sengaja TIDAK disentuh (di luar scope, sudah
+sesuai dokumen SSOT).**

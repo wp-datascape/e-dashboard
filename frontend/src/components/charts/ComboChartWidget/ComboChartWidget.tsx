@@ -72,6 +72,14 @@ export interface ComboChartWidgetProps {
    * sebelum garis pemisah ke chart) — TIDAK bersamaan dgn `title` (kalau
    * `headerContent` diisi, itu yang dipakai). */
   headerContent?: React.ReactNode;
+  /** Konten arbitrer di BAWAH chart, DI DALAM Card widget ini, setelah
+   * legend recharts (2026-08-25, koreksi user: "Pindahkan dibawah legend"
+   * — legend custom M3 (concentrationKey) sebelumnya dirender sbg sibling
+   * SETELAH `<ComboChartWidget>`, jadi visualnya di LUAR border/background
+   * Card widget ini, sama bug class dgn `headerContent`). Pola simetris
+   * `headerContent`, cuma posisi di bawah bukan atas. Bisa dipakai
+   * BERSAMAAN dgn `caption` (caption di atas footerContent). */
+  footerContent?: React.ReactNode;
   data: object[];
   barKey: string;
   barLabel: string;
@@ -124,6 +132,7 @@ export const ComboChartWidget = ({
   subtitle,
   caption,
   headerContent,
+  footerContent,
   data,
   barKey,
   barLabel,
@@ -484,6 +493,7 @@ export const ComboChartWidget = ({
           {caption}
         </Typography>
       )}
+      {footerContent && <Box sx={{ mt: 1 }}>{footerContent}</Box>}
     </Card>
   );
 };

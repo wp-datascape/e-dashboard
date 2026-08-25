@@ -78,8 +78,8 @@ function M2Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
     <ChartTooltipCard
       title={t('crossSelling.m2TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
-        { label: t('crossSelling.m2SeriesSingleCategory'), value: String(d.single_category) },
-        { label: t('crossSelling.m2SeriesMultiCategory'), value: String(d.multi_product) },
+        { label: t('crossSelling.m2SeriesSingleCategory'), value: d.single_category.toLocaleString('id-ID') },
+        { label: t('crossSelling.m2SeriesMultiCategory'), value: d.multi_product.toLocaleString('id-ID') },
         { label: t('dashboard.charts.avgCategoryLabel'), value: d.avg_category.toFixed(2) },
       ]}
       hint={t('crossSelling.m2ChartHint')}
@@ -479,8 +479,8 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
             </Typography>
             {([
               [t('crossSelling.m2DialogAvgCategories'), String(drillData.kpi2.avg_categories)],
-              [t('crossSelling.m2DialogDistinctCats'),  String(drillData.kpi2.total_distinct_cats)],
-              [t('crossSelling.m2DialogActiveCount'),   String(drillData.kpi1.active_count)],
+              [t('crossSelling.m2DialogDistinctCats'),  drillData.kpi2.total_distinct_cats.toLocaleString('id-ID')],
+              [t('crossSelling.m2DialogActiveCount'),   drillData.kpi1.active_count.toLocaleString('id-ID')],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
