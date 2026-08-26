@@ -18,8 +18,8 @@
   "activeWindowStripLabel": "Window Aktif: {{months}} bulan",
   "execSummaryTitle": "Ringkasan Eksekutif",
   "execSummarySubtitle": "KPI bisnis paling penting periode ini",
-  "existingCustomersTitle": "Existing Customers",
-  "existingCustomersDesc": "Semua customer kecuali New (termasuk yang sudah Dormant)",
+  "existingCustomersTitle": "Total Customer Base",
+  "existingCustomersDesc": "Semua customer kecuali Acquisition (termasuk yang sudah Dormant)",
   "dormantCustomersTitle": "Dormant Customers",
   "dormantCustomersDesc": "Tidak transaksi melewati ambang per kategori bisnis",
   "growthSectionTitle": "Customer Growth",
@@ -52,15 +52,15 @@
   "definitions": {
     "title": "Definisi Kunci",
     "activeCustomer": {
-      "term": "Customer Aktif",
-      "def": "Existing customer yang punya transaksi dalam periode ini"
+      "term": "Active Customer",
+      "def": "Customer establish yang punya transaksi dalam periode ini"
     },
     "existingCustomer": {
-      "term": "Existing Customer",
-      "def": "Semua customer kecuali New — termasuk yang sudah Dormant"
+      "term": "Total Customer Base",
+      "def": "Semua customer kecuali Acquisition — termasuk yang sudah Dormant"
     },
     "newCustomer": {
-      "term": "New Customer",
+      "term": "Acquisition",
       "def": "Transaksi pertamanya baru terjadi di dalam periode ini"
     },
     "dormantCustomer": {

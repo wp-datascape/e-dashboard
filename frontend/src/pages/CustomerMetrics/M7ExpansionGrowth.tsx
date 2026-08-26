@@ -199,6 +199,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 value={`${(current?.up_rate ?? 0).toFixed(1)}%`}
                 sub={t('customerMetrics.m7.customerCountValue', { count: (current?.up_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.success.main}
+                info={t('customerMetrics.m7.seriesUpInfo')}
               />
             )}
           </Grid>
@@ -209,6 +210,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 value={`${(current?.down_rate ?? 0).toFixed(1)}%`}
                 sub={t('customerMetrics.m7.customerCountValue', { count: (current?.down_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.error.main}
+                info={t('customerMetrics.m7.seriesDownInfo')}
               />
             )}
           </Grid>
@@ -228,6 +230,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 // tampilkan label ("Kuartal 3 Tahun 2026"), bukan tanggal.
                 sub={formatPeriodRangeSub(t, periodType, periodKey, getPeriodDateRange(periodType, periodKey).start, resolvedPeriodEnd ?? periodEnd)}
                 color={theme.palette.info.main}
+                info={t('customerMetrics.m7.summaryExistingInfo')}
               />
             )}
           </Grid>

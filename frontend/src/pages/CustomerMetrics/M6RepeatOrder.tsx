@@ -210,6 +210,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
               value={(currentBreakdown?.total_existing ?? 0).toLocaleString('id-ID')}
               sub={periodRangeSub}
               color={theme.palette.info.main}
+              info={t('customerMetrics.m6.summaryExistingInfo')}
             />
           )}
         </Grid>
@@ -220,6 +221,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
               value={(currentBreakdown?.repeat_count ?? 0).toLocaleString('id-ID')}
               sub={periodRangeSub}
               color={theme.palette.primary.main}
+              info={t('customerMetrics.m6.summaryRepeatCountInfo')}
             />
           )}
         </Grid>

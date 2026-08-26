@@ -104,7 +104,13 @@ export const metricsApi = {
   },
 
   // Drill-down M8 (2026-08-24) — pola sama persis getRorBreakdown.
-  getDormantBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<DormantBreakdownData> => {
+  getDormantBreakdown: async (params: {
+    period_end?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    cutoff_day?: number;
+    skip_elapsed_clamp?: boolean;
+    company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<DormantBreakdownData> => {
     const res = await api.get<ApiResponse<DormantBreakdownData>>('/metrics/dormant-breakdown', { params });
     return res.data.data;
   },
@@ -116,6 +122,9 @@ export const metricsApi = {
     period_end?: string;
     date_from?: string;
     period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    cutoff_day?: number;
+    skip_elapsed_clamp?: boolean;
     company_id?: number | 'all';
     division?: number;
     branch_id?: number;

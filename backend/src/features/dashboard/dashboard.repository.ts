@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '@/features/metrics/segment.helper'
-import { resolveInvoiceScopeConditions } from '@/features/metrics/segment.helper'
+import { resolveInvoiceScopeConditions, dormantCrossedSql } from '@/features/metrics/segment.helper'
 import type { MonthlyTrendPoint } from './dashboard.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
 
@@ -74,7 +74,7 @@ export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyT
       COALESCE(SUM(
         CASE
           WHEN last_at_me IS NOT NULL
-           AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
+           AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`${dormantMonths}::int`)}
           THEN ROUND(total_rev / NULLIF(active_months, 0))
                * GREATEST(ROUND((me - last_at_me) / 30.0), 1)
           ELSE 0

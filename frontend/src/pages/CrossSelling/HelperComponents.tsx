@@ -1,5 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import MuiTooltip from '@mui/material/Tooltip';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Card } from '@/components/ui';
 
 // `icon` opsional (koreksi user 2026-08-21: "hapus prefix M1 langsung judul
@@ -48,6 +50,7 @@ export function KpiCard({
   color = 'primary.main',
   icon: Icon,
   highlighted = false,
+  info,
 }: {
   label: string;
   value: string | number;
@@ -67,6 +70,13 @@ export function KpiCard({
    * pola minimal (cuma border, TANPA bg tint berwarna) sesuai gaya flat
    * aplikasi. Opsional, default false (perilaku lama). */
   highlighted?: boolean;
+  /** Ikon info + tooltip di sebelah label (2026-08-26, task029.md §36.51 —
+   * instruksi user: "kamu belum memberikan tooltip di 3 card yang
+   * menggunakan istilah asing itu", label kartu ganti ke istilah CRM
+   * seperti "Active Transacting" tanpa penjelasan) — pola SAMA PERSIS
+   * `ReportSummaryCards.tsx` (MuiTooltip + InfoOutlinedIcon), reuse bukan
+   * komponen baru. Opsional, default tanpa ikon (perilaku lama). */
+  info?: string;
 }) {
   return (
     <Card sx={{
@@ -78,6 +88,16 @@ export function KpiCard({
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: '0.68rem' }}>
           {label}
         </Typography>
+        {info && (
+          <MuiTooltip
+            title={info}
+            placement="top"
+            arrow
+            slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+          >
+            <InfoOutlinedIcon sx={{ fontSize: 14, color: 'text.disabled', cursor: 'help', '&:hover': { color: 'text.secondary' } }} />
+          </MuiTooltip>
+        )}
       </Box>
       <Typography variant="h3" sx={{ fontWeight: 800, color, lineHeight: 1 }}>
         {value}

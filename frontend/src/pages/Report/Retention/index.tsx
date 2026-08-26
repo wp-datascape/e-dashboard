@@ -179,8 +179,16 @@ export default function ReportRetention() {
     return sorted;
   }, [rorData, rorSearch, rorSort]);
 
+  // period_end/period_type/apply_date_cutoff MENTAH (2026-08-27, task029.md
+  // §36.54 — koreksi user: "semua parameter harus seragam, akhir bulan
+  // kecuali cutoff diaktifkan") — BUKAN lagi periodEndEffective pre-clamp
+  // frontend (itu SEBABNYA "Dormant" tab ini beda dari kartu M8 dashboard,
+  // 2 acuan tanggal beda). Backend (resolveDormantSnapshotBucket) SEKARANG
+  // yang resolve, SATU sumber sama dgn getDormantCustomerMetrics.
   const { data: dormantData, isLoading: dormantLoading } = useDormantBreakdown({
-    period_end: periodEndEffective,
+    period_end: periodEnd,
+    period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
@@ -216,10 +224,17 @@ export default function ReportRetention() {
     };
   }, [dormantData]);
 
+  // TANPA date_from (2026-08-27, §36.54) — sebelumnya kirim `date_from:
+  // periodStart` supaya prevBucket = bulan lalu penuh, TAPI bucket current
+  // TETAP live/hari-ini (2 acuan beda dalam 1 tab, itu yang dikomplain
+  // user). Sekarang biarkan backend resolve bucket current+sebelumnya
+  // SEKALIGUS via apply_date_cutoff (mode "periode berjalan", SAMA acuan
+  // dgn kartu M8 dashboard) — date_from cuma dipakai mode drilldown klik-titik
+  // (M10ReactivationRate.tsx), BUKAN tab Laporan ini.
   const { data: statusData, isLoading: statusLoading } = useDormantStatusBreakdown({
-    period_end: periodEndEffective,
-    date_from: periodStart,
+    period_end: periodEnd,
     period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
@@ -235,9 +250,14 @@ export default function ReportRetention() {
     const rows = statusData?.rows ?? [];
     return {
       active:      rows.filter((r) => r.status === 'active').length,
+      // inactive (2026-08-26, task029.md §36.28) — status BARU, split dari
+      // 'active' lama (lihat JSDoc backend fetchCustomerDormantStatusLog).
+      inactive:    rows.filter((r) => r.status === 'inactive').length,
       dormant:     rows.filter((r) => r.status === 'dormant').length,
       reactivated: rows.filter((r) => r.status === 'reactivated').length,
-      relapsed:    rows.filter((r) => r.status === 'relapsed').length,
+      // newlyDormant (2026-08-26, task029.md §36.43) — customer yang sempat
+      // reaktivasi lalu dormant lagi; NAMA BARU dari status lama 'relapsed'.
+      newlyDormant: rows.filter((r) => r.status === 'newlyDormant').length,
     };
   }, [statusData]);
   const statusRows = useMemo(() => {
@@ -455,9 +475,19 @@ export default function ReportRetention() {
               <ReactivationSummaryCards
                 total={statusData?.rows.length ?? 0}
                 active={statusCounts.active}
-                dormant={statusCounts.dormant}
+                inactive={statusCounts.inactive}
+                // dormant (2026-08-26, task029.md §36.47) — kartu "Dormant"
+                // HARUS total gabungan (termasuk yang sempat reaktivasi/newly
+                // dormant), bukan dikurangi lagi — Newly Dormant/Reactivated
+                // di kartu sendiri cuma rincian tambahan, bukan pengurang.
+                //
+                // +reactivated DIKECUALIKAN saat cutoff aktif (2026-08-27,
+                // §36.56, sama pola M10ReactivationRate.tsx dialog) — tab ini
+                // SELALU mode "periode berjalan" (tidak ada date_from), jadi
+                // gerbangnya cukup applyDateCutoff saja.
+                dormant={statusCounts.dormant + statusCounts.newlyDormant + (applyDateCutoff ? 0 : statusCounts.reactivated)}
                 reactivated={statusCounts.reactivated}
-                relapsed={statusCounts.relapsed}
+                newlyDormant={statusCounts.newlyDormant}
               />
               <ReportTabCard
                 searchValue={statusSearch}
@@ -469,9 +499,10 @@ export default function ReportRetention() {
                 sortOptions={[
                   { value: 'all', label: t('dormantCustomer.statusAll') },
                   { value: 'active', label: t('dormantCustomer.statusActive') },
+                  { value: 'inactive', label: t('dormantCustomer.statusInactive') },
                   { value: 'dormant', label: t('dormantCustomer.statusDormant') },
                   { value: 'reactivated', label: t('dormantCustomer.statusReactivated') },
-                  { value: 'relapsed', label: t('dormantCustomer.statusRelapsed') },
+                  { value: 'newlyDormant', label: t('dormantCustomer.statusNewlyDormant') },
                 ]}
               >
                 <ResponsiveListView

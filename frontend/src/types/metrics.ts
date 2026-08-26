@@ -316,7 +316,18 @@ export interface DormantBreakdownData {
 // yang active tapi dormant lagi dalam periode tersebut... tercatat kapan
 // masuk active kapan masuk dormant, tapi dalam perhitungan masukkan status
 // terakhir saja"). Lihat JSDoc backend CustomerDormantStatusRow.
-export type DormantCustomerStatus = 'active' | 'dormant' | 'reactivated' | 'relapsed';
+// 'inactive' (2026-08-26, task029.md §36.28 — Kamus Penamaan Pelanggan
+// §36.27, instruksi user "pisahkan existing aktif dan inaktif") — 'active'
+// SEBELUMNYA menggabung "ada transaksi periode ini" + "belum transaksi
+// tapi masih masa tenggang", sekarang dipisah: 'active' = Existing Aktif
+// (ADA transaksi periode ini), 'inactive' = Existing Inaktif (TIDAK ada
+// transaksi periode ini, masih masa tenggang).
+// 'newlyDormant' — dormant di awal periode, sempat order dalam periode
+// (reaktivasi), TAPI dormant LAGI di akhir periode. NAMA BARU (2026-08-26,
+// task029.md §36.43, koreksi user: "Dormant kembali itu diganti nama
+// menjadi newlydormant, hanya itu") dari status lama 'relapsed' — logika
+// TIDAK berubah, cuma key/labelnya.
+export type DormantCustomerStatus = 'active' | 'inactive' | 'dormant' | 'newlyDormant' | 'reactivated';
 
 export interface CustomerDormantStatusRow {
   customer_id: number;
@@ -374,6 +385,6 @@ export interface DormantData {
   value_ranking_total_gp_comparison: number;
   // Daftar customer reaktivasi periode berjalan (2026-08-24, susulan "buatkan
   // juga 3 card summary diatas cart, dan top 5" M10) — top 20 by tanggal
-  // reaktivasi terbaru, sudah difilter status reactivated+relapsed di backend.
+  // reaktivasi terbaru, sudah difilter status reactivated+newlyDormant di backend.
   reactivated_customers: CustomerDormantStatusRow[];
 }

@@ -258,6 +258,7 @@ export default function Retention() {
                 isLoading={dcLoading}
                 periodType={periodTypeFilter.periodType}
                 applyDateCutoff={applyDateCutoff}
+                periodEnd={periodEnd}
                 companyId={companyId}
                 branchId={resolvedBranchId}
                 division={resolvedDivision}
@@ -278,6 +279,7 @@ export default function Retention() {
                 data={dcData}
                 isLoading={dcLoading}
                 periodType={periodTypeFilter.periodType}
+                applyDateCutoff={applyDateCutoff}
                 companyId={companyId}
                 branchId={resolvedBranchId}
                 division={resolvedDivision}

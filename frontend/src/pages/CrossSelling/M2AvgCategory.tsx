@@ -266,7 +266,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
               <KpiCard
                 label={t('crossSelling.kpi1Label')}
                 value={`${data?.kpi1.rate ?? 0}%`}
-                sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
+                sub={t('crossSelling.kpi1Sub', { multi: (data?.kpi1.multi_cat_count ?? 0).toLocaleString('id-ID'), active: (data?.kpi1.active_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.primary.main}
               />
             )}
@@ -285,7 +285,8 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
             {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
               <KpiCard
                 label={t('crossSelling.activeCustomerLabel')}
-                value={data?.kpi1.active_count ?? 0}
+                value={(data?.kpi1.active_count ?? 0).toLocaleString('id-ID')}
+                info={t('crossSelling.activeCustomerInfo')}
                 sub={data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
                 color={theme.palette.success.main}
               />

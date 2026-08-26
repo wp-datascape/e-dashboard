@@ -20,6 +20,33 @@
 
 ## Definisi Umum
 
+> **Kamus Penamaan Pelanggan v13** (task029.md §36.27-36.46, 2026-08-26) —
+> SEKARANG jadi SATU-SATUNYA kosakata resmi untuk SEMUA istilah populasi
+> pelanggan di dokumen ini DAN di kode/label aplikasi — **koreksi
+> 2026-08-26, instruksi user: "Samakan semua definisi sesuai Kamus v13
+> agar tidak menimbulkan ambiguitas dan kebingungan"**. SEBELUMNYA
+> catatan di sini bilang kamus ini "murni soal penamaan, belum ada
+> kode/label yang diubah" — itu SUDAH TIDAK BERLAKU: sepanjang
+> task029.md §36.28-36.46 puluhan kartu/dialog/tooltip di M1-M10 SUDAH
+> direname pakai istilah kamus ini (Existing Total, Retained Total,
+> Active Total, Non-Dormant, dst). Section di bawah ("Existing Customer")
+> DIREVISI supaya konsisten — sebelumnya section ini pakai kata generik
+> "Existing" utk 2 populasi BEDA (gerbang establish vs establish+transaksi
+> periode ini) tanpa nama pembeda, sumber ambiguitas yang komplain user.
+> Lihat subsection "Kamus Penamaan Pelanggan" di bawah untuk tabel
+> lengkap 6 status + 4 agregat.
+>
+> **SUSULAN (2026-08-26, task029.md §36.50)** — istilah kamus v13 di atas
+> (Retained/Active Total/Existing Total/Non-Dormant, dst) DIGANTI LAGI ke
+> istilah standar CRM yang lebih dikenal umum (Acquisition, Active
+> Customer, Lapsed, Relapsed, Existing Active, Active Transacting, Total
+> Customer Base, Customer Base (Addressable)) — instruksi user: *"tampilan
+> seluruhnya diganti yang standar ini, termasuk tooltip, rumus"*, disusul
+> *"termasuk update kamus V13 pakai definisi baru ini"*. Ini BUKAN
+> perubahan kalkulasi lagi — pemetaan 1:1 istilah lama→baru, lihat tabel
+> di bawah (kolom "dulu"). SELURUH kode/label aplikasi (id+en) SUDAH
+> diganti ke istilah baru ini.
+
 Dashboard ini punya **DUA konsep populasi berbeda**, dipakai KPI yang berbeda pula
 (task029.md §34, dikonfirmasi ke dokumen SSOT resmi 2026-08-25) — jangan disamakan:
 
@@ -36,22 +63,153 @@ AND customers.is_placeholder = false
 DI DALAM periode ini) IKUT terhitung. Dipakai **M1 (Cross Sell Ratio)** dan
 **M2 (Average Product Category per Customer)** — lihat section M1 di bawah.
 
-### Existing Customer
+### Total Customer Base (gerbang establish)
 
-Customer yang dianggap "existing" pada suatu bulan adalah customer yang memenuhi syarat:
+Customer yang dianggap **established** pada suatu bulan adalah customer yang memenuhi syarat:
 
 ```
 customers.first_invoice_date < awal bulan (period_start)
 AND customers.is_placeholder = false
 ```
 
-Customer baru (first invoice DI DALAM periode ini) **dikecualikan**. Dipakai
-**M3, M4, M5, M6, M7** (masing-masing dengan syarat tambahan berbeda-beda, lihat
-section per KPI) dan sebagian **M8-M10**.
+Customer baru (first invoice DI DALAM periode ini, alias **Acquisition**)
+**dikecualikan**. Ini GERBANG PALING LUAS — SEMUA status (Active
+Customer, Reactivated, Lapsed, Dormant) adalah SUBSET dari populasi ini;
+TIDAK mensyaratkan transaksi di periode berjalan sama sekali (customer
+yang sudah dormant bertahun-tahun TETAP masuk hitungan ini). **Bukan
+berarti tiap KPI M3-M7 pakai gerbang ini APA ADANYA sbg denominator** —
+masing-masing KPI menambahkan syarat lanjutan DI ATAS gerbang ini (lihat
+tabel pemetaan di subsection Kamus Penamaan Pelanggan di bawah: M3-M6 →
+**Existing Active**, M7 → **Customer Base (Addressable)**). Dipakai (sbg
+gerbang dasar) **M3, M4, M5, M6, M7** (masing-masing dengan syarat
+tambahan berbeda-beda, lihat section per KPI) dan sebagian **M8-M10**.
 
 Customer **dummy** (PELANGGAN UMUM, WALK-IN, dll.) dikecualikan melalui kolom
 `is_placeholder = true` yang di-set otomatis saat import — berlaku di KEDUA
 definisi di atas.
+
+### Kamus Penamaan Pelanggan v13 (2026-08-26)
+
+> Menggantikan draft v12 sebelumnya (riwayat perubahan bertahap lengkap:
+> task029.md §36.27 draft awal → §36.31 v12 → §36.32 v13 tooltip →
+> §36.35 tambah "Non-Dormant" + kolom Formula, instruksi user: *"Tambahkan
+> 1 Definisi lagi non-dormant... Tambahkan rumus perhitungan di setiap
+> definisi"*).
+
+**A. Status per pelanggan di satu periode (6 status dasar)** — **KOREKSI
+2026-08-26 (task029.md §36.50)**: istilah kolom "Status" DIGANTI ke
+istilah standar CRM (lebih dikenal umum) menggantikan istilah kamus v13
+lama (kolom "dulu"), instruksi user: *"tampilan seluruhnya diganti yang
+standar ini, termasuk tooltip, rumus"*. Kolom "kunci kode" TIDAK berubah
+— key/enum di backend/frontend TETAP `new`/`retained`/`reactivated`/
+`inactive`/`dormant`/`newlyDormant`, cuma teks yang tampil ke user yang
+berganti:
+
+| Status (istilah baru) | dulu (kamus v13) | Definisi | Formula |
+|---|---|---|---|
+| **Acquisition** | New | Pelanggan yang melakukan transaksi pertama di periode berjalan. | Transaksi pertama customer (`first_invoice_date`) jatuh di dalam periode berjalan |
+| **Active Customer** | Retained | Pelanggan yang ada transaksi periode sebelumnya, dan transaksi di periode berjalan. | Ada transaksi di periode (t-1) DAN ada transaksi di periode (t) |
+| **Reactivated** | Reactivated | Pelanggan yang tidak ada transaksi periode sebelumnya, kembali transaksi di periode berjalan. | TIDAK ada transaksi di periode (t-1) DAN ada transaksi di periode (t) DAN BUKAN Acquisition |
+| **Lapsed** | Inactive | Pelanggan yang pernah transaksi sebelumnya, tidak ada transaksi di periode berjalan dan belum dormant. | Pernah transaksi sebelumnya DAN TIDAK ada transaksi di periode (t) DAN belum lewat ambang dormant |
+| **Dormant** | Dormant | Pelanggan yang pernah transaksi sebelumnya, dan masuk ambang dormant (dianggap hilang/churn). | Pernah transaksi sebelumnya DAN sudah lewat ambang dormant (X bulan, per kategori divisi) |
+| **Relapsed** | Newly Dormant | Pelanggan yang sempat reaktivasi (bertransaksi lagi setelah dormant), tapi dormant lagi di periode ini. | `was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me` — logika TIDAK berubah dari `newlyDormant`/`relapsed` (task029.md §36.43), cuma teksnya. TIDAK ada padanan formal di 5-status dasar lain, dipertahankan sbg status ekstra sesuai instruksi user. |
+
+**B. Metrik agregat (4)** — sama pola, istilah baru menggantikan istilah lama:
+
+| Metrik (istilah baru) | dulu (kamus v13) | Definisi | Formula |
+|---|---|---|---|
+| **Existing Active** | Retained Total | Pelanggan aktif di periode berjalan yang sudah establish sebelumnya. | `Active Customer + Reactivated` |
+| **Active Transacting** | Active Total | Jumlah semua pelanggan aktif di periode berjalan, terdiri dari Acquisition, Active Customer, Reactivated. | `Acquisition + Active Customer + Reactivated` |
+| **Total Customer Base** | Existing Total | Seluruh database pelanggan historis yang pernah transaksi, apa pun status terkininya. | `Active Customer + Reactivated + Lapsed + Dormant` (established customer — TIDAK termasuk Acquisition) |
+| **Customer Base (Addressable)** | Non-Dormant | Basis pelanggan yang masih bisa ditargetkan/belum hilang — belum masuk ambang dormant. | `Lapsed + Active Customer + Reactivated`, setara `Total Customer Base − Dormant` |
+
+*Catatan "X bulan" (ambang dormant): parameter per kategori bisnis
+divisi, SUDAH dikonfigurasi di `ThresholdConfig['dormant']` (B2B
+Distributor 3bln, B2B Project 12bln, B2C 6bln, Manufacturing 6bln) —
+BELUM dikonfirmasi user apakah ini yang dimaksud "masa tenggang =
+parameter, default 3 bulan" di kamus, atau mau diseragamkan (pertanyaan
+TERBUKA, task029.md §36.31, belum dijawab).*
+
+**C. Aturan penggunaan** (dari kamus asli — TIDAK semua diterapkan,
+lihat catatan konflik):
+- "Active Transacting" untuk: Revenue, Transaksi, AOV, Traffic
+- "Active Customer" untuk: Retention Rate, Repeat Purchase, Cross-Sell —
+  **KONFLIK dgn keputusan §34**: M1/M2 Cross Selling TETAP pakai
+  "Active Transacting" (bukan "Active Customer"), keputusan resmi lama
+  dari dokumen SSOT terpisah, override eksplisit bukan diabaikan diam-diam.
+- "Acquisition" untuk: Growth, Efektivitas Marketing
+- "Dormant" untuk: Churn, Winback Opportunity
+
+**D. Pemetaan populasi denominator tiap KPI ke istilah baru** (2026-08-26,
+task029.md §36.47/§36.50, instruksi user: *"Samakan semua definisi sesuai
+Kamus v13 agar tidak menimbulkan ambiguitas"*, lalu *"tampilan seluruhnya
+diganti yang standar [CRM] ini"*) — dokumen SSOT lama (per-KPI, ditulis
+SEBELUM kamus v13 ada) memakai kata generik **"Existing Customer"** utk 2
+populasi BEDA tanpa nama pembeda — ini SUMBER ambiguitas yang komplain
+user. Dipetakan eksplisit ke istilah baru:
+
+| KPI | Populasi denominator (definisi SSOT lama) | = Istilah baru |
+|---|---|---|
+| M1, M2 | Ada transaksi periode ini, TANPA syarat riwayat sebelumnya | **Active Transacting** |
+| M3, M4, M5, M6 | Riwayat sebelum periode ini DAN masih transaksi periode ini | **Existing Active** |
+| M7 | Riwayat sebelum periode ini DAN belum lewat ambang dormant (TANPA syarat transaksi periode ini) | **Customer Base (Addressable)** |
+| M8, M9, M10 (gerbang dasar) | Riwayat sebelum periode ini, status apa pun (termasuk dormant) | **Total Customer Base** |
+
+Tiap section KPI di bawah (M3-M7) SUDAH direvisi memakai nama baru ini
+secara eksplisit, bukan lagi kata generik "Existing Customer" sendirian.
+
+**Verifikasi arithmetic** (dibuktikan dari angka live UI, task029.md
+§36.35, bukan tebakan): Active Customer (751) + Lapsed (10.520) +
+Reactivated (104) = **11.375** = kartu "Customer Base (Addressable)" di
+tab Ekspansi. Active Customer (751) + Reactivated (104) = **855** =
+kartu "Existing Active" (tab Repeat Order & Ekspansi). Total Customer
+Base (32.631) − Dormant (21.256) = **11.375** — 2 cara hitung Customer
+Base (Addressable) hasilnya sama.
+
+**"Newly Dormant" — DIKLARIFIKASI via contoh konkret user (task029.md
+§36.36)**: *"tarik data periode 1 semester, Januari dia aktif/reaktivasi,
+Februari s.d Mei tidak aktif, Juni masuk dormant."* Ini MENJAWAB
+ambiguitas sebelumnya — "periode berjalan"/"periode yang sama" MERUJUK
+KE RENTANG PERIODE YANG SEDANG DITARIK SECARA UTUH (bisa lebar, mis. 1
+semester), BUKAN 1 titik waktu tunggal — transisi status (belum dormant
+→ dormant) terjadi DI DALAM rentang itu sendiri, dibandingkan AWAL vs
+AKHIR periode yang SAMA (bukan periode sebelumnya vs periode ini sbg 2
+bucket terpisah seperti dugaan awal). Konsisten dgn kenapa ambang
+dormant (multi-bulan) BISA terlewati DI DALAM 1 periode lebar (semester/
+kuartal), sesuatu yang tidak mungkin terjadi kalau periodenya sempit
+(bulanan) — makanya definisi ini baru "berbunyi" jelas via contoh
+granularitas lebar.
+
+**Status implementasi UI** (label yang SUDAH dipasang per tanggal doc
+ini) — **per 2026-08-26 (task029.md §36.50), SELURUH label tampilan di
+aplikasi (id+en: dormantCustomer.json, customerMetrics.json,
+crossSelling.json, dashboard.json) SUDAH diganti ke istilah baru** (kolom
+"A"/"B" di atas), menggantikan draft kamus v13 lama:
+
+| Tab/Halaman | Istilah dipakai (baru) |
+|---|---|
+| Laporan Retention · Reaktivasi (6 kartu) | Total Customer Base, Active Customer, Lapsed, Dormant, Reactivated, Relapsed |
+| Laporan Retention · Repeat Order | Existing Active |
+| Laporan Retention · Dormant | Dormant |
+| Laporan Growth · Cross Selling | Active Transacting |
+| Laporan Growth · Ekspansi | Total Customer Base, Dormant, Customer Base (Addressable), Existing Active |
+| Dashboard Retention · M8 Dormant Rate (kartu + dialog) | Total Customer Base, Customer Base (Addressable), Dormant |
+| Dashboard Overview (`/dashboard`, Definisi Kunci) | Acquisition, Active Customer, Total Customer Base, Dormant Customer |
+
+Formula rumus per KPI dan teks tooltip info SUDAH ikut diperbarui pakai
+istilah baru ini juga (bukan cuma label kartu) — lihat section per KPI
+di bawah.
+
+**PENTING — SQL backend SEBAGIAN disesuaikan ke definisi kamus** (split
+Active Customer/Reactivated MASIH BELUM): split status di
+`fetchCustomerDormantStatusLog` (m8m10.repository.ts) MASIH pakai logika
+lama (task029.md §36.28, berbasis ambang dormant multi-bulan
+`was_dormant_at_prev`), BUKAN definisi kamus murni (berbasis transaksi 1
+periode langsung sebelumnya). Label di atas SUDAH dipasang mengikuti
+nama baru, TAPI angka di baliknya belum tentu match presisi definisi
+kamus sampai SQL ditulis ulang — pending konfirmasi user (task029.md
+§36.31, 2 pertanyaan masih terbuka: lanjut rewrite SQL sekarang atau
+tunda, dan pilihan config "masa tenggang").
 
 ### Parameter Global
 
@@ -221,13 +379,18 @@ bertransaksi** dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan — task029.md
 ekonomi customer yang dipertahankan dan efektivitas strategi retensi/pengembangan
 akun.
 
-**Dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH SESUAI**:
-definisi "Existing Customer" di SSOT eksplisit mensyaratkan "riwayat sebelum
-periode DAN masih melakukan pembelian pada periode tersebut" — PERSIS populasi
-yang dipakai di bawah (bukan "existing kumulatif" tanpa syarat aktif). Konsekuensi
-penting: customer yang berhenti total (dormant) otomatis TIDAK masuk populasi ini
-dgn sendirinya (karena syarat "masih membeli" sudah menyingkirkan mereka) — TIDAK
-butuh gerbang dormant terpisah, beda dari M7 (lihat section M7).
+**Populasi = Existing Active** (dulu "Retained Total" di kamus v13,
+task029.md §36.50) — dicek terhadap dokumen SSOT resmi (task029.md §36,
+2026-08-25) — SUDAH SESUAI: definisi "Existing Customer" di SSOT
+eksplisit mensyaratkan "riwayat sebelum periode DAN masih melakukan
+pembelian pada periode tersebut" — PERSIS **Existing Active**
+(`Active Customer + Reactivated`, lihat subsection Kamus Penamaan
+Pelanggan di atas), BUKAN "Total Customer Base" (established kumulatif
+tanpa syarat aktif). Konsekuensi penting: customer yang berhenti total
+(dormant) otomatis TIDAK masuk populasi ini dgn sendirinya (karena
+syarat "masih membeli" sudah menyingkirkan mereka) — TIDAK butuh gerbang
+dormant terpisah, beda dari M7 (populasi **Customer Base (Addressable)**,
+lihat section M7).
 
 ### Formula
 
@@ -320,9 +483,11 @@ dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan) — profitabilitas customer l
 kontribusi margin, bukan cuma omzet. Sekaligus membagi distribusi GP ke dalam **3 tier
 berdasarkan median GP periode tersebut**, ditampilkan sbg stacked bar.
 
-**Dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH SESUAI**:
-definisi "Existing Customer" sama persis M3 ("riwayat sebelum periode DAN masih
-melakukan pembelian pada periode tersebut"), "Gross Profit = Revenue − COGS" (kolom
+**Populasi = Existing Active** (dulu "Retained Total"), sama persis M3 —
+dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH
+SESUAI: definisi "Existing Customer" sama persis M3 ("riwayat sebelum
+periode DAN masih melakukan pembelian pada periode tersebut" =
+**Existing Active**), "Gross Profit = Revenue − COGS" (kolom
 `invoices.total_gp`, dihitung saat import).
 
 ### Formula Avg GP
@@ -415,13 +580,15 @@ Margin dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan). Mengukur porsi
 CUSTOMER yang membeli (penetrasi), BUKAN porsi revenue-nya (itu ranah M3
 "Kontribusi High Margin").
 
-**Dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25)** — populasi
-M5 SEMPAT diperdebatkan (dokumen tidak py bullet "Existing Customer" lengkap
-di section-nya sendiri spt M3/M4/M7, cuma "Customer Aktif" generik) —
+**Populasi = Existing Active** (dulu "Retained Total") — dicek terhadap
+dokumen SSOT resmi (task029.md §36, 2026-08-25) — populasi M5 SEMPAT
+diperdebatkan (dokumen tidak py bullet "Existing Customer" lengkap di
+section-nya sendiri spt M3/M4/M7, cuma "Customer Aktif" generik) —
 **dikonfirmasi ULANG via data nyata** (perbandingan 12 bulan Existing vs
 Customer Aktif, rate SELALU lebih rendah kalau customer baru diikutkan,
 konsisten ~1-1,7pp tiap bulan): **keputusan akhir user TETAP "Existing"**
-("karena tidak disebutkan [customer baru harus diikutsertakan]" di dokumen).
+("karena tidak disebutkan [customer baru harus diikutsertakan]" di
+dokumen) — yaitu **Existing Active** (sama pola M3/M4/M6).
 
 ### Formula
 
@@ -504,11 +671,12 @@ benar walau titik yang diklik beda dari titik terakhir), total revenue HM.
 
 Mengukur persentase existing customer yang melakukan pembelian ulang (**lebih dari 1 transaksi**) dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan) — loyalitas customer, kualitas pengalaman pelanggan, dan efektivitas strategi retensi. "Repeat order" artinya minimal 2 invoice berbeda dalam periode itu, bukan sekadar pernah beli sebelumnya.
 
-**Dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH SESUAI**:
-"Customer yang Melakukan Repeat Order" (numerator, >1 transaksi periode ini)
-BEDA dari "Existing Customer" (denominator, cuma syarat riwayat + masih
-beli, TANPA syarat harus >1 kali) — dokumen memisahkan keduanya secara
-eksplisit.
+**Populasi = Existing Active** (dulu "Retained Total") — dicek terhadap
+dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH SESUAI: "Customer
+yang Melakukan Repeat Order" (numerator, >1 transaksi periode ini) BEDA
+dari "Existing Customer"/**Existing Active** (denominator, cuma syarat
+riwayat + masih beli, TANPA syarat harus >1 kali) — dokumen memisahkan
+keduanya secara eksplisit.
 
 ### Formula
 
@@ -589,14 +757,18 @@ lewat ambang dormant) yang spend-nya **naik** dibanding periode
 SEBELUMNYA (lebar sama, calendar-anchored, granularitas-aware — bukan lagi
 30/60 hari hardcode, lihat "REVISI 2026-08-23/25" di bawah).
 
-**Populasi (REVISI 2026-08-25, task029.md §34.1)** — BUKAN "semua existing"
-polos (definisi §M3-M6). Existing customer yang SUDAH resmi dormant
-(melewati `dormantThresholdCaseSql`, sama ambang per kategori bisnis divisi
-dgn M8) DIKELUARKAN dari denominator — itu ranah M8, bukan lagi soal
-"expansion". Yang tersisa jadi "existing DAN belum lewat ambang dormant"
-(alias `established_not_dormant`) — customer yang baru absen tapi belum
-resmi dormant tetap masuk hitungan, kebaca sbg kategori "Tidak Aktif"
-(sinyal dini, masih actionable).
+**Populasi = Customer Base (Addressable)** (dulu "Non-Dormant" di kamus
+v13, REVISI 2026-08-25, task029.md §34.1/§36.47/§36.50) — BUKAN "Total
+Customer Base" polos (established, ANY status) atau "Existing Active"
+(definisi §M3-M6, mensyaratkan transaksi periode ini). Existing customer
+yang SUDAH resmi dormant (melewati `dormantThresholdCaseSql`, sama
+ambang per kategori bisnis divisi dgn M8) DIKELUARKAN dari denominator —
+itu ranah M8, bukan lagi soal "expansion". Yang tersisa = **Customer
+Base (Addressable)** (`Lapsed + Active Customer + Reactivated`, alias
+kode `established_not_dormant`) — customer yang baru absen tapi belum
+resmi dormant TETAP masuk hitungan (TIDAK mensyaratkan transaksi di
+periode berjalan sama sekali), kebaca sbg kategori "Lapsed" (sinyal
+dini, masih actionable).
 
 ### Formula
 

@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql } from '../segment.helper'
+import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, dormantCrossedSql } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RevenueBreakdownRow, ExpansionBreakdownRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
@@ -264,7 +264,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       SELECT label, customer_id
       FROM last_inv_per_bucket
       WHERE last_inv_before_be IS NOT NULL
-        AND last_inv_before_be > bucket_end - dormant_threshold * INTERVAL '1 month'
+        AND ${dormantCrossedSql(sql`last_inv_before_be`, sql`bucket_end`, sql`dormant_threshold`, true)}
     ),
 
     -- Revenue + GP per existing customer per bucket (window: SELURUH
@@ -819,7 +819,7 @@ export async function fetchExpansionBreakdown(
       LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
       GROUP BY ec.id, cdt.dormant_threshold
       HAVING MAX(li.invoice_date) IS NOT NULL
-        AND MAX(li.invoice_date) > ${filterDate}::date - cdt.dormant_threshold * INTERVAL '1 month'
+        AND ${dormantCrossedSql(sql`MAX(li.invoice_date)`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
     ),
     inv_current AS (
       SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
@@ -973,7 +973,7 @@ export async function fetchExpansionBreakdown(
         LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
         GROUP BY ec.id, cdt.dormant_threshold
         HAVING MAX(li.invoice_date) IS NOT NULL
-          AND MAX(li.invoice_date) > ${filterDate}::date - cdt.dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`MAX(li.invoice_date)`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
       )
       SELECT COUNT(*)::int AS total_existing FROM established_not_dormant
     `) as unknown[]

@@ -201,8 +201,13 @@ export default function ReportGrowth() {
   // Retention, bukan fetch/hitungan baru) dgn scope+periode yang SAMA
   // persis, supaya "Dormant" + "Belum Dormant" di sini konsisten dgn
   // angka di tab Dormant Retention.
+  // period_end/period_type/apply_date_cutoff MENTAH (2026-08-27, §36.54 —
+  // sama koreksi dgn Report/Retention: backend resolve sendiri via
+  // resolveDormantSnapshotBucket, bukan periodEndEffective pre-clamp lagi).
   const { data: dormantData } = useDormantBreakdown({
-    period_end: periodEndEffective,
+    period_end: periodEnd,
+    period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
@@ -368,17 +373,17 @@ export default function ReportGrowth() {
                   vs 1.218 di 3 tab berbeda). */}
               <ReportSummaryCards items={[
                 { label: t('customerMetrics.m7.summaryTotalPelanggan'), value: totalPelangganCount.toLocaleString('id-ID'),
-                  icon: PeopleOutlineIcon, info: t('customerMetrics.m7.summaryTotalPelangganInfo'), md: 2 },
+                  icon: PeopleOutlineIcon, info: t('customerMetrics.m7.summaryTotalPelangganInfo') },
                 { label: t('dormantCustomer.dormantCountLabel'), value: dormantCount.toLocaleString('id-ID'),
-                  icon: PauseCircleOutlinedIcon, iconColor: 'warning', info: t('customerMetrics.m7.summaryDormantInfo'), md: 2 },
+                  icon: PauseCircleOutlinedIcon, iconColor: 'warning', info: t('customerMetrics.m7.summaryDormantInfo') },
                 { label: t('customerMetrics.m7.summaryBelumDormant'), value: belumDormantCount.toLocaleString('id-ID'),
-                  icon: CheckCircleOutlineIcon, iconColor: 'success', info: t('customerMetrics.m7.summaryExistingInfo'), md: 2 },
+                  icon: CheckCircleOutlineIcon, iconColor: 'success', info: t('customerMetrics.m7.summaryExistingInfo') },
                 { label: t('customerMetrics.m7.summaryAktif'), value: (expansionData?.active_count ?? 0).toLocaleString('id-ID'),
-                  icon: BoltIcon, iconColor: 'primary', info: t('customerMetrics.m7.dialogActiveCountInfo'), md: 2 },
+                  icon: BoltIcon, iconColor: 'primary', info: t('customerMetrics.m7.dialogActiveCountInfo') },
                 { label: t('customerMetrics.m7.seriesUp'), value: (expansionData?.up_count ?? 0).toLocaleString('id-ID'),
-                  icon: TrendingUpIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m7.seriesUpInfo'), md: 2 },
+                  icon: TrendingUpIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m7.seriesUpInfo') },
                 { label: t('customerMetrics.m7.seriesDown'), value: (expansionData?.down_count ?? 0).toLocaleString('id-ID'),
-                  icon: TrendingDownIcon, iconColor: 'error', info: t('customerMetrics.m7.seriesDownInfo'), md: 2 },
+                  icon: TrendingDownIcon, iconColor: 'error', info: t('customerMetrics.m7.seriesDownInfo') },
               ]} />
               <ReportTabCard
                 searchValue={expansionSearch}

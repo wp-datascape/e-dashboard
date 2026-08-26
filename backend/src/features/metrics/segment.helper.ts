@@ -12,6 +12,7 @@ export {
   cteExistingCustomersByPeriod,
   cteCustDivision,
   dormantThresholdCaseSql,
+  dormantCrossedSql,
   resolveInvoiceScopeConditions,
   monthEndDate,
   divisionToDormantKey,

@@ -189,6 +189,7 @@ export function M5HighMargin({ trend, yoyTrend = [], isLoading, periodType = 'mo
                 value={(last?.existing_customers ?? 0).toLocaleString('id-ID')}
                 sub={periodPhrase}
                 color={theme.palette.primary.main}
+                info={t('customerMetrics.m5.summaryExistingInfo')}
               />
             )}
           </Grid>

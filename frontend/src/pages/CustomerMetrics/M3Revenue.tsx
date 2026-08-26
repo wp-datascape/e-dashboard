@@ -201,6 +201,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
               value={(last?.existing_customers ?? 0).toLocaleString('id-ID')}
               sub={periodPhrase}
               color={theme.palette.success.main}
+              info={t('customerMetrics.m3.summaryExistingInfo')}
             />
           )}
         </Grid>

@@ -177,21 +177,43 @@ export function useDormantCustomer(params?: {
 }
 
 // Drill-down M8 (2026-08-24) — pola sama persis useRorBreakdown (M6).
-export function useDormantBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
+// period_type/apply_date_cutoff/cutoff_day/skip_elapsed_clamp (2026-08-27,
+// task029.md §36.54) — OPSIONAL: kirim utk mode "periode berjalan" (Report
+// pages, backend resolve sendiri via resolveDormantSnapshotBucket), JANGAN
+// kirim utk mode "1 titik chart yang sudah final" (M8DormantRate drilldown,
+// period_end APA ADANYA, PERILAKU LAMA).
+export function useDormantBreakdown(params: {
+  period_end: string | null;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  cutoff_day?: number;
+  skip_elapsed_clamp?: boolean;
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}) {
   return useQuery<DormantBreakdownData>({
     queryKey: ['metrics', 'dormant-breakdown', params],
-    queryFn: () => metricsApi.getDormantBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
+    queryFn: () => metricsApi.getDormantBreakdown({ ...params, period_end: params.period_end! }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // Status per customer utk 1 titik chart M10 (2026-08-24, susulan pertanyaan
-// user soal ambiguitas reaktivasi) — date_from = awal bucket yang diklik.
+// user soal ambiguitas reaktivasi) — date_from = awal bucket yang diklik
+// (mode drilldown M10, PERILAKU LAMA). apply_date_cutoff/cutoff_day/
+// skip_elapsed_clamp (2026-08-27, §36.54) — dipakai mode "periode berjalan"
+// (Report/Retention tab Reaktivasi) TANPA date_from, sama pola di atas.
 export function useDormantStatusBreakdown(params: {
   period_end: string | null;
   date_from?: string;
   period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  cutoff_day?: number;
+  skip_elapsed_clamp?: boolean;
   company_id?: number | 'all';
   division?: number;
   branch_id?: number;

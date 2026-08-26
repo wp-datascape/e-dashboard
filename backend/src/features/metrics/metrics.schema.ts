@@ -273,11 +273,21 @@ export const dormantStatusBreakdownQuerySchema = z.object({
   period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
   period_type: z.enum(['monthly', 'quarter', 'semester', 'annual']).optional(),
+  // apply_date_cutoff/cutoff_day/skip_elapsed_clamp (2026-08-27, task029.md
+  // §36.54 — koreksi user: "semua parameter harus seragam, akhir bulan
+  // kecuali cutoff diaktifkan") — bucket current+sebelumnya SEKARANG
+  // dihitung backend sendiri via resolveDormantSnapshotBucket (SATU sumber
+  // acuan sama dgn getDormantCustomerMetrics), bukan lagi dari `date_from`/
+  // `period_end` mentah kiriman frontend yang pre-clamp sendiri (2 acuan
+  // beda, itu akar masalah).
+  apply_date_cutoff: applyDateCutoffField,
+  cutoff_day: cutoffDayField,
+  skip_elapsed_clamp: skipElapsedClampField,
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
   only_pareto: onlyParetoField,
-  status: z.enum(['active', 'dormant', 'reactivated', 'relapsed']).optional(),
+  status: z.enum(['active', 'inactive', 'dormant', 'newlyDormant', 'reactivated']).optional(),
 })
 
 export type DormantStatusBreakdownQuery = z.infer<typeof dormantStatusBreakdownQuerySchema>

@@ -264,15 +264,35 @@ export interface DormantBreakdownData {
 // agregat fetchDormantTrend (dormant_count/reactivated_count TETAP net
 // status akhir saja, TIDAK berubah) — dipakai drill-down + bahan laporan.
 //
-// - 'active'      — sudah aktif sebelum periode ini, TETAP aktif.
-// - 'dormant'     — dormant di akhir periode (baik sudah dormant sebelumnya
-//                    tanpa order baru, atau baru jadi dormant periode ini).
+// - 'active'      — belum lewat ambang dormant DAN ADA transaksi di dalam
+//                    periode ini ("Existing Aktif" per Kamus Penamaan
+//                    Pelanggan, task029.md §36.28/§36.27).
+// - 'inactive'     — belum lewat ambang dormant TAPI TIDAK ADA transaksi
+//                    di dalam periode ini (masih masa tenggang, cuma
+//                    belum beli lagi) — "Existing Inaktif" per kamus.
+//                    Status BARU (2026-08-26, task029.md §36.28) — SEBELUMNYA
+//                    digabung ke 'active' (bug klasifikasi kamus: "Aktif"
+//                    dulu tidak bedakan "beli bulan ini" vs "belum lewat
+//                    ambang tapi belum beli bulan ini"), dipisah krn
+//                    instruksi user eksplisit: "buat endpoint nya
+//                    pisahkan existing aktif dan inaktif".
+// - 'dormant'     — sedang dormant, TIDAK ada order di antaranya (bukan
+//                    hasil reaktivasi-lalu-dormant-lagi — itu 'newlyDormant'
+//                    di bawah).
 // - 'reactivated' — dormant di awal periode, order dalam periode, DAN masih
 //                    aktif di akhir periode (net transisi dormant->aktif).
-// - 'relapsed'    — dormant di awal periode, sempat order dalam periode,
-//                    TAPI dormant LAGI di akhir periode (lebar bucket >
-//                    ambang dormant) — kasus ambigu yang ditanyakan user.
-export type DormantCustomerStatus = 'active' | 'dormant' | 'reactivated' | 'relapsed'
+// - 'newlyDormant' — dormant di awal periode, sempat order dalam periode
+//                    (reaktivasi), TAPI dormant LAGI di akhir periode
+//                    (lebar bucket > ambang dormant). NAMA BARU (2026-08-26,
+//                    task029.md §36.43, koreksi user: "Dormant kembali itu
+//                    diganti nama menjadi newlydormant, hanya itu") dari
+//                    status lama 'relapsed' — logikanya TIDAK berubah, cuma
+//                    key/labelnya. TIDAK ada padanan di Kamus Penamaan
+//                    Pelanggan (cuma 6 kategori dasar). Instruksi user
+//                    eksplisit: "Dormant lagi tetap pertahankan sebagai
+//                    informasi detail tambahan" (§36.27/§36.28) —
+//                    dipertahankan sbg status EKSTRA di luar kamus.
+export type DormantCustomerStatus = 'active' | 'inactive' | 'dormant' | 'newlyDormant' | 'reactivated'
 
 export interface CustomerDormantStatusRow {
   customer_id: number
@@ -293,7 +313,7 @@ export interface CustomerDormantStatusRow {
   // definisi SAMA PERSIS avg_monthly_revenue di fetchDormantValueRanking/M9).
   avg_monthly_revenue: number
   // Tanggal pasti melewati ambang dormant (last_invoice_in_period + ambang
-  // bulan) — hanya terisi kalau status akhir 'dormant'/'relapsed'
+  // bulan) — hanya terisi kalau status akhir 'dormant'/'newlyDormant'
   dormant_since_date: string | null
 }
 
@@ -360,7 +380,7 @@ export interface DormantMetricsData {
   // Daftar customer yang reaktivasi di periode berjalan (KPI10 top 5/tabel,
   // top 20 by tanggal reaktivasi terbaru) — REUSE fetchCustomerDormantStatusLog
   // pada bucket TERAKHIR trend (2026-08-24, susulan "buatkan juga 3 card
-  // summary diatas cart, dan top 5" M10), filter status reactivated+relapsed
+  // summary diatas cart, dan top 5" M10), filter status reactivated+newlyDormant
   // di service layer. Granularitas-aware (dulu fetchReactivatedCustomers,
   // hardcode window 1 bulan kalender — DIHAPUS, sudah tidak dipakai lagi).
   reactivated_customers: CustomerDormantStatusRow[]

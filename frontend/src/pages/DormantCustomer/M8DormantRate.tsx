@@ -20,7 +20,7 @@ import { KpiHeader } from '@/components/dashboard/KpiHeader';
 import { TopMoversTimeline } from '@/components/dashboard/TopMoversTimeline';
 import type { TopMoverItem } from '@/components/dashboard/TopMoversTimeline';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
-import { formatPeriodLabel, formatPeriodLabelShort, getYoyPeriodKey, getPeriodDateRange, clampPeriodEndToToday, getPreviousPeriodKey } from '@/utils/analisisPeriod';
+import { formatPeriodLabel, formatPeriodLabelShort, getYoyPeriodKey, getPeriodDateRange } from '@/utils/analisisPeriod';
 import { useDormantBreakdown } from '@/hooks/useMetrics';
 import type { DormantData } from '@/types/metrics';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
@@ -99,6 +99,18 @@ interface Props {
    * transaksi mei, juni, juli") — drilldown klik-titik ikut geser supaya
    * konsisten dgn angka yang ditampilkan titik itu. */
   applyDateCutoff?: boolean;
+  /** Tanggal filter HALAMAN mentah (2026-08-27, task029.md §36.57 —
+   * koreksi user: klik titik chart terakhir di Dormant Rate menunjukkan
+   * angka BEDA dari kartu KPI di sebelahnya, 14.908 vs 16.964) — dipakai
+   * drilldown klik-titik TERAKHIR (titik "berjalan") supaya lewat jalur
+   * resolusi SAMA PERSIS dgn kartu KPI (`resolveDormantSnapshotBucket` via
+   * `period_type`/`apply_date_cutoff`), bukan dihitung ulang manual di sini
+   * (itu akar bug-nya — gerbang Existing/Established pakai bulan data yang
+   * sudah digeser, bukan bulan kalender asli). Titik HISTORIS (bukan
+   * terakhir) tetap pakai akhir bulannya sendiri, tidak butuh prop ini.
+   * Opsional, default undefined — caller lama (DormantCustomer/index.tsx,
+   * belum kirim) fallback ke bulan terakhir apa adanya. */
+  periodEnd?: string;
   companyId: number | 'all';
   branchId?: number;
   division?: number;
@@ -106,7 +118,7 @@ interface Props {
   onlyPareto?: boolean;
 }
 
-export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDateCutoff = false, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
+export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDateCutoff = false, periodEnd, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -149,6 +161,12 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
 
   const { data: breakdown, isLoading: breakdownLoading } = useDormantBreakdown({
     period_end: drillDate,
+    // period_type/apply_date_cutoff (2026-08-27, §36.57) — WAJIB dikirim
+    // supaya backend masuk mode resolveDormantSnapshotBucket (SATU sumber
+    // sama dgn kartu KPI "Dormant"), bukan mode lama yang gerbang
+    // Existing-nya salah bulan.
+    period_type: periodType,
+    apply_date_cutoff: applyDateCutoff,
     company_id: companyId,
     branch_id: branchId,
     division,
@@ -184,6 +202,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
               value={(drc?.dormant_count ?? 0).toLocaleString('id-ID')}
               sub={currentPeriodLabel}
               color={theme.palette.error.main}
+              info={t('dormantCustomer.dormantCountInfo')}
             />
           )}
         </Grid>
@@ -194,6 +213,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
               value={(drc?.total_customers ?? 0).toLocaleString('id-ID')}
               sub={currentPeriodLabel}
               color={theme.palette.info.main}
+              info={t('dormantCustomer.totalCustomerInfo')}
             />
           )}
         </Grid>
@@ -238,9 +258,19 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
                   renderTooltip={(props) => <M8Tooltip {...props} alertPct={alertPct} periodType={periodType} />}
                   onPointClick={(d) => {
                     const month = String(d.month ?? '');
-                    const dataMonth = applyDateCutoff ? month : getPreviousPeriodKey(periodType, month);
                     setDrillLabel(month);
-                    setDrillDate(clampPeriodEndToToday(periodType, dataMonth, getPeriodDateRange(periodType, dataMonth).end));
+                    // period_end dikirim APA ADANYA (2026-08-27, §36.57) —
+                    // titik TERAKHIR (label "berjalan") pakai `periodEnd`
+                    // prop (tanggal filter halaman mentah, SAMA yang dipakai
+                    // kartu KPI), titik HISTORIS pakai akhir bulannya
+                    // sendiri (sudah tutup, cutoff tidak relevan). Backend
+                    // (`getDormantBreakdown` mode `period_type`,
+                    // `resolveDormantSnapshotBucket`) yang resolve geser/
+                    // cutoff-nya — SATU sumber sama dgn kartu KPI, bukan
+                    // dihitung ulang manual di sini (itu akar bug lama:
+                    // gerbang Existing pakai bulan data yang sudah digeser).
+                    const isLastPoint = month === (data?.trend.at(-1)?.month ?? '');
+                    setDrillDate(isLastPoint && periodEnd ? periodEnd : getPeriodDateRange(periodType, month).end);
                   }}
                   headerContent={
                     <KpiHeader

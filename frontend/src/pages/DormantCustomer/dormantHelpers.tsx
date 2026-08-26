@@ -66,12 +66,17 @@ export function useDormantBreakdownColumns(t: TFunction): GridColDef[] {
   ]
 }
 
-// ─── M10 (status log per customer: active/dormant/reactivated/relapsed) ───
+// ─── M10 (status log per customer: active/inactive/dormant/reactivated/newlyDormant) ───
 export const STATUS_COLOR: Record<DormantCustomerStatus, StatusChipColor> = {
   active:      'success',
+  // inactive (2026-08-26, task029.md §36.28) — netral, BUKAN warning/error
+  // (masih dlm masa tenggang, belum genuinely bermasalah spt dormant).
+  inactive:    'default',
   dormant:     'error',
   reactivated: 'info',
-  relapsed:    'warning',
+  // newlyDormant (2026-08-26, task029.md §36.43) — customer yang sempat
+  // reaktivasi lalu dormant lagi; NAMA BARU dari status lama 'relapsed'.
+  newlyDormant: 'warning',
 };
 
 export function statusLabel(t: TFunction, status: DormantCustomerStatus): string {
@@ -121,13 +126,14 @@ export function useDormantStatusColumns(t: TFunction): GridColDef[] {
     // "kenapa tidak ada status di tabel tersebut? aktif, dormant, baru,
     // reaktivasi, redorman") — SEMPAT dihapus ronde 1 (diganti "sustain"/
     // "Bertahan?" di bawah, TERNYATA itu cuma subset — hanya berarti utk
-    // reactivated/relapsed, row active/dormant biasa jadi TIDAK KELIHATAN
+    // reactivated/newlyDormant, row active/dormant biasa jadi TIDAK KELIHATAN
     // status-nya sama sekali di tabel). Dikembalikan pakai STATUS_COLOR/
     // statusLabel yang SUDAH ADA (tidak pernah dihapus, cuma tidak dipakai).
     // "Baru" (new customer) TIDAK ada di kolom ini — `CustomerDormantStatusRow.
-    // status` cuma py 4 nilai (active/dormant/reactivated/relapsed), TIDAK
-    // ada status "baru" di data ini sama sekali (beda konteks — New/Existing
-    // itu concept TERPISAH dipakai KPI lain, bukan bagian status log ini).
+    // status` cuma py 5 nilai (active/inactive/dormant/reactivated/
+    // newlyDormant), TIDAK ada status "baru" di data ini sama sekali (beda
+    // konteks — New/Existing itu concept TERPISAH dipakai KPI lain, bukan
+    // bagian status log ini).
     { field: 'status', headerName: t('dormantCustomer.colStatus'), width: 130, sortable: false,
       renderCell: (p) => <StatusChip label={statusLabel(t, p.value as DormantCustomerStatus)} color={STATUS_COLOR[p.value as DormantCustomerStatus]} /> },
     { field: 'dormant_duration', headerName: t('dormantCustomer.colDormantDuration'), width: 130, sortable: false,

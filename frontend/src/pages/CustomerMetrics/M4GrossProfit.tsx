@@ -164,6 +164,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
                 value={(last?.existing_customers ?? 0).toLocaleString('id-ID')}
                 sub={periodPhrase}
                 color={theme.palette.success.main}
+                info={t('customerMetrics.m4.summaryExistingInfo')}
               />
             )}
           </Grid>
@@ -284,12 +285,18 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
             <Typography variant="caption" color="text.secondary">
               {drillMonth && drillDateFrom && drillDate ? formatPeriodRangeSub(t, periodType, drillMonth, drillDateFrom, drillDate) : ''}
             </Typography>
+            {/* dialogExistingTx (2026-08-26, task029.md §36.49 — koreksi
+                user: "kamus v13 malah mempersulit pemahaman ya?") DIHAPUS
+                — baris ini duplikat PERSIS dialogTotalExisting/"Retained
+                Total" di atas (sama-sama 855), cuma beda nama field
+                sumbernya (total_existing vs rows.length) — 2 baris beda
+                label utk angka yang sama itu sendiri sumber kebingungan,
+                bukan gara-gara istilah kamus. */}
             {([
               [t('customerMetrics.m4.dialogGpExisting'),  formatRupiah(breakdown.total_gp)],
               [t('customerMetrics.m4.dialogTotalExisting'), breakdown.total_existing.toLocaleString('id-ID')],
               [t('customerMetrics.m4.dialogAvgGp'),                  formatRupiah(breakdown.total_existing > 0 ? breakdown.total_gp / breakdown.total_existing : 0)],
               [t('customerMetrics.m4.dialogMedianThreshold'),                 formatRupiah(breakdown.median_threshold)],
-              [t('customerMetrics.m4.dialogExistingTx'),  breakdown.rows.length.toLocaleString('id-ID')],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

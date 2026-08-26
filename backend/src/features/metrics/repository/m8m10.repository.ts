@@ -1,7 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
-import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, cteEstablishedCustomers } from '../segment.helper'
+import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, cteEstablishedCustomers, dormantCrossedSql } from '../segment.helper'
 import type { DormantTrendRow, DormantValueRow, CustomerDormantStatusRow, DormantValueHistoryRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
 import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
@@ -181,7 +181,7 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND is_existing_at_me
-          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
       )::int                                                                     AS dormant_count,
       -- Severity split (koreksi user 2026-08-10, "opsi A": 4 kartu Total/
       -- Aktif/Dormant Ringan/Dormant Kronis) — partisi EKSAK dari populasi
@@ -196,24 +196,24 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND is_existing_at_me
-          AND last_at_me > me - dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`, true)}
       )::int                                                                     AS active_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND is_existing_at_me
-          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
-          AND last_at_me >  me - (dormant_threshold * 2) * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold * 2`, true)}
       )::int                                                                     AS dormant_light_count,
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND is_existing_at_me
-          AND last_at_me <= me - (dormant_threshold * 2) * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold * 2`)}
       )::int                                                                     AS dormant_severe_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND is_existing_at_me
-            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+            AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND is_existing_at_me
@@ -222,7 +222,7 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
       COUNT(*) FILTER (
         WHERE last_at_prev_me IS NOT NULL
           AND is_existing_at_prev_me
-          AND last_at_prev_me <= prev_me - dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_prev_me`, sql`prev_me`, sql`dormant_threshold`)}
       )::int                                                                     AS prev_dormant_count,
       -- reactivated_count (2026-08-24, definisi FINAL user: "reaktivasi
       -- adalah data dormant yang telah diaktivasi DI PERIODE BERJALAN
@@ -240,21 +240,21 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
       COUNT(*) FILTER (
         WHERE last_at_me IS NOT NULL
           AND is_existing_at_me
-          AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
           AND last_at_live_me IS NOT NULL
-          AND last_at_live_me > live_me - dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`last_at_live_me`, sql`live_me`, sql`dormant_threshold`, true)}
       )::int                                                                     AS reactivated_count,
       ROUND(
         COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND is_existing_at_me
-            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+            AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
             AND last_at_live_me IS NOT NULL
-            AND last_at_live_me > live_me - dormant_threshold * INTERVAL '1 month'
+            AND ${dormantCrossedSql(sql`last_at_live_me`, sql`live_me`, sql`dormant_threshold`, true)}
         )::numeric / NULLIF(COUNT(*) FILTER (
           WHERE last_at_me IS NOT NULL
             AND is_existing_at_me
-            AND last_at_me <= me - dormant_threshold * INTERVAL '1 month'
+            AND ${dormantCrossedSql(sql`last_at_me`, sql`me`, sql`dormant_threshold`)}
         ), 0) * 100, 1
       )                                                                          AS reactivation_rate
     FROM cxm
@@ -351,7 +351,7 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
       WHERE c.is_placeholder = false
         AND ${companyCondC}
       GROUP BY c.id, c.customer_name, c.customer_code, co.name, d.label, c.division_override_id, cdv.division_id
-      HAVING MAX(inv.invoice_date) <= ${filterDate}::date - ${dormantThresholdSql} * INTERVAL '1 month'
+      HAVING ${dormantCrossedSql(sql`MAX(inv.invoice_date)`, sql`${filterDate}::date`, dormantThresholdSql)}
     ),
     -- avg_monthly_revenue dibatasi 12 bulan kalender terakhir SEBELUM customer dormant
     -- (bukan total_rev all-time dibagi jumlah bulan yang ada transaksi saja) - dulu
@@ -523,12 +523,23 @@ export async function fetchDormantValueHistory(p: SegmentParams, customerId: num
 }
 
 /**
- * Status per customer (Active/Dormant/Reactivated/Relapsed) untuk SATU
- * periode (2026-08-24, susulan pertanyaan user soal ambiguitas reaktivasi —
- * lihat JSDoc CustomerDormantStatusRow di metrics.types.ts). Pembongkaran
- * per-customer dari angka agregat fetchDormantTrend, bukan pengganti angka
- * itu (dormant_count/reactivated_count TETAP net status akhir saja). Dipakai
- * drill-down klik-titik-chart M10 + bahan tabel laporan nanti.
+ * Status per customer (Active/Inactive/Dormant/Reactivated/Relapsed) untuk
+ * SATU periode (2026-08-24, susulan pertanyaan user soal ambiguitas
+ * reaktivasi — lihat JSDoc CustomerDormantStatusRow di metrics.types.ts).
+ * Pembongkaran per-customer dari angka agregat fetchDormantTrend, bukan
+ * pengganti angka itu (dormant_count/reactivated_count TETAP net status
+ * akhir saja). Dipakai drill-down klik-titik-chart M10 + bahan tabel
+ * laporan.
+ *
+ * 5 status (2026-08-26, task029.md §36.28/§36.43, susulan Kamus Penamaan
+ * Pelanggan §36.27 — SEBELUMNYA cuma 4, 'active' digabung dgn apa yang
+ * sekarang jadi 'inactive'): 'active' ("Existing Aktif" — ADA transaksi
+ * di dalam periode ini), 'inactive' ("Existing Inaktif" — TIDAK ada
+ * transaksi di dalam periode ini, masih masa tenggang), 'dormant', 'reactivated',
+ * 'newlyDormant' ("Newly Dormant", NAMA BARU dari "Dormant Kembali" —
+ * customer yang sempat reaktivasi lalu dormant lagi; TIDAK ada padanan di
+ * kamus 5-kategori dasar, dipertahankan sbg status ekstra sesuai instruksi
+ * user eksplisit — cuma soal nama, logikanya TIDAK berubah).
  *
  * bucket/prevBucket TERPISAH dari parameter buckets[]/prevBuckets[] milik
  * fetchDormantTrend (array 12 titik) — di sini cuma SATU titik yang diklik,
@@ -539,6 +550,19 @@ export async function fetchCustomerDormantStatusLog(
   p: SegmentParams,
   bucket: { start: string; end: string },
   prevBucket: { start: string; end: string },
+  // liveCalendarStart (2026-08-27, task029.md §36.54) — gerbang "New" HARUS
+  // pakai awal kalender ASLI periode yang dilihat (SAMA aturan lb.ps di
+  // fetchDormantTrend), TIDAK ikut geser walau `bucket` di atas digeser ke
+  // bulan lalu (mode cutoff off). Default = bucket.start (PERILAKU LAMA,
+  // caller existing — M10 dashboard drilldown, `bucket` yang dikirim SUDAH
+  // live/tidak digeser — tetap aman tanpa perlu ubah caller-nya).
+  liveCalendarStart: string = bucket.start,
+  // applyDateCutoff (2026-08-27, task029.md §36.56) — gerbang cabang
+  // "baru menyebrang dormant DI DALAM periode ini" (lihat komentar CASE
+  // WHEN di bawah) HANYA relevan di mode cutoff aktif, lihat penjelasan
+  // di situ. Default false (PERILAKU LAMA, caller existing — M10
+  // dashboard drilldown TIDAK kenal konsep cutoff sama sekali, aman).
+  applyDateCutoff = false,
 ): Promise<CustomerDormantStatusRow[]> {
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
@@ -587,7 +611,7 @@ export async function fetchCustomerDormantStatusLog(
         c.customer_code,
         co.name                                                              AS company_name,
         sc.dormant_threshold,
-        (sc.first_date < ${bucket.start}::date)                              AS is_existing_at_me,
+        (sc.first_date < ${liveCalendarStart}::date)                         AS is_existing_at_me,
         MAX(inv.invoice_date) FILTER (
           WHERE inv.invoice_date <= ${bucket.end}::date
         )                                                                    AS last_at_me,
@@ -636,15 +660,43 @@ export async function fetchCustomerDormantStatusLog(
         cxm.last_at_me::text                                                 AS last_invoice_in_period,
         ROUND(rev_agg.recent_12m_rev / 12.0)::bigint                         AS avg_monthly_revenue,
         (cxm.last_at_prev_me IS NOT NULL
-          AND cxm.last_at_prev_me <= ${prevBucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`cxm.last_at_prev_me`, sql`${prevBucket.end}::date`, sql`cxm.dormant_threshold`)}
         )                                                                    AS was_dormant_at_prev,
         (cxm.last_at_me IS NOT NULL
-          AND cxm.last_at_me <= ${bucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
+          AND ${dormantCrossedSql(sql`cxm.last_at_me`, sql`${bucket.end}::date`, sql`cxm.dormant_threshold`)}
         )                                                                    AS is_dormant_at_me,
+        -- transacted_in_period (2026-08-26, task029.md §36.28 — instruksi
+        -- user: "buat endpoint nya pisahkan existing aktif dan inaktif",
+        -- mengikuti Kamus Penamaan Pelanggan §36.27: "Existing Aktif" =
+        -- ADA transaksi DI DALAM periode ini, "Existing Inaktif" = TIDAK
+        -- ada transaksi DI DALAM periode ini tapi masih masa tenggang)
+        -- — SEBELUMNYA status 'active' cuma cek NOT is_dormant_at_me,
+        -- TIDAK cek apakah transaksi TERAKHIRnya jatuh di dalam window
+        -- periode yang sedang dilihat (bucket.start..bucket.end) atau
+        -- dari SEBELUM periode ini (customer yang masih dlm masa tenggang
+        -- tapi belum beli lagi bulan ini ikut kehitung "aktif", padahal
+        -- seharusnya kategori terpisah).
+        --
+        -- transacted_in_period TETAP live/bucket.start (2026-08-26,
+        -- task029.md §36.46 — koreksi §36.45 SALAH: sempat diganti ke
+        -- last_at_prev_me/prevBucket.start (Juli) supaya "Dormant" match
+        -- kartu KPI, TAPI itu bikin "Existing Aktif"/"Existing Inaktif"
+        -- ikut kebawa ke Juli — padahal HEADER dialog ini sendiri bilang
+        -- "Periode 01-08-2026 s/d 26-08-2026" (live, Agustus). User
+        -- protes: "Ini bukan seperti definisi yang aku kirimkan" — SSOT
+        -- "Existing Customer...masih melakukan pembelian PADA PERIODE
+        -- TERSEBUT" berarti transaksi di periode yang DILABELKAN (Agustus
+        -- live), bukan Juli. Dikembalikan ke bucket.start (live) —
+        -- HANYA cabang 'dormant'/'newlyDormant'/'reactivated' (was_dormant_at_prev)
+        -- yang tetap pakai referensi Juli (itu murni utk match kartu KPI
+        -- Dormant, konsep terpisah dari Aktif/Inaktif).
+        (cxm.last_at_me IS NOT NULL
+          AND cxm.last_at_me >= ${bucket.start}::date
+        )                                                                    AS transacted_in_period,
         CASE
           WHEN cxm.last_at_me IS NOT NULL
-            AND cxm.last_at_me <= ${bucket.end}::date - cxm.dormant_threshold * INTERVAL '1 month'
-          THEN (cxm.last_at_me + cxm.dormant_threshold * INTERVAL '1 month')::date::text
+            AND ${dormantCrossedSql(sql`cxm.last_at_me`, sql`${bucket.end}::date`, sql`cxm.dormant_threshold`)}
+          THEN (DATE_TRUNC('month', cxm.last_at_me) + (cxm.dormant_threshold + 1) * INTERVAL '1 month')::date::text
           ELSE NULL
         END                                                                  AS dormant_since_date
       FROM cxm
@@ -653,11 +705,50 @@ export async function fetchCustomerDormantStatusLog(
     )
     SELECT
       cid AS customer_id, customer_name, customer_code, company_name,
+      -- 'newlyDormant' (2026-08-26, task029.md §36.43 — koreksi user:
+      -- "Dormant kembali itu diganti nama menjadi newlydormant, hanya itu"
+      -- — sebelumnya sempat dipecah jadi 2 cabang terpisah ('relapsed' vs
+      -- 'newlyDormant' via was_dormant_at_prev flip), ditegur: itu fungsi
+      -- baru yang tidak diminta. 'Dormant Kembali' yang LAMA (customer
+      -- yang sempat reaktivasi lalu dormant lagi) SUDAH PERSIS menangkap
+      -- konsep yang dimaksud — cukup di-RENAME key-nya jadi 'newlyDormant',
+      -- bukan dibuatkan logika baru.
+      --
+      -- Cabang 'dormant' pakai was_dormant_at_prev SEBAGAI SUMBER UTAMA
+      -- (2026-08-26, §36.45), is_dormant_at_me dipakai utk membedakan
+      -- 'newlyDormant' vs 'reactivated' (masih dormant lagi SEKARANG vs
+      -- berhasil bertahan aktif SEKARANG).
+      --
+      -- Cabang BARU "WHEN is_dormant_at_me THEN 'dormant'" (2026-08-27,
+      -- task029.md §36.56 — koreksi user: "Ya kalau namanya dormant bukan
+      -- kah harusnya datanya sama?", setelah tab Reaktivasi (16.964) vs tab
+      -- Dormant/kartu KPI M8 [19.200] kedapatan beda 2.236 walau baseline
+      -- reaktivasi (Juli) sudah benar) — akar selisihnya: customer yang
+      -- BUKAN dormant per akhir Juli (was_dormant_at_prev=false) TAPI baru
+      -- menyebrang ambang dormant DI DALAM periode berjalan ini (is_dormant_at_me
+      -- =true) sebelumnya jatuh ke cabang 'inactive'/Lapsed (was_dormant_at_prev
+      -- palsu, transacted_in_period juga palsu krn mereka justru TIDAK
+      -- transaksi) — padahal kartu KPI "Dormant" (fetchDormantTrend, acuan
+      -- is_dormant_at_me di tanggal cutoff) SUDAH menghitung mereka dormant.
+      --
+      -- Cabang ini DIGERBANG applyDateCutoff (fix susulan, ditemukan
+      -- sendiri sebelum sempat dilaporkan salah — 1st attempt TANPA gerbang
+      -- ini bikin regresi di mode NON-cutoff: is_dormant_at_me di sini SELALU
+      -- pakai acuan LIVE/hari-ini (bucket=liveBucket), sedangkan kartu KPI
+      -- "Dormant" di mode NON-cutoff pakai acuan bulan lalu penuh (SAMA
+      -- persis was_dormant_at_prev) — keduanya SUDAH cocok tanpa cabang ini.
+      -- Cabang ini HANYA perlu aktif saat cutoff aktif (acuan KPI di mode
+      -- itu = liveBucket juga, PERSIS is_dormant_at_me) — supaya
+      -- dormant+newlyDormant+reactivated SELALU jumlah PERSIS ke angka kartu
+      -- KPI "Dormant" di KEDUA mode, SEKALIGUS baseline Juli (was_dormant_at_prev)
+      -- tetap dipakai utk reaktivasi (akomodir dua-duanya, sesuai instruksi user).
       CASE
-        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me  THEN 'relapsed'
+        WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me  THEN 'newlyDormant'
         WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND NOT is_dormant_at_me THEN 'reactivated'
-        WHEN is_dormant_at_me                                                            THEN 'dormant'
-        ELSE 'active'
+        WHEN was_dormant_at_prev                                                          THEN 'dormant'
+        ${applyDateCutoff ? sql`WHEN is_dormant_at_me THEN 'dormant'` : sql``}
+        WHEN transacted_in_period                                                        THEN 'active'
+        ELSE 'inactive'
       END                                                                    AS status,
       last_invoice_before_period,
       reactivation_date,
@@ -669,8 +760,10 @@ export async function fetchCustomerDormantStatusLog(
       CASE
         WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me  THEN 0
         WHEN was_dormant_at_prev AND reactivation_date IS NOT NULL AND NOT is_dormant_at_me THEN 1
-        WHEN is_dormant_at_me                                                            THEN 2
-        ELSE 3
+        WHEN was_dormant_at_prev                                                          THEN 2
+        ${applyDateCutoff ? sql`WHEN is_dormant_at_me THEN 3` : sql``}
+        WHEN transacted_in_period                                                        THEN 4
+        ELSE 5
       END,
       customer_name
   `)
