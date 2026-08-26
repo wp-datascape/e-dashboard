@@ -74,6 +74,8 @@ export interface RevenueBreakdownData {
   period_end: string;
   total_revenue: number;
   median_threshold: number;
+  // "Existing" YANG AKTIF (riwayat sebelum periode DAN masih beli periode
+  // ini, task029.md §36) — bukan lagi fixed cohort.
   total_existing: number;
   hm_revenue: number;
   rows: RevenueBreakdownRow[];
@@ -103,6 +105,10 @@ export interface ExpansionBreakdownData {
   flat_count: number;
   inactive_count: number;
   down_count: number;
+  // Total customer dgn cur_revenue > 0 (2026-08-25) — TANPA syarat naik/
+  // turun/flat vs periode sebelumnya, murni "genuinely bertransaksi
+  // periode ini". Beda dari up_count (mensyaratkan cur>prev).
+  active_count: number;
   total_existing: number;
   rows: ExpansionBreakdownRow[];
 }
@@ -132,6 +138,8 @@ export interface HmBreakdownRow {
   ranking: number;
   customer_name: string;
   customer_code: string | null;
+  // Basis ranking (task029.md §36) — unit/quantity produk High Margin terjual.
+  hm_qty: number;
   hm_revenue: number;
   hm_pct: number;
 }
@@ -178,6 +186,8 @@ export interface CustomerMetricsTrendPoint {
   top_gp_pct: number;
   is_gp_concentrated: boolean;
   high_margin_ratio: number;
+  // Angka mentah numerator high_margin_ratio (task029.md §36) — bar chart trend M5.
+  high_margin_buyer_count: number;
   repeat_order_rate: number;
   expansion_rate: number;
   up_rate: number;
@@ -199,6 +209,13 @@ export interface CustomerMetricsTrendPoint {
   flat_count: number;
   inactive_count: number;
   down_count: number;
+  // Populasi M7 (2026-08-25, task029.md §34-lanjutan) — existing yang
+  // BELUM lewat ambang dormant (ambang sama persis M8, per kategori
+  // bisnis divisi). Pembagi expansion_rate/flat_rate/inactive_rate/
+  // down_rate — GANTI dari existing_customers kumulatif. Dipakai kartu
+  // "Total Existing" M7ExpansionGrowth.tsx supaya konsisten dgn 4-way
+  // split (yang keduanya harus sum ke 100% dari populasi yang SAMA).
+  existing_not_dormant_count: number;
   // M3 enrichment
   active_existing_count: number;
   active_new_count: number;
@@ -266,6 +283,12 @@ export interface DormantValueRankingRow {
   months_dormant: number;
   avg_monthly_revenue: number;
   estimated_lost_value: number;
+  // avg_monthly_gp/estimated_lost_gp (2026-08-26, task029.md §36.12 — SSOT
+  // M9 sebut "Historical Gross Profit" sbg komponen paralel Historical
+  // Revenue, keputusan user: "Tambah versi Gross Profit paralel"). Ranking
+  // (urutan baris) TETAP basis revenue, field ini tampilan tambahan.
+  avg_monthly_gp: number;
+  estimated_lost_gp: number;
 }
 
 // Riwayat revenue bulanan per customer (2026-08-25, drilldown M9 — klik bar
@@ -293,7 +316,18 @@ export interface DormantBreakdownData {
 // yang active tapi dormant lagi dalam periode tersebut... tercatat kapan
 // masuk active kapan masuk dormant, tapi dalam perhitungan masukkan status
 // terakhir saja"). Lihat JSDoc backend CustomerDormantStatusRow.
-export type DormantCustomerStatus = 'active' | 'dormant' | 'reactivated' | 'relapsed';
+// 'inactive' (2026-08-26, task029.md §36.28 — Kamus Penamaan Pelanggan
+// §36.27, instruksi user "pisahkan existing aktif dan inaktif") — 'active'
+// SEBELUMNYA menggabung "ada transaksi periode ini" + "belum transaksi
+// tapi masih masa tenggang", sekarang dipisah: 'active' = Existing Aktif
+// (ADA transaksi periode ini), 'inactive' = Existing Inaktif (TIDAK ada
+// transaksi periode ini, masih masa tenggang).
+// 'newlyDormant' — dormant di awal periode, sempat order dalam periode
+// (reaktivasi), TAPI dormant LAGI di akhir periode. NAMA BARU (2026-08-26,
+// task029.md §36.43, koreksi user: "Dormant kembali itu diganti nama
+// menjadi newlydormant, hanya itu") dari status lama 'relapsed' — logika
+// TIDAK berubah, cuma key/labelnya.
+export type DormantCustomerStatus = 'active' | 'inactive' | 'dormant' | 'newlyDormant' | 'reactivated';
 
 export interface CustomerDormantStatusRow {
   customer_id: number;
@@ -338,13 +372,19 @@ export interface DormantData {
   value_ranking: DormantValueRankingRow[];
   dormant_rate_current: DormantRateCurrent;
   reactivation_current: ReactivationCurrent;
-  // Total estimated_lost_value dari value_ranking, current vs setahun lalu
-  // (2026-08-24, sudah dihitung backend sejak lama, YATIM — sekarang dipakai
-  // KpiHeader M9, "Tata layout M9 seperti layout lainnya").
+  // Total estimated_lost_value dari SEMUA dormant customer (2026-08-24,
+  // sudah dihitung backend sejak lama, YATIM — sekarang dipakai KpiHeader
+  // M9, "Tata layout M9 seperti layout lainnya"; DIPERBAIKI 2026-08-26,
+  // task029.md §36.12 — SEBELUMNYA cuma jumlah top-20 ranking, understated
+  // ~93%), current vs setahun lalu.
   value_ranking_total_current: number;
   value_ranking_total_comparison: number;
+  // value_ranking_total_gp_current/_comparison (2026-08-26, §36.12) — versi
+  // Gross Profit paralel, SAMA PERSIS pola di atas cuma basis GP.
+  value_ranking_total_gp_current: number;
+  value_ranking_total_gp_comparison: number;
   // Daftar customer reaktivasi periode berjalan (2026-08-24, susulan "buatkan
   // juga 3 card summary diatas cart, dan top 5" M10) — top 20 by tanggal
-  // reaktivasi terbaru, sudah difilter status reactivated+relapsed di backend.
+  // reaktivasi terbaru, sudah difilter status reactivated+newlyDormant di backend.
   reactivated_customers: CustomerDormantStatusRow[];
 }

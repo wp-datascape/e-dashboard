@@ -78,8 +78,8 @@ function M2Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
     <ChartTooltipCard
       title={t('crossSelling.m2TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
-        { label: t('crossSelling.m2SeriesSingleCategory'), value: String(d.single_category) },
-        { label: t('crossSelling.m2SeriesMultiCategory'), value: String(d.multi_product) },
+        { label: t('crossSelling.m2SeriesSingleCategory'), value: d.single_category.toLocaleString('id-ID') },
+        { label: t('crossSelling.m2SeriesMultiCategory'), value: d.multi_product.toLocaleString('id-ID') },
         { label: t('dashboard.charts.avgCategoryLabel'), value: d.avg_category.toFixed(2) },
       ]}
       hint={t('crossSelling.m2ChartHint')}
@@ -104,9 +104,10 @@ interface Props {
    * sama M1CrossSelling.tsx. */
   applyDateCutoff?: boolean;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M2AvgCategory({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
+export function M2AvgCategory({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -148,6 +149,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Fetch MoM (task029.md §31, 2026-08-23) — sama persis M1CrossSelling.tsx,
@@ -161,6 +163,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // ─── Drill-down (klik titik grafik avg-category) ────────────────────────
@@ -182,6 +185,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Kolom Kode Pelanggan (customer_code) DIHAPUS dari tabel drilldown ini
@@ -262,7 +266,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
               <KpiCard
                 label={t('crossSelling.kpi1Label')}
                 value={`${data?.kpi1.rate ?? 0}%`}
-                sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
+                sub={t('crossSelling.kpi1Sub', { multi: (data?.kpi1.multi_cat_count ?? 0).toLocaleString('id-ID'), active: (data?.kpi1.active_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.primary.main}
               />
             )}
@@ -281,7 +285,8 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
             {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
               <KpiCard
                 label={t('crossSelling.activeCustomerLabel')}
-                value={data?.kpi1.active_count ?? 0}
+                value={(data?.kpi1.active_count ?? 0).toLocaleString('id-ID')}
+                info={t('crossSelling.activeCustomerInfo')}
                 sub={data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
                 color={theme.palette.success.main}
               />
@@ -479,8 +484,8 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
             </Typography>
             {([
               [t('crossSelling.m2DialogAvgCategories'), String(drillData.kpi2.avg_categories)],
-              [t('crossSelling.m2DialogDistinctCats'),  String(drillData.kpi2.total_distinct_cats)],
-              [t('crossSelling.m2DialogActiveCount'),   String(drillData.kpi1.active_count)],
+              [t('crossSelling.m2DialogDistinctCats'),  drillData.kpi2.total_distinct_cats.toLocaleString('id-ID')],
+              [t('crossSelling.m2DialogActiveCount'),   drillData.kpi1.active_count.toLocaleString('id-ID')],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

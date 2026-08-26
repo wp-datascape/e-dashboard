@@ -12,7 +12,7 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // fitur Analisis (task016), sekarang juga dipakai granularitas M1 Cross
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
-import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart } from '@/features/analisis/period.util'
+import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart, clampToElapsedEnd } from '@/features/analisis/period.util'
 import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
@@ -57,6 +57,7 @@ export async function resolveSegmentParams(
   divisionScope?: Map<number, number[]>,
   branchId?: number,
   excludeIntercompany?: boolean,
+  onlyPareto?: boolean,
 ): Promise<SegmentParams> {
   // `activeMonths`/`dormantMonths` SELALU dari business_configs, TIDAK ADA
   // jalur override dari filter periode apa pun (task026 §8e, koreksi user
@@ -92,7 +93,7 @@ export async function resolveSegmentParams(
     getDormantCategoryMap(cid !== 0 ? cid : undefined),
   ])
   const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, dormant, dormantCategoryMap, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, dormant, dormantCategoryMap, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany, onlyPareto)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {
@@ -149,7 +150,7 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
     const periodEndDate = resolved.periodEndDate
     const resolvedBuckets = resolved.buckets
 
-    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
 
     const [kpiRaw, trend, detailResult, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams, periodStartDate, periodEndDate),
@@ -251,7 +252,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
     })
 
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
-      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto),
       loadThresholds(),
     ])
 
@@ -272,6 +273,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       top_gp_pct:              row.top_gp_pct,
       is_gp_concentrated:      row.top_gp_pct > 25,
       high_margin_ratio:       row.high_margin_ratio,
+      high_margin_buyer_count: row.high_margin_buyer_count,
       repeat_order_rate:       row.repeat_order_rate,
       expansion_rate:          row.expansion_rate,
       up_rate:                 row.expansion_rate,
@@ -283,6 +285,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       flat_count:              row.flat_count,
       inactive_count:          row.inactive_count,
       down_count:              row.down_count,
+      existing_not_dormant_count: row.existing_not_dormant_count,
       active_existing_count:   row.active_existing_count,
       active_new_count:        row.active_new_count,
       median_revenue:          row.median_revenue,
@@ -318,8 +321,8 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
 export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: MetricsScope = {}): Promise<RevenueBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchRevenueBreakdown(segParams)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+    const result = await fetchRevenueBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_revenue:    result.total_revenue,
@@ -337,7 +340,7 @@ export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: 
 export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, scope: MetricsScope = {}): Promise<ExpansionBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
     // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
     // "existing", tetap fixed).
@@ -373,6 +376,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
       flat_count:     result.flat_count,
       inactive_count: result.inactive_count,
       down_count:     result.down_count,
+      active_count:   result.active_count,
       total_existing: result.total_existing,
       rows:           result.rows,
     }
@@ -385,7 +389,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
 export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsScope = {}): Promise<GpBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     // date_from = periode penarikan data (task026 §8e) — TERPISAH dari
     // segParams.activeMonths (business config "existing", tetap fixed di atas).
     const result = await fetchGpBreakdown(segParams, params.date_from)
@@ -405,8 +409,8 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
 export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsScope = {}): Promise<HmBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const result = await fetchHmBreakdown(segParams)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+    const result = await fetchHmBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
       total_hm_revenue: result.total_hm_revenue,
@@ -540,43 +544,74 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     })
 
     const [segParams, thresholds] = await Promise.all([
-      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto),
       loadThresholds(),
     ])
     const comparisonSegParams = { ...segParams, filterDate: comparisonFilterDate }
 
     // Top reaktivasi (2026-08-24) — bucket = LIVE periode berjalan (Agustus
-    // 1 s.d hari ini), prevBucket = baseline "Dormant Agustus" (Mei/Jun/Jul,
-    // resolvedBuckets.at(-1) — SAMA PERSIS baseline yang dipakai trend fix
-    // di atas), BUKAN lagi resolvedBuckets/prevBuckets (Juli/Juni, salah —
-    // itu window SEBELUM digeser, tidak merepresentasikan "reaktivasi di
-    // periode berjalan Agustus" yang diminta user).
+    // 1 s.d hari ini), prevBucket = baseline "Dormant Agustus" (Mei/Jun/Jul).
     const liveBucket = liveBuckets.at(-1)!
-    const dormantBaselineBucket = resolvedBuckets.at(-1)!
+    // dormantBaselineBucket (2026-08-27, task029.md §36.55 — bug ditemukan
+    // user: "kenapa date cutoff aktif, reaktivasi hilang?") — SEBELUMNYA
+    // `resolvedBuckets.at(-1)!`, PADAHAL isi resolvedBuckets beda arti per
+    // mode: non-cutoff = SUDAH digeser ke bulan lalu (benar, baseline =
+    // Juli), TAPI cutoff aktif = TIDAK digeser sama sekali (isinya = bucket
+    // berjalan itu sendiri, Agustus 1 s.d tanggal cutoff) — akibatnya
+    // dormantBaselineBucket === liveBucket PERSIS di mode cutoff, window
+    // "antara baseline dan sekarang" jadi NOL hari, reaktivasi mustahil
+    // terdeteksi (SELALU 0 customer, di tanggal cutoff berapa pun — sudah
+    // diverifikasi: tgl 1/15/27 Agustus hasilnya 0 semua). Baseline
+    // SEHARUSNYA selalu bulan kalender PENUH sebelum periodKey saat ini
+    // (Juli, utuh), TIDAK PERNAH ikut terpotong cutoff — cutoff cuma
+    // memotong titik "sekarang" (liveBucket), bukan titik acuan
+    // "sebelumnya" (koreksi tegas user: "start date selalu awal periode,
+    // tanggal 1, end date selalu akhir periode kalau cutoff mati, terpotong
+    // kalau cutoff aktif" — itu aturan utk bucket SEKARANG, bukan baseline).
+    // Formula ini SAMA PERSIS `bucket` non-cutoff di atas (dataKey/dataRange),
+    // makanya hasil non-cutoff TIDAK BERUBAH sama sekali — cuma mode cutoff
+    // yang sekarang benar. `resolveDormantBaselineBucket` (§36.55) — SATU
+    // fungsi, dipanggil ulang di sini DAN `resolveDormantSnapshotBucket` di
+    // bawah, bukan diketik ulang 2x.
+    const dormantBaselineBucket = resolveDormantBaselineBucket(periodType, periodKey)
 
-    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, statusLog, valueTrend] = await Promise.all([
+    const [trend, valueRankingAll, comparisonTrend, comparisonValueRankingAll, statusLog, valueTrend] = await Promise.all([
       fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets),
       // existingSince = liveBucket.start (task029.md §32.2, 2026-08-24) —
       // gate New/Existing SSOT §30.10, titik referensi SAMA PERSIS lb.ps
       // di fetchDormantTrend/is_existing_at_me (awal kalender ASLI label
       // yang sedang dilihat, bukan window data yang sudah digeser).
-      fetchDormantValueRanking(segParams, 20, liveBucket.start),
+      //
+      // limit=null (2026-08-26, task029.md §36.12 — bug ditemukan: "Total
+      // Loss" M9 SEBELUMNYA dijumlah dari hasil `limit=20` ini, jadi cuma
+      // total TOP 20 customer, BUKAN total SEMUA dormant customer — makin
+      // banyak dormant customer di luar top 20, makin understated angkanya.
+      // Sekarang fetch SEMUA (pola sama fetchDormantValueRanking limit=null
+      // yang sudah dipakai getDormantBreakdown/M8), top-20 utk chart/tabel
+      // di-slice di JS dari array penuh ini, TIDAK fetch 2x.
+      fetchDormantValueRanking(segParams, null, liveBucket.start),
       // Comparison (YoY) TIDAK dipakai UI apa pun saat ini (lihat komentar
       // di atas) — comparisonBuckets dipakai juga sbg liveBuckets (kalender
       // penuh, tanpa shift/elapsed-clamp, sudah pasti periode lampau tutup).
       fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
-      fetchDormantValueRanking(comparisonSegParams, 20, comparisonBuckets.at(-1)!.start),
-      fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket),
+      fetchDormantValueRanking(comparisonSegParams, null, comparisonBuckets.at(-1)!.start),
+      fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket, liveBucket.start, !!params.apply_date_cutoff),
       fetchDormantValueTrend(segParams),
     ])
+    // valueRanking/comparisonValueRanking (2026-08-26, lihat komentar di
+    // atas) — top 20 UTK TAMPILAN (chart/ranking table), sudah ORDER BY
+    // estimated_lost_value DESC dari query, slice aman. Total (di bawah)
+    // TETAP dijumlah dari array PENUH (*All), bukan hasil slice ini.
+    const valueRanking = valueRankingAll.slice(0, 20)
+    const comparisonValueRanking = comparisonValueRankingAll.slice(0, 20)
 
     // Top reaktivasi periode berjalan (2026-08-24, susulan instruksi user
     // "buatkan juga 3 card summary diatas cart, dan top 5" M10) — filter
     // status log bucket TERAKHIR ke kategori reaktivasi saja (reactivated +
-    // relapsed), diurutkan tanggal reaktivasi terbaru. Reuse
-    // fetchCustomerDormantStatusLog yang SUDAH granularitas-aware, bukan
-    // fetchReactivatedCustomers lama (hardcode window 1 bulan kalender,
-    // DIHAPUS — sudah tidak dipakai lagi di mana pun).
+    // newlyDormant, dulu bernama 'relapsed'), diurutkan tanggal reaktivasi
+    // terbaru. Reuse fetchCustomerDormantStatusLog yang SUDAH
+    // granularitas-aware, bukan fetchReactivatedCustomers lama (hardcode
+    // window 1 bulan kalender, DIHAPUS — sudah tidak dipakai lagi di mana pun).
     // Sort: reactivation_date terbaru dulu, tie-break avg_monthly_revenue
     // tertinggi (2026-08-24, koreksi user: "kalau berdasarkan abjad masih
     // ada yang lebih abjad awal, seharusnya urutkan berdasarkan avg revenue
@@ -584,7 +619,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     // tanggal sama jatuh ke urutan alfabetis nama, efek samping ORDER BY
     // SQL, BUKAN kriteria bisnis).
     const reactivatedCustomers = statusLog
-      .filter((r) => r.status === 'reactivated' || r.status === 'relapsed')
+      .filter((r) => r.status === 'reactivated' || r.status === 'newlyDormant')
       .sort((a, b) => {
         const dateCompare = (b.reactivation_date ?? '').localeCompare(a.reactivation_date ?? '')
         if (dateCompare !== 0) return dateCompare
@@ -595,6 +630,9 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     const last = trend.at(-1)
     const comparisonLast = comparisonTrend.at(-1)
     const sumLostValue = (rows: DormantValueRow[]) => rows.reduce((acc, r) => acc + r.estimated_lost_value, 0)
+    // sumLostGp (2026-08-26, task029.md §36.12) — versi Gross Profit
+    // paralel, pola sama persis sumLostValue.
+    const sumLostGp = (rows: DormantValueRow[]) => rows.reduce((acc, r) => acc + r.estimated_lost_gp, 0)
 
     return {
       trend,
@@ -618,8 +656,10 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         target_high:      thresholds.reactivationTargetHigh,
         comparison_value: comparisonLast?.reactivation_rate ?? 0,
       },
-      value_ranking_total_current:    sumLostValue(valueRanking),
-      value_ranking_total_comparison: sumLostValue(comparisonValueRanking),
+      value_ranking_total_current:    sumLostValue(valueRankingAll),
+      value_ranking_total_comparison: sumLostValue(comparisonValueRankingAll),
+      value_ranking_total_gp_current:    sumLostGp(valueRankingAll),
+      value_ranking_total_gp_comparison: sumLostGp(comparisonValueRankingAll),
       reactivated_customers: reactivatedCustomers,
       value_trend: valueTrend,
     }
@@ -632,7 +672,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
 export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsScope = {}): Promise<RorBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const result = await fetchRorBreakdown(segParams, params.date_from)
     return {
       period_end:     filterDate,
@@ -646,16 +686,117 @@ export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsS
   }
 }
 
+// resolveDormantBaselineBucket (2026-08-27, task029.md §36.55 — koreksi
+// KERAS user: "SUDAH ADA FUNGSI FILTER GLOBAL KENAPA KAMU TIDAK MENGIKUTI
+// ALUR NYA" — sebelumnya formula "bulan kalender PENUH sebelum periodKey
+// saat ini" (baseline reaktivasi/dormant, TIDAK PERNAH ikut terpotong
+// cutoff) DITULIS ULANG 2x persis sama di `getDormantCustomerMetrics` dan
+// `resolveDormantSnapshotBucket` — sekarang 1 fungsi, DIPANGGIL ULANG dari
+// 2 tempat itu, bukan diketik ulang.
+function resolveDormantBaselineBucket(periodType: 'monthly' | 'quarter' | 'semester' | 'annual', periodKey: string): { start: string; end: string } {
+  return getPeriodRange(periodType, getPreviousPeriodKey(periodType, periodKey))
+}
+
 // Breakdown drill-down M8 (2026-08-24, instruksi user: "Buatkan end poin
 // dril down breakdown singkat, lengkapnya nanti di tabel laporan") — pola
 // SAMA PERSIS getRorBreakdown (M6) di atas, cuma repository-nya reuse
 // fetchDormantValueRanking dgn limit=null (SEMUA customer dormant di
 // period_end, bukan top 20 spt M9).
+//
+// resolveDormantSnapshotBucket (2026-08-27, task029.md §36.54 — koreksi
+// KERAS user: "Kan semua parameter harus seragam. Akhir bulan, kecuali
+// filter date cutoff diaktifkan" — screenshot bukti: tab Reaktivasi
+// Laporan, "Dormant" (16.964, snapshot 31 Juli — via was_dormant_at_prev
+// yang SELALU hardcode bulan lalu) TIDAK NYAMBUNG dgn "Active Customer"/
+// "Lapsed" di kartu SEBELAHNYA (783/14.884, snapshot HARI INI/live) —
+// padahal satu tab, satu baris kartu, seharusnya satu titik waktu acuan).
+// `getDormantCustomerMetrics` (M8-M10 dashboard) SUDAH benar (diverifikasi
+// live: cutoff off → shift ke bulan lalu, cutoff on → tanggal live) — fungsi
+// INI meng-ekstrak pola bucket-resolution yang SAMA supaya `getDormantBreakdown`
+// (tab Dormant) dan `getDormantStatusBreakdown` (tab Reaktivasi) REUSE 1
+// sumber kebenaran yang sama, bukan masing-masing punya logika sendiri.
+function resolveDormantSnapshotBucket(
+  periodEnd: string,
+  periodType: 'monthly' | 'quarter' | 'semester' | 'annual',
+  applyDateCutoff: boolean | undefined,
+  cutoffDay: number | undefined,
+  skipElapsedClamp: boolean | undefined,
+): { filterDate: string; bucket: { start: string; end: string }; dormantBaselineBucket: { start: string; end: string }; liveBucket: { start: string; end: string }; liveCalendarStart: string } {
+  const [py, pm, pd] = periodEnd.split('-').map(Number)
+  const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+  const calendarRange = getPeriodRange(periodType, periodKey)
+
+  let bucket: { start: string; end: string }
+  if (applyDateCutoff) {
+    const resolved = resolveTrendPeriod({
+      periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType,
+      buckets: [{ label: periodKey, start: calendarRange.start, end: calendarRange.end }],
+      applyDateCutoff, cutoffDay,
+      fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+      skipElapsedClamp,
+    })
+    bucket = { start: calendarRange.start, end: resolved.periodEndDate }
+  } else {
+    const dataKey = getPreviousPeriodKey(periodType, periodKey)
+    const dataRange = getPeriodRange(periodType, dataKey)
+    bucket = { start: dataRange.start, end: dataRange.end }
+  }
+
+  // dormantBaselineBucket (2026-08-27, task029.md §36.55 — koreksi tegas
+  // user: "start date selalu awal periode, tanggal 1, end date selalu akhir
+  // periode kalau cutoff mati, terpotong kalau cutoff aktif" — itu aturan
+  // utk bucket SEKARANG/liveBucket di bawah, BUKAN baseline reaktivasi ini)
+  // — SEBELUMNYA field `prevBucket` di sini dihitung "1 periode sebelum
+  // `bucket`" DENGAN penyempitan proporsional kalau `bucket` terpotong
+  // cutoff — itu formula SALAH utk keperluan status reaktivasi: baseline
+  // "was_dormant_at_prev" (§36.36, sudah didokumentasikan: "BELUM dormant
+  // di AWAL periode berjalan") HARUS selalu bulan kalender PENUH sebelum
+  // periodKey SAAT INI (Juli, utuh), TIDAK PERNAH ikut terpotong cutoff —
+  // SAMA PERSIS `dormantBaselineBucket` di `getDormantCustomerMetrics` —
+  // panggil `resolveDormantBaselineBucket` yang SAMA (§36.55), bukan
+  // formula diketik ulang.
+  const dormantBaselineBucket = resolveDormantBaselineBucket(periodType, periodKey)
+
+  // liveBucket — window "sekarang" (Agustus 1 s.d hari ini/tanggal cutoff),
+  // mereplikasi PERSIS `liveBuckets` di `getDormantCustomerMetrics`: mode
+  // cutoff aktif → sama dgn `bucket` (tidak ada konsep live terpisah), mode
+  // default → kalender bulan berjalan dipotong elapsed ke hari ini
+  // (`clampToElapsedEnd`, REUSE fungsi yang sama, bukan tulis ulang).
+  const liveBucket = applyDateCutoff
+    ? bucket
+    : { start: calendarRange.start, end: clampToElapsedEnd(periodKey, calendarRange.end, periodType) }
+
+  return { filterDate: bucket.end, bucket, dormantBaselineBucket, liveBucket, liveCalendarStart: calendarRange.start }
+}
+
 export async function getDormantBreakdown(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantBreakdownData> {
   try {
-    const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
-    const rows = await fetchDormantValueRanking(segParams, null)
+    // Dua mode (2026-08-27, §36.54), SAMA PERSIS getDormantStatusBreakdown:
+    // `period_type` DIKIRIM (Report/Retention tab Dormant, Report/Growth tab
+    // Ekspansi — "periode berjalan") → resolveDormantSnapshotBucket, SATU
+    // acuan sama dgn getDormantCustomerMetrics/getDormantStatusBreakdown.
+    // `period_type` TIDAK dikirim (M8DormantRate.tsx dashboard, klik 1 titik
+    // chart trend — `period_end` SUDAH final hasil resolusi frontend sendiri
+    // dari titik yang diklik) → filterDate = period_end APA ADANYA, PERILAKU
+    // LAMA, tidak boleh diproses ulang (double-shift kalau dipaksa lewat
+    // resolver periode berjalan).
+    let filterDate: string
+    let existingSince: string | undefined
+    if (params.period_type) {
+      const periodEnd = params.period_end ?? todayDate()
+      const resolved = resolveDormantSnapshotBucket(periodEnd, params.period_type, params.apply_date_cutoff, params.cutoff_day, params.skip_elapsed_clamp)
+      filterDate = resolved.filterDate
+      // liveCalendarStart, BUKAN resolved.bucket.start (2026-08-27, §36.55) —
+      // gate New/Existing SSOT SELALU awal kalender ASLI (Agustus 1), SAMA
+      // persis `liveBucket.start` di pemanggilan `getDormantCustomerMetrics`
+      // (lihat JSDoc fetchDormantValueRanking baris ~291) — bukan awal
+      // baseline snapshot yang bisa digeser ke bulan lalu (cutoff off).
+      existingSince = resolved.liveCalendarStart
+    } else {
+      filterDate = params.period_end ?? todayDate()
+    }
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+    const rows = await fetchDormantValueRanking(segParams, null, existingSince)
     return {
       period_end: filterDate,
       rows,
@@ -668,44 +809,78 @@ export async function getDormantBreakdown(params: DormantCustomerQuery, scope: M
 
 // Status breakdown per customer utk 1 titik (2026-08-24, susulan pertanyaan
 // user soal ambiguitas reaktivasi — lihat JSDoc CustomerDormantStatusRow di
-// metrics.types.ts). prevDateFrom/prevDateTo period-anchored + proporsional
-// kalau bucket terpotong — pola SAMA PERSIS getExpansionBreakdown (M7) di
-// atas, REUSE bukan tulis ulang.
+// metrics.types.ts). DUA mode (2026-08-27, §36.54):
+// - `date_from` DIKIRIM eksplisit (M10 dashboard, klik 1 titik chart trend
+//   spesifik — `M10ReactivationRate.tsx` handlePointClick) — titik HISTORIS
+//   yang diklik, bucket-nya SUDAH ditentukan sendiri oleh caller (bulan yang
+//   diklik, live-clamped di frontend), prevBucket SELALU 1 bulan kalender
+//   penuh sebelumnya (titik historis dianggap SUDAH tutup) — PERILAKU LAMA,
+//   tidak berubah, `apply_date_cutoff` TIDAK relevan di sini (bukan "periode
+//   berjalan").
+// - `date_from` TIDAK dikirim (Report/Retention tab Reaktivasi — "periode
+//   berjalan" saat ini) — bucket current+sebelumnya dari
+//   `resolveDormantSnapshotBucket`, SATU sumber acuan tanggal yang sama
+//   dgn getDormantCustomerMetrics/getDormantBreakdown (koreksi user:
+//   "semua parameter harus seragam, akhir bulan kecuali cutoff
+//   diaktifkan" — sebelumnya current SELALU live, previous SELALU bulan
+//   lalu, 2 acuan beda dalam 1 tab).
 export async function getDormantStatusBreakdown(params: DormantStatusBreakdownQuery, scope: MetricsScope = {}): Promise<DormantStatusBreakdownData> {
   try {
-    const filterDate = params.period_end ?? todayDate()
-    const bucketStart = params.date_from ?? filterDate
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    let bucket: { start: string; end: string }
+    let prevBucket: { start: string; end: string }
+    let liveCalendarStart: string | undefined
+    // applyDateCutoffGate (2026-08-27, §36.56) — gerbang cabang "baru
+    // menyebrang dormant DI DALAM periode ini" di fetchCustomerDormantStatusLog
+    // HANYA relevan mode Report (`date_from` absen, resolveDormantSnapshotBucket)
+    // — mode drilldown lama (`date_from` hadir) TIDAK kenal konsep cutoff sama
+    // sekali (komentar JSDoc di atas: "apply_date_cutoff TIDAK relevan di
+    // sini"), tetap false PERILAKU LAMA.
+    let applyDateCutoffGate = false
 
-    // Bucket sebelumnya SELALU akhir kalender penuh (2026-08-24, koreksi
-    // user: "DORMAN JULI ITU JUMLAH AKHIR JUNI SEHARUSNYA" — maksudnya
-    // bucket sebelumnya jangan ikut terpotong gara2 bucket current belum
-    // tutup) — TIDAK ada penyempitan proporsional di sini sama sekali,
-    // beda dari getExpansionBreakdown (M7, agregat, lebar window relevan).
-    // Dormant itu snapshot per-titik, periode sebelumnya sudah TUTUP,
-    // selalu pakai batas kalendernya sendiri.
-    let prevStart = bucketStart
-    let prevEnd = filterDate
-    if (params.date_from && params.period_type) {
-      const periodType = params.period_type
-      const [y, m, d] = params.date_from.split('-').map(Number)
-      const periodKey = getCurrentPeriodKey(periodType, new Date(y, m - 1, d))
-      const prevKey = getPreviousPeriodKey(periodType, periodKey)
-      const prevRange = getPeriodRange(periodType, prevKey)
-      prevStart = prevRange.start
-      prevEnd = prevRange.end
+    if (params.date_from) {
+      const filterDate = params.period_end ?? todayDate()
+      bucket = { start: params.date_from, end: filterDate }
+      prevBucket = { start: params.date_from, end: filterDate }
+      if (params.period_type) {
+        const periodType = params.period_type
+        const [y, m, d] = params.date_from.split('-').map(Number)
+        const periodKey = getCurrentPeriodKey(periodType, new Date(y, m - 1, d))
+        const prevKey = getPreviousPeriodKey(periodType, periodKey)
+        const prevRange = getPeriodRange(periodType, prevKey)
+        prevBucket = { start: prevRange.start, end: prevRange.end }
+      }
+    } else {
+      const periodEnd = params.period_end ?? todayDate()
+      const periodType = params.period_type ?? 'monthly'
+      const resolved = resolveDormantSnapshotBucket(periodEnd, periodType, params.apply_date_cutoff, params.cutoff_day, params.skip_elapsed_clamp)
+      // bucket/prevBucket (2026-08-27, §36.55, lihat komentar liveBucket &
+      // dormantBaselineBucket di resolveDormantSnapshotBucket) —
+      // `fetchCustomerDormantStatusLog` taruh acuan LIVE di slot `bucket`
+      // (is_dormant_at_me/transacted_in_period) dan acuan BASELINE (bulan
+      // kalender PENUH sebelum periode berjalan, TIDAK ikut terpotong cutoff
+      // — sumber status 'dormant'/'reactivated') di slot `prevBucket` — SAMA
+      // persis pemanggilan `getDormantCustomerMetrics` (liveBucket,
+      // dormantBaselineBucket).
+      bucket = resolved.liveBucket
+      prevBucket = resolved.dormantBaselineBucket
+      applyDateCutoffGate = !!params.apply_date_cutoff
+      // liveCalendarStart (2026-08-27, §36.54) — gerbang "New" TETAP awal
+      // kalender ASLI periode yang dilihat (Agustus 1), TIDAK ikut geser ke
+      // Juli walau baseline dormant-nya digeser (cutoff off) — SAMA aturan
+      // `lb.ps` di fetchDormantTrend, supaya Total Customer Base tab ini
+      // SELALU cocok dgn kartu M8 (32.631), tidak ikut menyusut krn gate
+      // "New" salah geser.
+      liveCalendarStart = resolved.liveCalendarStart
     }
 
-    const rows = await fetchCustomerDormantStatusLog(
-      segParams,
-      { start: bucketStart, end: filterDate },
-      { start: prevStart, end: prevEnd },
-    )
+    const segParams = await resolveSegmentParams(params.company_id, bucket.end, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+
+    const rows = await fetchCustomerDormantStatusLog(segParams, bucket, prevBucket, liveCalendarStart, applyDateCutoffGate)
     const filtered = params.status ? rows.filter((r) => r.status === params.status) : rows
 
     return {
-      period_start: bucketStart,
-      period_end:   filterDate,
+      period_start: bucket.start,
+      period_end:   bucket.end,
       rows:         filtered,
     }
   } catch (err) {
@@ -724,7 +899,7 @@ export async function getDormantStatusBreakdown(params: DormantStatusBreakdownQu
 // paling relevan (sama dgn window revenue yang dihitung).
 export async function getDormantValueHistory(params: DormantValueHistoryQuery, scope: MetricsScope = {}): Promise<DormantValueHistoryData> {
   try {
-    const segParams = await resolveSegmentParams(params.company_id, params.ref_date, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, params.ref_date, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const rows = await fetchDormantValueHistory(segParams, params.customer_id, params.ref_date)
     return {
       customer_id: params.customer_id,
@@ -1047,7 +1222,7 @@ export async function getUpsellTargets(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
-      businessUnit: params.business_unit || null,
+      divisionId: params.division ?? null,
       page: params.page, perPage: params.per_page,
     })
 

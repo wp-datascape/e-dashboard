@@ -79,7 +79,9 @@ export default function Retention() {
   const periodTypeFilter = usePeriodTypeFilter();
   const draftPeriodTypeFilter = usePeriodTypeFilter();
 
-  const [, setOnlyPareto] = useState(false);
+  // task029.md §35 — value dibaca (BUKAN dibuang), backend M6/M8-M10
+  // sekarang menerima only_pareto.
+  const [onlyPareto, setOnlyPareto] = useState(false);
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -116,6 +118,7 @@ export default function Retention() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canExpansion });
 
   // M8-M10 sekarang granularitas-aware penuh (2026-08-24, susulan task029.md
@@ -134,6 +137,7 @@ export default function Retention() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canChurnRisk });
 
   const ror = cmData?.repeat_order_current;
@@ -241,6 +245,7 @@ export default function Retention() {
               branchId={resolvedBranchId}
               division={resolvedDivision}
               excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
             />
           ) : (
             <NoSectionAccess />
@@ -253,10 +258,12 @@ export default function Retention() {
                 isLoading={dcLoading}
                 periodType={periodTypeFilter.periodType}
                 applyDateCutoff={applyDateCutoff}
+                periodEnd={periodEnd}
                 companyId={companyId}
                 branchId={resolvedBranchId}
                 division={resolvedDivision}
                 excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
               />
               <M9DormantValue
                 data={dcData}
@@ -266,15 +273,18 @@ export default function Retention() {
                 branchId={resolvedBranchId}
                 division={resolvedDivision}
                 excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
               />
               <M10ReactivationRate
                 data={dcData}
                 isLoading={dcLoading}
                 periodType={periodTypeFilter.periodType}
+                applyDateCutoff={applyDateCutoff}
                 companyId={companyId}
                 branchId={resolvedBranchId}
                 division={resolvedDivision}
                 excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
               />
             </>
           ) : (

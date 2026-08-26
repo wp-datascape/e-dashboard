@@ -66,6 +66,7 @@ function M9Tooltip({ active, payload }: TooltipContentProps<number, string>) {
       title={d.customer_name}
       rows={[
         { label: t('dormantCustomer.colEstimatedLoss'), value: formatRupiah(d.estimated_lost_value) },
+        { label: t('dormantCustomer.colEstimatedLossGp'), value: formatRupiah(d.estimated_lost_gp) },
         { label: t('common.filters.division'), value: d.division_label ?? '—' },
         { label: t('dormantCustomer.colMonthsDormant'), value: t('dormantCustomer.monthsDormantValue', { count: d.months_dormant }) },
         { label: t('dormantCustomer.colLastInvoice'), value: formatDateID(d.last_invoice_date) },
@@ -99,9 +100,10 @@ interface Props {
   branchId?: number;
   division?: number;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M9DormantValue({ data, isLoading, periodType = 'monthly', companyId = 'all', branchId, division, excludeIntercompany }: Props) {
+export function M9DormantValue({ data, isLoading, periodType = 'monthly', companyId = 'all', branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -120,6 +122,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   const ranking = data?.value_ranking ?? [];
@@ -138,8 +141,12 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
 
   return (
     <>
+      {/* Grid 4 kartu (2026-08-26, task029.md §36.12 — susulan "Tambah versi
+          Gross Profit paralel") — sebelumnya 3 kartu md:4, sekarang md:3
+          utk kartu GP baru di posisi ke-2 (di sebelah Total Loss revenue,
+          sebelum Ranked Count/Highest Loss). */}
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9TotalLossLabel')}
@@ -149,7 +156,17 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
             />
           )}
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
+            <KpiCard
+              label={t('dormantCustomer.m9TotalLossGpLabel')}
+              value={fmtRp(data?.value_ranking_total_gp_current ?? 0)}
+              sub={currentPeriodLabel}
+              color={theme.palette.error.main}
+            />
+          )}
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9RankedCountLabel')}
@@ -159,7 +176,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
             />
           )}
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9HighestLossLabel')}
@@ -179,7 +196,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
               title={t('dormantCustomer.m9TooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />

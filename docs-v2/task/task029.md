@@ -3486,3 +3486,2989 @@ klarifikasi definisi dulu sebelum coding).
 
 **Status semua 3 item di atas: PENDING, belum dikerjakan — dicatat di sini
 biar tidak hilang, dikerjakan satu per satu di sesi ini/berikutnya.**
+
+## 33. Standarisasi Menu Revenue/Value (M3/M4/M5) ke pola Growth/Retention (2026-08-25)
+
+Instruksi user: "lanjut kerjakan MENU REVENUE, STANDARTKAN SESUAI LAYOUT 2
+MENU SEBELUMNYA JANGAN ADA YANG TERLEWAT SAMA SEKALI" — menu ketiga
+("Revenue", key internal `value`, `/value`) berisi M3 Average Revenue, M4
+Average Gross Profit, M5 High Margin Penetration — SAMA SEKALI belum
+tersentuh standarisasi yang sudah diterapkan ke Growth (M1/M2/M7) dan
+Retention (M6/M8/M9/M10) sepanjang sesi ini. Audit lengkap (baca file
+langsung, bukan tebakan):
+
+### Temuan `Value/index.tsx` (halaman)
+- Filter MASIH pola LAMA: 1 `DatePicker` bulanan polos, TIDAK ada
+  `usePeriodTypeFilter`, TIDAK ada panel Filter Lanjutan
+  (Cabang/Divisi/Granularitas/Exclude Intercompany), TIDAK ada "Apply date
+  cutoff" — beda total dari Growth/Retention.
+- `useCustomerMetrics` dipanggil TANPA `period_type`/`apply_date_cutoff`
+  sama sekali.
+
+### Temuan `M3Revenue.tsx`
+- TIDAK ada `periodType` prop — hardcode bulanan total.
+- TIDAK ada KpiHeader (current vs YoY).
+- TIDAK ada 3 kartu ringkasan (pola M1/M6/M8/M9/M10).
+- TIDAK ada Top 5 sidebar + tombol "Cek Detail di Laporan".
+- Dialog title masih `{ date: drillDate }` mentah (bug class SAMA yang
+  diperbaiki di M6 — title harus nama entitas saja, periode di subtitle).
+- `onBarClick` pakai `resolvePeriodEnd` (helper lama, cuma paham bulanan),
+  bukan `getPeriodDateRange`+`clampPeriodEndToToday`.
+- `xAxisFormatter={formatMonthLabel}` hardcode, bukan
+  `formatPeriodLabelShort` granularitas-aware.
+- Tooltip custom SUDAH ada (`M3Tooltip`) tapi styling manual (Box+Divider),
+  BUKAN `ChartTooltipCard` shared component — inkonsistensi kecil, bukan
+  prioritas utama.
+- Backend `fetchRevenueBreakdown` TIDAK terima `dateFrom` sama sekali
+  (schema `revenueBreakdownQuerySchema` juga tidak punya field itu) — beda
+  dari M4/M7 yang sudah py.
+
+### Temuan `M4GrossProfit.tsx`
+- Sama persis M3 (tidak ada periodType/KpiHeader/kartu/Top5/tombol laporan,
+  dialog title mentah, onBarClick lama, xAxisFormatter hardcode,
+  M4Tooltip custom manual bukan ChartTooltipCard).
+- BEDA dari M3: backend `fetchGpBreakdown` SUDAH terima `dateFrom` end-to-
+  end (schema+service+repository, task026 §8e) — cuma FRONTEND yang belum
+  pernah mengirimnya (selalu `undefined`, jatuh ke fallback activeMonths
+  lama). Quick win — tinggal sambung dari sisi FE.
+
+### Temuan `M5HighMargin.tsx`
+- BEDA ARSITEKTUR dari M3/M4/M6/M8/M9/M10: donut chart SNAPSHOT 1 titik
+  (`hm: {bought_pct, not_bought_pct}` dari `data.high_margin_current`),
+  BUKAN trend 12 titik — jadi TIDAK BUTUH `periodType` label chart/axis
+  spt yang lain, tapi TETAP butuh:
+  - YoY comparison (fetch snapshot periode sama setahun lalu, pola sama
+    M1/M2 kartu, BUKAN KpiHeader trend-based — perlu dipikirkan bentuknya,
+    mis. badge delta di sebelah center donut).
+  - Dialog title masih mentah (bug class sama).
+  - `onChartClick` pakai `resolvePeriodEnd` (lama).
+  - Backend `fetchHmBreakdown` TIDAK terima `dateFrom` sama sekali (sama
+    kasus M3).
+- TIDAK ada 3 kartu ringkasan/Top 5/tombol laporan (sama kasus M3/M4) —
+  utk M5 relevansi "Top 5" perlu dipikirkan (Top 5 pembeli HM? sudah ada
+  di kolom tabel dialog, tinggal dipindah jadi sidebar spt KPI lain).
+
+### Yang SUDAH benar (tidak perlu disentuh)
+- `getCustomerMetrics` (trend M3-M7 shared, `metrics.service.ts`) SUDAH
+  granularitas-aware (`period_type`/`apply_date_cutoff`) sejak task029
+  §30.9 — PR #134/#135 sudah live. Trend M3/M4 otomatis granularitas-aware
+  begitu `Value/index.tsx` mengirim `period_type`.
+- `cteEstablishedCustomers`/definisi Existing SSOT §30.10 sudah dipakai
+  trend M3-M7 (migrasi lama, task029 §30.10) — TIDAK perlu diulang, cuma
+  breakdown drilldown M3/M5 yang belum py `dateFrom`.
+
+### Rencana eksekusi (urutan, 1 per satu, verifikasi DB tiap langkah)
+1. **Backend M3** (SELESAI): `fetchRevenueBreakdown` + `revenueBreakdownQuerySchema`
+   + `getRevenueBreakdown` — tambah `dateFrom`, pola SAMA PERSIS M4/M6.
+2. **Backend M5** (SELESAI): `fetchHmBreakdown` + `hmBreakdownQuerySchema` +
+   `getHmBreakdown` — tambah `dateFrom`, pola sama.
+3. **`Value/index.tsx`** (SELESAI): rebuild filter total — `usePeriodTypeFilter`
+   (draft+applied staged pola Growth/Retention), panel Filter Lanjutan,
+   "Apply date cutoff", kirim `period_type`/`apply_date_cutoff` ke
+   `useCustomerMetrics`.
+4. **`M3Revenue.tsx`** (SELESAI): periodType prop, KpiHeader (current vs YoY trend
+   terakhir), 3 kartu ringkasan, Top 5 + tombol "Cek Detail di Laporan",
+   dialog title→subtitle (formatPeriodRangeSub), onBarClick
+   granularitas-aware, xAxisFormatter→formatPeriodLabelShort, sambung
+   `date_from` breakdown.
+5. **`M4GrossProfit.tsx`** (SELESAI): SAMA PERSIS poin 4 (backend sudah siap,
+   tinggal FE).
+6. **`M5HighMargin.tsx`** (SELESAI): dialog title→subtitle, onChartClick
+   granularitas-aware (walau snapshot, `date_from` tetap relevan utk
+   drilldown biar konsisten SSOT §30.10), YoY comparison (bentuk
+   disesuaikan krn bukan trend, gated on `yoyHm` truthy biar tidak
+   menampilkan yoy=0 palsu di halaman workbench CustomerMetrics yang
+   tidak fetch YoY), sambung `date_from` breakdown.
+
+   Sekalian, saat ekstraksi kolom tabel utk poin 7: ditemukan
+   `tierChipColor`/`tierLabel` duplikat IDENTIK antara M3Revenue.tsx dan
+   M4GrossProfit.tsx (pelanggaran "Centralize UI" yang sudah ada sebelum
+   task ini) — dipindah bareng `useRevenueColumns`/`useGpColumns`/
+   `useHmColumns` ke file baru `CustomerMetrics/valueHelpers.tsx`, dipakai
+   M3/M4/M5 DAN Report/Revenue (poin 7), 1 sumber bukan 3.
+7. **Halaman Laporan baru** `Report/Revenue/index.tsx` (SELESAI — route
+   `/report/revenue`, bukan `/report/value` seperti draf awal rencana ini;
+   `nav.groups.revenue`, permission `expansion:view` sama seperti
+   `Value/index.tsx` krn 1 sumber data `useCustomerMetrics`) — 3 tab
+   Revenue/GP/HM (search+sort+`ResponsiveListView`, kolom dari
+   `valueHelpers.tsx`), pola filter (quick+advanced, `?tab=` deep-link)
+   sama persis Report/Growth. 3 tombol "Cek Detail di Laporan" M3/M4/M5
+   sudah diarahkan ke `/report/revenue?tab=revenue|gp|hm`. Tab label baru
+   `metrics.avgRevenueShort`/`avgGrossProfitShort`/`highMarginShort`
+   ditambahkan ke `metrics.json` (id+en), pola sama `crossSellingShort`/
+   `expansionShort` yang sudah ada.
+8. Audit ulang i18n (SELESAI): `formatPeriodLabel` dkk sudah granularitas+
+   i18n-aware dari perbaikan sesi ini; M3/M4/M5 dikonfirmasi pakai fungsi
+   yang sama (formatPeriodRangeSub/formatPeriodLabelShort), bukan
+   `formatMonthLabel`/`resolvePeriodEnd` lama. Key JSON mati (`chartTitle`/
+   `chartSubtitle` M3/M4/M5, sudah tidak dipakai sejak title pindah ke
+   SectionLabel) dibiarkan di file JSON (tidak dihapus) — konsisten dgn
+   precedent M1/M2/M7 yang juga menyisakan key lama tak terpakai daripada
+   berisiko menghapus key yang ternyata masih dirujuk tempat lain.
+
+**Status: SELESAI (2026-08-25). Verifikasi: `tsc --noEmit` bersih,
+`eslint` bersih (0 error), `vite build` sukses (chunk baru
+`Revenue-*.js`, `valueHelpers-*.js` ter-generate). Belum di-commit/push —
+menunggu instruksi eksplisit.**
+
+## 34. Generalisasi populasi "Existing Aktif" (§30.10) dari M1 ke M2-M7 (2026-08-25)
+
+### Kronologi temuan
+
+Berawal dari pertanyaan eksplorasi user soal M5 tren + "2 bar keseluruhan
+produk terjual vs high margin" (dibatalkan, scope-nya berubah arah), lalu
+pertanyaan "apakah new customer sudah termasuk di M1-M10" — audit ke SQL
+backend (bukan tebakan) menemukan SEMUA M1-M10 basisnya "existing", TAPI
+ternyata M1 dan M3-M7 punya DUA DEFINISI "existing" YANG BERBEDA:
+
+- **M1/M2** (`fetchCrossSellingTrend`, m1.repository.ts): existing = first
+  invoice SEBELUM awal periode **DAN** py minimal 1 transaksi DI DALAM
+  periode itu ("aktif-per-periode") — ini definisi FINAL yang sudah
+  diputuskan user 2026-08-20 (§30.10, kutipan persis: *"Customer aktif
+  berarti yang ada transaksi >= 1 di periode filter"*), diimplementasi
+  sbg **pilot M1 saja**, dgn catatan eksplisit di dokumen saat itu:
+  *"M3-M10 masih pakai cteEstablishedCustomers/activeMonths... memang
+  BEDA definisi dan sengaja tidak diubah scope-nya di sini"* — status
+  *"BELUM diputuskan mau di-generalisasi ke M2-M10 atau tetap M1-only"*.
+  Generalisasi itu TIDAK PERNAH dilanjutkan sampai sekarang.
+- **M3-M7** (`fetchCustomerMetricsTrend`, m3m7.repository.ts, CTE
+  `existing` baris 155-194): first invoice sebelum awal periode SAJA,
+  TANPA syarat aktif — EXISTS ke invoices `<=` akhir bucket TANPA lower
+  bound, jadi TERMASUK customer yang cuma transaksi 1x bertahun-tahun
+  lalu lalu dormant selamanya ("existing kumulatif"). ~93% populasi ini
+  ternyata tidak genuinely aktif bulan yang diukur (lihat audit di
+  bawah).
+
+### Audit dampak nyata (verifikasi DB, bukan estimasi)
+
+2 riset via query langsung ke Postgres lokal (33.041 customers, 246rb+
+invoices, semua entitas, Sep 2025-Agu 2026):
+
+1. Basis "existing+new customer" (M1/M2/M5/M6 — dibahas duluan, tapi
+   TIDAK jadi scope eksekusi, cuma riset): dilusi signifikan konsisten
+   di M1 (-4.3pp) & M2 (-0.13 kategori), nyaris nol di M5, JUSTRU NAIK
+   di M6 (+0.4pp) — kejanggalan M6 inilah yang membongkar gap definisi
+   di atas.
+2. Basis "existing kumulatif vs existing aktif-periode" (M3-M7, riset
+   utama) — laporan lengkap dipublikasikan sbg artifact terpisah
+   ("Distorsi Populasi Existing"). Ringkasan: rata-rata cuma **7,2%**
+   populasi existing M3-M7 genuinely aktif per bulan. M3/M4 (Avg
+   Revenue/GP) understated rata-rata **15,8×** (membesar dari 10× ke
+   38× sepanjang 12 bulan, karena populasi kumulatif terus menumpuk
+   tanpa pernah "keluar"). M6 (Repeat Order Rate) understated **+23,1pp**
+   (<3% sekarang vs ~20-30% seharusnya). M7 (Expansion Rate) selisih
+   terbesar **+67,3pp**, TAPI numerator-nya bercampur "genuinely
+   ekspansi" dgn "reaktivasi dari nol" — butuh dekomposisi lanjutan
+   sebelum jadi angka resmi (dicatat sbg catatan, BUKAN diperbaiki di
+   task ini).
+
+### Keputusan scope (dibahas eksplisit dgn user sebelum eksekusi)
+
+Sempat dipertimbangkan refactor M3-M7 jadi 5 file/query terpisah demi
+keterbacaan — DIBENCHMARK dulu (bukan asumsi): split jadi 5 query DB
+independen = **3,0× lebih lambat** (2.713ms → 8.204ms, replikasi query
+persis + EXPLAIN ANALYZE, DB lokal sama). **Keputusan: TIDAK di-split**,
+fokus balik ke generalisasi §30.10 (instruksi user: *"kita fokus ke data
+pilot M1 tadi yang belum diterapkan ke KPI lain"*).
+
+**Scope IN**:
+- `fetchCustomerMetricsTrend` (m3m7.repository.ts) — field
+  `existing_customers` DAN 5 formula turunannya (`avg_revenue`,
+  `avg_gross_profit`, `high_margin_ratio`, `repeat_order_rate`,
+  `expansion_rate`) ganti denominator dari `COUNT(DISTINCT e.id)`
+  (kumulatif) ke populasi aktif-per-bucket — field `active_existing_count`
+  SUDAH DIHITUNG di query yang sama (CTE `monthly_extras`, dari
+  `active_inv_agg`), TIDAK perlu CTE/join baru, TIDAK ada biaya query
+  tambahan (numerator SEMUA formula ini SUDAH inheren terbatas ke
+  customer yang aktif di bucket, cuma denominator-nya yang salah acu).
+- M2 otomatis ikut (share fungsi M1, sudah benar sejak §30.10).
+
+**Scope OUT (sengaja tidak disentuh)**:
+- Fungsi drill-down (`fetchRevenueBreakdown`/`fetchGpBreakdown`/
+  `fetchHmBreakdown`/`fetchRorBreakdown`/`fetchExpansionBreakdown`) —
+  field `total_existing` di sana SENGAJA memakai cohort `established_
+  customers` TETAP (fixed, tidak ikut window filter) per keputusan
+  TERPISAH & LEBIH DULU ("template standar KPI4", 2026-08-10,
+  [[feedback_kpi4_card_template_standard]]: *"kartu Total HARUS fixed
+  cohort... BUKAN rata-rata snapshot bulanan"*) — beda pertanyaan dari
+  §30.10, TIDAK diubah di sini supaya tidak bentrok dgn keputusan itu.
+  §32.1 (gap `dateFrom` di drill-down) juga topik terpisah, tidak
+  tumpang tindih dgn task ini.
+- M8/M9/M10 — dormant/reactivation SECARA STRUKTUR butuh precondition
+  "PERNAH aktif LALU berhenti", bukan "aktif SEKARANG" — generalisasi
+  §30.10 apa adanya tidak masuk akal utk metrik ini (customer dormant
+  BY DEFINITION tidak aktif periode ini). Perlu analisis terpisah,
+  bukan bagian task ini.
+
+### Rencana eksekusi (ASLI, direvisi — lihat §34.1 di bawah utk M7)
+1. Ubah `m3m7.repository.ts` `fetchCustomerMetricsTrend`: ganti
+   denominator `existing_customers`/`avg_revenue`/`avg_gross_profit`/
+   `high_margin_ratio`/`repeat_order_rate`/`expansion_rate` dari
+   `COUNT(DISTINCT e.id)` ke count aktif-per-bucket.
+2. Verifikasi query langsung ke DB (12 bulan, semua entitas) — angka
+   HARUS cocok dgn kolom "Existing Aktif"/nilai "Aktif" di audit artifact
+   di atas (yang sudah dihitung independen lewat replikasi manual).
+3. Audit copy i18n (tooltip `tooltipInfo` M3/M4/M5/M6/M7) — pastikan
+   teks tidak lagi menyiratkan populasi "semua yang pernah beli"
+   (semantik lama), sesuaikan ke "yang aktif periode ini" kalau perlu.
+4. `tsc --noEmit` + `eslint` + `vite build` bersih (frontend TIDAK perlu
+   perubahan kode — field `existing_customers` namanya tetap sama,
+   cuma nilainya berubah jadi lebih kecil/akurat).
+
+**KOREKSI PENTING (2026-08-25, ditemukan lewat dialog panjang dgn user
+sebelum eksekusi M7)**: rencana poin 1 di atas (samakan `expansion_rate`
+M7 ke denominator `active_existing_count` sama seperti M3/M4/M6) TERNYATA
+SALAH — lihat §34.1 di bawah, M7 butuh populasi BEDA (existing yang
+"belum lewat ambang dormant", bukan "aktif periode ini persis"), krn
+struktur breakdown 4-arahnya sendiri (kategori "Tidak Aktif") butuh
+customer yang TIDAK bertransaksi tapi masih relevan dibandingkan.
+
+**Status per KPI (2026-08-25, akhir sesi ini):**
+- **M1/M2**: SELESAI (populasi diubah TOTAL, bukan cuma denominator —
+  lihat §34.0 di bawah, ini beda kasus dari M3-M7).
+- **M7**: SELESAI — lihat §34.1 (desain populasi baru, bukan sekadar
+  swap ke `active_existing_count`).
+- **M3/M4/M6**: BELUM dieksekusi — tooltip `tooltipInfo` sudah diupdate
+  duluan (mendeskripsikan definisi TARGET "existing aktif periode ini",
+  bukan behavior SEKARANG yang masih kumulatif) — **copy sudah mendahului
+  implementasi**, backend-nya MASIH pakai `COUNT(DISTINCT e.id)`
+  kumulatif seperti sebelumnya. Perlu dieksekusi supaya kode menyusul
+  tooltip-nya, JANGAN dibiarkan lama (gap copy-vs-implementasi
+  menyesatkan kalau dibiarkan).
+- **M5**: BELUM diputuskan — dokumen SSOT ambigu ("customer aktif" di
+  kalimat pembuka vs "customer existing" di definisi rinci), user belum
+  menjawab klarifikasi mana yang dipakai.
+
+### 34.0 M1/M2 — eksekusi (SELESAI, 2026-08-25)
+
+Beda dari M3-M7 (yang cuma soal DENOMINATOR salah), M1/M2 ternyata punya
+gerbang EXTRA yang seharusnya TIDAK ADA sama sekali — pilot §30.10
+(2026-08-20) keliru mengklasifikasikan M1/M2 sbg "Existing" (first
+invoice sebelum periode), padahal dokumen SSOT resmi (di-review user
+2026-08-25, "DEFINISI_OPERASIONAL_CUSTOMER_LOYAL_DASHBOARD.docx")
+eksplisit: populasi M1 ("Cross Sell Ratio") & M2 ("Avg Category")
+adalah **"Customer Aktif"** murni (≥1 transaksi periode ini, TANPA
+syarat riwayat) — beda total dari M3/M4/M6/M7 yang MEMANG "Existing
+Customer" (py riwayat + masih beli).
+
+**Perubahan** (`m1.repository.ts`):
+- `CS_INV_CTE` (dipakai `fetchCrossSellingKPI`/`fetchCrossSellingDetail`/
+  `fetchCrossSellingHeatmap`) — CTE `cteExistingCustomersByPeriod`
+  DIHAPUS total dari WITH clause, JOIN `existing_customers ec` dihapus
+  dari CTE `inv`. Import `cteExistingCustomersByPeriod`/
+  `cteFirstInvoiceDate` dihapus (sudah tidak dipakai).
+- `fetchCrossSellingTrend` — JOIN `first_invoice_date fid ON fid.first_
+  date < bk.ps` dihapus dari CTE `per_bucket`. CTE `first_invoice_date`
+  (`cteFirstInvoiceDate(p)`) dihapus dari WITH clause (tidak dipakai lagi
+  di fungsi ini).
+
+**Verifikasi DB (12 bulan, semua entitas, cocok persis dgn 2 sumber
+independen — angka lama dari riset audit sebelumnya DAN replikasi query
+manual baru)**:
+
+| Bulan | Populasi Lama (existing-gated) | Populasi Baru (customer aktif) | M1 Rate Lama→Baru | M2 Avg Lama→Baru |
+|---|---|---|---|---|
+| Sep 2025 | 1.247 | 2.798 | 34,2%→29,0% | 1,72→1,54 |
+| Okt 2025 | 1.331 | 3.815 | 33,5%→23,2% | 1,72→1,43 |
+| Nov 2025 | 1.518 | 3.877 | 29,1%→21,7% | 1,63→1,41 |
+| Des 2025 | 1.787 | 4.195 | 27,8%→22,1% | 1,57→1,40 |
+| Jan 2026 | 1.989 | 4.248 | 28,1%→23,8% | 1,55→1,42 |
+| Feb 2026 | 1.993 | 3.893 | 27,7%→24,0% | 1,54→1,43 |
+| Mar 2026 | 1.752 | 3.236 | 24,5%→21,2% | 1,48→1,38 |
+| Apr 2026 | 2.153 | 4.067 | 25,7%→22,6% | 1,49→1,40 |
+| Mei 2026 | 1.469 | 2.590 | 26,9%→25,3% | 1,60→1,51 |
+| Jun 2026 | 1.561 | 2.589 | 30,4%→26,9% | 1,65→1,54 |
+| Jul 2026 | 1.674 | 2.869 | 29,8%→26,7% | 1,61→1,52 |
+| Agu 2026* | 855 | 1.218 | 28,9%→28,7% | 1,60→1,58 |
+
+*Agustus cuma 17 hari (MAX(invoice_date) di DB), bukan bulan penuh.
+
+Populasi hampir 2× lebih besar di semua bulan (customer baru sekarang
+ikut terhitung), rate/rata-rata turun sedikit di semua titik (customer
+baru belum tentu langsung cross-sell di transaksi pertama — masuk akal,
+bukan bug). `tsc --noEmit` bersih (backend+frontend, frontend TIDAK
+perlu perubahan kode). Sudah dilaporkan ke user dlm bentuk tabel di
+percakapan, TIDAK diulang jadi artifact terpisah (user cukup dgn tabel
+teks).
+
+### 34.1 M7 — desain ulang populasi (SELESAI, 2026-08-25)
+
+**Kenapa BUKAN sekadar swap denominator seperti M3/M4/M6 (dikoreksi via
+dialog Socratic dgn user sebelum coding, bukan diasumsikan)**:
+
+M7 punya breakdown 4-arah (Naik/Flat/Turun/Tidak Aktif) yang HARUS sum
+ke 100% dari 1 populasi yang sama. Kategori "Tidak Aktif" (`cur=prev=0`)
+SECARA DEFINISI butuh customer yang **tidak** bertransaksi periode ini —
+kalau denominator dipersempit ke "aktif periode ini" (pola M3/M4/M6),
+kategori ini otomatis SELALU 0%, breakdown-nya rusak total secara
+matematis. Ada juga catatan desain terdokumentasi sebelumnya
+(`shared/metrics_docs.md`, 2026-08-21) yang eksplisit MEMBELA populasi
+kumulatif: *"'Flat' gabungan lama tampil ~90,2%, MENYEMBUNYIKAN fakta
+bahwa hampir semuanya sebenarnya 'tidak ada transaksi'... tapi itu bukan
+'stabil'"* — tujuannya supaya "Tidak Aktif" TERLIHAT jelas, bukan
+disembunyikan.
+
+**Resolusi (dicapai lewat tanya-jawab bergiliran dgn user, bukan
+diputuskan sepihak)**:
+- Customer baru (first invoice DI DALAM periode ini) — TETAP dikeluarkan
+  (gerbang "Existing" tidak berubah, sudah benar sejak awal, first invoice
+  = 0 pembanding "prev" mustahil bermakna).
+- Customer yang SUDAH RESMI dormant (lewat ambang, ambang SAMA PERSIS M8
+  per kategori bisnis divisi, `dormantThresholdCaseSql`) — DIKELUARKAN
+  dari perhitungan sama sekali (ranah M8, bukan lagi "expansion"). Kutipan
+  user: *"perlihatkan tidak papa, tapi tidak dimasukkan ke perhitungan"*.
+- Customer yang BARU absen tapi BELUM lewat ambang — TETAP masuk hitungan,
+  biasanya jatuh ke "Tidak Aktif"/"Turun" — sinyal dini yang actionable,
+  BUKAN dicampur dgn yang sudah lama mati. Ini yang membuat kategori
+  "Tidak Aktif" tetap terlihat (memenuhi rasionale metrics_docs.md) TAPI
+  jadi jauh lebih bermakna (bukan didominasi >80% akun mati bertahun-tahun).
+
+**Perubahan** (`m3m7.repository.ts`):
+- `fetchCustomerMetricsTrend`: CTE baru `cust_dormant_threshold`
+  (reuse `dormantThresholdCaseSql`+`cteCustDivision`, SAMA PERSIS pola
+  M8), `last_inv_unbounded` (scan invoice TANPA batas bawah tanggal —
+  beda dari `raw_inv` yg dibatasi window trailing-buckets, dormant butuh
+  tahu transaksi TERAKHIR sungguhan), `last_inv_per_bucket`,
+  `existing_not_dormant`. `expansion_rate`/`flat_rate`/`inactive_rate`/
+  `down_rate` + 4 raw count (`up_count` dst) ganti basis dari `e.id`
+  (existing kumulatif) ke `nd.customer_id` (existing_not_dormant) —
+  numerator DAN denominator sama-sama diganti (CASE WHEN return
+  `nd.customer_id`, NULL kalau customer sudah dormant → otomatis
+  ter-exclude dari COUNT DISTINCT). Field baru `existing_not_dormant_
+  count` ditambahkan ke `TrendRow`/`CustomerMetricsTrendPoint`
+  (backend+frontend).
+- `fetchExpansionBreakdown` (drilldown klik-bar) — SAMA PERSIS
+  ditambahkan gerbang `established_not_dormant` (evaluasi "as of"
+  `filterDate`, bukan per-bucket krn ini snapshot 1 titik), `combined`
+  CTE JOIN (bukan LEFT JOIN) ke situ. Sengaja disamakan SEKALIGUS dgn
+  trend (bukan ditunda) — mencegah bug class §30.17 (chart trend vs
+  dialog drilldown beda populasi/angka utk titik yg sama).
+- Frontend: `M7ExpansionGrowth.tsx` kartu "Total Existing" ganti dari
+  `current?.existing_customers` (kumulatif, TIDAK BERUBAH oleh fix ini)
+  ke `current?.existing_not_dormant_count` (field baru) — supaya kartu
+  ringkasan konsisten dgn pembagi breakdown 4-arah di bawahnya.
+- i18n: `customerMetrics.m7.tooltipInfo` (id+en) — rumus + penjelasan
+  populasi baru. `customerMetrics.m7.dialogTotalExisting` (id+en) — teks
+  lama "Total Established (Active+Existing)" SUDAH USANG (menjelaskan
+  populasi lama), diganti "Total Existing Belum Dormant"/"Total Existing
+  Not-Yet-Dormant".
+
+**Verifikasi (Mei 2026, bulan penuh, semua entitas)**:
+
+| Metode | Populasi | Up | Flat | Inactive | Down | Sum |
+|---|---|---|---|---|---|---|
+| Lama (existing kumulatif) | 29.287 | 3,7% | 0,3% | 83,5% | 12,4% | 99,9% |
+| Baru (existing not-dormant) | 14.208 | 7,7% | 0,7% | 66,0% | 25,6% | 100,0% |
+
+Populasi baru (14.208) tepat di antara "existing kumulatif" (29.287) dan
+"aktif periode ini murni" (1.469, dari audit §34 sebelumnya) — sesuai
+desain. "Inactive" turun dari 83,5%→66,0% (masih substansial tapi bukan
+lagi didominasi akun mati bertahun-tahun), "Down" naik 12,4%→25,6%
+(sinyal declining yg sekarang tidak lagi tenggelam di rata-rata
+kumulatif). Sum 4-arah tetap ~100% di kedua basis (matematis konsisten).
+
+**Konsistensi trend vs drilldown** (diverifikasi via script `bun run`
+langsung manggil `getCustomerMetrics`+`getExpansionBreakdown`, BUKAN
+cuma query manual) — titik Mei 2026: `existing_not_dormant_count` (trend)
+= `total_existing` (drilldown) = **14.208** persis, `up_count`/
+`flat_count`/`inactive_count`/`down_count` SAMA PERSIS di kedua sumber
+(1.087/97/9.384/3.640) — tidak ada gap §30.17-class.
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih (frontend, 0
+error), `vite build` sukses. Belum di-commit/push.
+
+### 34.2 M7 drilldown — tambah info "Total Customer Active" (2026-08-25)
+
+Susulan langsung setelah §34.1 (instruksi user: *"Tambahkan info
+drildown total customer aCTIVE"*) — dialog drilldown M7 (klik bar chart)
+sebelumnya cuma tampilkan Up Count/Total Existing/Up Rate, tidak ada
+info berapa customer yang GENUINELY bertransaksi periode ini (`cur_
+revenue > 0`, TANPA syarat naik/turun/flat vs periode sebelumnya — beda
+dari `up_count` yang mensyaratkan `cur > prev`).
+
+**Perubahan**: `fetchExpansionBreakdown` (`m3m7.repository.ts`) tambah
+field `active_count` — `COUNT(*) FILTER (WHERE cur_revenue > 0) OVER
+()`. TIDAK perlu gerbang dormant tambahan (siapa pun `cur_revenue > 0`
+otomatis "belum lewat ambang dormant", transaksi barusan — subset
+`established_not_dormant` yang sudah ada). Field baru diteruskan lewat
+`ExpansionBreakdownData` (backend+frontend), ditambahkan sbg baris info
+baru di dialog `M7ExpansionGrowth.tsx` DAN `M7Expansion.tsx` (workbench
+lama, disamakan supaya konsisten) — key i18n `dialogActiveCount`
+("Total Customer Active"/"Total Active Customer").
+
+Komentar usang di return object (`fetchExpansionBreakdown`) yang masih
+mengutip rasionale `metrics_docs.md` lama ("Denominator = semua
+existing") sekalian diperbaiki jadi merujuk `established_not_dormant`
+(§34.1), bukan "semua existing" lagi.
+
+**Verifikasi (Mei 2026, bulan penuh)**: `active_count` = **1.469** —
+cocok PERSIS dgn kolom "Existing Aktif" dari audit populasi §34
+sebelumnya (dihitung independen). `active_count (1.469) ≥ up_count
+(1.087) + flat_count (97) = 1.184` — benar (selisih 285 dari customer
+"Turun" yang `cur_revenue` masih > 0, cuma lebih kecil dari periode
+sebelumnya).
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih, `vite build`
+sukses. Belum di-commit/push.
+
+### 34.3 M3/M4/M5/M6 — eksekusi rencana asli (SELESAI, 2026-08-25)
+
+Kasus JAUH lebih sederhana dari M7 (§34.1) — tidak ada kendala breakdown
+4-arah yang butuh populasi "tidak aktif" tetap terlihat, jadi rencana
+ASLI (swap denominator murni) yang dilaksanakan apa adanya, TANPA
+CTE/JOIN baru.
+
+**M5 sempat tertahan** (ambiguitas dokumen SSOT: kalimat pembuka bilang
+"customer AKTIF", definisi rinci bilang "customer EXISTING") —
+DIPUTUSKAN via AskUserQuestion: **"Existing"** (Recommended, konsisten
+M3/M4/M6/M7 — kutipan definisi rinci dokumen: *"Customer Existing yang
+Membeli High Margin Product"*).
+
+**Perubahan** (`fetchCustomerMetricsTrend`, `m3m7.repository.ts`) — 5
+tempat, `COUNT(DISTINCT e.id)` (existing kumulatif, TERMASUK dormant) →
+`COUNT(DISTINCT cur.customer_id)` (alias `cur` = `active_inv_agg`, SUDAH
+di-JOIN sebelumnya, HANYA berisi customer dgn invoice DI DALAM bucket
+ini — reuse murni, 0 biaya query tambahan):
+- `existing_customers` (field top-level, dipakai kartu "Total Existing
+  Customer" M3/M4/M5/M6 — SEKARANG numerik identik dgn `active_existing_
+  count` yang sudah ada, redundan tapi tidak masalah, keduanya tetap
+  diekspos).
+- `avg_revenue` (M3), `avg_gross_profit` (M4) — denominator.
+- `high_margin_ratio` (M5) — numerator TETAP dari `hia`/hm_inv_agg
+  (customer yang beli HM), cuma denominator yang diganti.
+- `repeat_order_rate` (M6) — denominator.
+
+CTE turunan lain (`monthly_extras`/`top_contrib`/`gp_median_per_month`/
+`gp_tier_breakdown`/`top_contrib_gp`) DICEK, TERNYATA SUDAH BENAR sejak
+awal (semua sourced langsung dari `active_inv_agg`, bukan dari `existing`
+kumulatif) — tidak ada perubahan di situ, bug HANYA ada di 5 titik SELECT
+akhir.
+
+**Frontend TIDAK ada perubahan kode** (sesuai rencana awal) — nama field
+`existing_customers` tidak berubah, cuma nilainya, jadi UI M3/M4/M5/M6
+otomatis menampilkan angka baru yang benar.
+
+**Verifikasi** (fungsi asli `getCustomerMetrics` dipanggil langsung via
+`bun run`, bukan replikasi manual — Mei 2026, semua entitas): SEMUA
+angka cocok PERSIS dgn kolom "Aktif" di tabel audit populasi §34
+(dihitung independen SEBELUM kode ini diubah sama sekali):
+
+| Field | Hasil fungsi (sesudah fix) | Audit "Aktif" (sebelum fix, independen) |
+|---|---|---|
+| `existing_customers` | 1.469 | 1.469 |
+| `avg_revenue` (M3) | Rp7.132.141 | Rp7.132.141 |
+| `avg_gross_profit` (M4) | Rp1.414.161 | Rp1.414.161 |
+| `high_margin_ratio` (M5) | 3,4% | 3,40% |
+| `repeat_order_rate` (M6) | 23,1% | 23,1% |
+
+`tsc --noEmit` bersih (backend+frontend). Backend tidak punya skrip
+lint (beda dari frontend), `tsc` cukup. `vite build` frontend bersih
+(tidak ada perubahan kode, murni smoke test). Belum di-commit/push.
+
+**Status §34 keseluruhan: SELESAI semua (M1/M2 §34.0, M3/M4/M5/M6 §34.3,
+M7 §34.1+§34.2). M8/M9/M10 sengaja TIDAK disentuh (di luar scope, sudah
+sesuai dokumen SSOT).**
+
+## 35. Filter "Pareto" (§32.3, lanjutan) — wiring backend M1-M10 (2026-08-25)
+
+### Temuan cakupan (lebih luas dari catatan §32.3 semula)
+
+§32.3 sebelumnya cuma mencatat "Retention page" — ditelusuri ulang,
+ternyata pola dead-UI yang SAMA PERSIS ada di **6 halaman sekaligus**:
+`Growth/index.tsx`, `Value/index.tsx`, `Retention/index.tsx`,
+`Report/Growth/index.tsx`, `Report/Retention/index.tsx`, `Report/
+Revenue/index.tsx` — semua punya `const [, setOnlyPareto] =
+useState(false)` (value DIBUANG, cuma setter dipakai). Komentar di
+Growth/index.tsx eksplisit: *"baru UI, endpoint M1/M2/M7 belum menerima
+parameter... tinggal diaktifkan begitu backend menerima parameter
+ini"* — SENGAJA dibangun sbg scaffold dari awal (2026-08-20), menunggu
+backend menyusul. Cakupan sebenarnya: **SEMUA M1-M10**, bukan cuma
+M6/M8/M9/M10 di Retention.
+
+### Definisi "Pareto" (diverifikasi ke kode, bukan tebakan)
+
+BUKAN 80/20 rule dihitung ulang tiap query — tabel `pareto_customers`
+(task016): flag MANUAL oleh admin (bukan auto-detect), `company_id` +
+`customer_id` + `effective_from`/`effective_until` (window aktif, until
+NULL = masih aktif). Sudah fungsional di fitur Analisis (task016) —
+`analisis.repository.ts` `only_pareto` = `INNER JOIN pareto_customers`
++ syarat `effective_from <= CURRENT_DATE AND (effective_until IS NULL
+OR effective_until >= CURRENT_DATE)`.
+
+**Keputusan desain**: evaluasi Pareto pakai `p.filterDate` (SegmentParams,
+bukan `CURRENT_DATE` mentah spt Analisis) — konsisten dgn semua toggle
+lain di filter bar KPI (exclude_intercompany dst) yang statis/uniform
+di semua 12 titik trend, BUKAN per-bucket berubah — toggle checkbox 1x
+di UI, bukan nuansa "Pareto per titik waktu".
+
+### Audit cakupan `exclude_intercompany` (pola yang ditiru)
+
+Dicek ke SEMUA 13 fungsi backend M1-M10 (trend + drilldown) — **100%
+ter-cover**, tidak ada gap (`fetchCrossSellingKPI`/`Detail`/`Heatmap`
+sempat kelihatan "tidak ada" via grep naif krn exclude_intercompany-nya
+ada di `CS_INV_CTE`, helper BERSAMA yang mereka panggil, bukan
+tertulis eksplisit di badan fungsi masing-masing — re-cek manual
+konfirmasi SEMUA 4 fungsi M1 sudah benar). Pola `build*Raw(...)` di
+`utils/scope.ts` (return `sql\`true\`` kalau toggle mati, langsung
+di-embed `AND (${cond})` tanpa perlu cek undefined) inilah yang ditiru
+PERSIS untuk Pareto — `buildOnlyParetoRaw`.
+
+### Rencana eksekusi
+
+**Backend:**
+1. `utils/scope.ts` — `buildOnlyParetoRaw(customerExpr, companyExpr,
+   filterDate, onlyPareto)` — mirror `buildExcludeIntercompanyRaw`,
+   `EXISTS (SELECT 1 FROM pareto_customers pc WHERE pc.customer_id =
+   ${customerExpr} AND pc.company_id = ${companyExpr} AND
+   pc.effective_from <= ${filterDate}::date AND (pc.effective_until IS
+   NULL OR pc.effective_until >= ${filterDate}::date))`.
+2. `customers/helper/segment.helper.ts` `SegmentParams` — tambah
+   `onlyPareto?: boolean`.
+3. `metrics.service.ts` `resolveSegmentParams` — tambah parameter
+   `onlyPareto?: boolean` (posisi terakhir, ikut pola `excludeIntercompany`
+   yg juga di posisi terakhir), teruskan ke `SegmentParams`. 11 titik
+   panggilan di file yang sama ikut diupdate kirim `params.only_pareto`.
+4. `metrics.schema.ts` — `onlyParetoField` baru (mirror PERSIS
+   `excludeIntercompanyField`, `z.enum(['true','false']).optional()
+   .transform(v => v === 'true')` — BUKAN `z.coerce.boolean()`, standing
+   bug class sudah didokumentasikan di komentar file yang sama). Tambah
+   `only_pareto: onlyParetoField` ke 9 schema: `crossSellingQuerySchema`,
+   `customerMetricsQuerySchema`, `revenueBreakdownQuerySchema`,
+   `expansionBreakdownQuerySchema`, `gpBreakdownQuerySchema`,
+   `hmBreakdownQuerySchema`, `rorBreakdownQuerySchema`,
+   `dormantCustomerQuerySchema`, `dormantValueHistoryQuerySchema`.
+5. 13 fungsi repository (m1/m3m7/m4/m5/m6/m8m10) — tambah
+   `onlyParetoCond` di tempat yang SAMA PERSIS dgn `excludeIntercompanyCond`
+   sudah ada, pakai alias customer_id/company_id yang SUDAH tersedia
+   lokal di WHERE clause masing-masing (TIDAK perlu JOIN baru).
+
+**Frontend:**
+6. Hooks (`useMetrics.ts`) — tambah `only_pareto?: boolean` ke param
+   type 9 hook yang relevan (`useCrossSelling`, `useCustomerMetrics`,
+   `useRevenueBreakdown`, `useExpansionBreakdown`, `useGpBreakdown`,
+   `useHmBreakdown`, `useRorBreakdown`, `useDormantCustomer`,
+   `useDormantBreakdown`, `useDormantValueHistory`), teruskan ke
+   `metrics.api.ts`.
+7. 6 halaman — ganti `const [, setOnlyPareto]` jadi `const [onlyPareto,
+   setOnlyPareto]` (BACA nilainya, bukan buang), kirim `only_pareto:
+   onlyPareto` ke SEMUA fetch di halaman itu (trend DAN drilldown kalau
+   ada, supaya tidak mismatch spt bug class §30.17).
+
+**Verifikasi**: query DB langsung (bandingkan jumlah row/rate dgn vs
+tanpa toggle, utk minimal 1 KPI per file backend yang disentuh) +
+`tsc --noEmit` + `eslint` + `vite build`.
+
+### Eksekusi (SELESAI, 2026-08-25)
+
+**Backend:**
+1. `utils/scope.ts` — `buildOnlyParetoRaw()` baru, mirror PERSIS
+   `buildExcludeIntercompanyRaw()`.
+2. `customers/helper/segment.helper.ts` — `SegmentParams.onlyPareto`
+   ditambah; `InvoiceScopeParams`/`InvoiceScopeConditions` (dipakai
+   `resolveInvoiceScopeConditions`, SHARED oleh 13+ file repository)
+   dapat `filterDate?`/`onlyPareto?` (OPSIONAL — supaya file Product/
+   Customer Workbench yang TIDAK punya UI Pareto tetap compile tanpa
+   sentuhan, backward-compatible penuh) + `onlyParetoCond` di bundel
+   return.
+3. `metrics.service.ts` `resolveSegmentParams` — parameter baru
+   `onlyPareto?`, 11 titik panggilan diupdate (termasuk
+   `getDormantStatusBreakdown` yang SEMPAT terlewat dari audit awal —
+   ketahuan dari error `tsc`, bukan asumsi).
+4. `metrics.schema.ts` — `onlyParetoField` (pola SAMA PERSIS
+   `excludeIntercompanyField`, BUKAN `z.coerce.boolean()`), dipasang ke
+   **10 schema** (9 rencana awal + `dormantStatusBreakdownQuerySchema`
+   yang ketahuan belakangan).
+5. Repository — `m1.repository.ts` (2 titik manual, tidak lewat
+   `resolveInvoiceScopeConditions`) + `m3m7.repository.ts`/
+   `m4.repository.ts`/`m5.repository.ts`/`m6.repository.ts`/
+   `m8m10.repository.ts` (20 titik via `onlyParetoCond` yang di-
+   destructure dari bundel bersama — 1 perubahan di helper otomatis
+   ter-cover ke semua caller yang destructure field baru itu).
+6. `dashboard.service.ts` — 6 pemanggilan service M1-M10 hand-built
+   (Dashboard Overview, TIDAK py UI Pareto) diberi `only_pareto: false`
+   eksplisit (field WAJIB diisi setelah lewat transform Zod, bukan lagi
+   opsional di level TypeScript).
+
+**Frontend:**
+7. `useMetrics.ts` (12 hooks) + `metrics.api.ts` (11 titik) — semua
+   endpoint M1-M10 (trend+drilldown) terima `only_pareto`.
+8. 6 halaman (Growth/Value/Retention + 3 Report) — `const [,
+   setOnlyPareto]` (value dibuang) → `const [onlyPareto, setOnlyPareto]`
+   (dibaca), diteruskan ke SEMUA fetch level halaman + sbg prop baru
+   `onlyPareto={onlyPareto}` ke komponen anak (temuan tambahan: pola
+   yang sama dgn `excludeIntercompany` juga diteruskan sbg prop ke
+   komponen chart, bukan cuma dipakai di level halaman).
+9. 10 komponen anak (M1CrossSelling, M2AvgCategory, M6RepeatOrder,
+   M7ExpansionGrowth, M8DormantRate, M9DormantValue,
+   M10ReactivationRate, M3Revenue, M4GrossProfit, M5HighMargin) — Props
+   `onlyPareto?: boolean` ditambah, diteruskan ke fetch drilldown/YoY/
+   MoM masing-masing (total ~20 titik fetch). `useCustomerProducts`
+   (M1.1, fitur Product Workbench terpisah) SENGAJA TIDAK disentuh —
+   backend-nya tidak dalam scope 10 schema di atas.
+
+**Verifikasi** (INSERT 1 baris `pareto_customers` sementara utk
+customer nyata yg py transaksi Mei 2026, company_id=2, DIHAPUS lagi
+setelah tes — bukan data permanen):
+
+| Fungsi/file | Tanpa toggle | Dengan toggle (customer_id=10766 SAJA) |
+|---|---|---|
+| M1 (`fetchCrossSellingTrend`) | 2.435 aktif | **1** (multi_product=1, benar) |
+| M3-M7 (`fetchCustomerMetricsTrend`) | 1.346 existing | **1** |
+| M8-M10 (`fetchDormantTrend`) | 28.392 customer | **1** |
+
+Ketiga file backend utama (mewakili SEMUA 20 titik `onlyParetoCond`,
+krn m4/m5/m6 pakai pola SAMA PERSIS via helper bersama yang sudah
+terbukti benar) — filter Pareto ISOLASI TEPAT ke 1 customer yang
+di-flag, tidak over/under-inclusive.
+
+`tsc --noEmit` bersih (backend+frontend), `eslint src` bersih (0
+error), `vite build` sukses. Belum di-commit/push.
+
+## 36. Review satu-per-satu M1-M5 vs dokumen SSOT resmi (2026-08-25)
+
+Susulan §34/§35 — dokumen SSOT resmi ("DEFINISI OPERASIONAL Customer Loyal
+Dashboard") direview ULANG, KPI per KPI, teks lengkapnya (bukan cuma ringkasan
+awal sesi), dibandingkan kata-per-kata terhadap implementasi. Metodologi:
+user paste teks definisi resmi tiap KPI, verifikasi ke kode (bukan asumsi),
+perbaiki kalau ada gap, dokumentasikan di `metrics_docs.md`.
+
+### 36.0 `metrics_docs.md` — restrukturisasi
+
+Dokumen ini SEBELUMNYA cuma cakup M3-M7 (judul lama "Dokumentasi Metrik M3 ·
+M4 · M5"), beberapa bagian usang. Diperbaiki:
+- Judul jadi "Dokumentasi Metrik 10 KPI — Customer Loyal Dashboard".
+- "Definisi Umum" dipecah jadi 2 konsep populasi eksplisit — **Customer Aktif**
+  (≥1 transaksi periode ini, TANPA syarat riwayat — M1/M2) vs **Existing
+  Customer** (riwayat sebelum periode DAN masih beli periode ini — M3-M7).
+- Section M1 dan M2 DITAMBAHKAN (baru, sebelumnya tidak ada sama sekali).
+- Section M3 dan M4 DIREVIEW ULANG, diperbaiki match SSOT + granularitas.
+
+### 36.1 M1 — verifikasi + benchmark interpretasi jadi garis chart
+
+Formula & populasi SUDAH SESUAI (sudah benar sejak §34.0). Gap yang ditemukan:
+benchmark interpretasi resmi (`<25% Rendah, 25-40% Cukup, 40-60% Baik, >60%
+Sangat Baik`) **belum diimplementasikan visual sama sekali** — chart cuma
+tampilkan rate polos.
+
+**Perbaikan** (`ComombChartWidget.tsx`, komponen SHARED — reusable ke KPI lain):
+- Prop baru `referenceLines` — garis horizontal dashed di axis manapun
+  (`yAxisId`), domain axis OTOMATIS melebar supaya garis tidak terpotong.
+  Label TIDAK auto-generate dari value (koreksi user: redundan kalau sudah
+  match tick axis) — cuma tampil kalau caller isi eksplisit.
+- Prop baru `rightAxisTickStep` — paksa tick sumbu kanan jadi kelipatan
+  tetap (mis. 10 → 10/20/30/40/50/60), BUKAN hasil auto-scale padding 10%
+  yang biasa hasilnya pecahan ganjil (koreksi user: tick "17.3%/32.3%"
+  "tidak sesuai pola").
+- Tick yang PERSIS cocok dgn nilai `referenceLines` diwarnai sesuai garisnya
+  (custom tick renderer, `YAxisTickContentProps` dari recharts) — susulan
+  user: "sumbu yang sesuai dgn threshold, angkanya berubah warna... 25
+  karena tidak ada angkanya tambahkan tapi dalam area yang sama" — nilai yg
+  BUKAN kelipatan step (mis. 25) disisipkan paksa ke array tick.
+- `M1CrossSelling.tsx` — pasang `referenceLines={[25,40,60]}` (warna
+  warning→success) + `rightAxisTickStep={10}`.
+
+Backward-compatible penuh — kedua prop opsional, chart lain (M3/M4 dgn
+Rupiah) TIDAK terpengaruh.
+
+### 36.2 M3 — verifikasi + fix bug `total_existing` drilldown
+
+Formula & populasi trend SUDAH SESUAI SSOT (§34.3). Gap ditemukan di
+**drilldown** (`fetchRevenueBreakdown`): `total_existing` masih pakai
+`cteEstablishedCustomers` MENTAH (cohort FIXED, TERMASUK yang tidak
+transaksi sama sekali di rentang ini — keputusan lama "template standar
+KPI4") — bertentangan dgn SSOT ("Existing Customer... DAN MASIH MELAKUKAN
+PEMBELIAN PADA PERIODE TERSEBUT").
+
+**Perbaikan**: `total_existing` GANTI ke `COUNT(*)` dari CTE `existing_revenue`
+(established customer yang BENAR-BENAR transaksi di `date_from`..`filterDate`)
+— sekarang konsisten dgn `existing_customers` trend chart. Fallback 0-baris
+disederhanakan (langsung 0, tidak query cohort fixed lagi).
+
+**Verifikasi** (01-25 Agustus 2026, semua entitas, via `getRevenueBreakdown`
+langsung): `total_existing` 32.631 → **855**, tepat sama dgn `rows.length`.
+Efek ikutan: "Avg Revenue/Customer" (dihitung frontend) naik drastis (populasi
+pembagi mengecil) — situasi Rp5-7 jutaan/customer, bukan lagi ratusan ribu.
+
+**Info breakdown populasi (Total Pelanggan/Baru/Aktif) — DICOBA lalu
+DIBATALKAN sama hari**: sempat ditambah 4 baris info di modal M3 (Total
+Pelanggan dari DB, Pelanggan Lama, Pelanggan Baru, Pelanggan Aktif =
+Lama+Baru) — field backend baru `total_customers`/`new_customers`
+(`fetchRevenueBreakdown`), reuse CTE `first_invoice_date` yang sudah dibawa
+`establishedCTE`. **DIBATALKAN** (instruksi user: "jangan ditampilkan kalau
+memang tidak masuk hitungan" — 3 dari 4 angka itu TIDAK ikut dipakai di
+rumus mana pun di modal ini, dianggap membingungkan ditaruh bersebelahan
+dgn angka hasil hitungan). Revert penuh (backend+frontend+i18n), CUMA fix
+`total_existing` di atas yang tetap.
+
+**UI lain**: layout dialog M3 dipecah 2 kolom (Revenue High Margin +
+Kontribusi dipindah ke kanan, mengisi ruang kosong) — label "Kontribusi
+High Margin"→"Revenue High Margin", "Persentase Kontribusi"→"Kontribusi".
+Tooltip `tooltipInfo` ditulis ulang — dibuka dgn definisi/tujuan resmi
+(nilai ekonomi customer dipertahankan, retensi), referensi silang ke M5
+DIHAPUS (instruksi user: "JANGAN SEBUT BEDA DENGAN M5, USER TIDAK PERLU
+TAU ITU").
+
+### 36.2b M3 — chart bar tunggal → stacked bar (2026-08-25)
+
+Susulan (instruksi user: *"Ganti cart m3 menjadi stack bar cart, bar utuh
+untuk total revenue, bar dalam untuk high margin value, line untuk average
+dan median"*). Sebelumnya 1 bar (`total_revenue_existing`) + 3 garis
+(avg, median, `hm_pct` sbg persentase). Diganti:
+
+- **Bar bawah** (`non_hm_revenue`, DERIVED = `total_revenue_existing -
+  hm_revenue`, pola SAMA PERSIS M2/M5 `single_category`/`not_bought_count`)
+  + **Bar atas** (`hm_revenue` mentah, SUDAH ada di trend row, TIDAK perlu
+  perubahan backend) — `stacked`, warna bar atas gold/warning (samakan tema
+  "High Margin" dgn M5). Stacking keduanya balik ke `total_revenue_existing`
+  — tinggi bar keseluruhan TETAP sama persis sebelumnya, cuma sekarang porsi
+  HM kelihatan LANGSUNG sbg segmen Rupiah bukan garis %.
+- **2 garis** (avg, median) DIPERTAHANKAN apa adanya. Garis ke-3 (`hm_pct`
+  %) DIHAPUS — digantikan visual segmen bar, bukan lagi garis terpisah.
+- Label bar diubah: "Total Revenue Existing" (dulu utk 1 bar tunggal) jadi
+  "Revenue Reguler" (bar bawah, key baru sekarang menampung porsi NON-HM
+  saja, bukan total lagi) + "Revenue High Margin" (bar atas, key baru).
+  KpiHeader di atas chart TETAP pakai `total_revenue_existing` asli
+  (independen dari bar, tidak terpengaruh perubahan ini).
+
+**Catatan kosmetik kecil (belum diperbaiki, di luar scope instruksi ini)**:
+badge "⚠" konsentrasi (1 customer >25% total revenue) posisinya dihitung
+dari TINGGI `barKey` doang (`non_hm_revenue`) — di bar stacked, tanda ⚠ jadi
+menempel di BATAS ANTARA 2 segmen (bukan di PUNCAK bar keseluruhan spt
+sebelumnya). Bukan bug fungsional (badge tetap muncul di bulan yang benar),
+cuma posisi visualnya kurang pas — `ComboChartWidget` perlu tahu tinggi
+TOTAL stack (bukan cuma barKey) utk posisi sempurna, belum dikerjakan.
+
+`tsc`/`eslint`/`vite build` bersih. Belum di-commit/push.
+
+### 36.2c M3 — garis Average jadi Area, warna palette-aware (2026-08-25)
+
+Susulan langsung §36.2b. 3 instruksi user: *"Rubah average menjadi area
+chart. Ganti warna jangan terlalu kontras orange bisa gunakan hijau lebih
+muda. Area chart cyan. median line solid. Untuk pengaturan warna ini
+selalu berganti tergantung palet jadi jangan hardcode."*
+
+**`ComboChartWidget.tsx` (SHARED, task029.md §36) — 2 prop baru, DEFAULT
+= perilaku lama (backward-compat penuh, chart lain M1/M2/M4/M6 TIDAK
+tersentuh, dikonfirmasi `eslint`+`vite build` seluruh `src` bersih)**:
+- `lineVariant?: 'line' | 'area'` (default `'line'`) — mirror `barVariant`
+  yang sudah ada duluan (pola sama persis, gradient `<defs>` baru
+  `combo-area-grad-line`, gated `lineVariant==='area'`).
+- `line2Dash?: string` (default `'8 5'`, SAMA PERSIS nilai hardcode lama)
+  — sekarang bisa di-override caller, kirim string kosong utk garis solid.
+
+**`M3Revenue.tsx`**:
+- `lineKey="avg_revenue"` dapat `lineVariant="area"` — warna TETAP
+  `lineTemplate.line1` (SUDAH palette-aware sejak awal via `PALETTES[
+  paletteKey].line1[mode]`, kebetulan cyan di palet default "Enterprise
+  Blue" — TIDAK perlu ganti warna, cuma render-nya yang berubah dari Line
+  ke Area).
+- `line2Key="median_revenue"` dapat `line2Dash=""` (solid, dulu dashed
+  '8 5' — tidak perlu lagi dibedakan visual dari Line pertama krn Line
+  pertama sekarang Area).
+- `bar2Color` (bar HM revenue, §36.2b) — GANTI dari `theme.palette.
+  warning.main` (warna semantik FIXED, TIDAK ikut palet — inilah "orange
+  terlalu kontras" yg dikeluhkan) ke `PALETTES[paletteKey].secondary[mode]`
+  — token yang MEMANG didesain khusus utk "Bar 2" chart 2-bar (lihat
+  komentar `palettes.ts` baris 40-43, SUDAH ada sebelum sesi ini, cuma
+  belum dipakai di sini). Otomatis beda tiap palet user (mis. hijau muda
+  `#6EE7B7` di palet "Executive Green", biru muda `#93C5FD` di "Enterprise
+  Blue" default) — TIDAK di-hardcode ke 1 warna.
+
+`tsc`/`eslint` (seluruh `src`)/`vite build` bersih. Belum di-commit/push.
+
+**Susulan sama hari**: user — *"Sepertinya line median juga bagus jika
+dijadikan area cart"* — `line2Variant?: 'line' | 'area'` ditambah ke
+`ComboChartWidget.tsx` (mirror `lineVariant`, default `'line'`, gradient
+`combo-area-grad-line2` baru), `M3Revenue.tsx` line2 (median) dapat
+`line2Variant="area"`. `line2Dash` (prop dari susulan sebelumnya, "median
+line solid") jadi tidak relevan lagi krn Area TIDAK PERNAH di-dash — dibuang
+dari M3Revenue.tsx (properti `line2Dash` di komponen tetap ada, cuma tidak
+dipakai lagi di caller ini). `tsc`/`eslint`(seluruh `src`)/`vite build`
+bersih.
+
+### 36.3 M4 — verifikasi + fix bug identik M3
+
+**Bug SAMA PERSIS M3** ditemukan di `fetchGpBreakdown` — `total_existing`
+pakai fixed cohort. Fix identik: ganti ke `COUNT(*)` dari `existing_gp`.
+
+**Verifikasi** (periode sama, via `getGpBreakdown`): `total_existing` = 855
+— cocok PERSIS dgn M3 (populasi existing-aktif memang sama utk KPI manapun
+di periode yg sama). `total_gp` Rp1.094.555.129, `avg_gp` Rp1.280.181.
+
+Tooltip ditulis ulang (referensi silang ke M3 "Sama seperti M3, tapi..."
+DIHAPUS, dibuka dgn definisi/tujuan resmi sendiri — pola sama M3).
+
+### 36.4 M5 — populasi dikonfirmasi ULANG (bukan cuma "Existing" mentah)
+
+Dokumen SSOT M5 py struktur BEDA dari M3/M4/M7 — TIDAK ada bullet definisi
+"Existing Customer" lengkap (dgn syarat riwayat) di section-nya sendiri,
+cuma ada "Customer Existing yang Membeli HM" (numerator, kata "existing"
+TIDAK didefinisikan ulang) + "Customer Aktif" (definisi lengkap TAPI tanpa
+syarat riwayat). Sempat dipertimbangkan ulang apakah populasi M5 seharusnya
+"Customer Aktif" (spt M1/M2, customer baru IKUT) — diselesaikan via data
+nyata, bukan tebakan tekstual:
+
+**Perbandingan 12 bulan** (Existing vs Customer Aktif, `getHmBreakdown` +
+query raw dibandingkan): rate SELALU lebih rendah di versi "Customer Aktif"
+(turun ~1,1-1,7pp tiap bulan, konsisten) — customer baru jarang langsung
+beli HM di transaksi pertama. **Keputusan akhir user: TETAP "Existing"**
+(sesuai keputusan AskUserQuestion §34.3 sebelumnya) — "karena tidak
+disebutkan [customer baru harus diikutsertakan]" di dokumen.
+
+**Bug `total_existing` SAMA ditemukan** di `fetchHmBreakdown`, TAPI fix-nya
+BEDA dari M3/M4 — denominator M5 BUKAN "yang beli HM" (itu numerator), tapi
+SEMUA existing yang aktif APA PUN transaksinya (mirror alias `cur` di trend
+chart `high_margin_ratio`). Perlu CTE BARU `inv_active` (any invoice di
+rentang, TANPA JOIN high_margin_products) — bukan sekadar swap 1 baris spt
+M3/M4. Fallback 0-baris juga diperbaiki (query kecil terpisah, reuse
+`inv_active`).
+
+Status: SELESAI kode + verifikasi query.
+
+**Tooltip M5 — DITULIS ULANG (susulan, 2026-08-25)**: user screenshot
+tooltip lama, koreksi *"Gak usah sebut admin setting teknis itu lagi. Ini
+hanya petunjuk user pemakai yang gak perlu tau itu"* — 2 hal dibuang: (1)
+"oleh admin (Settings → High Margin)" — detail konfigurasi internal, tidak
+relevan buat user pemakai chart; (2) referensi silang ke M3 ("Beda dengan
+'Kontribusi High Margin' di M3...") — DIBUANG juga, mengikuti prinsip
+simetris dari koreksi M3 sebelumnya ("JANGAN SEBUT BEDA DENGAN M5") — kalau
+M3 tidak boleh sebut M5, M5 juga tidak boleh sebut M3. Insight "porsi
+customer vs porsi revenue" DIPERTAHANKAN (masih berguna), cuma tanpa
+menyebut nama KPI lain secara eksplisit.
+
+### 36.4b M5 — Top 5 salah kriteria + chart Donut→Trend 12 titik (2026-08-25)
+
+Susulan langsung sesi ini. 2 laporan user:
+
+**1. "Berarti top 5 itu salah, karena mereka dihitung peringkat dari revenue
+kan?"** — benar, `fetchHmBreakdown` ranking pakai `hm_revenue DESC`, padahal
+M5 mengukur PENETRASI (jumlah/keluasan), bukan nilai uang (itu ranah M3).
+Diklarifikasi via AskUserQuestion: kriteria "jumlah terbanyak" yang dimaksud
+= **unit/quantity produk HM terjual** (bukan jumlah produk berbeda atau
+jumlah transaksi). Fix: field baru `hm_qty` (`SUM(invoice_items.quantity)`)
+ditambah ke `fetchHmBreakdown`, ranking + ORDER BY ganti ke `hm_qty DESC`.
+Kolom baru "Qty HM" ditambah ke tabel drilldown (`valueHelpers.tsx`), Top 5
+timeline tampilkan "N unit" bukan lagi Rupiah. Verifikasi konkret (periode
+sama): "DISKON NOTEBOOK INDONESIA" (`hm_revenue` Rp119jt, LEBIH BESAR dari
+"ABCORE KOMPUTER" Rp28jt) sekarang PERINGKAT 3, kalah dari ABCORE (qty 121
+vs 70) yang naik ke peringkat 2 — bukti urutan benar-benar berubah, bukan
+kebetulan sama.
+
+**2. "chart nya buat jadi 12 titik tren seperti cart lain"** — M5 chart
+GANTI TOTAL dari `DonutChartWidget` (snapshot 1 titik) ke `ComboChartWidget`
+(trend 12 titik, pola SAMA PERSIS M3/M4). Data `high_margin_ratio` SUDAH
+ada per-bucket di trend (`fetchCustomerMetricsTrend`, §34.3) — TINGGAL
+ditambah field mentahnya (`high_margin_buyer_count`, numerator sebelum
+dibagi/dikali 100, backend+frontend types) supaya bisa jadi bar chart.
+Bar STACKED (`not_bought_count` = `existing_customers - high_margin_buyer_
+count`, DERIVED client-side, pola SAMA PERSIS M2AvgCategory.tsx
+`single_category`) + `high_margin_buyer_count` — supaya stacking balik ke
+total, bukan dobel hitung. `Value/index.tsx` & `CustomerMetrics/index.tsx`
+(2 caller) diupdate kirim `trend`/`yoyTrend` (bukan lagi snapshot
+`hm`/`yoyHm` — dihapus total dari komponen, deklarasi variabel yg jadi tak
+terpakai ikut dibersihkan). Klik titik chart sekarang buka drilldown
+periode itu (pola sama M3/M4, sebelumnya cuma 1 klik area donut).
+
+Bonus fix laten ditemukan sekalian: dialog subtitle "Penetrasi HM" SEBELUMNYA
+selalu pakai snapshot CURRENT (`hm?.bought_pct`) walau titik yang diklik beda
+dari titik terakhir — sekarang dihitung ULANG dari data drilldown titik itu
+sendiri (`hmBreakdown.hm_buyer_count / hmBreakdown.total_existing`), benar
+utk titik manapun yang diklik.
+
+**Verifikasi** (via `getCustomerMetrics`, 3 titik terakhir): `high_margin_
+buyer_count / existing_customers × 100` PERSIS cocok `high_margin_ratio` di
+semua titik (Jun 70/1561=4,5%; Jul 61/1674=3,6%; Agu 24/855=2,8%) — konsisten
+dgn audit 12-bulan §36.4 sebelumnya.
+
+`metrics_docs.md` M5 direview total (section "Dinamis"/auto-threshold
+median SANGAT USANG, mendeskripsikan mekanisme yang sudah diganti total ke
+tabel `high_margin_products` manual admin — dihapus, diganti deskripsi
+akurat kondisi sekarang).
+
+**Susulan (2026-08-25): kolom "% Total HM" disembunyikan di drilldown**
+— user tanya asal kolom ini (`hm_revenue ÷ total_hm_revenue × 100`, basis
+Revenue), lalu koreksi: *"Jangan ditampilkan, karena di drildown tidak ada
+revenue. Hanya akan menimbulkan pertanyaan tidak perlu. Tampilkan di tabel
+laporan saja"* — kolom ini basisnya Revenue, BEDA dari ranking tabel yang
+sekarang basis Qty (§36.4b), jadi membingungkan ditaruh berdampingan tanpa
+konteks Revenue yang lebih luas (yang ADA di Report/Revenue, TIDAK ADA di
+dialog drilldown chart). `useHmColumns` (`valueHelpers.tsx`, SHARED antara
+M5HighMargin.tsx drilldown & Report/Revenue tab HM) dapat param baru
+`{ showPct?: boolean }` (default `true`) — 1 fungsi, bukan 2 duplikat.
+M5HighMargin.tsx kirim `showPct: false` (drilldown), Report/Revenue TIDAK
+disentuh (default tetap tampil). `mobileFields` kedua tempat disesuaikan
+sekalian (drilldown buang `hm_pct`, Report tambah `hm_qty` yang sebelumnya
+lupa dimasukkan).
+
+**Susulan lagi: kolom "Kode" dihapus** (instruksi user: "Hapus juga kode
+yang kosong itu") — `customer_code` SELALU NULL/"—" di semua data lokal,
+pola SAMA PERSIS perbaikan M1 sebelumnya (§ sesi-sesi awal). BEDA dari
+`hm_pct` di atas — ini dihapus TANPA flag, jadi hilang di KEDUA tempat
+(drilldown DAN Report/Revenue), bukan cuma drilldown, karena datanya
+memang selalu kosong di mana pun ditampilkan (bukan soal konteks
+Revenue-vs-Qty spt hm_pct). Field `customer_code` tetap ada di row data
+(DataGrid id/search), cuma bukan kolom tampilan lagi.
+
+`tsc`/`eslint` (seluruh `src`)/`vite build` bersih. Belum di-commit/push.
+
+### 36.5 M6 — verifikasi + fix bug pola M5 (bukan pola M3/M4)
+
+Definisi resmi (dipaste user): *"Customer yang Melakukan Repeat Order adalah
+customer yang melakukan LEBIH DARI 1 transaksi dalam periode pengukuran...
+Existing Customer adalah customer yang sudah memiliki riwayat transaksi
+sebelum periode berjalan dan masih melakukan pembelian pada periode
+tersebut."* — 2 konsep TERPISAH (numerator "repeat", denominator "existing
+aktif" — TANPA syarat harus repeat). Konfirmasi diagnosis sebelum eksekusi
+(user interrupt: "sblum lanjut ini definisi dari dokumentasi" — text
+dipaste PAS SEBELUM fix dieksekusi, dipakai konfirmasi arah yang sudah
+benar, bukan mengubah arah).
+
+**Bug SAMA pola M5** (bukan M3/M4) ditemukan di `fetchRorBreakdown` —
+`total_existing` pakai fixed cohort `established_customers`. Fix: CTE baru
+`inv_active` (SEMUA existing yang transaksi APA PUN, TANPA `HAVING >1` —
+beda dari `repeat_buyers` yang numerator-only) — mirror alias `cur` di
+trend chart `repeat_order_rate`. Fallback 0-baris juga diperbaiki (query
+kecil reuse `inv_active`).
+
+**Verifikasi** (periode sama, via `getRorBreakdown`): `total_existing` = 855
+— cocok PERSIS dgn M3/M4/M5 (populasi existing-aktif universal per
+periode). `repeat_count` 154, rate 18%.
+
+Tooltip ditulis ulang (dibuka definisi/tujuan resmi, "30 hari"/"bulan
+berjalan" stale wording diganti granularitas-aware). `metrics_docs.md`
+direview ulang total (section lama py contoh SQL `months`/`activeDays`
+usang dari SEBELUM §30.13, dihapus/diganti deskripsi kondisi terkini).
+
+### Ringkasan status §36
+
+| KPI | Populasi diverifikasi | Bug `total_existing` drilldown | Tooltip ditulis ulang | Doc `metrics_docs.md` |
+|---|---|---|---|---|
+| M1 | ✅ (§34.0) | N/A (tidak py fixed-cohort pattern) | Sudah (sesi sebelumnya) | ✅ Baru ditambah |
+| M2 | ✅ (share M1) | N/A | Sudah (sesi sebelumnya) | ✅ Baru ditambah |
+| M3 | ✅ | ✅ Fixed (pola M3/M4: swap ke numerator) | ✅ Ditulis ulang | ✅ Direview ulang |
+| M4 | ✅ | ✅ Fixed (pola M3/M4) | ✅ Ditulis ulang | ✅ Direview ulang |
+| M5 | ✅ (dikonfirmasi ulang, tetap Existing) | ✅ Fixed (pola BEDA: CTE `inv_active` baru) | ✅ Ditulis ulang | ✅ Direview ulang total (+ chart Donut→Trend, Top5 fix) |
+| M6 | ✅ | ✅ Fixed (pola M5: CTE `inv_active` baru) | ✅ Ditulis ulang | ✅ Direview ulang |
+| M7 | Sudah §34.1 (sesi sebelumnya, gerbang dormant beda topik) | Belum dicek ulang scope §36 ini | Sudah (sesi sebelumnya) | Belum direview §36 |
+
+`tsc`/`eslint`/`vite build` bersih di setiap langkah. Belum di-commit/push.
+
+### 36.6 M5 — warna chart hardcode diganti palette-aware (2026-08-25)
+
+Instruksi user: *"High margin penetration perbaiki warna nya"* — setelah
+chart M5 dikonversi Donut→Trend (§36.4b), warna bar "Bought High Margin"
+dan line rate masih pakai `theme.palette.warning.main`/`theme.palette.info.main`
+(warna brand FIXED, tidak ikut palet user — pola sama yang sudah dikoreksi
+di M3 §36.2c: *"warna jangan hardcode... selalu berganti tergantung palet"*).
+
+Fix di `M5HighMargin.tsx`: tambah `useThemeMode()`/`PALETTES` (pola persis
+M3), lalu:
+- `bar2Color` (bar "Bought High Margin"): `theme.palette.warning.main` →
+  `PALETTES[paletteKey].secondary[mode]`.
+- `lineColor` (line rate %): `theme.palette.info.main` →
+  `PALETTES[paletteKey].line1[mode]`.
+
+Verifikasi: `tsc --noEmit` dan `eslint` bersih di file ini.
+
+### 36.7 M3 — line area chart hilang di belakang bar (Recharts z-index) (2026-08-25)
+
+Laporan user (setelah §36.2c mengubah line rata-rata/median M3 dari `Line`
+jadi `Area`): *"Kenapa M3 line nya jadi putus putus dibelakang bar,
+Seharusnya tetap didepan meski type nya sekarang area chart."*
+
+Diagnosis awal (salah) sempat mengasumsikan urutan JSX (bar dirender lebih
+dulu di kode) yang menentukan tumpukan visual. Ternyata Recharts v3 punya
+sistem `zIndex` internal sendiri per tipe elemen — dikonfirmasi via
+Context7 (dokumentasi resmi Recharts, bukan tebakan) yang menunjukkan
+`DefaultZIndexes`: `area: 100`, `bar: 300`, `line: 400` (di antara nilai
+lain). Saat `lineKey`/`line2Key` dikonversi dari `<Line>` (default zIndex
+400, di depan bar) menjadi `<Area>` (default zIndex 100, di BELAKANG bar
+yang 300), tumpukan visualnya diam-diam berubah — inilah sebab garis
+"putus-putus" itu sebenarnya garis solid yang separuh tertutup bar.
+
+Fix di `ComboChartWidget.tsx`: tambah prop eksplisit `zIndex={400}` pada
+kedua render `<Area>` (`lineKey` dan `line2Key`), mengembalikan tumpukan
+ke urutan semula (line/area selalu di depan bar), tanpa mengubah default
+behavior `lineVariant='line'`/`line2Variant='line'` yang sudah ada.
+
+Verifikasi: `tsc --noEmit` bersih (`zIndex` valid sbg prop `<Area>` versi
+Recharts ini), `eslint src` bersih, `npx vite build` sukses (`✓ built in
+16.57s`).
+
+### 36.8 M6 — warna garis chart diganti palette-aware (2026-08-26)
+
+Instruksi user: *"rubah warna m6"* — lanjutan pola §36.2c (M3)/§36.6 (M5).
+Beda dari M3/M5, chart M6 (`LineAlertWidget`, `variant="area"`) SEBENARNYA
+sudah pakai `theme.palette.primary.main` (BUKAN warna brand fixed spt
+`warning`/`info.main` — `primary.main` MEMANG sudah ikut ganti per palet,
+lihat `theme/index.ts`). Tapi warna itu SAMA PERSIS dgn warna kartu ringkas
+"Customer Repeat Order" di atasnya (juga `primary.main`) — garis chart
+tidak beda visual dari aksen kartu. Diselaraskan dgn pola M3 (garis trend
+tunggal pakai token `line1`, bar/kartu pakai `primary`/`secondary`).
+
+Fix: `LineAlertWidget.tsx` (shared widget, dipakai juga M8/M10) — tambah
+prop opsional `lineColor?: string` (default `theme.palette.primary.main`,
+PERILAKU LAMA tidak berubah utk M8/M10 yang belum kirim prop ini). Semua
+pemakaian warna series internal (gradient stops, `Area`/`Line`
+stroke+dot, `Bar` fill mode `variant='bar'`, legend swatch) diganti dari
+literal `theme.palette.primary.main` ke variabel `resolvedLineColor =
+lineColor ?? theme.palette.primary.main`. `M6RepeatOrder.tsx` kirim
+`lineColor={PALETTES[paletteKey].line1[mode]}` (pola `useThemeMode`+
+`PALETTES` persis M3/M5).
+
+Verifikasi: `tsc --noEmit` dan `eslint` bersih di kedua file
+(`LineAlertWidget.tsx`, `M6RepeatOrder.tsx`). M8/M10 TIDAK disentuh
+(scope §36 belum sampai ke sana), dan defaultnya menjamin tampilan mereka
+tidak berubah.
+
+### 36.9 M5 — bar "Tidak Membeli" nyaris tak kelihatan di dark mode (2026-08-26)
+
+Teguran user (screenshot dark mode): *"MEMANG KAMU BUAT ABU ABU SEPERTI
+INI?????"* — bar `not_bought_count` pakai `rgba(148,163,184,0.35)` (slate
+opacity rendah) di dark mode, BERBAUR ke warna card gelap (`#111827`),
+hasil komposit ≈ `rgb(63,73,90)` — nyaris tidak beda dari background,
+bar jadi terlihat seperti noda abu-abu buram, bukan bentuk bar yang jelas.
+
+Fix ronde 1: ganti ke `theme.palette.text.disabled` — SOLID (bukan
+translucent), tidak lagi berbaur ke background gelap.
+
+**Koreksi user (ronde 2, masih 2026-08-26)**: *"Pakai warna lain di
+palete aku ingat ada konfigurasi kombinasi warna untuk cart dan bar
+ataupun line"* — `text.disabled` MEMANG sudah solid/kontras, tapi itu
+token generik MUI, BUKAN dari matrix warna chart aplikasi (`PALETTES`).
+Diselaraskan ke pola bar STACKED yang SUDAH ADA di M3 (§36.2b):
+`barColor=primary.main` (porsi mayoritas/dasar bar), `bar2Color=secondary`
+(porsi highlight) — sama persis pola `non_hm_revenue`/`hm_revenue` M3,
+bukan "abu-abu = tidak penting" tapi "primary = bar utama, secondary =
+bar sorotan". `barColor` M5 diganti dari `theme.palette.text.disabled`
+ke `theme.palette.primary.main`.
+
+**Koreksi user (ronde 3, masih 2026-08-26, screenshot)**: *"Jangan sama
+juga warna nya, jadi monoton page ini"* — `bar2Color=secondary` (biru
+pastel) ternyata SATU KELUARGA HUE dgn `barColor=primary` (biru), 2 bar
+stacked jadi kelihatan nyaris sama warna (beda lightness doang), chart
+terkesan monoton 1 warna. Ganti `bar2Color` dari `secondary` ke `line2` —
+token `PALETTES` yang MEMANG didesain kontras terhadap primary & line
+lain (lihat komentar `palettes.ts`: *"tiap line dipilih kontras terhadap
+warna bar (primary) & terhadap satu sama lain"*) — utk palet biru default
+jadi pink/rose (`#F472B6` dark), beda hue total dari primary (biru bar)
+maupun `line1` cyan (line rate). 3 elemen chart M5 sekarang 3 hue beda:
+biru (bar dasar), pink (bar sorotan), cyan (garis rate).
+
+**Koreksi user (ronde 4, screenshot legend, warna sekarang benar tapi
+teks salah)**: *"Itu seharusnya penetrasi high margin bosss"* — label
+legend garis rate cuma `"High Margin"` (key `centerLabel`, sisa dari era
+DonutChartWidget sebelum §36.4b dikonversi ke trend chart) — teksnya
+generik, gampang ketuker dgn label bar2 `"Membeli High Margin"` di
+sebelahnya (2 legend entry sama-sama mengandung frasa "High Margin").
+Fix: `customerMetrics.m5.centerLabel` diganti dari `"High Margin"` jadi
+`"Penetrasi HM"` (id) / `"HM Penetration"` (en) — konsisten dgn wording
+`rowPenetration` yang sudah ada. Key `dashboard.charts.highMarginCenterLabel`
+(dipakai Dashboard Overview, `renderMetricWidget.tsx`) TIDAK disentuh —
+namespace i18n terpisah, tidak kena efek.
+
+**Koreksi user (ronde 5, keras)**: ronde 3 (`bar2Color=line2`) SALAH.
+Teguran: *"SETIAP PALET cart ITU TERGANTUNG DENGAN THEME YANG
+DITERAPKAN BUKAN LU HARDCODE WARNA PINK... aku sudah buat masing masing
+palet aksen punya kombinasi warna chart masing masing, bukan lu yang
+nentuin sendiri, baca dokumentasi."* `palettes.ts` SUDAH mendokumentasikan
+scope tiap token secara eksplisit di komentarnya sendiri: `secondary` =
+*"warna 'Bar 2' di chart 2-bar"* (eksplisit, utk BAR), `line1`/`line2`/
+`line3` = *"Warna 3 line di chart M3... tiap line dipilih kontras
+terhadap warna BAR (primary)"* (eksplisit, utk LINE — bukan pool bebas
+pakai utk elemen BAR). Ronde 3 memakai `line2` (token LINE) sbg warna
+BAR — pelanggaran kategori token, "menentukan sendiri" bukan mengikuti
+yang terdokumentasi. `bar2Color` DIKEMBALIKAN ke `secondary` — kombinasi
+final M5: `barColor=primary`, `bar2Color=secondary` (sama pola PERSIS
+bar/bar2 M3), `lineColor=line1` (sama pola "1 line = 1 token line" yg
+dipakai M3/M6, bukan pelanggaran kategori). M6 (§36.8, `lineColor=line1`)
+TIDAK direvert — itu token LINE dipakai utk LINE, kategorinya benar,
+beda dari kasus M5 bar2 ini.
+
+Verifikasi: `tsc --noEmit` dan `eslint` bersih di kelima ronde.
+
+---
+
+### 36.10 M7 — verifikasi §36 (populasi sudah settled §34.1, cuma cek bug+doc)
+
+Definisi resmi (dipaste user): *"CER adalah persentase pertumbuhan nilai
+bisnis dari customer existing melalui peningkatan pembelian, penambahan
+kategori produk, upgrade layanan, atau perluasan volume transaksi...
+Customer dengan Revenue Meningkat adalah existing customer yang nilai
+pembeliannya pada periode sekarang lebih tinggi dibanding periode
+sebelumnya."*
+
+Beda dari M3-M6: populasi M7 BUKAN topik baru §36 — gerbang "existing DAN
+belum lewat ambang dormant" (`established_not_dormant`, ambang SAMA
+`dormantThresholdCaseSql` dgn M8) sudah diputuskan & diimplementasikan di
+§34.1 (sesi sebelumnya), sengaja BEDA dari "Existing" polos M3-M6 karena
+M7 butuh 2 periode pembanding — customer yang absen tapi belum resmi
+dormant harus tetap terhitung ("Tidak Aktif", sinyal dini actionable),
+bukan didrop begitu saja. Ini TIDAK direlitigasi di §36, cuma diverifikasi
+konsisten.
+
+**Cek bug `total_existing`** (pola M3/M4 vs M5/M6): TIDAK ada — M7 dari
+awal sudah pakai pola "Template Standar Kartu KPI4" (`total_existing` =
+fixed cohort `established_customers JOIN established_not_dormant` di
+`filterDate`, `up`/`flat`/`inactive`/`down` PARTISI EKSAK dari cohort yang
+sama via `LEFT JOIN inv_current/inv_previous` — bukan `COUNT` independen)
+— exhaustive, `up_count+flat_count+inactive_count+down_count` SELALU =
+`total_existing`. Beda dari bug M3/M4 (numerator populasi ≠ denominator
+populasi) — di M7 populasinya SATU cohort yang sama dari awal.
+
+**Cek numerator "Revenue Meningkat"**: `cur_revenue > prev_revenue` — match
+persis definisi. Kalimat pembuka SSOT ("penambahan kategori produk,
+upgrade layanan, perluasan volume") itu narasi KONTEKS/alasan revenue bisa
+naik, BUKAN kriteria terpisah — kriteria terukur yang eksplisit didefinisi
+cuma revenue current > previous, sudah sesuai kode.
+
+**Tooltip** (id/en) ditulis ulang dgn kalimat pembuka tujuan/definisi
+(pola sama M3-M6), sisanya (formula, penjelasan gerbang dormant) TETAP
+karena sudah akurat dari §34.1.
+
+**`metrics_docs.md`** — bagian "Penjelasan"/"Formula"/"Service Layer" M7
+SANGAT usang (window hardcode "30 hari"/"60 hari"/`activeDays`, field
+`up_rate`/`flat_down_rate` — SEBELUM §30.13 granularitas & §34.1 gerbang
+dormant ada). Ditulis ulang total: window jadi bucket granularitas-aware
+calendar-anchored, populasi jelaskan gerbang `established_not_dormant`,
+field service layer diperbarui ke `expansion_rate`/`flat_rate`/
+`inactive_rate`/`down_rate` (4-way, bukan lagi binary lama). Bagian
+"Drill-Down"/"Tampilan" TIDAK diubah — sudah akurat (direvisi 2026-08-21).
+
+Verifikasi: `tsc --noEmit` bersih. Tidak ada perubahan kode backend/
+frontend (murni dokumentasi — kodenya sudah benar dari §34.1).
+
+### Ringkasan status §36 (update)
+
+| KPI | Populasi diverifikasi | Bug `total_existing` drilldown | Tooltip ditulis ulang | Doc `metrics_docs.md` |
+|---|---|---|---|---|
+| M7 | ✅ (§34.1, gerbang dormant CONFIRMED beda topik, tidak direlitigasi) | Tidak ada (pola KPI4 dari awal, exhaustive partition) | ✅ Ditulis ulang | ✅ Ditulis ulang total |
+
+---
+
+### 36.11 M8 — area chart ikut warna ambang (2026-08-26)
+
+Instruksi user (screenshot M8 Dormant Rate): *"Bisakah? Area cart dibawah
+ambang berwarna hijau dan yang menembuh berwarna merah"* — chart
+`LineAlertWidget` (`variant="area"`) sebelumnya isian SATU warna gradient
+(`resolvedLineColor` solid, memudar), TIDAK berubah warna walau garis
+menembus ambang — cuma `ReferenceArea` band tipis (opacity 0.1) yang
+ganti warna, nyaris tak kelihatan ketutup isian solid di atasnya.
+
+**Referensi resmi recharts** ("Area Chart Fill By Value", dipaste user
+lengkap dgn source code) — pola: `<Area baseValue={splitPoint}>` +
+gradient `userSpaceOnUse` yang di-split TEPAT di posisi piksel
+`splitPoint` (dibaca dari `useYAxisScale()`/`useChartHeight()`, BUKAN
+persentase hardcode) — bagian atas split 1 warna, bawah warna lain.
+
+**Implementasi**:
+1. `SplitColorGradient` (util `useYAxisScale`/`useChartHeight` M7 net-
+   expansion, sebelumnya LOKAL di `AreaChartWidget.tsx`) DIPUSATKAN ke
+   `components/charts/shared/SplitColorGradient.tsx` — tambah prop
+   `splitValue` (default 0, M7 tidak berubah) supaya bisa dipakai split di
+   titik SEMBARANG, bukan cuma 0. Rename prop `positiveColor`/
+   `negativeColor` → `aboveColor`/`belowColor` (lebih akurat krn splitValue
+   sekarang bisa bukan 0). `AreaChartWidget.tsx` diupdate ikut rename,
+   perilaku M7 TIDAK berubah (splitValue tetap default 0).
+2. `LineAlertWidget.tsx`: gradient `gradientId` (dulu 1 warna solid) GANTI
+   jadi `<SplitColorGradient splitValue={threshold} aboveColor={...}
+   belowColor={...}>` — arah warna ikut `higherIsBetter`, SAMA PERSIS arah
+   `ReferenceArea` (M8 atas=merah/bawah=hijau; M6/M10 kebalikan).
+3. `baseValue="dataMax"` (keputusan 2026-08-24) DIGANTI `baseValue=
+   {threshold}` — WAJIB berubah bareng poin 2: dgn `dataMax`, isian
+   selalu membentang dari garis sampai PUNCAK chart, jadi begitu di-split
+   di piksel `threshold`, sebagian besar isian tetap "merah" (area antara
+   threshold & dataMax) WALAU nilai sebenarnya aman di bawah ambang.
+   `baseValue={threshold}` menutup polygon TEPAT di ambang — nilai di
+   bawah ambang isiannya SEMUA hijau, yang menembus SEMUA merah, pola
+   SAMA PERSIS reference recharts (baseValue implisit 0, hijau di atas/
+   merah di bawah 0).
+4. `ReferenceArea` band hijau di bawah ambang (cabang `higherIsBetter=
+   false`, M8) DITAMBAH — sebelumnya cuma band merah di atas, tidak
+   simetris dgn cabang `higherIsBetter=true`.
+
+Garis (`stroke`) TIDAK ikut split — tetap `resolvedLineColor` solid,
+sesuai literal instruksi user ("Area cart", bukan garis).
+
+Verifikasi: `tsc --noEmit`, `eslint`, `vite build` bersih.
+
+**Susulan (masih 2026-08-26)**: *"Untuk background nya hapus saja biar
+warna cart lebih terlihat"* — 2 band `ReferenceArea` (poin 4 di atas)
+DIHAPUS total, jadi Area fill (poin 2/3) SATU-SATUNYA sumber warna ambang
+di chart, bukan lagi 2 layer (band flat 0.1 opacity + fill split)
+menumpuk dan meredam kontras satu sama lain. Import `ReferenceArea`
+(recharts) juga dihapus, sudah tidak dipakai. `ReferenceLine` (garis
+putus-putus + label "Ambang X%") TIDAK dihapus — beda elemen dari
+background band.
+
+Verifikasi: `tsc --noEmit`, `eslint` bersih.
+
+---
+
+### 36.12 M9 — bug "Total Potensi Kerugian" understated 93% + GAP gross profit (2026-08-26)
+
+Definisi resmi (dipaste user): *"DCV adalah total nilai pendapatan atau
+potensi gross profit yang hilang dari customer yang sudah masuk kategori
+dormant dalam periode tertentu... Historical Revenue adalah rata-rata
+atau total revenue yang pernah dihasilkan customer sebelum menjadi
+dormant. Historical Gross Profit adalah laba kotor historis yang pernah
+dihasilkan customer tersebut."*
+
+**Bug ditemukan & diperbaiki** — kartu "Total Potensi Kerugian"
+(`value_ranking_total_current`) SEBELUMNYA dihitung dari
+`fetchDormantValueRanking(p, LIMIT 20, ...)` — cuma jumlah TOP 20
+customer per lost-value, bukan SEMUA dormant customer. Diverifikasi via
+`getDormantCustomerMetrics` langsung (data lokal, `company_id=all`): sum
+top 20 = **Rp 2.807.182.082**, sum SEMUA dormant (`limit=null`, pola
+sudah dipakai `getDormantBreakdown`/M8) = **Rp 37.594.149.575** — kartu
+UNDERSTATED **93%**. Fix: `metrics.service.ts` `getDormantCustomerMetrics`
+— fetch SEKALI dgn `limit=null`, top-20 utk chart/tabel di-`slice(0,20)`
+di JS dari array penuh (bukan fetch 2x query terpisah), total dijumlah
+dari array PENUH. Kartu "Customer Ter-ranking" (`ranking.length`, label
+"Customer Ter-ranking"/"Ranked Customers") TIDAK diubah — labelnya sudah
+jujur menyatakan "yang tampil di ranking" (≤20), bukan klaim total.
+
+**GAP diketahui, BELUM diputuskan**: SSOT definisikan "Historical
+Revenue" DAN "Historical Gross Profit" sbg 2 komponen paralel.
+Implementasi SAAT INI 100% berbasis Revenue — TIDAK ADA field/komputasi
+gross profit sama sekali di M9 (backend `DormantValueRow` maupun UI).
+Kata "atau" di kalimat pembuka SSOT ("pendapatan ATAU potensi gross
+profit") bisa dibaca 2 arah: (a) 2 lensa alternatif, revenue-only sudah
+sah, ATAU (b) harus ada versi GP paralel juga. BELUM ditanyakan ke user,
+dicatat sbg keputusan tertunda di `metrics_docs.md` (section M9 baru).
+
+**Koreksi tone tooltip (ditegur user, screenshot)**: *"kenapa kamu selalu
+referensi teknis yang tidak perlu"* — tooltip M9 yang baru saya tulis
+sempat menyebut "(ambang sama dengan M8)" — user yang lihat tooltip di
+UI TIDAK PERLU DAN TIDAK TAHU apa itu "M8" (kode internal dokumentasi),
+pola KESALAHAN SAMA yang sudah ditegur di tooltip M3 (§36.2c, "JANGAN
+SEBUT BEDA DENGAN M5"). Diperbaiki DI M9 tooltip (id/en) — kalimat
+"(ambang sama dengan M8)" dihapus, cuma jelaskan aturannya tanpa
+menyebut KPI lain. **Diaudit ulang SEMUA tooltip** (grep pola `M[0-9]`
+di seluruh `customerMetrics.json`/`dormantCustomer.json`, id+en) —
+ketemu 1 lagi sisa di tooltip M7 (§36.10, ditulis sesi ini juga,
+"sama seperti M8"/"itu bagian M8") — turut diperbaiki. Setelah audit,
+NOL referensi kode KPI tersisa di tooltip mana pun (diverifikasi via
+script Python re-cek seluruh 4 file JSON).
+
+**Tooltip M9** (id/en) ditulis ulang dgn kalimat pembuka tujuan (pola
+sama M1-M8), lalu dikoreksi sesuai poin di atas.
+
+**`metrics_docs.md`** — section "M9" BARU ditambahkan (SEBELUMNYA TIDAK
+ADA sama sekali, beda dari M1-M7 yang REWRITE section existing) — formula
+lengkap, SQL inti, catatan GAP gross profit, catatan bug fix di atas.
+
+Verifikasi: `tsc --noEmit` bersih (frontend+backend), query verifikasi
+langsung via `getDormantCustomerMetrics` (angka di atas), script temp
+dihapus setelah dipakai.
+
+**Susulan — GP paralel diimplementasikan** (keputusan user via
+AskUserQuestion: "Tambah versi Gross Profit paralel"):
+- Backend `m8m10.repository.ts` `fetchDormantValueRanking`: `inv` CTE
+  tambah `i.total_gp::numeric AS gp` (kolom sudah jadi di `invoices`,
+  pola sama M4, tidak perlu join invoice_items/COGS manual). `cust_agg`
+  tambah `recent_12m_gp` (window 12 bulan sama persis `recent_12m_rev`).
+  `ranked`/SELECT akhir tambah `avg_monthly_gp`/`estimated_lost_gp`
+  (rumus sama persis versi revenue). Ranking (ORDER BY) TETAP basis
+  revenue — GP murni field tampilan tambahan, bukan basis urutan baru.
+- `metrics.types.ts`: `DormantValueRow` +2 field,
+  `DormantMetricsData` +`value_ranking_total_gp_current`/`_comparison`.
+- `metrics.service.ts`: `sumLostGp` (mirror `sumLostValue`), dijumlah
+  dari `valueRankingAll`/`comparisonValueRankingAll` (array PENUH, bukan
+  top-20 — konsisten dgn fix bug di atas).
+- Frontend `types/metrics.ts`: mirror kedua tipe di atas.
+- `M9DormantValue.tsx`: grid ringkasan 3→4 kartu (`md:4`→`md:3`), kartu
+  baru "Total Potensi Kerugian (GP)" di posisi ke-2. `M9Tooltip` (hover
+  bar chart) tambah baris "Estimasi Kerugian (Gross Profit)".
+- i18n (id/en): `m9TotalLossGpLabel`, `colEstimatedLossGp` baru.
+
+Verifikasi: `tsc --noEmit` bersih (backend+frontend), query langsung
+konfirmasi angka GP masuk akal (margin ~15-30% dari revenue tiap
+customer, bukan 0/negatif/di luar wajar).
+
+---
+
+### 36.13 M10 — verifikasi §36 + bug tooltip pakai field denominator SALAH
+
+Definisi resmi (dipaste user): *"CRR adalah persentase customer dormant
+yang berhasil kembali melakukan transaksi dalam periode tertentu setelah
+sebelumnya tidak aktif... Customer Dormant yang Kembali Bertransaksi
+adalah customer yang sebelumnya masuk kategori dormant, lalu melakukan
+minimal 1 transaksi kembali dalam periode pengukuran. Total Customer
+Dormant adalah seluruh customer yang berada dalam status dormant pada
+AWAL PERIODE pengukuran."*
+
+**Populasi diverifikasi cocok** — denominator `reactivation_rate`
+(`m8m10.repository.ts`) pakai predikat "dormant per `me`" (`b.pe`,
+bucket yang SUDAH digeser 1 periode di service layer) = SECARA EFEKTIF
+"dormant di akhir periode sebelumnya" = TITIK WAKTU SAMA dgn "awal
+periode ini" — cocok SSOT. Numerator pakai `last_at_live_me` (dicek s.d
+HARI INI, bukan tunggu periode tutup) — cocok "minimal 1 transaksi
+kembali dalam periode pengukuran". Tidak ada bug pola M9 (limit/slice) —
+`reactivation_rate`/`reactivated_count`/`dormant_count` semua `COUNT()`
+FILTER penuh 1 query, bukan dijumlah dari array terpotong.
+
+**Bug ditemukan**: tooltip hover chart (`M10Tooltip`) masih pakai
+`prev_dormant_count` (field BEDA titik waktu, snapshot `prev_me`) sbg
+baris "dormant", padahal kartu ringkasan SUDAH dikoreksi ke
+`dormant_count` (basis denominator yang BENAR) sejak 2026-08-24 —
+tooltip ini TERLEWAT waktu itu. Akibat: `reactivated_count ÷ [dormant
+di tooltip]` tidak match persis `reactivation_rate` yang ditampilkan di
+baris pertama tooltip yang sama, membingungkan kalau user coba verifikasi
+manual. Fix: tooltip ganti ke `dormant_count`, samakan dgn kartu.
+
+Tooltip info (id/en) ditulis ulang dgn kalimat pembuka tujuan, sekalian
+reword "populasi dormant di periode sebelumnya" → "di awal periode ini"
+(lebih dekat ke bahasa SSOT, kurang teknis). `metrics_docs.md` — section
+M10 BARU ditambahkan (sebelumnya tidak ada).
+
+Verifikasi: `tsc --noEmit` bersih.
+
+### Ringkasan status §36 (M1-M10 selesai direview, kecuali M8 penuh)
+
+| KPI | Status |
+|---|---|
+| M1-M7 | ✅ Selesai penuh (populasi+bug+tooltip+doc) |
+| M8 | Chart warna ambang diperbaiki (§36.11) — populasi/tooltip/doc BELUM direview §36 |
+| M9 | ✅ Selesai penuh + bug total understated 93% diperbaiki + GP paralel ditambah |
+| M10 | ✅ Selesai penuh + bug tooltip field salah diperbaiki |
+
+Belum di-commit/push. M8 masih perlu 1 putaran review §36 (populasi/
+tooltip/`metrics_docs.md`) biar konsisten dgn M1-M7/M9/M10.
+
+---
+
+### 36.14 Audit menu Laporan (Growth/Retention/Revenue) vs 10 definisi KPI (2026-08-26)
+
+Pertanyaan user: *"Dari semua definisi tadi, apakah sudah tersedia
+lengkap di menu laporan retention, growth dan revenue?"*
+
+**Cakupan KPI per tab — SEMUA 10 KPI ADA**, beberapa sengaja digabung 1
+tab (didokumentasikan di komentar kode, BUKAN gap):
+- Report/Growth: tab "Cross Selling" = M1+M2 (1 dataset `useCrossSelling`,
+  kolom `BreakdownTable` sudah cakup `category_count` M2 DAN
+  `cross_sell_status`/`total_revenue` M1), tab "Expansion" = M7.
+- Report/Retention: tab "ROR" = M6, tab "Dormant" = M8+M9 (1 dataset
+  `fetchDormantValueRanking`, kolom sama persis), tab "Reactivation" = M10.
+- Report/Revenue: tab "Revenue"=M3, "GP"=M4, "HM"=M5, masing2 tab sendiri.
+
+**Data**: semua 3 halaman pakai hook (`useRevenueBreakdown`/
+`useGpBreakdown`/`useHmBreakdown`/`useRorBreakdown`/`useDormantBreakdown`/
+`useExpansionBreakdown`/`useCrossSelling`) yang SAMA PERSIS dgn halaman
+dashboard utama — semua bugfix backend sesi ini (total_existing M3-M6, GP
+paralel M9) OTOMATIS ikut, tidak ada logic backend terpisah utk Laporan.
+
+**GAP ditemukan & diperbaiki**: kolom GP paralel M9 (§36.12, baru
+ditambah) SEMPAT cuma masuk ke `M9DormantValue.tsx` (kartu+tooltip chart
+sendiri) — file `dormantHelpers.tsx` (`useDormantBreakdownColumns`,
+SATU definisi dipakai BERSAMA M8 dialog drilldown DAN Laporan Retention
+tab "Dormant") TERLEWAT. Ditambahkan kolom `estimated_lost_gp` di situ —
+1 titik fix, otomatis propagate ke M8 drilldown DAN Laporan sekaligus
+(pola centralize yang sudah ada). `mobileFields` (Report/Retention +
+M8DormantRate.tsx, 2 tempat terpisah yang masih hardcode array literal)
+turut ditambah `estimated_lost_gp`.
+
+**Catatan terpisah, BUKAN diperbaiki sesi ini**: ketiga halaman Laporan
+TIDAK PUNYA tooltip/info-icon definisi KPI sama sekali (grep
+`tooltipInfo`/`InfoOutlined`/`MuiTooltip` nol hasil di 3 file) — murni
+tabel data, tanpa penjelasan formula/definisi. Semua tooltip yang ditulis
+ulang sepanjang §36 (M1-M10) HANYA hidup di halaman dashboard utama
+(Growth/Value/Retention), TIDAK ada di Laporan. Ini nyambung ke rencana
+§37 (Halaman Help — deskripsi+rumus+referensi 10 KPI) yang masih
+ditunda — belum diputuskan apakah Laporan JUGA perlu tooltip sendiri atau
+cukup mengandalkan Halaman Help nanti.
+
+Verifikasi: `tsc --noEmit` bersih.
+
+---
+
+## 36.15 Bug periode "Apply date cutoff" OFF di 3 halaman Laporan (2026-08-26)
+
+Laporan user (dari testing task031 §10): JSON respons `getHmBreakdown`
+kosong (`total_hm_revenue:0, hm_buyer_count:0, total_existing:67,
+rows:[]`) utk periode Juni 2026 — "Untuk filter data gunakan filter
+global saja". Dikonfirmasi via AskUserQuestion: TIDAK ada filter
+tambahan aktif (cuma Entitas=Semua), jadi bukan soal populasi sempit.
+
+**Root cause diverifikasi langsung ke DB**: saat toggle "Apply date
+cutoff" OFF, `periodEnd` (state React) disimpan sbg TANGGAL 1 bulan yang
+dipilih (`${picked}-01`, konvensi UI "penanda bulan") — tapi dikirim APA
+ADANYA sbg `period_end` ke `useRevenueBreakdown`/`useGpBreakdown`/
+`useHmBreakdown` (Report/Revenue), `useExpansionBreakdown` (Report/Growth,
+tab Expansion), `useRorBreakdown`/`useDormantBreakdown`/
+`useDormantStatusBreakdown` (Report/Retention) — SEMUA hook ini TIDAK
+terima param `apply_date_cutoff` (beda dari `useCrossSelling`/
+`useCustomerMetrics`/`useDormantCustomer` yang backend-nya sendiri yang
+urus ekspansi periode). `date_from` di semua tempat ini SUDAH benar
+dihitung via `getPeriodDateRange(...).start`, tapi `period_end` TIDAK
+ikut dihitung simetris — akibatnya `date_from === period_end` (sama-sama
+tanggal 1), window query jadi cuma 1 HARI, bukan 1 bulan penuh.
+Reproduksi persis via query manual: `period_end=date_from='2026-06-01'`
+→ `total_existing:67, hm_buyer_count:0` (SAMA PERSIS laporan user).
+Versi benar (`period_end='2026-06-30'`) → `total_existing:1561,
+hm_buyer_count:70`.
+
+**Fix** (3 file, pola identik): tambah `periodEndEffective` — kalau
+`applyDateCutoff` aktif, pakai `periodEnd` apa adanya (tanggal presisi
+pilihan user, sudah benar); kalau TIDAK aktif, hitung akhir periode
+SUNGGUHAN via `getPeriodDateRange(periodType, reportPeriodKey).end`,
+di-clamp ke hari ini kalau periode masih berjalan via
+`clampPeriodEndToToday` (pola SAMA PERSIS M1-M10 sepanjang sesi ini).
+Semua pemanggilan hook breakdown di ke-3 halaman ganti dari `period_end:
+periodEnd` ke `period_end: periodEndEffective`.
+
+Verifikasi: `tsc --noEmit`/`eslint` bersih di 3 file. Playwright —
+reproduksi persis skenario user (Juni 2026, cutoff OFF, tab HM Laporan
+Revenue): SEBELUM fix 0 baris, SESUDAH fix 70 baris (cocok dgn angka
+verifikasi DB). Screenshot before/after dikirim ke user.
+
+---
+
+## 36.17 Refactor tab Reaktivasi Laporan Retention (2026-08-26)
+
+Instruksi user (spesifikasi detail, tech stack MUI eksplisit — sesuai
+proyek): perbaiki UX tab Reaktivasi. Diselaraskan ke data REAL (bukan
+implementasi buta), 3 gap ditemukan+dilaporkan ke user, TIDAK ditebak:
+
+1. **"Durasi Dormant" selalu "—"** — diverifikasi ke DB: `dormant_since_date`
+   genuinely `null` utk SEMUA customer reaktivasi (bug backend LAMA, bukan
+   dari perubahan sesi ini) — logic hitung durasi (client-side, dari
+   `dormant_since_date` s.d `reactivation_date`) sudah benar, cuma input-nya
+   kosong. BELUM diperbaiki (di luar scope UI murni).
+2. **Kolom "Unit Bisnis"** TIDAK ditambahkan — `CustomerDormantStatusRow`
+   tidak punya field ini; menambahkannya butuh kerja backend spt task031
+   (resolusi divisi dominan), bukan cuma UI.
+3. **State "at_risk"** (3 kategori bertahan) TIDAK diimplementasi — cuma
+   ada 2 sinyal nyata di data (`reactivated`/`relapsed`), "at_risk" butuh
+   definisi bisnis baru yang belum ada.
+
+**Kolom tabel** (`useDormantStatusColumns`, `dormantHelpers.tsx` — SHARED
+dgn M10ReactivationRate.tsx dialog drilldown, perbaikan ikut ke sana jg):
+KODE/STATUS chip lama/TGL DORMANT mentah dihapus, tambah "Durasi Dormant"
+(chip warna: <30 hijau, 30-90 kuning, >90 merah), "Bertahan?" (icon
+check/cancel dari status reactivated/relapsed), kolom tanggal center-align,
+nama customer Tooltip+noWrap, revenue kolom diberi nama jujur
+"Rata-rata Revenue/Bulan" (bukan "Revenue" — field aslinya avg_monthly,
+bukan total).
+
+**Tabel tetap DataGrid** (`ResponsiveListView`) — TIDAK diganti ke MUI
+`<Table>` mentah spt spek awal, supaya konsisten dgn 7 tab Laporan lain
+(1 paradigma tabel, bukan 2).
+
+**Kartu ringkasan** — 3 ronde revisi user:
+- Ronde 1: Paper+Avatar custom (DITOLAK — ukuran card tidak seragam,
+  gaya ikon badge-lingkaran-solid tidak sesuai app).
+- Ronde 2: coba `KpiCard` (shared component, diperluas +icon/+highlighted/
+  +sub-opsional) — masih ikon di depan LABEL, beda dari mockup user.
+- Ronde 3 (FINAL): user kirim mockup persis (label bold baris 1,
+  "angka (persentase%)" + ikon status kanan baris 2) — diikuti PERSIS,
+  ikon mockup (badge solid) diganti ikon POLOS (`fontSize="small"`, warna
+  semantik MUI langsung `success`/`warning`/`error`/`primary`, TANPA
+  circle bg) — sama gaya persis ikon kolom "Bertahan?" tabel di bawahnya
+  & ikon section title app (dicontohkan user: "TREN RASIO CROSS SELLING").
+  Card dibangun lokal (`ReactivationSummaryCards.tsx`) reuse `Card` UI
+  dasar, BUKAN `KpiCard` (bentuknya beda cukup jauh dari 3-slot standar
+  KpiCard, dipertahankan sbg komponen page-specific, bukan dipaksa masuk
+  komponen shared yang tidak pas).
+
+Verifikasi: `tsc --noEmit`/`eslint` bersih tiap ronde. Screenshot visual
+via Playwright tiap ronde (login admin@mail.com, navigasi live) —
+BUKAN ditebak dari kode saja.
+
+**Ronde 4 (ditegur KERAS user: "TIDAK MEMPERHATIKAN INSTRUKSI MASALAH
+ICON")** — ronde 3 SALAH: cuma menghapus badge Avatar lingkaran, TAPI
+glyph ikon itu SENDIRI (`CheckCircleIcon`/`PauseCircleIcon`/`CancelIcon`)
+tetap SOLID/terisi penuh (lingkaran padat berwarna) — bukan garis tipis
+spt contoh yang diberikan user. Diganti ke varian resmi MUI
+`CheckCircleOutlined`/`PauseCircleOutlined`/`HighlightOff` (BUKAN
+"...Outline" tanpa 'd' — itu ikon BEDA, sempat salah nama modul, `tsc`
+langsung menangkap). Diterapkan di 2 tempat: kartu ringkasan DAN kolom
+"Bertahan?" tabel (dormantHelpers.tsx, sama-sama kena masalah yang sama).
+Diverifikasi ulang via screenshot Playwright close-up sebelum lapor.
+
+---
+
+## 36.18 Layout tab Reaktivasi = STANDAR untuk semua tab Laporan (2026-08-26)
+
+Keputusan user (tegas): *"layout reaktivasi adalah layout standar untuk
+menu laporan"* — pola yang dipakai tab Reaktivasi (§36.17) WAJIB
+diterapkan ke SEMUA tab Laporan lainnya (Repeat Order, Dormant, dan
+eventually Growth/Revenue), BUKAN cuma khusus Reaktivasi. Standarnya:
+
+1. **Kartu ringkasan** — Grid 5 (atau sejumlah metrik relevan) kartu
+   ukuran SERAGAM (`height:'100%'`), tiap kartu: label bold baris 1,
+   "angka (persentase%)" + ikon status POLOS (outline, warna semantik
+   MUI success/warning/error/primary, TANPA badge lingkaran solid) di
+   kanan baris 2. Kartu metrik "konteks tab aktif" diberi border highlight
+   (`borderColor:'primary.main', borderWidth:2`).
+2. **Card+header search/sort** — `ReportTabCard` (search KIRI, sort/filter
+   KANAN, di dalam Card yang sama dgn tabel) — SUDAH standar sejak §36.16,
+   TIDAK berubah.
+3. **Kolom Status** — kalau tabelnya punya konsep status/kategori
+   (active/dormant/reactivated/dst), WAJIB ditampilkan sbg kolom StatusChip
+   eksplisit — JANGAN dihapus/disembunyikan jadi indikator implisit (pelajaran
+   §36.17 ronde 5: kolom "Bertahan?" yang cuma representasi SEBAGIAN status
+   bikin user bingung "kenapa tidak ada status di tabel").
+4. **Data kosong pada kolom HITUNGAN/DURASI (angka)** → tampilkan `0`,
+   BUKAN `"—"` (instruksi user eksplisit) — `"—"` cuma utk kolom yang
+   BUKAN angka (tanggal, teks) yang genuinely tidak ada nilainya.
+
+Komponen `ReactivationSummaryCards.tsx` (masih page-specific, task029.md
+§36.17) PERLU digeneralisasi jadi shared component sblm dipakai
+Dormant/Repeat Order (lihat §36.19 di bawah) — BELUM diekstrak saat
+keputusan ini ditulis, dikerjakan sbg bagian §36.19.
+
+## 36.19 Terapkan standar ke tab Dormant + Repeat Order (2026-08-26)
+
+### Konteks
+
+Susulan §36.18 — instruksi user: *"lanjutkan tab dormant dan repeat order.
+Lengkapi juga kolom kolom data tabel nya agar lebih detail dan eksplisit
+untuk analisa detail data per kategory."* Dua bagian: (1) pasang kartu
+ringkasan gaya-standar di tab "ror" (Repeat Order) dan "dormant"; (2)
+perkaya kolom tabel breakdown kedua tab itu.
+
+### 1. Komponen `ReportSummaryCards` (generalisasi)
+
+`ReactivationSummaryCards.tsx` (§36.17) tetap page-specific (belum
+digeneralisasi — lihat catatan "belum dikerjakan" di bawah), tapi
+pola kartu-nya sekarang tersedia sbg komponen shared baru:
+`frontend/src/pages/Report/ReportSummaryCards.tsx` — terima
+`items: ReportSummaryCardItem[]` (`label`, `value`, `pct?`, `icon?`,
+`iconColor?`, `highlighted?`, `md?`), render grid kartu seragam
+(`height:'100%'`, lebar kolom default `12/items.length`, bisa dioverride
+per-item via `md`). Ini komponen SUMBER TUNGGAL untuk pola §36.18 poin 1
+ke depannya — tab Growth/Revenue yang masih pakai `ReportTabCard`
+`summaryItems` (pola caption-line lama, §36.16) BELUM dimigrasikan
+(scope instruksi user eksplisit cuma sebut "dormant dan repeat order",
+bukan permintaan migrasi total — ditahan sampai diminta).
+
+### 2. Tab "ror" (Repeat Order) — `Report/Retention/index.tsx`
+
+Kartu ringkasan baru via `ReportSummaryCards`: 2 kartu — "Total Existing"
+(`PeopleOutlinedIcon`) dan "Repeat Count" (`RefreshIcon`, `highlighted`,
+persentase = repeat/total). Diletakkan SEBELUM `ReportTabCard` (bukan lagi
+prop `summaryItems` di dalam card header).
+
+Kolom tabel (`useRorColumns`, `CustomerMetrics/rorHelpers.tsx`, SHARED
+dgn M6RepeatOrder.tsx chart+dialog — 1 titik definisi, perubahan otomatis
+ikut ke keduanya):
+- `customer_code` DIHAPUS — NULL utk semua customer (temuan lama, sudah
+  dihapus dari kolom lain di sesi ini juga, konsisten).
+- **BARU** `avg_per_order` ("Rata-rata/Order") — dihitung client-side
+  dari `total_revenue / invoice_count` yang sudah ada (bukan field
+  backend baru) — kasih konteks nilai RATA-RATA per transaksi customer
+  itu, bukan cuma total mentah + jumlah order terpisah yang harus
+  dibagi manual oleh pembaca.
+
+### 3. Tab "dormant" — `Report/Retention/index.tsx`
+
+Kartu ringkasan baru via `ReportSummaryCards`: 3 kartu — "Dormant Count"
+(`PauseCircleOutlinedIcon`, `highlighted`), "Total Loss Revenue"
+(`TrendingDownIcon`), "Total Loss GP" (`TrendingDownIcon`). Diletakkan
+SEBELUM `ReportTabCard`.
+
+Kolom tabel (`useDormantBreakdownColumns`, `DormantCustomer/dormantHelpers.tsx`
+— SHARED dgn M8DormantRate.tsx dialog drilldown DAN M9DormantValue.tsx
+chart, 1 titik definisi, perubahan otomatis ikut ke ketiganya):
+- `customer_code` DIHAPUS — sama alasan (NULL utk semua customer).
+- **BARU** `avg_monthly_revenue` ("Rata-rata/Bulan") — field ini SUDAH
+  ADA di `DormantValueRow` (basis hitung `estimated_lost_value`) tapi
+  sebelumnya tidak pernah ditampilkan sbg kolom sendiri. Menambahkannya
+  memberi konteks "seberapa besar omzet bulanan customer ini SEBELUM
+  dormant" — sebelumnya pembaca cuma lihat angka total estimasi
+  kerugian akumulatif tanpa tahu skala bulanannya, jadi sulit menilai
+  customer mana yang sebenarnya "besar" vs "kecil tapi lama dormant".
+  Diletakkan SEBELUM `estimated_lost_value`/`estimated_lost_gp` (urutan
+  naratif: rata-rata dulu, baru total estimasi kerugian).
+
+### 4. Verifikasi
+
+`tsc --noEmit` dan `eslint` bersih (frontend) utk semua file yang diubah:
+`Report/ReportSummaryCards.tsx` (baru), `Report/Retention/index.tsx`,
+`CustomerMetrics/rorHelpers.tsx`, `DormantCustomer/dormantHelpers.tsx`.
+Verifikasi visual Playwright BELUM dilakukan di sesi ini utk 2 tab ini
+(ror/dormant) — cuma tab Reaktivasi (§36.17) yang sudah discreenshot
+langsung; kartu ror/dormant pakai komponen yang SAMA (`ReportSummaryCards`
+digeneralisasi dari implementasi Reaktivasi yang sudah diverifikasi
+visual), risiko regresi visual rendah tapi belum dibuktikan screenshot.
+
+### Belum dikerjakan (scope di luar instruksi eksplisit sesi ini)
+
+- `ReactivationSummaryCards.tsx` BELUM direfactor memakai
+  `ReportSummaryCards` yang baru digeneralisasi darinya — saat ini masih
+  implementasi paralel sendiri (duplikasi kecil, bukan pelanggaran
+  fungsional, tapi berlawanan dgn prinsip "centralize UI" kalau
+  dibiarkan lama).
+- Tab Growth (Cross Selling, Expansion) dan Revenue (Revenue, GP, HM
+  Ranking) di menu Laporan MASIH pakai pola `ReportTabCard` `summaryItems`
+  lama (§36.16, caption-line, bukan kartu grid) — BELUM dimigrasikan ke
+  `ReportSummaryCards`. §36.18 mendeklarasikan standar ini berlaku utk
+  "SEMUA tab Laporan", tapi instruksi paling baru user cuma eksplisit
+  sebut "dormant dan repeat order" — perlu konfirmasi user apakah
+  migrasi Growth/Revenue juga diminta sekarang atau menyusul terpisah.
+- Key i18n `dormantCustomer.colSustain` jadi orphan (tidak dipakai lagi)
+  sejak kolom "Bertahan?" dihapus §36.17 ronde 5 — belum dibersihkan,
+  dampak minor (tidak mempengaruhi build/runtime).
+
+---
+
+Instruksi user: *"Jika aku ingin menambah 1 halaman help untuk semua
+definisi. Deskripsi. Lalu rumus. Untuk setiap KPI ini bisa? Dan juga
+referensi dokumen."* — halaman baru di aplikasi (bukan artifact/PDF
+terpisah spt "Peta Populasi KPI" yang sudah dibuat), isinya deskripsi +
+rumus tiap 10 KPI + link download dokumen sumber SSOT.
+
+### 3 keputusan desain (dikonfirmasi user)
+
+1. **Konten LEBIH DETAIL dari tooltip** (bukan reuse teks tooltip apa
+   adanya) — halaman Help py ruang lebih luas dari popup chart, ditulis
+   BARU (deskripsi lengkap tujuan bisnis + cara baca + rumus + definisi
+   populasi + catatan interpretasi naik/turun), bukan i18n key yang sama.
+2. **Dokumen referensi** — user akan UPLOAD file SSOT (`.docx`) ke sesi
+   ini, disimpan sbg aset statis aplikasi (`frontend/public/`), halaman
+   Help kasih tombol/link download. **Catatan risiko dicatat ke user**:
+   folder `public/` bisa diakses langsung lewat URL TANPA login (di luar
+   proteksi SPA router) — untuk dokumen definisi bisnis internal ini
+   kemungkinan bukan masalah besar, tapi user sudah diberi tahu eksplisit,
+   bukan disembunyikan.
+3. **Menu** — item baru berdiri sendiri (ikon "?"), terlihat SEMUA user
+   (bukan gated admin-only spt Settings).
+
+### Rencana eksekusi (BELUM dikerjakan — nunggu file upload)
+
+1. Terima file SSOT dari user, simpan ke `frontend/public/docs/` (nama
+   file TBD setelah diterima).
+2. Tulis konten detail 10 KPI (deskripsi+rumus+catatan) — M1-M4 tinggal
+   diperkaya dari materi yg sudah diverifikasi §34-36, M5 perlu
+   pelengkapan (§36.4 baru selesai kode, belum tooltip/doc lengkap), M6-M10
+   perlu direview ulang dulu (belum sempat, lihat tabel status §36) SEBELUM
+   halaman ini dianggap lengkap — supaya tidak campuran "sudah diverifikasi
+   ketat" dan "belum direview" di 1 halaman yang sama.
+3. Struktur konten — kemungkinan file baru terpisah (BUKAN reuse
+   `customerMetrics.json`/`crossSelling.json`/`dormantCustomer.json` punya
+   tooltip, sesuai keputusan #1 di atas) — nama TBD, mis. `help.json`.
+4. Komponen halaman baru (`pages/Help/index.tsx` atau serupa) + route baru
+   + item `NAV_ITEMS` (`config/menu.tsx`) icon "?" (`HelpOutlineIcon`),
+   TANPA `permissionKey` (selalu terlihat).
+5. Verifikasi `tsc`/`eslint`/`vite build` seperti biasa.
+
+**Status: BELUM DIKERJAKAN** — nunggu (a) file upload dari user, (b)
+M5-M10 selesai direview supaya kontennya lengkap konsisten.
+
+### File sumber SUDAH DITERIMA (2026-08-25), eksekusi tetap ditunda
+
+User upload dokumen aslinya, saat ini di root project (BUKAN
+`frontend/public/docs/` — belum dipindah, sengaja ditunda sampai halaman
+Help benar-benar dikerjakan, sesuai instruksi user: *"catat dalam
+dokumentasi. Tapi saat ini kita kerjakan KPI yang belum selesai terlebih
+dahulu"*):
+
+```
+/home/pacman/e-dashbord/DEFINISI OPERASIONAL CUSTOMER LOYAL DASHBOARD.docx
+```
+(Microsoft Word 2007+, 3.668.605 bytes, diverifikasi valid via `file`)
+
+**Belum ter-track git** (sama seperti `presentasi-fitur-dashboard.docx` yang
+sudah lebih dulu ada di root, keduanya untracked) — TIDAK di-`git add`
+sampai jelas mau dipindah ke `frontend/public/docs/` sebagai bagian
+eksekusi §37, supaya tidak nyangkut di riwayat git di 2 lokasi berbeda
+(root DAN public/) kalau nanti dipindah.
+
+Prioritas SEKARANG (instruksi user): lanjutkan review KPI yang belum
+selesai (M6-M10, lihat tabel status §36) — §37 dilanjutkan setelah itu.
+
+---
+
+## 36.20 Tooltip info di kartu ringkasan Laporan (2026-08-26)
+
+Instruksi user: *"Kamu harus verifikasi setiap data nya dan berikan info
+tooltip agar user tidak salah faham"* — dipicu laporan sebelumnya bahwa
+"Total Existing Customer" (855) di tab Repeat Order jauh lebih kecil dari
+"Jumlah Dormant" (21.256) di tab Dormant.
+
+**Verifikasi** (query langsung ke DB produksi lokal, bukan tebakan):
+`established customers` (first_invoice_date < 2026-08-01) = 32.631 dari
+32.994 total customer. Yang AKTIF (transaksi) di Agustus 2026 = 855 —
+cocok persis dgn angka "Total Existing Customer". Dormant kasar (ambang
+6 bulan flat) = 21.420 — dekat dgn angka aplikasi 21.256 (selisih wajar,
+ambang aplikasi per-kategori divisi 3/6/12 bulan, bukan flat 6). Bukan
+bug — 2 kartu itu memang menghitung populasi & jendela waktu yang beda:
+"Total Existing" cuma yang aktif BULAN INI, "Jumlah Dormant" mencakup
+SELURUH histori customer established.
+
+**Ronde 1 (SALAH, ditegur keras)** — tooltip pertama ditulis berisi
+penjelasan teknis ("populasi", "window", "established customer", "bukan
+bug, sudah diverifikasi ke DB"), plus (saat verifikasi) membuka Playwright
+cuma untuk mengecek TEKS yang baru saja ditulis sendiri ke file i18n —
+2x ditegur: *"Yang menyuruhmu info toltip teknis itu siapa... Sudah
+memperingatimu berulang kali"* dan *"KAMU PAKAI PKAYWRIGH? KAMU
+MENULISNYA DI i18N BISA LU CEK LANGSUNG TANPA PEMBOROSAN TOKEN"*.
+
+**Ronde 2 (final)** — SEMUA tooltip ditulis ulang jadi 1 kalimat pendek
+bahasa awam, cuma jawab "apa arti angka ini" tanpa menyinggung kartu
+lain/proses verifikasi/istilah teknis. Contoh: "Jumlah Dormant" →
+*"Pelanggan yang sudah lama tidak beli, melewati batas waktu tidak aktif
+untuk kategori bisnisnya."* Verifikasi teks dilakukan via Read/grep
+langsung ke file JSON (bukan Playwright — itu cuma buat cek VISUAL/
+layout, bukan ISI TEKS). Lesson disimpan sbg memory
+`feedback_no_technical_jargon_user_facing_text`.
+
+**Implementasi**: `ReportSummaryCardItem.info?: string` (baru) di
+`ReportSummaryCards.tsx` — render `InfoOutlinedIcon` kecil (pola sama
+persis `MuiTooltip`+`InfoOutlinedIcon` yang sudah dipakai M3-M7) di
+sebelah label kartu. Sekalian `ReactivationSummaryCards.tsx` DIREFACTOR
+pakai `ReportSummaryCards` (sebelumnya implementasi paralel/duplikat
+sejak §36.19 — dibereskan sekarang, Centralize UI). Dipasang di tab
+Repeat Order, Dormant, Reaktivasi (Report/Retention/index.tsx).
+
+---
+
+## 36.21 Terapkan standar ke Laporan Growth — Cross Selling + Ekspansi (2026-08-26)
+
+Lanjutan §36.18/§36.19/§36.20 — instruksi user: *"LANJUTKAN UNTUK LAPORAN
+GROWHT. CROS SELLING DAN EKSPANSI"*.
+
+**Tab Cross Selling**: `ReportSummaryLine` (caption-line lama) diganti
+`ReportSummaryCards` (3 kartu: Customer Aktif/`PeopleOutlineIcon`,
+Cross-Selling Rate/`SwapHorizIcon` highlighted, Rata-rata Kategori/
+Customer/`CategoryIcon` — icon dipilih SAMA PERSIS icon `SectionLabel`
+M1/M2 di dashboard utama, konsisten bahasa visual). `BreakdownTable`
+sendiri TIDAK diubah (tetap keputusan §36.16 — shared dgn
+M1CrossSelling.tsx/M2AvgCategory.tsx, restrukturisasi internalnya di
+luar scope halaman Laporan).
+
+**Tab Ekspansi**: `ReportTabCard` `summaryItems` (caption-line lama)
+dipindah jadi `ReportSummaryCards` di LUAR `ReportTabCard` (pola sama
+persis Repeat Order/Dormant) — 4 kartu: Existing Customer
+(`PeopleOutlineIcon`), Total Customer Active (`CheckCircleOutlineIcon`
+success), Spending Naik (`TrendingUpIcon` primary, highlighted — KPI
+utama tab ini), Spending Turun (`TrendingDownIcon` error). Icon
+`TrendingUpIcon` SAMA PERSIS icon `SectionLabel` M7 di dashboard utama.
+
+Semua 7 kartu baru dapat `info` tooltip bahasa awam (pola §36.20, id+en).
+Verifikasi: `tsc --noEmit`+`eslint` bersih, screenshot Playwright kedua
+tab (layout kartu rapi, tidak ada elemen tumpang tindih, icon+tooltip
+ikon muncul benar) — Playwright dipakai di sini krn ini VERIFIKASI VISUAL
+(layout kartu baru), bukan verifikasi teks (beda dari kesalahan §36.20
+ronde 1).
+
+**Belum dikerjakan**: tab Revenue/GP/HM Ranking (Report/Revenue/index.tsx)
+masih pakai `ReportTabCard` `summaryItems` lama, belum dimigrasikan ke
+`ReportSummaryCards` — menyusul kalau diminta.
+
+---
+
+## 36.22 Label kartu M7 (Ekspansi) bentrok istilah dgn M6 — diperbaiki (2026-08-26)
+
+User menunjuk 3 angka berdampingan yang membingungkan: Growth·Cross
+Selling "Customer Aktif" = 1.218, Growth·Ekspansi "Existing Customer" =
+11.375 & "Total Customer Active" = 855, Retention·Repeat Order "Total
+Existing Customer" = 855. *"KAMU MAU MEMBINGUNGKAN PEMAKAI?"*
+
+**Verifikasi presisi ke source (bukan tebakan)**, per field:
+- M1 `active_count` (Cross Selling, 1.218) — `m1.repository.ts`: SEMUA
+  customer (baru+lama) dgn ≥1 transaksi periode ini, TANPA syarat riwayat
+  sebelumnya. Ini keputusan bisnis resmi §34 (dokumen SSOT: populasi M1/M2
+  MEMANG "Customer Aktif" murni, beda dari M3/M4/M6/M7 yang "Existing
+  Customer"). Beda label ("Customer Aktif" vs "Existing Customer") DI SINI
+  SUDAH BENAR — sengaja menandakan populasi lebih luas, bukan bug.
+- M7 `total_existing` (Ekspansi, label lama "Existing Customer", 11.375) —
+  `m3m7.repository.ts fetchExpansionBreakdown`: established customer YANG
+  BELUM lewat ambang dormant per `filterDate` — TIDAK mensyaratkan
+  transaksi di window periode yang sedang dilihat, populasi kumulatif
+  jauh lebih luas.
+- M7 `active_count` (Ekspansi, label lama "Total Customer Active", 855) —
+  fungsi sama, subset `total_existing` dgn `cur_revenue > 0` di window
+  periode ini = established DAN bertransaksi periode ini.
+- M6 `total_existing` (Repeat Order, "Total Existing Customer", 855) —
+  `m6.repository.ts`: `established_customers` JOIN `inv_active` (invoice
+  APA PUN di window ini) — SECARA MATEMATIS IDENTIK definisi dgn M7
+  `active_count` di atas (buktinya kedua angka = 855, sama persis).
+
+**Akar masalah**: 2 field M7 (`total_existing`/`active_count`) sudah
+POPULASINYA beda dari satu sama lain (benar, itu memang 2 metrik beda),
+TAPI label i18n-nya SALAH PASANGAN — `summaryExisting` ("Existing
+Customer") dipasang di `total_existing` yang populasinya BEDA dari label
+sejenis di M3-M6, sementara `dialogActiveCount` ("Total Customer Active")
+dipasang di `active_count` yang justru SAMA PERSIS definisi dgn "Total
+Existing Customer" M3-M6 tapi diberi nama beda. Pola pembanding:
+`dialogTotalExisting` (m7) SUDAH lama bernama presisi "Total Existing
+Belum Dormant" (id) — cuma tidak dipakai di kartu ringkasan, cuma di
+dialog drilldown.
+
+**Perbaikan** (i18n saja, TIDAK ada perubahan data/query — angka tetap
+sama, cuma namanya diluruskan):
+- `customerMetrics.m7.summaryExisting`: "Existing Customer" → **"Total
+  Existing Belum Dormant"** (en: "Total Existing Not-Yet-Dormant") — SAMA
+  PERSIS teks `dialogTotalExisting` yang sudah ada, karena memang field
+  yang sama.
+- `customerMetrics.m7.dialogActiveCount`: "Total Customer Active" →
+  **"Total Existing Customer"** (en sama) — SAMA PERSIS teks
+  `customerMetrics.m3/m4/m5/m6.summaryExisting`, karena memang definisi
+  yang sama (established + transaksi periode ini).
+
+**Dampak** (1 titik ubah, 3 tempat kena — Centralize UI, key i18n dipakai
+bersama): kartu ringkasan M7ExpansionGrowth.tsx (dashboard `/growth`),
+dialog drilldown M7ExpansionGrowth.tsx + M7Expansion.tsx (workbench
+Customer Metrics), kartu Report/Growth Ekspansi — SEMUA otomatis
+konsisten sekaligus, bukan cuma di halaman Laporan.
+
+Verifikasi: JSON valid + `tsc --noEmit` bersih. TIDAK dibuka Playwright
+lagi (pelajaran §36.20 — ini murni perubahan teks label, sudah
+dikonfirmasi lewat pembacaan langsung source+i18n, bukan visual baru).
+
+---
+
+## 36.23 Kartu Ekspansi dipecah berjenjang + label Cross Selling diperjelas (2026-08-26)
+
+Susulan §36.22 — user menunjuk screenshot kartu Ekspansi yang BARU
+diperbaiki labelnya, minta 1 langkah lebih jauh: *"Tambahkan Total
+pelanggan -> All customer, Dormant, Belum dormant, aktif 855"* — dan
+Cross Selling "Customer Aktif" (1.218) diminta jadi eksplisit "Total
+Pelanggan Aktif + Baru" (menandakan populasinya BEDA dari "Existing"
+KPI lain, per temuan §36.22).
+
+**Cross Selling**: label kartu `crossSelling.activeCustomerLabel`
+("Customer Aktif") TIDAK diubah (masih dipakai tempat lain), key BARU
+`activeCustomerLabelFull` ("Total Pelanggan Aktif + Baru") dipasang
+KHUSUS di kartu ringkasan Laporan Growth.
+
+**Ekspansi — kartu dipecah jadi 6, urutan mengikuti hierarki pecahan
+(bukan acak)**:
+```
+Total Pelanggan (32.631)
+├─ Jumlah Dormant (21.256)     — reuse dormantCustomer.dormantCountLabel,
+│                                 fetch BARU via useDormantBreakdown
+│                                 (hook SAMA dipakai tab Dormant
+│                                 Retention, scope+periode SAMA)
+└─ Belum Dormant (11.375)      — field total_existing yang SUDAH ada,
+    └─ Aktif (855)             cuma dipindah label (existing field)
+        ├─ Spending Naik (589, highlighted)
+        └─ Spending Turun (2.286)
+```
+Verifikasi matematis: 21.256 + 11.375 = 32.631 (Dormant + Belum Dormant =
+Total Pelanggan, persis). "Total Pelanggan" DIHITUNG CLIENT-SIDE
+(`dormantCount + belumDormantCount`), bukan query baru — kedua komponennya
+sudah dari 2 fetch yang sudah ada/ditambahkan (`useExpansionBreakdown` +
+`useDormantBreakdown` BARU), TIDAK ada perubahan backend.
+
+Icon baru: `PauseCircleOutlinedIcon` (Dormant, warning — SAMA persis icon
+tab Dormant Retention) dan `BoltIcon` (Aktif, primary — outline/line-art,
+bukan filled, aman dari kesalahan icon ronde sebelumnya §36.17).
+
+i18n key baru: `customerMetrics.m7.summaryTotalPelanggan(+Info)`,
+`summaryDormantInfo`, `summaryBelumDormant`, `summaryAktif` (id+en) +
+`crossSelling.activeCustomerLabelFull` (id+en). Info tooltip "Belum
+Dormant"/"Aktif" REUSE teks yang sudah ada (`summaryExistingInfo`/
+`dialogActiveCountInfo`, §36.22) — field yang sama, tidak perlu tulis
+ulang.
+
+Verifikasi: `tsc --noEmit`+`eslint` bersih, screenshot Playwright kedua
+tab (dipakai krn ini VISUAL layout baru 6-kartu, bukan cuma teks) —
+kartu 1 baris rapi di desktop 1440px, matematika breakdown cocok persis
+dgn angka yang ditampilkan.
+
+**Susulan — tooltip 3 kartu dirapikan** (instruksi user: "Perbaiki juga
+tooltip nya"):
+- Cross Selling "Total Pelanggan Aktif + Baru" — tooltip lama tidak
+  menyebut "+ Baru" sama sekali (cuma "bertransaksi minimal 1 kali
+  periode ini"), padahal itu justru poin utama kenapa labelnya diubah.
+  Ditambah klausa "termasuk yang baru pertama kali beli".
+- Ekspansi "Belum Dormant" — tooltip lama (`summaryExistingInfo`) masih
+  bawa sisa kalimat pembanding dari versi sebelum kartu dipecah 6
+  ("tidak dibatasi harus bertransaksi bulan ini") — dipotong jadi murni
+  deskripsi kartu itu sendiri: "Pelanggan yang belum melewati batas
+  waktu tidak aktif."
+- Ekspansi "Total Pelanggan" — tooltip lama menyebut "gabungan yang
+  dormant dan yang belum dormant" (menyinggung 2 kartu lain secara
+  tersirat) — disederhanakan jadi kalimat SAMA PERSIS pola
+  `dormantCustomer.m10SummaryAllInfo` yang sudah ada: "Semua pelanggan
+  yang sudah pernah bertransaksi sebelum periode ini."
+- "Aktif"/"Jumlah Dormant" TIDAK diubah — sudah plain sejak ditulis,
+  tidak menyinggung kartu lain.
+
+Verifikasi: JSON valid (Read langsung) + `tsc --noEmit` bersih. TIDAK
+dibuka Playwright (murni teks, pelajaran §36.20).
+
+---
+
+## 36.24 "Belum Dormant" (Ekspansi) vs "Aktif"+"Reaktivasi" (Retention) — diverifikasi COCOK, bukan bug (2026-08-26)
+
+User screenshot 2 tab bersebelahan: Growth·Ekspansi (Total Pelanggan
+32.631, Jumlah Dormant 21.256, **Belum Dormant 11.375**, Aktif 855) vs
+Retention·Reaktivasi (Total Pelanggan 32.631, **Aktif 11.271** (34.5%),
+Dormant 21.256 (65.1%), **Reaktivasi 104** (0.3%), Dormant Kembali 0).
+*"Data tidak sama"*.
+
+**Verifikasi presisi** (bukan tebakan aritmatika kebetulan):
+- Total Pelanggan (32.631) & Dormant (21.256) SUDAH cocok exact di kedua
+  tab — konfirmasi kedua page pakai periode+scope yang sama saat
+  screenshot diambil.
+- 11.271 (Aktif) + 104 (Reaktivasi) = **11.375** — PERSIS sama dgn "Belum
+  Dormant" Ekspansi.
+- Ditelusuri ke source (`m3m7.repository.ts fetchExpansionBreakdown`
+  `established_not_dormant` vs `m8m10.repository.ts
+  fetchCustomerDormantStatusLog` `is_dormant_at_me`/klasifikasi status):
+  KEDUANYA pakai formula IDENTIK (`last_invoice > filterDate -
+  dormant_threshold`, `dormantThresholdCaseSql` yang SAMA, gerbang
+  established/`is_existing_at_me` yang SAMA — `first_invoice < periodStart`)
+  — bukan cuma angka kebetulan sama, RUMUSNYA MEMANG SAMA.
+
+**Kesimpulan**: "Belum Dormant" (Ekspansi) itu pecahan 2-arah (Dormant vs
+Bukan). "Aktif"/"Dormant"/"Reaktivasi"/"Dormant Kembali" (Reaktivasi)
+itu pecahan 4-arah dari POPULASI YANG SAMA — "Reaktivasi" adalah SUBSET
+dari "Belum Dormant" yang dipisah jadi kategori sendiri (customer yang
+baru saja kembali dari dormant, bukan "belum pernah dormant" murni).
+Bukan bug — Reaktivasi tab MEMANG dirancang lebih rinci dari Ekspansi.
+
+**Perbaikan**: tooltip `customerMetrics.m7.summaryExistingInfo` ("Belum
+Dormant") ditambah 1 klausa singkat supaya angkanya tidak dikira exclude
+customer reaktivasi: *"...termasuk yang baru saja aktif kembali setelah
+sempat dormant."* Verifikasi: JSON valid + `tsc --noEmit` bersih.
+
+---
+
+## 36.25 Kartu "Aktif" Reaktivasi digabung dgn "Reaktivasi" (2026-08-26)
+
+Susulan §36.24 — instruksi user: *"Berarti angkanya aktif di halaman
+reaktifasi itu tambahkan juga Aktif plus reaktivasi"*. Kartu "Aktif" tab
+Reaktivasi SEBELUMNYA cuma status `active` murni (11.271) — sekarang
+digabung `active + reactivated` (11.271 + 104 = **11.375**), supaya
+angkanya cocok PERSIS dgn "Belum Dormant" tab Ekspansi (populasi sama,
+sudah dibuktikan §36.24).
+
+**Yang TIDAK berubah** (scope literal, sesuai instruksi — cuma "angka
+Aktif"): kartu "Reaktivasi" TETAP terpisah menampilkan `reactivated`
+sendiri (104, tidak dihapus/digabung ke Aktif secara visual sbg 1
+kartu) — implikasinya SUM ke-5 kartu SEKARANG TIDAK LAGI = Total
+Pelanggan (11.375+21.256+104+0 = 32.735, lebih dari 32.631, krn
+Reaktivasi kehitung 2x — sekali di "Aktif" gabungan, sekali di kartu
+sendiri) — trade-off SADAR, disetujui via instruksi eksplisit user
+(prioritas: angka "Aktif" harus rekonsil dgn Ekspansi, bukan lagi
+partisi 4-arah murni). Tabel + filter dropdown Status DI BAWAH kartu
+TIDAK ikut berubah — masih 4 kategori terpisah (active/dormant/
+reactivated/relapsed), cuma KARTU ringkasannya yang digabung.
+
+Implementasi: `ReactivationSummaryCards.tsx` — `activeCombined = active
++ reactivated` dipakai utk value+pct kartu "Aktif" saja, prop `active`/
+`reactivated` yang diterima komponen TIDAK berubah (tetap 2 angka
+terpisah dari caller). Tooltip `dormantCustomer.m10SummaryActiveInfo`
+disesuaikan (id+en), pola sama §36.24.
+
+Verifikasi: JSON valid + `tsc --noEmit`+`eslint` bersih, screenshot
+Playwright (perubahan ANGKA, bukan cuma teks — layak diverifikasi
+visual) — kartu "Aktif" tampil 11.375 (34.9%), cocok dgn Ekspansi "Belum
+Dormant".
+
+---
+
+## 36.26 Kartu "Aktif" Reaktivasi di-rename jadi "Belum Dormant" (2026-08-26)
+
+Susulan §36.25 — user tanya: *"pelanggan existing itu berarti pelanggan
+lama yang aktif transaksi kan? dihalaman repeat order? kenapa jumlah
+nya 855 sedangkat aktif 11.375"* — membandingkan Repeat Order "Total
+Existing Customer" (855) dgn Reaktivasi "Aktif" (11.375, hasil merge
+§36.25).
+
+**Jawaban (sudah diverifikasi, bukan cuma jawab pertanyaan)**: 855 =
+established customer yang bertransaksi SPESIFIK bulan Agustus. 11.375 =
+established customer yang BELUM lewat ambang dormant, TIDAK disyaratkan
+harus beli spesifik bulan ini (bisa saja transaksi terakhirnya Mei,
+tapi ambang divisinya 6 bulan → per Agustus belum dormant). 2 hal
+berbeda, bukan bug.
+
+**Tapi ditemukan MASALAH BARU** (efek samping §36.25 yang tidak
+disadari saat itu): kata **"Aktif"** sekarang dipakai 2 kartu beda tab
+dgn ARTI BEDA — Ekspansi "Aktif" (855, transaksi bulan ini) vs
+Reaktivasi "Aktif" (11.375, belum lewat ambang dormant, setelah merge
+§36.25). Tabrakan istilah PERSIS pola yang sudah diperbaiki §36.22
+("Existing Customer" 2 arti beda) — kali ini justru saya yang tidak
+sadar menciptakannya sendiri lewat merge §36.25.
+
+**Perbaikan**: label kartu `dormantCustomer.m10SummaryActiveShort`
+diganti dari "Aktif" → **"Belum Dormant"** (id), "Active" → **"Not Yet
+Dormant"** (en) — SAMA PERSIS istilah `customerMetrics.m7.
+summaryBelumDormant` (Ekspansi) utk angka yang SAMA PERSIS (11.375),
+menghilangkan tabrakan tanpa mengubah nilai gabungan yang baru
+diminta di §36.25. Nilai `activeCombined` (`active+reactivated`) TIDAK
+berubah — cuma labelnya.
+
+Verifikasi: JSON valid + `tsc --noEmit`+`eslint` bersih, screenshot
+Playwright — kartu tampil "Belum Dormant / 11.375 (34.9%)".
+
+---
+
+## 36.27 Kamus Penamaan Pelanggan — ditulis ke dokumentasi, BELUM dieksekusi (2026-08-26)
+
+Susulan §36.22-36.26 — user memberikan "KAMUS PENAMAAN PELANGGAN -
+EXECUTIVE DASHBOARD" (7 istilah: Akuisisi Baru, Existing Aktif,
+Reaktivasi, Existing Inaktif, Dormant, Aktif Total, Existing Total +
+aturan penggunaan per KPI), tanya *"Bagaimana jika pakai ini? Untuk
+klasifikasi?"*.
+
+Dipetakan ke kondisi kode saat ini (diverifikasi ke source, ringkasan —
+detail lengkap + tabel pemetaan ada di `docs-v2/shared/metrics_docs.md`
+§"Kamus Penamaan Pelanggan", BUKAN diduplikasi di sini):
+- **Existing Aktif** ≡ "Existing Customer" M3-M6 — cocok persis.
+- **Dormant** ≡ "Dormant" M8/M9 — cocok persis.
+- **Aktif Total** ≡ "Customer Aktif" M1/M2 — cocok datanya, TAPI
+  konflik dgn aturan C ("Cross-Sell pakai Existing Aktif") vs keputusan
+  resmi §34 (M1/M2 memang "Aktif Total", dari SSOT lain).
+- **Reaktivasi** ≡ status `'reactivated'` M10 — cocok persis.
+- **Existing Total** ≡ "Total Pelanggan" M10 (`statusData.rows.length`,
+  SEMUA established tanpa filter status) — cocok persis, SUDAH tampil
+  di tab Ekspansi+Reaktivasi (32.631). (Koreksi 2026-08-26 — draft
+  pertama entry ini SALAH tulis "belum ada", padahal sudah ada; dikoreksi
+  saat user tanya susulan "yang belum ada itu apa", ketahuan salah saat
+  verifikasi ulang sebelum menjawab.)
+- **Akuisisi Baru** (kartu tersendiri) dan **Existing Inaktif** (split
+  dari status `'active'` M10) — INI YANG BENAR-BENAR BELUM ada
+  implementasi 1:1, perlu kerjaan baru kalau mau diadopsi penuh.
+- Status `'relapsed'`/"Dormant Kembali" M10 TIDAK ada padanan di kamus
+  (cuma 5 kategori) — perlu diputuskan nasibnya kalau kamus diadopsi
+  penuh.
+
+Sempat mau tanya via AskUserQuestion soal konflik Aktif Total di atas —
+**diinterupsi user**, klarifikasi: *"Ini soal penamaan agar tidak
+membingungkan"* — berarti M1/M2 TIDAK perlu diubah populasinya, kamus
+ini murni soal PENAMAAN, bukan instruksi ubah kalkulasi.
+
+**Instruksi final user**: *"Ya tulis dalam dokumentasi dulu, Jangan
+lanjut sebelum aku instruksikan"* — kamus + tabel pemetaan status ditulis
+lengkap ke `docs-v2/shared/metrics_docs.md` (bagian "Definisi Umum",
+tempat yang sudah ada sbg rujukan populasi "Customer Aktif"/"Existing
+Customer"). **TIDAK ADA kode/label yang diubah** sesi ini menyesuaikan
+kamus — murni dokumentasi, menunggu instruksi lanjutan sebelum eksekusi
+apa pun (relabeling existing, ATAU nambah kartu/split logic baru).
+
+---
+
+## 36.28 Endpoint M10 dipecah: Existing Aktif vs Existing Inaktif (2026-08-26)
+
+Instruksi user (setelah klarifikasi §36.27): *"Akuisisi ini adalah
+customer new, belum ada?"* (dikonfirmasi: ya, "Akuisisi Baru" ≡ customer
+baru, datanya `active_new_count` sudah ada tapi belum jadi kartu — di
+luar scope giliran ini) + *"Ya buat endpoint nya pisahkan existing aktif
+dan inaktif. Dormant lagi tetap pertahankan sebagai informasi detail
+tambahan"*.
+
+### Perubahan backend
+
+`DormantCustomerStatus` (`metrics.types.ts`) — status BARU `'inactive'`,
+type jadi `'active' | 'inactive' | 'dormant' | 'reactivated' | 'relapsed'`.
+`metrics.schema.ts` — `status` enum filter ditambah `'inactive'`.
+
+`fetchCustomerDormantStatusLog` (m8m10.repository.ts) — kolom baru
+`transacted_in_period` di CTE `classified` (`last_at_me >= bucket.start`,
+SEBELUMNYA tidak pernah dicek — status `'active'` lama cuma cek
+`NOT is_dormant_at_me`, TIDAK peduli transaksi terakhirnya jatuh di
+dalam window periode yang dilihat atau dari sebelum periode itu). CASE
+final dipecah: `'active'` (Existing Aktif, transacted_in_period=true)
+vs `'inactive'` (Existing Inaktif, transacted_in_period=false) — 2
+cabang baru menggantikan 1 cabang `ELSE 'active'` lama, SECARA
+KONSTRUKSI partisi exhaustive-mutually-exclusive dari rows yang sama
+(tidak mungkin nambah/ngurang total).
+
+**Verifikasi langsung ke DB** (panggil `getDormantStatusBreakdown`
+service langsung, period_end=2026-08-25, scope semua entitas): total
+32.631 baris, `active`=751, `inactive`=10.635, `dormant`=21.141,
+`reactivated`=104, `relapsed`=0 — SUM = 32.631, PERSIS cocok dgn total
+(751+10635+21141+104+0=32631). Partisi terbukti benar secara matematis.
+(Angka dormant/inactive persis SEDIKIT beda dari screenshot sesi
+sebelumnya karena "hari ini" bergeser 1 hari selama sesi — data
+dev bergerak seiring waktu, bukan bug logic.)
+
+'relapsed' ("Dormant Kembali") — **TIDAK diubah/dilebur**, tetap status
+terpisah sesuai instruksi eksplisit user, walau tidak ada padanan resmi
+di Kamus Penamaan Pelanggan 5-kategori.
+
+### Perubahan frontend
+
+- `types/metrics.ts` — `DormantCustomerStatus` mirror backend.
+- `dormantHelpers.tsx` — `STATUS_COLOR['inactive'] = 'default'` (netral,
+  bukan warning/error — masih masa tenggang, belum genuinely bermasalah).
+  `statusLabel()` otomatis resolve key baru (pola dinamis sudah ada,
+  tidak perlu ubah fungsi).
+- i18n (`dormantCustomer.json` id+en): `statusInactive`, `m10SummaryInactive`
+  (long, dipakai dialog M10ReactivationRate.tsx), `m10SummaryInactiveShort`
+  + `m10SummaryInactiveInfo` (kartu ringkasan).
+- `ReactivationSummaryCards.tsx` — prop `inactive` baru, kartu "Existing
+  Inaktif" baru (icon `HourglassEmptyIcon`, netral). **Kartu "Aktif"
+  gabungan §36.25/§36.26 DIBALIK** — sekarang murni status `active`
+  lagi (BUKAN `active+reactivated`), krn endpoint SEKARANG BISA bedakan
+  Existing Aktif dari Existing Inaktif — merge workaround §36.25 sudah
+  tidak diperlukan. Label "Aktif" AMAN dipakai lagi (populasinya SEKARANG
+  seharusnya sama dgn kartu "Aktif" tab Ekspansi — established +
+  transaksi periode ini, lihat catatan verifikasi di bawah).
+- `Report/Retention/index.tsx` — `statusCounts.inactive` ditambah,
+  `ReactivationSummaryCards` dapat prop baru, dropdown filter Status
+  tambah opsi "Existing Inaktif".
+- `M10ReactivationRate.tsx` (dialog dashboard `/retention`, TERPISAH dari
+  halaman Laporan) — `counts.inactive` ditambah, baris ringkasan teks
+  baru "Pelanggan Existing Inaktif: N".
+
+### Verifikasi
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih. Screenshot
+Playwright tab Reaktivasi: 6 kartu tampil (Total Pelanggan 32.631, Aktif
+751 2.3%, Existing Inaktif 10.520 32.2%, Dormant 21.256 65.1%,
+Reaktivasi 104 0.3% highlighted, Dormant Kembali 0 0.0%) — jumlah
+751+10520+21256+104+0 = 32631, cocok persis.
+
+### Temuan BARU, BELUM diselidiki (di luar instruksi giliran ini)
+
+Screenshot bersebelahan tab Ekspansi vs Reaktivasi (dalam sesi Playwright
+yang SAMA, beberapa detik jaraknya): kartu "Aktif" Ekspansi tetap
+tampil **855**, sedangkan kartu "Aktif" Reaktivasi (hasil split baru)
+tampil **751** — SEHARUSNYA sama persis (kedua definisi: established +
+ADA transaksi di window [periodStart, periodEnd] — SECARA FORMULA
+identik, sudah diverifikasi ke source m3m7.repository.ts vs
+m8m10.repository.ts). Kemungkinan: 2 halaman Laporan (Growth vs
+Retention) py filter state INDEPENDEN (`Filter SENDIRI, bukan share
+state dgn /growth` — arsitektur sudah gitu dari awal), jadi
+`periodEnd`/`date_from` efektif yang dikirim BISA beda meski
+tampilannya sama-sama "August 2026" — TAPI ini baru DUGAAN, BELUM
+diverifikasi presisi (belum cek payload request aktual kedua page).
+**Tidak dikejar sesi ini** (di luar scope instruksi user, sudah dilaporkan
+ke user biar diputuskan mau dikejar atau tidak) — user KONFIRMASI ini
+juga perlu diperbaiki (*"Ya itu juga perlu perbaikan, pemakai sulit
+memahami logika yang termasuk rumit"*), TAPI instruksikan urus label
+kartu Reaktivasi dulu (lihat §36.29) — investigasi 855 vs 751 MASIH
+tertunda, belum dikerjakan.
+
+---
+
+## 36.29 Label 6 kartu Reaktivasi diselaraskan ke Kamus (2026-08-26)
+
+Instruksi user (dgn screenshot 6 kartu hasil §36.28), pemetaan literal:
+Total Pelanggan → "Total Pelanggan Existing", Aktif → "Pelanggan
+Existing Aktif", Existing Inactive → "Pelanggan Existing Inaktif",
+Dormant → "Pelanggan Dormant", Reaktivasi → "Pelanggan Reaktivasi",
+Dormant Kembali → "Dormant Baru". Plus: *"Buat versi multi language"*.
+
+Diterapkan ke SEMUA key `m10Summary*`/`m10Summary*Short` (id+en) —
+BUKAN cuma versi Short (kartu), versi panjang (dipakai dialog
+M10ReactivationRate.tsx, halaman dashboard `/retention` terpisah) JUGA
+diselaraskan, supaya kartu Laporan dan dialog dashboard konsisten
+istilah (1 konsep = 1 label, di mana pun ditampilkan):
+
+| Key | Lama (id) | Baru (id) | Baru (en) |
+|---|---|---|---|
+| `m10SummaryAll(Short)` | Total Pelanggan | Total Pelanggan Existing | Total Existing Customers |
+| `m10SummaryActive(Short)` | (Pelanggan) Aktif | Pelanggan Existing Aktif | Existing Active Customers |
+| `m10SummaryInactive(Short)` | (Pelanggan) Existing Inaktif | Pelanggan Existing Inaktif | Existing Inactive Customers |
+| `m10SummaryDormant(Short)` | (Pelanggan) Dormant | Pelanggan Dormant | Dormant Customers |
+| `m10SummaryReactivated(Short)` | (Pelanggan) Reaktivasi | Pelanggan Reaktivasi | Reactivated Customers |
+| `m10SummaryRelapsed(Short)` | Dormant Kembali / Pelanggan Reaktivasi lalu Dormant Lagi | Dormant Baru / Pelanggan Dormant Baru | Newly Dormant (Customers) |
+
+Verifikasi: JSON valid (id+en) + `tsc --noEmit` bersih. Screenshot
+Playwright (layak — label jauh lebih panjang dari sebelumnya, perlu
+pastikan kartu tidak overflow/rusak) — 6 kartu tetap rapi, label wrap 2
+baris natural, tidak overflow. Versi Inggris TIDAK dicek via Playwright
+(ganti bahasa UI cuma utk lihat teks yang sudah divalidasi Read/JSON —
+pemborosan, pelajaran §36.20).
+
+**Susulan langsung** — instruksi user: *"Hapus kata pelanggan nya,
+terlalu panjang untuk card mini"*. Kata "Pelanggan"/"Customers" dibuang
+dari SEMUA key `*Short` (kartu) SAJA — key panjang (dialog
+M10ReactivationRate.tsx) TIDAK disentuh, tetap pakai "Pelanggan X"/
+"X Customers" (space cukup di situ, bukan kartu mini). Hasil akhir kartu:
+Total Existing / Existing Aktif / Existing Inaktif / Dormant /
+Reaktivasi / Dormant Baru — muat 1 baris, tidak wrap lagi. Verifikasi:
+JSON valid + `tsc --noEmit` bersih + screenshot Playwright (layout
+berubah lagi, layak dicek visual).
+
+---
+
+## 36.30 Kartu "Total Existing Customer" tab Repeat Order → "Existing Aktif" (2026-08-26)
+
+Instruksi user: *"Card total existing dihalaman retention / repeat order
+-> Existing Active"*. Key `customerMetrics.m6.summaryExisting` diubah
+id: "Total Existing Customer" → **"Existing Aktif"**, en: "Total Existing
+Customers" → **"Existing Active"** — konsisten dgn istilah "Existing
+Aktif"/"Existing Active" yang baru dipakai §36.28/§36.29 utk populasi
+yang SAMA PERSIS (established + transaksi periode ini).
+
+Key ini SHARED dgn `M6RepeatOrder.tsx` (kartu KpiCard di dashboard
+`/retention` utama, BUKAN cuma halaman Laporan) — perubahan otomatis
+kena ke KEDUANYA sekaligus (Centralize UI, 1 titik definisi). Diverifikasi
+via screenshot: tab Repeat Order Laporan Retention tampil "Existing
+Aktif / 855" dgn benar.
+
+Verifikasi: JSON valid + `tsc --noEmit` bersih + screenshot Playwright.
+
+---
+
+## 36.31 KAMUS KPI PELANGGAN v12 — label+tooltip 6 kartu Reaktivasi (2026-08-26)
+
+User memberikan versi kamus BARU yang lebih matang ("KAMUS KPI PELANGGAN
+v12 - UNTUK TOOLTIP"), 6 status dasar (New/Retained/Reactivated/
+Inactive/Dormant/Newly Dormant) + 3 metrik agregat (Retained Customers/
+Active Customers/Customer Base), LENGKAP dgn teks tooltip siap pakai per
+status. Instruksi eksplisit: rename 6 kartu (Total Existing→Existing
+Total, Existing Aktif→Retained, Existing Inaktif→Inactive, Dormant→
+Dormant, Reaktivasi→Reactivated, Dormant Baru→New Dormant) + pasang
+tooltip barunya.
+
+**Diterapkan** (label+tooltip SAJA, LABEL DIBIARKAN BAHASA INGGRIS
+persis instruksi — bukan diterjemahkan ke Indonesia, id/en locale
+sekarang isinya SAMA utk 6 label ini, dianggap istilah status baku):
+`m10Summary*Short`+`m10Summary*Info` (id+en) — Existing Total, Retained,
+Inactive, Dormant, Reactivated, New Dormant, tooltip VERBATIM dari teks
+yang diberikan user (sudah plain, "siap tempel"). Verifikasi: JSON
+valid + `tsc --noEmit` bersih + screenshot Playwright — 6 kartu tampil
+benar 1 baris, tidak wrap. Kolom Status TABEL di bawah (chip
+"Reaktivasi" dst) TIDAK ikut diubah — instruksi eksplisit cuma soal 6
+KARTU, bukan kolom tabel/dropdown filter (scope literal).
+
+### PENTING — definisi v12 BEDA dari SQL yang sudah diimplementasi (§36.28)
+
+Ditemukan (dianalisis, bukan tebakan) saat memetakan tooltip baru ke
+kartu: definisi v12 utk Retained/Reactivated **TIDAK LAGI berbasis
+ambang dormant multi-bulan** (`dormant_threshold`), tapi **murni
+perbandingan periode SEBELUMNYA vs periode INI**:
+
+- v12 "Retained" = ADA transaksi di periode SEBELUMNYA (langsung, 1
+  periode ke belakang) DAN periode ini.
+- v12 "Reactivated" = TIDAK ADA transaksi di periode SEBELUMNYA (1
+  periode ke belakang SAJA — TIDAK peduli sudah lewat ambang dormant
+  atau belum), TAPI ada transaksi periode ini.
+- v12 "Newly Dormant" = AKTIF (Retained/Reactivated/New) di periode
+  sebelumnya, lalu periode INI jadi Inactive ATAU Dormant.
+
+Ini BEDA dari SQL §36.28 (`was_dormant_at_prev` — cek APAKAH SUDAH LEWAT
+AMBANG X BULAN di akhir periode sebelumnya, bukan cuma "ada/tidak
+transaksi di 1 periode sebelumnya" mentah). Konsekuensi kalau v12
+diadopsi PENUH ke SQL: definisi "Reactivated" jadi JAUH LEBIH LUAS
+(siapa pun yang skip 1 periode langsung lalu balik lagi, TANPA perlu
+menunggu lewat ambang dormant, ikut terhitung) — populasi & angka bakal
+berubah signifikan dari yang sekarang tampil.
+
+**Catatan dev user (dilampirkan)**: *"Masa tenggang = parameter. Default
+3 bulan. Nanti bisa diset di config."* — app SUDAH py config threshold
+per kategori divisi (`ThresholdConfig['dormant']`, 3/6/12/6 bulan) utk
+Inactive/Dormant split, KEMUNGKINAN ini yang dimaksud (bukan config
+baru) — TAPI perlu dikonfirmasi krn beda dari "1 periode sebelumnya"
+utk Retained/Reactivated split.
+
+**BELUM dieksekusi**: rewrite SQL `fetchCustomerDormantStatusLog` ke
+definisi v12 penuh — user sendiri menutup pesan dgn pertanyaan "Mau
+lanjut bikin SQL CASE WHEN nya sekarang?", ditanyakan balik ke user
+utk konfirmasi scope sebelum eksekusi (perubahan logika nontrivial,
+angka bakal berubah dari yang sudah live sekarang).
+
+Ditanyakan via `AskUserQuestion` (2 pertanyaan: lanjut rewrite SQL
+sekarang atau tunda; "masa tenggang" pakai config per-divisi yang sudah
+ada atau diseragamkan 3 bulan) — **user MENOLAK tool itu**, minta
+diklarifikasi via chat biasa dulu. Belum sempat dijawab, user keburu
+kirim instruksi susulan (lihat §36.32) — 2 pertanyaan itu MASIH TERBUKA,
+belum terjawab.
+
+---
+
+## 36.32 Kamus tooltip diperhalus lagi — dokumentasi + tooltip diupdate (2026-08-26)
+
+Instruksi user: *"Update dulu dokumentasi, dan perbaiki tooltip dengan
+ini"* + teks kamus versi diperhalus (9 istilah — 6 status dasar + 3
+metrik agregat, TANPA nomor versi eksplisit kali ini, disebut di sini
+"v13" utk pembeda dari v12 §36.31):
+
+> - **New**: Pelanggan yang melakukan transaksi pertama di periode
+>   berjalan.
+> - **Retained**: Pelanggan yang ada transaksi periode sebelumnya, dan
+>   transaksi di periode berjalan.
+> - **Reactivated**: Pelanggan yang tidak ada transaksi periode
+>   sebelumnya, kembali transaksi di periode berjalan.
+> - **Inactive**: Pelanggan yang pernah transaksi sebelumnya, tidak ada
+>   transaksi di periode berjalan dan belum dormant.
+> - **Dormant**: Pelanggan yang pernah transaksi sebelumnya, dan masuk
+>   ambang dormant.
+> - **Newly Dormant**: Pelanggan yang Retained/Reactivated pada periode
+>   berjalan, dan menjadi dormant di periode yang sama.
+> - **Retained Total**: Jumlah pelanggan aktif di periode berjalan,
+>   terdiri dari jumlah Retained dan Reactivated.
+> - **Active Total**: Jumlah semua pelanggan aktif di periode berjalan,
+>   terdiri dari New, Retained, Reactivated.
+> - **Existing Total**: Jumlah total seluruh pelanggan yang pernah
+>   melakukan transaksi.
+
+**Diterapkan** ke 5 dari 6 tooltip kartu yang SUDAH ADA di tab Reaktivasi
+(Retained/Inactive/Dormant/Reactivated/New Dormant — teks VERBATIM dari
+kamus di atas, id+en, plus terjemahan Inggris manual krn kamus cuma
+dikasih dalam Bahasa Indonesia). "Existing Total" TIDAK berubah — teks
+kamus versi ini SAMA PERSIS dgn yang sudah dipasang §36.31 (tidak ada
+delta). Typo "Reactived" (kalau ada di sumber sebelumnya) dirapikan jadi
+"Reactivated" di teks final.
+
+**BELUM ada kartu UI-nya** (dicatat utk referensi masa depan, TIDAK
+dikerjakan sesi ini):
+- "New" (Pelanggan Baru) — data `active_new_count` sudah ada di backend
+  M3-M7 (lihat §36.27), belum jadi kartu di tab manapun.
+- "Retained Total" (Retained+Reactivated, = ADA transaksi periode ini,
+  TIDAK termasuk Inactive) — HATI-HATI jangan disamakan dgn "Belum
+  Dormant" versi lama §36.25 yang sudah dibuang (itu Retained+Reactivated+
+  Inactive, populasi lebih luas — beda cakupan).
+- "Active Total" (New+Retained+Reactivated) — populasi PALING LUAS,
+  mencakup pelanggan baru juga, beda dari SEMUA kartu M10 lain yang
+  scope-nya cuma existing customer.
+
+**Ambiguitas "Newly Dormant" TIDAK diselesaikan sendiri** (dicatat, bukan
+ditebak) — kalimat "Retained/Reactivated PADA PERIODE BERJALAN, dan
+menjadi dormant DI PERIODE YANG SAMA" secara harafiah kontradiktif
+(Retained/Reactivated MENSYARATKAN ada transaksi periode ini, sedangkan
+Dormant MENSYARATKAN sudah lewat ambang beberapa bulan tanpa transaksi —
+2 hal ini tidak bisa terjadi BERSAMAAN "di periode yang sama" scr
+harafiah). Kemungkinan besar maksudnya: "Retained/Reactivated di periode
+SEBELUMNYA, lalu jadi Dormant di periode INI" (konsisten dgn definisi
+v12 §36.31 yang lama) — TAPI ini TEBAKAN, belum dikonfirmasi ke user.
+Ditulis verbatim di tooltip TANPA diperbaiki sepihak, poin ini WAJIB
+diklarifikasi sebelum SQL "Newly Dormant" ditulis.
+
+**2 pertanyaan dari §36.31 MASIH TERBUKA** (rewrite SQL sekarang/tunda +
+pilihan config "masa tenggang") — instruksi giliran ini cuma soal
+dokumentasi+tooltip, BUKAN jawaban atas itu.
+
+Verifikasi: JSON valid (id+en) + `tsc --noEmit` bersih. TIDAK dibuka
+Playwright (murni teks tooltip, sudah dikonfirmasi via Read/JSON —
+pelajaran §36.20, sama kelasnya dgn §36.31 bukan §36.29 yang py
+perubahan layout).
+
+---
+
+## 36.33 2 label kartu lagi diselaraskan ke kamus (2026-08-26)
+
+Instruksi user: *"Ganti retention/dormant -> Jumlah dormant -> dormant
+dan perbaiki tooltip nya"* + *"Retention/repeat order -> Existing active
+-> Retained Total"*.
+
+1. **`dormantCustomer.dormantCountLabel`** ("Jumlah Dormant" → **"Dormant"**,
+   id+en) + tooltip diselaraskan ke definisi kamus v13 §36.32: *"Pelanggan
+   yang pernah transaksi sebelumnya, dan masuk ambang dormant."* — SAMA
+   PERSIS teks `m10SummaryDormantInfo` (Reaktivasi tab), krn konsepnya
+   memang identik. Key ini SHARED luas (Centralize UI) — 1 perubahan kena
+   ke 5 tempat sekaligus: kartu "Jumlah Dormant" M8DormantRate.tsx +
+   M10ReactivationRate.tsx (dashboard `/retention`), kartu Ekspansi
+   Laporan Growth (§36.23), kartu Dormant Laporan Retention (§36.19).
+2. **`customerMetrics.m6.summaryExisting`** ("Existing Aktif"/"Existing
+   Active" §36.30 → **"Retained Total"**, id+en) + tooltip diselaraskan
+   ke definisi kamus: *"Jumlah pelanggan aktif di periode berjalan,
+   terdiri dari jumlah Retained dan Reactivated."* — dikonfirmasi
+   semantiknya SAMA PERSIS dgn `total_existing` M6 yang sudah ada
+   (established + transaksi periode ini = Retained+Reactivated, TIDAK
+   termasuk New) — BUKAN cuma ganti nama, populasinya memang cocok.
+   Key SHARED dgn `M6RepeatOrder.tsx` (dashboard `/retention`) — ikut
+   berubah juga.
+
+Verifikasi: JSON valid (id+en, 2 file) + `tsc --noEmit` bersih +
+screenshot Playwright (label berubah, bukan cuma tooltip — layak
+verifikasi visual) — tab Repeat Order tampil "Retained Total / 855",
+tab Dormant tampil "Dormant / 21.256".
+
+---
+
+## 36.34 Kartu Cross Selling + Ekspansi (Growth) diselaraskan ke kamus (2026-08-26)
+
+Dipicu pertanyaan user: *"di menu growth/ cros selling total pelanggan
+aktif plus baru itu total aktif plus new?"* — dijawab: YA, populasi M1
+(`m1.repository.ts`, SEMUA customer dgn ≥1 transaksi periode ini, tanpa
+syarat riwayat) = persis "Active Total" kamus (New+Retained+Reactivated).
+Ditemukan label lama "Total Pelanggan Aktif + Baru" jadi REDUNDAN/rancu
+skrg krn "Active Total" scr definisi SUDAH mencakup New — user setuju
+diperbaiki via *"ya perbaiki label dan tooltip nya"*, lalu susulan:
+*"lanjutkan le growht/ekspansi card nya masih pakai denisi lama juga"*.
+
+**Cross Selling** — `crossSelling.activeCustomerLabelFull`: "Total
+Pelanggan Aktif + Baru" → **"Active Total"** (id=en, istilah kamus
+dipakai apa adanya) + tooltip diselaraskan ke definisi kamus B "Active
+Total": *"Jumlah semua pelanggan aktif di periode berjalan, terdiri dari
+New, Retained, Reactivated."*
+
+**Ekspansi** — 3 dari 6 kartu diselaraskan (2 lainnya, Spending Naik/
+Turun, BUKAN bagian taksonomi kamus, TIDAK disentuh; "Belum Dormant"
+TIDAK ADA padanan kamus tunggal — Retained+Reactivated+Inactive
+gabungan, TIDAK ada 1 istilah resmi utk itu — label dibiarkan, tooltip
+sudah cukup akurat dari §36.23, TIDAK diubah):
+- `customerMetrics.m7.summaryTotalPelanggan`: "Total Pelanggan" →
+  **"Existing Total"** + tooltip = definisi kamus "Existing Total".
+- `customerMetrics.m7.summaryDormantInfo` (tooltip kartu "Dormant" —
+  labelnya sendiri, via `dormantCustomer.dormantCountLabel`, SUDAH
+  "Dormant" sejak §36.33): diselaraskan ke definisi kamus "Dormant".
+- `customerMetrics.m7.summaryAktif` + `dialogActiveCountInfo`: "Aktif" →
+  **"Retained Total"** + tooltip = definisi kamus "Retained Total" —
+  dikonfirmasi populasinya SAMA PERSIS dgn kartu M6 Repeat Order
+  ("Retained Total" §36.33, established + transaksi periode ini =
+  Retained+Reactivated) — bukan cuma ganti nama, memang definisi yang
+  sama, konsisten dgn 2 kartu lain yang sudah dipakai istilah ini.
+
+Verifikasi: JSON valid + `tsc --noEmit` bersih + screenshot Playwright
+kedua tab — Cross Selling tampil "Active Total / 1.218", Ekspansi
+tampil "Existing Total / 32.631", "Dormant / 21.256", "Belum Dormant /
+11.375" (tak berubah), "Retained Total / 855", "Spending Naik / 589",
+"Spending Turun / 2.286" — 6 kartu tetap 1 baris rapi, tidak overflow.
+
+---
+
+## 36.35 Kamus tambah "Non-Dormant" + kolom Formula di tiap definisi (2026-08-26)
+
+Dipicu koreksi user thd klaim saya "Belum Dormant tidak ada padanan
+kamus tunggal" (§36.34) — dibuktikan salah via arithmetic: Retained
+(751) + Inactive (10.520) + Reactivated (104) = **11.375**, PERSIS
+"Belum Dormant". Instruksi user: *"Tambahkan 1 Definisi lagi non-dormant
+dan buat definisinya: Jumlah total pelanggan yang belum masuk ambang
+dormant"* + *"1 Lagi tambahkan rumus perhitungan di setiap definisi
+contoh non-dormant: inactive+retained+reactive"*.
+
+**Istilah baru**: **Non-Dormant** — "Jumlah total pelanggan yang belum
+masuk ambang dormant." Formula: `Inactive + Retained + Reactivated`
+(setara `Existing Total − Dormant`, dibuktikan 2 cara hitung hasilnya
+sama: 32.631 − 21.256 = 11.375).
+
+**Kolom Formula ditambahkan ke SEMUA 10 istilah kamus** (6 status dasar
++ 4 agregat termasuk Non-Dormant baru) — REWRITE PENUH section "Kamus
+Penamaan Pelanggan" di `docs-v2/shared/metrics_docs.md` (bukan cuma
+tempel di task029.md, krn ini rujukan teknis durable, task029.md tetap
+log kronologis SAJA + pointer ke situ) — isi lengkap termasuk:
+- Formula tiap 6 status dasar (kondisi boolean, bukan penjumlahan —
+  New/Retained/Reactivated/Inactive/Dormant presisi, "Newly Dormant"
+  DIBERI CATATAN "belum bisa dirumuskan presisi" — TIDAK dipaksakan
+  formula kalau definisinya sendiri masih ambigu/kontradiktif §36.32,
+  supaya tidak menyesatkan siapa pun yang baca dokumen ini nanti).
+- Formula 4 agregat (Retained Total/Active Total/Existing Total/
+  Non-Dormant) — semua SALING KONSISTEN, diverifikasi silang dgn angka
+  live UI (lihat detail di metrics_docs.md).
+- Tabel "Status implementasi UI" (kartu mana sudah pakai istilah apa) —
+  BARU, belum pernah ada sebelumnya, bantu lihat sekilas progress tanpa
+  scroll §36.29-§36.34.
+- 2 pertanyaan terbuka (SQL rewrite, config masa tenggang) DIPERTAHANKAN
+  eksplisit di bagian akhir — supaya tidak hilang tertimbun histori.
+
+**TIDAK dikerjakan** (di luar instruksi literal giliran ini — cuma
+"tambah definisi + rumus" ke DOKUMENTASI): label kartu "Belum Dormant"
+di tab Ekspansi TIDAK diganti jadi "Non-Dormant" — user belum minta itu
+eksplisit, ditahan sampai diinstruksikan.
+
+Verifikasi: dokumentasi murni, tidak ada kode diubah, tidak perlu
+tsc/eslint/Playwright.
+
+---
+
+## 36.36 Ambiguitas "Newly Dormant" DIKLARIFIKASI via contoh konkret (2026-08-26)
+
+Saya tanya balik contoh konkret utk klarifikasi §36.32/§36.35. Jawaban
+user: *"tidak, contoh konkretnya misal tarik data periode 1 semester
+januari dia activ/reactive feruari sampe mei dia tidak aktif juni masuk
+dormant"*.
+
+**Ini MEMATAHKAN dugaan awal saya** (Retained/Reactivated di periode
+SEBELUMNYA sbg bucket terpisah → Dormant di periode INI). Yang benar:
+"periode berjalan" merujuk ke RENTANG PERIODE YANG SEDANG DITARIK SECARA
+UTUH (bisa lebar — contoh user pakai 1 SEMESTER, bukan 1 bulan) — bukan
+1 titik waktu sempit. Transisi status (belum dormant → dormant) terjadi
+DI DALAM rentang periode itu SENDIRI, dibandingkan **AWAL vs AKHIR
+periode yang SAMA** — BUKAN 2 bucket periode berurutan yang terpisah.
+Contoh user pas menjelaskan kenapa: ambang dormant (multi-bulan) BISA
+terlewati DI DALAM 1 periode kalau periodenya lebar (semester/kuartal)
+— Januari transaksi, diam 4 bulan (Feb-Mei), per akhir Juni (akhir
+periode semester) sudah lewat ambang → jadi "Newly Dormant" utk laporan
+semester itu, meski di laporan BULANAN transisi yang sama akan muncul
+di titik bulan yang berbeda-beda (bukan constraint 1 semester).
+
+**Formula final** (ditulis ke `docs-v2/shared/metrics_docs.md`,
+placeholder "belum bisa dirumuskan presisi" DIHAPUS/diganti): *"BELUM
+dormant di AWAL periode berjalan DAN SUDAH dormant di AKHIR periode
+berjalan."*
+
+**KOREKSI (2026-08-26, susulan pertanyaan tajam user: "bukankah fungsi
+reactive dan dormant sudah ada? tapi untuk periode yang panjang, 6
+bulan baru berfungsi")** — klaim awal SALAH, sudah diverifikasi ulang
+ke source (`metrics.service.ts getDormantStatusBreakdown`,
+`prevEnd = prevRange.end` dari `getPeriodRange(periodType, prevKey)` —
+periode SEBELUMNYA di granularitas SAMA, SELALU bersambung persis dgn
+`bucket.start` utk granularitas APA PUN, bukan cuma kasus khusus).
+`was_dormant_at_prev` (SUDAH dihitung, relatif ke `prevBucket.end`)
+TERNYATA memang SUDAH PERSIS setara "status dormant di awal periode
+berjalan" — BUKAN field baru. Formula final: `Newly Dormant =
+NOT was_dormant_at_prev AND is_dormant_at_me` — **1 cabang CASE WHEN
+baru SAJA**, reuse 2 boolean yang SUDAH dimaterialisasi di CTE
+`classified` (m8m10.repository.ts) — TIDAK perlu CTE/join baru sama
+sekali. Jauh lebih murah drpd perkiraan awal saya.
+
+User jg benar soal "6 bulan baru berfungsi" — utk periode SEMPIT
+(bulanan), jendela [bucket.start, bucket.end] jarang cukup lebar utk
+ambang dormant (multi-bulan) benar2 terlewati DI DALAM 1 bucket itu
+sendiri (transisi biasanya kepotong across beberapa bucket bulanan
+berurutan) — utk periode LEBAR (semester/tahunan), jendelanya cukup,
+transisi lebih sering kelihatan. Mekanisme SQL-nya SAMA utk semua
+granularitas (sudah generik), cuma FREKUENSI kemunculan hasil non-nol
+yang beda tergantung lebar periode dipilih user — bukan bug/keterbatasan
+kode.
+
+Masih BELUM dikerjakan (SQL-nya sendiri) — 2 pertanyaan §36.31 (kapan
+lanjut, config masa tenggang) masih pending, TAPI sekarang scope-nya
+sudah jelas jauh lebih murah/rendah-risiko drpd perkiraan sebelumnya.
+
+Verifikasi: dokumentasi murni (metrics_docs.md tabel A + catatan
+ambiguitas diganti jadi catatan klarifikasi), tidak ada kode diubah.
+
+---
+
+## 36.37 Status `newlyDormant` ditambahkan ke SQL — kartu "New Dormant" diperbaiki datanya (2026-08-26)
+
+Susulan §36.36 — user tanya *"Kalau sudah ada apa yang mau ditambahkan?
+bukankah newly dormant sudah ada juga fungsinya?"*. Dicek presisi ke
+source: **belum** — boolean `was_dormant_at_prev`/`is_dormant_at_me`
+sudah ada, TAPI CASE WHEN belum py cabang yang memisahkannya, jadi
+customer yang BARU SAJA masuk dormant tetap numpuk jadi status
+`'dormant'` polos, tidak dibedakan dari yang MEMANG sudah lama dormant.
+
+**Temuan penting (proaktif, verifikasi ulang, bukan diminta)**: kartu
+yang SUDAH berlabel "New Dormant" di UI (hasil rename bertahap
+§36.29→§36.32) ternyata **datanya masih `relapsed`** ("Dormant
+Kembali", konsep LAMA — sempat dormant, reaktivasi, dormant lagi) —
+label sudah diganti berkali-kali TAPI sumber data tidak pernah ikut
+diganti, jadi labelnya sekarang "benar" (matching kamus v13) tapi
+angkanya SALAH (masih concept lama). Disampaikan ke user, dikonfirmasi:
+*"New Dormant itu Newlydormant"*.
+
+### Perubahan backend
+
+`fetchCustomerDormantStatusLog` (m8m10.repository.ts) — CASE WHEN
+ditambah 1 cabang BARU `WHEN is_dormant_at_me AND NOT was_dormant_at_prev
+THEN 'newlyDormant'`, DISISIPKAN sebelum cabang `'dormant'` generik
+(urutan CASE penting — supaya `'dormant'` polos otomatis cuma menyisakan
+kasus `was_dormant_at_prev=true`, genuinely "masih dormant, tidak ada
+perubahan"). TIDAK ada CTE/join baru — 100% reuse 2 boolean yang sudah
+dimaterialisasi. `DormantCustomerStatus` (metrics.types.ts) jadi 6 nilai:
+`'active' | 'inactive' | 'dormant' | 'newlyDormant' | 'reactivated' |
+'relapsed'`. Zod enum (metrics.schema.ts) ikut ditambah.
+
+**Verifikasi langsung ke DB** (`getDormantStatusBreakdown`, Agustus 2026,
+semua entitas): `active`=751, `inactive`=10.520, `dormant`=19.200,
+`newlyDormant`=**2.056**, `reactivated`=104, `relapsed`=0. Jumlah =
+32.631, PERSIS total baris — partisi 6-arah terbukti exhaustive &
+mutually exclusive.
+
+### Perubahan frontend
+
+- `types/metrics.ts` — mirror type backend.
+- `dormantHelpers.tsx` — `STATUS_COLOR.newlyDormant = 'warning'` (beda
+  urgensi dari `dormant` polos yang `'error'` — baru saja terjadi vs
+  sudah lama).
+- i18n (`dormantCustomer.json` id+en) — `statusNewlyDormant` (chip tabel),
+  `m10SummaryNewlyDormant`(+Short+Info) (kartu+dialog dashboard). SEKALIAN
+  `m10SummaryRelapsed*` DIKEMBALIKAN ke makna ASLINYA ("Dormant Kembali",
+  bukan lagi dipakai utk "New Dormant" yang salah kaprah) — label BARU:
+  id "Dormant Kembali", en "Re-dormant".
+- `ReactivationSummaryCards.tsx` — prop `newlyDormant` baru, kartu ke-6
+  "Newly Dormant" (icon `ReportProblemOutlinedIcon`, warning), kartu
+  ke-7 "Dormant Kembali" DIKEMBALIKAN sbg kartu terpisah (icon
+  `WarningAmberIcon`, error, SESUAI instruksi lama user: "Dormant lagi
+  tetap pertahankan sebagai informasi detail tambahan") — jadi 7 kartu
+  total, bukan 6. `highlighted` TETAP di kartu "Reactivated" (tidak
+  dipindah — tab ini "Reaktivasi", itu KPI utamanya, sesuai konvensi
+  sejak §36.17).
+- `Report/Retention/index.tsx` — `statusCounts.newlyDormant` ditambah,
+  `ReactivationSummaryCards` dapat prop baru, dropdown filter Status
+  tambah opsi "Newly Dormant".
+- `M10ReactivationRate.tsx` (dialog dashboard `/retention`, TERPISAH
+  dari halaman Laporan) — `counts.newlyDormant` ditambah, baris ringkasan
+  teks baru "Pelanggan Baru Dormant: N".
+
+### Verifikasi
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih. Screenshot
+Playwright tab Reaktivasi: 7 kartu tampil — Existing Total (32.631),
+Retained (751, 2.3%), Inactive (10.520, 32.2%), Dormant (19.200, 58.8%),
+Newly Dormant (2.056, 6.3%), Reactivated (104, 0.3%, highlighted),
+Dormant Kembali (0, 0.0%) — jumlah 751+10520+19200+2056+104+0 = 32631,
+cocok persis dgn Existing Total. 7 kartu masih 1 baris, tidak overflow.
+
+### Belum dikerjakan (di luar scope literal instruksi giliran ini)
+
+Kartu "Belum Dormant" di tab Ekspansi (Laporan Growth) TIDAK ikut
+diupdate label/datanya — instruksi giliran ini spesifik ttg tab
+Reaktivasi. `docs-v2/shared/metrics_docs.md` §"Status implementasi UI"
+DIUPDATE menandai penambahan status ke-6 ini (§36.37 sendiri, lewat 2
+edit langsung ke tabel A + baris "Status implementasi UI").
+
+---
+
+## 36.38 Audit menyeluruh: definisi baru sudah dipakai di SEMUA kartu? (2026-08-26)
+
+User tanya: *"Definisi customer yang dipakai di semua cart sudah ganti
+dengan definisi baru? Untuk mengurangi kebingungan definisi berbeda
+antar halaman"*. Diaudit via grep+baca source (bukan tebakan), hasil
+dipetakan 4 kategori:
+
+1. **Selaras penuh** (label + kalkulasi genuinely dipecah): tab
+   Reaktivasi Laporan Retention (7 kartu) + dialog M10 dashboard
+   `/retention` (fungsi backend sama).
+2. **Label baru, kalkulasi angka gabungan lama**: kartu "Retained Total"
+   di tab Repeat Order/Ekspansi — angkanya kebetulan cocok (855) tapi
+   dihitung dari query M6/M7 lama, bukan genuinely dijumlah dari status
+   Retained+Reactivated per-customer.
+3. **DITEMUKAN BUG NYATA**: kartu "Dormant" di tab Dormant (Laporan
+   Retention) & Ekspansi (Laporan Growth) — datanya masih fungsi M9 lama
+   (`fetchDormantValueRanking`), BELUM py split newlyDormant spt M10.
+   Dibuktikan: 21.256 = Dormant M10 (19.200) + Newly Dormant M10 (2.056)
+   — kartu "Dormant" tab lain sebenarnya "Dormant+Newly Dormant
+   digabung", BUKAN "Dormant" murni spt di tab Reaktivasi — 2 kartu
+   LABEL SAMA, angka beda tab beda arti.
+4. **Belum tersentuh sama sekali** — dashboard M1/M2 ("Customer Aktif"),
+   M3/M4/M5 ("Total Existing Customer"), M7 ("Total Existing Belum
+   Dormant") — masih istilah lama sepenuhnya, termasuk kartu ringkasan
+   DAN dialog drill-down.
+
+**Ditanyakan via `AskUserQuestion`** (2 pertanyaan: cara perbaiki kartu
+"Dormant" yang konflik + mau selaraskan dashboard M1-M9 sekarang atau
+tunda) — user jawab: **"Pisahkan kalkulasinya (Recommended)"** + **"Selaraskan sekarang"**.
+Susulan langsung: *"New Dormant itu Newlydormant"* (konfirmasi §36.37) +
+*"Termasuk definisi di card dan drill down"* (scope dashboard eksplisit
+mencakup dialog, bukan cuma kartu ringkasan).
+
+---
+
+## 36.39 Split "Dormant"/"Newly Dormant" diterapkan ke M9 (`fetchDormantValueRanking`) (2026-08-26)
+
+Eksekusi keputusan #1 (§36.38) — terapkan split `was_dormant_at_prev`/
+`is_dormant_at_me` (formula SAMA PERSIS M10 §36.37) ke fungsi M9 yang
+dipakai BERSAMA oleh M8 dialog drilldown, M9 chart, DAN kedua tab
+Laporan (Dormant + Ekspansi).
+
+### Perubahan backend
+
+- `fetchDormantValueRanking` (m8m10.repository.ts) — parameter baru
+  `prevFilterDate?: string`. `cust_last` CTE dilengkapi kolom
+  `is_newly_dormant` (dihitung DI SINI, bukan `cust_agg` — sempat salah
+  taruh sekali, error Postgres "missing FROM-clause entry for table c"
+  krn `dormantThresholdSql` mereferensikan kolom `c`/`cdv` yang cuma ada
+  di scope `cust_last`, diperbaiki). Tanpa `prevFilterDate` (caller
+  lama), `is_newly_dormant` SELALU `false` (backward-compat, no-op).
+  `DormantValueRow` (metrics.types.ts + frontend types/metrics.ts)
+  dapat field baru `is_newly_dormant: boolean`.
+- `dormantCustomerQuerySchema` (metrics.schema.ts) — field baru
+  `date_from` (endpoint `getDormantBreakdown`/Report pages SEBELUMNYA
+  sama sekali TIDAK granularity-aware, tidak py `date_from` — sekarang
+  py, pola sama `dormantStatusBreakdownQuerySchema`).
+- 3 caller `fetchDormantValueRanking` (metrics.service.ts) diupdate
+  kirim `prevFilterDate`: `getDormantCustomerMetrics` (2x, live +
+  comparison — reuse `dormantBaselineBucket`/`comparisonPrevBuckets`
+  yang SUDAH dihitung di fungsi yang sama utk `fetchCustomerDormantStatusLog`,
+  1 sumber kebenaran "apa itu prevBucket"), `getDormantBreakdown`
+  (BARU hitung prevFilterDate dari `date_from`+`period_type`, pola sama
+  `getDormantStatusBreakdown`).
+
+**Verifikasi langsung ke DB** (repository dipanggil langsung, Agustus
+2026, prevFilterDate=2026-07-31): total=21.256, newlyDormant=**2.056**,
+pureDormant=**19.200** — PERSIS SAMA dgn angka M10 (19.200/2.056,
+§36.37). Backward-compat dicek juga: TANPA prevFilterDate, newlyDormant
+selalu 0, total baris TIDAK berubah (21.256) — tidak ada regresi.
+
+### Perubahan frontend
+
+- `useDormantBreakdown` hook + `metricsApi.getDormantBreakdown` — param
+  `date_from`/`period_type` baru.
+- `Report/Retention/index.tsx` (tab Dormant) — kirim `date_from`/
+  `period_type`, `dormantTotals.count` SEKARANG exclude newly dormant
+  (murni "Dormant"), `newlyDormantCount` baru (lostValue/lostGp TETAP
+  gabungan — "total nilai berisiko" tetap relevan utk SEMUA dormant,
+  tidak dipecah). Kartu baru "Newly Dormant" ditambahkan (icon
+  `ReportProblemOutlinedIcon`).
+- `Report/Growth/index.tsx` (tab Ekspansi) — sama, `dormantCount`
+  sekarang murni, `newlyDormantCount` baru, `totalPelangganCount`
+  formula diupdate jadi `dormant + newlyDormant + belumDormant`. Kartu
+  jadi 7 (dari 6), `md` fixed dihapus (biarkan default responsive,
+  konsisten pola tab Reaktivasi).
+
+### Verifikasi
+
+`tsc --noEmit` bersih (backend+frontend), `eslint` bersih. Screenshot
+Playwright KEDUA tab: Dormant tab tampil "Dormant / 19.200" + "Newly
+Dormant / 2.056" (PERSIS sama dgn tab Reaktivasi); Ekspansi tab tampil
+7 kartu — Existing Total (32.631) = Dormant (19.200) + Newly Dormant
+(2.056) + Belum Dormant (11.375), cocok persis secara matematis.
+
+---
+
+## 36.40 Dashboard M1-M9 diselaraskan ke istilah kamus v13 (2026-08-26)
+
+Eksekusi keputusan #2 (§36.38, dgn susulan: *"Termasuk definisi di card
+dan drill down"*) — dashboard M1-M6 (halaman `/growth`, `/value` alias
+Revenue, `/retention`) diselaraskan ke istilah kamus, MENCAKUP kartu
+ringkasan DAN dialog drill-down, bukan cuma kartu.
+
+**Prinsip**: cuma ganti label yang POPULASINYA sudah diverifikasi cocok
+1:1 dgn istilah kamus (via cek field binding di source, bukan tebak
+dari nama variabel) — TIDAK ada perubahan kalkulasi/data sama sekali di
+bagian ini, murni relabeling.
+
+- `crossSelling.activeCustomerLabel` (M1/M2 dashboard, kartu ringkasan
+  chart) — "Customer Aktif"/"Active Customers" → **"Active Total"**
+  (id=en) — populasi M1 (SEMUA customer transaksi periode ini, tanpa
+  syarat riwayat, §34) = definisi kamus "Active Total" persis, sudah
+  dikonfirmasi user sebelumnya (§36.34).
+- `customerMetrics.m3/m4/m5/m6.summaryExisting` (kartu ringkasan
+  dashboard M3-M6) — "Total Existing Customer" → **"Retained Total"**
+  (id=en) — SEMUA 4 KPI ini dikonfirmasi bind ke field `total_existing`
+  yang SAMA (established + transaksi periode ini = Retained+Reactivated).
+- `customerMetrics.m3/m4/m6.dialogTotalExisting` (dialog drill-down klik
+  titik chart M3/M4/M6) — dicek per KPI via grep binding field di
+  komponen: M3 "Total Established (Active+Existing)" → **"Retained
+  Total"**; M4 "Total Established (Active+Existing)" → **"Retained
+  Total"**; M6 "Total existing customer" → **"Retained Total"** —
+  KETIGANYA dikonfirmasi bind ke `breakdown.total_existing`, field yang
+  SAMA persis dgn `summaryExisting` di atas (1 field, 2 label beda —
+  sekarang disatukan).
+- `customerMetrics.m5.dialogTotalExisting` — "Total existing customer"
+  → **"Retained Total"** (sama field `hmBreakdown.total_existing`).
+- **TIDAK diubah** (sengaja): `customerMetrics.m7.summaryExisting`/
+  `dialogTotalExisting` ("Total Existing Belum Dormant"/"Total Existing
+  Not-Yet-Dormant") — field M7 ini BEDA populasi (Retained+Reactivated+
+  Inactive, tanpa Dormant) dari M3-M6, TIDAK ada istilah kamus tunggal
+  utk itu (sama keputusan §36.34 utk kartu "Belum Dormant" Laporan
+  Growth — konsisten, bukan terlewat).
+- M1/M2 TIDAK punya dialog drill-down dgn label "Existing" terpisah
+  (dicek, nihil) — cukup kartu ringkasan saja. M8/M9 dashboard TIDAK
+  py label "Existing" tambahan di luar `dormantCountLabel` yang SUDAH
+  diselaraskan §36.33/36.39 (dicek, nihil).
+
+Verifikasi: JSON valid (id+en, 2 file) + `tsc --noEmit` bersih.
+Screenshot Playwright: dashboard `/growth` (M1) tampil "ACTIVE TOTAL /
+1218"; dashboard `/value` (M3+M4, halaman sama) tampil "RETAINED TOTAL
+/ 855" di KEDUA kartu M3 dan M4 (field sama, hasil sama, sesuai
+ekspektasi). Dialog drill-down TIDAK diverifikasi via klik-Playwright
+(SVG chart, koordinat sulit ditarget) — diverifikasi via pembacaan
+source (field binding dikonfirmasi identik dgn kartu ringkasan yang
+SUDAH diverifikasi visual) + pembacaan langsung teks i18n final.
+
+---
+
+## 36.41 Koreksi §36.40: "Belum Dormant" seharusnya "Non-Dormant" (2026-08-26)
+
+User koreksi: *"Belum Dormant Bukankah ini seharusnya pakai
+non-Dormant??"*. **Benar, saya salah** — klaim §36.34/§36.38/§36.40
+("TIDAK ada istilah kamus tunggal utk populasi Belum Dormant") KELIRU —
+"Non-Dormant" itu istilah yang SUDAH ditambahkan sendiri ke kamus di
+§36.35 (*"Jumlah total pelanggan yang belum masuk ambang dormant"* =
+Inactive+Retained+Reactivated), TAPI terlewat saat mengaudit §36.38 —
+tidak disadari 2 istilah itu ("Belum Dormant" lama vs "Non-Dormant"
+baru) merujuk populasi yang SAMA PERSIS (11.375, dibuktikan §36.34).
+
+**Diperbaiki** — SEMUA occurrence "Belum Dormant"/"Total Existing
+Belum Dormant"/"Total Existing Not-Yet-Dormant" → **"Non-Dormant"**
+(id=en, istilah kamus resmi dipakai apa adanya):
+- `customerMetrics.m7.summaryBelumDormant` (kartu Ekspansi Laporan
+  Growth) — "Belum Dormant" → "Non-Dormant".
+- `customerMetrics.m7.summaryExisting` (kartu dashboard M7 `/growth`)
+  + tooltip-nya diselaraskan ke definisi resmi Non-Dormant.
+- `customerMetrics.m7.dialogTotalExisting` (dialog drill-down M7
+  dashboard + M7Expansion.tsx workbench, key SHARED).
+
+**Sekalian ditemukan & diperbaiki 1 lagi yang KETINGGALAN dari §36.40**
+(luput saat audit dialog kemarin): `customerMetrics.m7.dialogActiveCount`
+("Total Existing Customer") — dicek field binding-nya SAMA PERSIS
+`summaryAktif` (m7) yang sudah "Retained Total" sejak §36.40, TAPI versi
+dialog-nya kelewat. Diselaraskan jadi **"Retained Total"** juga.
+
+Verifikasi: JSON valid (id+en) + `tsc --noEmit` bersih + screenshot
+Playwright tab Ekspansi — kartu tampil "Non-Dormant / 11.375" dgn benar,
+7 kartu tetap rapi tidak overflow.
+
+---
+
+## 36.42 Audit lanjutan: split diterapkan juga ke M8 trend chart (2026-08-26)
+
+User tanya ulang: *"Semua sudah selaras? Halaman menu business/groowth,
+retention dan revenue?"* — diaudit LAGI secara sistematis (bukan asumsi
+dari kerjaan sebelumnya): grep semua 9 komponen M1-M10 yang dirender 3
+halaman dashboard (`Growth/index.tsx`→M1/M2/M7, `Retention/index.tsx`→
+M6/M8/M9/M10, `Value/index.tsx`→M3/M4/M5).
+
+**Ditemukan 1 gap lagi**: kartu "Dormant" + tooltip chart tren 12 bulan
+di **M8** (`M8DormantRate.tsx`) pakai fungsi backend **BERBEDA**
+(`fetchDormantTrend`, dipakai jg M10) — BUKAN `fetchDormantValueRanking`
+yang sudah dipecah §36.39. Ditanyakan via `AskUserQuestion` (perlu
+pecah 12 titik historis, bukan 1 snapshot spt M9 kemarin — kerjaan lebih
+besar) — user jawab **"Ya, perbaiki sekarang (Recommended)"**.
+
+### Perubahan backend
+
+`fetchDormantTrend` (m8m10.repository.ts) — 1 aggregate BARU
+`newly_dormant_count` ditambahkan ke SELECT akhir, formula SAMA PERSIS
+(`NOT was_dormant_at_prev AND is_dormant_at_me`) — **TIDAK perlu CTE/join
+baru SAMA SEKALI**, krn `last_at_prev_me`/`prev_me`/`dormant_threshold`
+SUDAH dimaterialisasi di CTE `cxm` (dipakai jg utk `prev_dormant_count`
+yang sudah ada). `dormant_count` TIDAK diubah (TETAP gabungan,
+backward-compat — banyak consumer lain: `dormant_light_count`/
+`dormant_severe_count` severity-split, `reactivation_rate` denominator).
+`DormantTrendRow`/`DormantRateCurrent` (metrics.types.ts + frontend
+types/metrics.ts) dapat field baru `newly_dormant_count`.
+`getDormantCustomerMetrics` → `dormant_rate_current.newly_dormant_count`
+diisi dari titik trend terakhir.
+
+**Verifikasi ke DB** (via `getDormantCustomerMetrics`, titik terakhir
+Agustus 2026): dormant_count=19.304, newly_dormant_count=**2.346**,
+dormant murni=**16.958** (19304-2346, exact). **Catatan penting**:
+angka ini BEDA dari M9/M10 (19.200/2.056) — BUKAN bug, M8 trend
+"Agustus" secara sengaja snapshot per AKHIR JULI (bulan tertutup penuh,
+aturan bisnis lama sudah terdokumentasi §30.9/§13), sedangkan M9/M10
+snapshot per HARI INI (26 Agustus) — 2 titik waktu BEDA by design,
+TIDAK pernah dimaksudkan match persis. Konsistensi INTERNAL yang
+diverifikasi: 16.958+2.346=19.304 (exact, exhaustive).
+
+### Perubahan frontend
+
+- `M8DormantRate.tsx` — tooltip chart (`M8Tooltip`) tambah baris "Newly
+  Dormant" terpisah, baris "Dormant" existing diganti jadi murni
+  (`dormant_count - newly_dormant_count`). 3 KpiCard (`md:4`) jadi 4
+  (`md:3`) — tambah kartu "Newly Dormant", kartu "Dormant" existing
+  diganti murni juga.
+- `M10ReactivationRate.tsx` — tooltip + KpiCard "Jumlah Dormant" (yang
+  SUDAH terdokumentasi sbg "SAMA PERSIS angka M8", lihat komentar lama
+  di file) diselaraskan juga jadi murni, mempertahankan konsistensi yang
+  sudah didokumentasikan sebelumnya.
+
+### Verifikasi
+
+`tsc --noEmit` bersih (backend+frontend) + `eslint` bersih. Screenshot
+Playwright dashboard `/retention`: 4 kartu M8 tampil — Dormant Rate
+(59.2%), **Dormant (16.958)**, **Newly Dormant (2.346)**, Total
+Customer (32.631) — cocok matematis (16.958+2.346=19.304, rate≈59.2%
+dari 32.631). M10 TIDAK di-screenshot terpisah (scroll teknis gagal
+ditarget) — cukup yakin krn kode dikonfirmasi pakai `last` trend point
+OBJECT YANG SAMA persis dgn M8 (field sama, backend sama).
+
+### Kesimpulan audit "sudah selaras semua?"
+
+**YA, sekarang genuinely selaras** di 3 halaman dashboard (`/growth`,
+`/retention`, `/value`) + halaman Laporan (`/report/*`) — SEMUA kartu
++ dialog drill-down + tooltip chart yang merepresentasikan konsep
+Retained Total/Active Total/Non-Dormant/Dormant/Newly Dormant sudah
+pakai istilah DAN (di titik-titik yang relevan) kalkulasi yang
+konsisten dgn Kamus Penamaan Pelanggan v13. 3 hal masih SENGAJA BEDA
+(bukan celah, keputusan desain terdokumentasi): (1) M1/M2 "Active
+Total" vs M3-M6 "Retained Total" — populasi genuinely beda (§34); (2)
+M7/Ekspansi "Non-Dormant" tanpa split Retained/Inactive/Reactivated
+granular spt M10 (M7 tidak py period-over-period classification); (3)
+M8 trend snapshot per akhir bulan tertutup vs M9/M10 snapshot hari ini
+— 2 titik waktu berbeda by design lama.
+
+## 36.43 Koreksi §36.37-42: "Newly Dormant" DIBATALKAN sbg konsep baru — cuma rename "Dormant Kembali" (2026-08-26)
+
+User menegur keras §36.37-42 SALAH ARAH: *"Dormant kembali itu diganti
+nama menjadi newlydormant, hanya itu... bukan membuat fungsi baru,
+difungsi dormant kembali sudah bisa menangkap customer yang reactive
+lalu dorman lagi."* — §36.37 dulu membaca "New Dormant itu Newlydormant"
+sbg instruksi bikin STATUS BARU (formula `NOT was_dormant_at_prev AND
+is_dormant_at_me`, DIPISAH dari status lama `relapsed`), lalu §36.39/
+§36.42 menyebarkan split itu ke M9/M8/Report tabs. SALAH — maksud user
+dari awal: status `relapsed` ("Dormant Kembali", customer yg sempat
+reaktivasi lalu dormant lagi) SUDAH PERSIS konsep yang dimaksud,
+tinggal di-RENAME jadi `newlyDormant`, bukan dibuatkan logika terpisah.
+
+**Reverted sepenuhnya**: `is_newly_dormant` (M9 `fetchDormantValueRanking`
++ param `prevFilterDate`/`existingSince` kedua), `newly_dormant_count`
+(M8 `fetchDormantTrend`), `date_from`/`period_type` tambahan di
+`dormantCustomerQuerySchema`/`getDormantBreakdown` — SEMUA dihapus.
+`fetchCustomerDormantStatusLog` (M10) — cabang CASE WHEN `relapsed`
+di-RENAME jadi `newlyDormant` (logika tetap: `was_dormant_at_prev AND
+reactivation_date IS NOT NULL AND is_dormant_at_me`), cabang flip
+terpisah yang sempat ditambah §36.37 DIHAPUS. `DormantCustomerStatus`
+sekarang 5 nilai (`active|inactive|dormant|reactivated|newlyDormant`),
+bukan 6. Kartu M8 "Newly Dormant" terpisah dihapus (balik 3 kartu).
+Kartu M9/Ekspansi Laporan "Newly Dormant" terpisah dihapus. Kartu M10
+"Newly Dormant"+"Dormant Kembali" (2 kartu §36.37) digabung balik jadi
+1 kartu "Newly Dormant" (6 kartu total, bukan 7). `tsc --noEmit` bersih
+backend+frontend setelah revert.
+
+## 36.44 Gap lama ketemu: M8 masih pakai "Total Customer"/"Pelanggan Aktif" (2026-08-26)
+
+User: *"Definisi yang dipakai di drildown pop up belum kamu perbaiki"*
++ 2 screenshot — dialog "Customer Dormant" (M8) dan kartu KPI "TOTAL
+CUSTOMER" di dashboard Retention, ditandai merah: *"ini juga masih
+tital customer"*. Ternyata TIDAK terkait revert §36.43 — ini gap LAMA
+dari audit kamus v13 (§36.38/§36.40/§36.42) yang terlewat: M8
+(`M8DormantRate.tsx`) py 4 titik pakai label mentah bukan istilah
+kamus — kartu KPI `totalCustomerLabel`, dialog drilldown
+`m8SummaryTotal`+`m8SummaryActive`, dan tooltip chart (reuse
+`totalCustomerLabel` yang sama).
+
+**Perbaikan (i18n saja, murni teks, tidak ada logic/data yang berubah)**:
+- `totalCustomerLabel`: "Total Customer" → **"Existing Total"**
+  (field `total_customers` = populasi established customer, persis
+  definisi Existing Total di kamus).
+- `m8SummaryTotal` (dialog): "Total Pelanggan" → **"Existing Total"**.
+- `m8SummaryActive` (dialog): "Pelanggan Aktif" → **"Non-Dormant"**
+  (field `active_count` = existing customer yang BELUM lewat ambang
+  dormant = Inactive+Retained+Reactivated, persis definisi Non-Dormant
+  di kamus — bukan "aktif" dlm arti sempit transaksi periode ini).
+- id+en, `tsc --noEmit` bersih (perubahan i18n murni, tidak menyentuh
+  kode). Kamus (`metrics_docs.md`) diperbarui: baris "Newly Dormant"
+  yang masih pakai formula lama (peninggalan §36.37 sebelum revert
+  §36.43) diperbaiki, tabel status implementasi UI ditambah baris M8.
+
+## 36.45 Dialog "Status Customer" (M10) tidak rekonsiliasi ke kartu KPI "Dormant" (2026-08-26)
+
+User kirim 3 screenshot: kartu KPI M10 "DORMANT: 19.304", dialog "Status
+Customer" (dibuka dari titik yang sama) menampilkan "Pelanggan Dormant:
+21.256" — beda ~2.000, membingungkan krn dari halaman/titik data yang
+sama. Penyebab: `fetchCustomerDormantStatusLog` pakai `bucket`=liveBucket
+(HARI INI) utk klasifikasi dormant/aktif/inaktif, sedangkan kartu
+KPI/chart tren (`fetchDormantTrend`) SELALU pakai snapshot bulan
+tertutup (`prevBucket`/`dormantBaselineBucket`, konvensi "digeser 1
+bulan" §-JSDoc `fetchDormantTrend`). Dikonfirmasi via `AskUserQuestion`
+— user pilih **"Ya, terapkan (Recommended)"**.
+
+**Perbaikan** (`fetchCustomerDormantStatusLog`, m8m10.repository.ts):
+- `transacted_in_period` — dari `last_at_me >= bucket.start` (live)
+  jadi `last_at_prev_me >= prevBucket.start` (snapshot bulan tertutup,
+  field `last_at_prev_me` SUDAH ada di CTE `cxm`, tidak perlu kolom baru).
+- Cabang CASE WHEN `'dormant'` — dari `is_dormant_at_me` (live) jadi
+  `was_dormant_at_prev` (snapshot bulan tertutup, field SUDAH ada).
+- `reactivation_date`/cabang `'reactivated'`/`'newlyDormant'` TIDAK
+  diubah — tetap live (order beneran terjadi = event, bukan kondisi
+  absen yang butuh bulan tutup, sama filosofi reaktivasi trend).
+
+**Efek**: populasi `was_dormant_at_prev` (snapshot bulan tertutup) SEKARANG
+dipecah 3 cara: `dormant` (belum pernah coba order lagi) + `newlyDormant`
+(coba order lagi, dormant lagi) + `reactivated` (coba order lagi,
+berhasil bertahan) — ketiganya kalau dijumlah SELALU PERSIS sama dgn
+`dormant_count` kartu KPI. **Catatan penting**: baris "Pelanggan Dormant"
+di dialog SENDIRI (19.200) jadi SEDIKIT lebih kecil dari kartu KPI
+(19.304) — selisihnya persis jumlah `reactivated`+`newlyDormant`
+(104+0) yang sekarang py baris sendiri — bukan salah, itu memang
+subset "masih dormant, belum pernah coba order lagi sejak snapshot".
+
+**Verifikasi live** (script sekali-pakai, dihapus setelah): filter
+`company_id=all`, `period_end=2026-08-26`, bulanan tanpa cutoff —
+`fetchDormantTrend` dormant_count=19.304, `fetchCustomerDormantStatusLog`
+dormant=19.200 + newlyDormant=0 + reactivated=104 = **19.304, MATCH**.
+Total baris dialog (32.631) tetap sama dgn total_customers kartu KPI
+(tidak berubah, gate "existing" tidak disentuh). `tsc --noEmit` bersih.
+
+## 36.46 Koreksi §36.45: "Existing Aktif" ikut kebawa ke Juli, harusnya tetap live (2026-08-26)
+
+User kirim data dialog hasil §36.45: "Pelanggan Existing Aktif: 2.869"
+(sebelumnya 751) + protes: *"Ini bukan seperti definisi yang aku
+kirimkan!"* — merujuk ke definisi SSOT M7 yang baru saja dikirim:
+*"Existing Customer...masih melakukan pembelian PADA PERIODE
+TERSEBUT."* Ternyata §36.45 SALAH SASARAN: `transacted_in_period` (yang
+menentukan Aktif/Inaktif) ikut diganti ke referensi Juli (prevBucket)
+bareng perbaikan Dormant — padahal HEADER dialog ini sendiri bilang
+"Periode 01-08-2026 s/d 26-08-2026" (live, Agustus) — jadi "Existing
+Aktif" yang ditampilkan (2.869, transaksi Juli) KONTRADIKSI dgn label
+periode di atasnya yang bilang Agustus.
+
+**Perbaikan**: `transacted_in_period` dikembalikan ke `last_at_me`/
+`bucket.start` (live/Agustus) — HANYA cabang `dormant`/`newlyDormant`/
+`reactivated` (`was_dormant_at_prev`) yang tetap pakai referensi Juli,
+karena itu konsep terpisah (murni supaya total Dormant match kartu KPI
+tren yang MEMANG snapshot bulan tertutup — bukan soal Aktif/Inaktif).
+
+**Verifikasi live ulang**: active=751 (balik ke angka semula, live
+Agustus — cocok SSOT), inactive=12.576, active+inactive=13.327 (=
+Non-Dormant, cocok kartu M8), dormant+newlyDormant+reactivated=19.304
+(tetap cocok kartu KPI Dormant, TIDAK regresi dari §36.45), total=32.631.
+Semua 3 pasang angka sekarang rekonsiliasi tanpa saling kontradiksi.
+`tsc --noEmit` bersih.

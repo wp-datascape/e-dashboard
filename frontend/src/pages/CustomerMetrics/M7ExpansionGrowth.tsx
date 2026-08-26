@@ -70,9 +70,10 @@ interface Props {
    * ini, tapi jaga-jaga). */
   periodType?: PeriodGranularity;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, division, periodEnd, resolvedPeriodEnd, applyDateCutoff = false, periodType = 'monthly', excludeIntercompany }: Props) {
+export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, division, periodEnd, resolvedPeriodEnd, applyDateCutoff = false, periodType = 'monthly', excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -106,6 +107,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const yoyCurrent = yoyData?.trend[yoyData.trend.length - 1];
 
@@ -129,6 +131,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Top Movers (tab Overview) — breakdown periode SAAT INI (bukan klik),
@@ -146,6 +149,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const topMovers = useMemo(() => (currentBreakdown?.rows ?? []).slice(0, 5), [currentBreakdown]);
 
@@ -195,6 +199,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 value={`${(current?.up_rate ?? 0).toFixed(1)}%`}
                 sub={t('customerMetrics.m7.customerCountValue', { count: (current?.up_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.success.main}
+                info={t('customerMetrics.m7.seriesUpInfo')}
               />
             )}
           </Grid>
@@ -205,6 +210,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 value={`${(current?.down_rate ?? 0).toFixed(1)}%`}
                 sub={t('customerMetrics.m7.customerCountValue', { count: (current?.down_count ?? 0).toLocaleString('id-ID') })}
                 color={theme.palette.error.main}
+                info={t('customerMetrics.m7.seriesDownInfo')}
               />
             )}
           </Grid>
@@ -212,12 +218,19 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
             {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
               <KpiCard
                 label={t('customerMetrics.m7.summaryExisting')}
-                value={(current?.existing_customers ?? 0).toLocaleString('id-ID')}
+                // existing_not_dormant_count (2026-08-25, task029.md
+                // §34-lanjutan), BUKAN lagi existing_customers kumulatif —
+                // harus konsisten dgn pembagi 4-way split di bawah (Naik/
+                // Flat/Turun/Tidak Aktif harus sum ke 100% dari populasi
+                // yang SAMA dgn kartu ini, kalau tidak angka "Total
+                // Existing" tidak nyambung dgn breakdown-nya sendiri).
+                value={(current?.existing_not_dormant_count ?? 0).toLocaleString('id-ID')}
                 // formatPeriodRangeSub (2026-08-25, koreksi KERAS user di M1,
                 // pola sama diterapkan di sini) — granularitas lebar
                 // tampilkan label ("Kuartal 3 Tahun 2026"), bukan tanggal.
                 sub={formatPeriodRangeSub(t, periodType, periodKey, getPeriodDateRange(periodType, periodKey).start, resolvedPeriodEnd ?? periodEnd)}
                 color={theme.palette.info.main}
+                info={t('customerMetrics.m7.summaryExistingInfo')}
               />
             )}
           </Grid>
@@ -231,7 +244,27 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
                 hint klik dipindah ke dalam ExpansionTooltip
                 (ExpansionChart.tsx), muncul persis saat user sudah
                 hover/tap titik chart). */}
-            <SectionLabel label={t('metrics.expansion')} icon={TrendingUpIcon} />
+            {/* Ikon info + rumus (2026-08-25, koreksi user: "Tambahkan di
+                tooltip setiap info di card untuk rumus perhitungan nya") —
+                SEBELUMNYA halaman Growth (versi standar §30.23) TIDAK
+                punya ikon info sama sekali di judul chart utama, beda dari
+                M1/M3/M4/M5/M6 yang semua sudah konsisten punya. Key
+                `customerMetrics.m7.tooltipInfo` SUDAH ADA tapi cuma
+                dipakai di M7Expansion.tsx (halaman workbench lama) —
+                sekarang dipakai juga di sini, reuse bukan duplikat baru. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <SectionLabel label={t('metrics.expansion')} icon={TrendingUpIcon} />
+              <MuiTooltip
+                title={t('customerMetrics.m7.tooltipInfo')}
+                placement="top"
+                arrow
+                slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+              >
+                <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </MuiTooltip>
+            </Box>
           </Box>
 
           <Box sx={{ p: 2.5 }}>
@@ -350,9 +383,18 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
               {drillMonth && drillDateFrom && drillDate ? formatPeriodRangeSub(t, periodType, drillMonth, drillDateFrom, drillDate) : ''}
             </Typography>
             {([
-              [t('customerMetrics.m7.dialogUpCount'),       String(drillBreakdown.up_count)],
-              [t('customerMetrics.m7.dialogTotalExisting'), String(drillBreakdown.total_existing)],
-              [t('customerMetrics.m7.dialogUpRate'),        `${drillBreakdown.total_existing > 0 ? ((drillBreakdown.up_count / drillBreakdown.total_existing) * 100).toFixed(1) : '0.0'}%`],
+              // .toLocaleString('id-ID') (2026-08-25, koreksi user: "gunakan
+              // . untuk ribuan") — sebelumnya String() mentah tanpa pemisah
+              // ribuan (mis. "14208"), tidak konsisten dgn kartu ringkasan
+              // di atas yang sudah pakai toLocaleString('id-ID').
+              [t('customerMetrics.m7.dialogUpCount'),         drillBreakdown.up_count.toLocaleString('id-ID')],
+              // Total Customer Active (2026-08-25, susulan user: "info
+              // drilldown total customer active") — cur_revenue > 0, beda
+              // dari dialogUpCount (mensyaratkan naik vs periode
+              // sebelumnya) — murni "genuinely bertransaksi periode ini".
+              [t('customerMetrics.m7.dialogActiveCount'),     drillBreakdown.active_count.toLocaleString('id-ID')],
+              [t('customerMetrics.m7.dialogTotalExisting'),   drillBreakdown.total_existing.toLocaleString('id-ID')],
+              [t('customerMetrics.m7.dialogUpRate'),          `${drillBreakdown.total_existing > 0 ? ((drillBreakdown.up_count / drillBreakdown.total_existing) * 100).toFixed(1) : '0.0'}%`],
             ] as [string, string][]).map(([label, val]) => (
               <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
                 <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>

@@ -35,7 +35,7 @@
 
 import { sql, and, or, type SQL } from 'drizzle-orm'
 import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ export interface SegmentParams {
   division: number | null // filter laporan (business_unit param, division_id — task012 v2) - beda dari divisionScope (RBAC)
   branchFilter: number | null // filter laporan (branch_id param) - beda dari branchScope (RBAC)
   excludeIntercompany?: boolean // toggle laporan - exclude division 'intercompany', lihat utils/scope.ts
+  onlyPareto?: boolean // toggle laporan (task029.md §35) - persempit ke customer flagged Pareto (tabel pareto_customers, task016), lihat utils/scope.ts buildOnlyParetoRaw
   branchScope?: Map<number, number[]>   // RBAC — lihat docs-v2/task/task001.md §4
   divisionScope?: Map<number, number[]> // RBAC — lihat docs-v2/task/task001.md §4
   // Fallback division_id 'other'/'intercompany' per branch/company (task012 v2, resolusi
@@ -75,6 +76,7 @@ export function buildSegmentParams(
   companyScopeIds?: number[],
   branchFilter?: number,
   excludeIntercompany?: boolean,
+  onlyPareto?: boolean,
 ): SegmentParams {
   return {
     cid: companyId === 'all' ? 0 : companyId,
@@ -87,6 +89,7 @@ export function buildSegmentParams(
     division: division ?? null,
     branchFilter: branchFilter ?? null,
     excludeIntercompany,
+    onlyPareto,
     branchScope,
     divisionScope,
     otherIdByBranch,
@@ -115,13 +118,18 @@ export function sqlStatusExpr(
   firstInv: unknown,
 ) {
   const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantCutoff = sql`${refDate} - ${dormantMonths}::int * INTERVAL '1 month'`
+  // isDormant (2026-08-27, task029.md §36.52 — koreksi KERAS user: "pelanggan
+  // baru pindah status dorman saat bulan agustus sudah habis... ada
+  // kesalahan logika disini") — reuse dormantCrossedSql (kalender-bulan
+  // penuh), BUKAN lagi `lastInv <= refDate - dormantMonths bulan` mentah
+  // (tanggal presisi, bikin status dormant "meletus" di tengah bulan).
+  const isDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`)
 
   return sql<string>`
     CASE
       WHEN ${lastInv} IS NULL                     THEN 'new'
       WHEN ${firstInv}::date >= ${activeCutoff}   THEN 'new'
-      WHEN ${lastInv}::date  <= ${dormantCutoff}  THEN 'dormant'
+      WHEN ${isDormant}                           THEN 'dormant'
       WHEN ${lastInv}::date  >= ${activeCutoff}   THEN 'active'
       ELSE 'existing'
     END
@@ -142,7 +150,10 @@ export function sqlStatusWhere(
   firstInv: unknown,
 ) {
   const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantCutoff = sql`${refDate} - ${dormantMonths}::int * INTERVAL '1 month'`
+  // isDormant/notDormant (2026-08-27, task029.md §36.52) — pola SAMA PERSIS
+  // sqlStatusExpr di atas, reuse dormantCrossedSql kalender-bulan penuh.
+  const isDormant  = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`)
+  const notDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`, true)
 
   const isNew  = or(sql`${lastInv} IS NULL`, sql`${firstInv}::date >= ${activeCutoff}`)
   const notNew = and(
@@ -152,7 +163,7 @@ export function sqlStatusWhere(
 
   switch (status) {
     case 'new':     return isNew
-    case 'dormant': return and(notNew, sql`${lastInv}::date <= ${dormantCutoff}`)
+    case 'dormant': return and(notNew, isDormant)
     // BUG (ditemukan 2026-08-10 lewat audit silang DormantRate vs Customer
     // Workbench — user: "aktif customer bulan Juni 357? di menu lain 329,
     // mana yang benar?"): case ini SATU-SATUNYA yang tidak exclude customer
@@ -165,7 +176,7 @@ export function sqlStatusWhere(
     case 'existing':
       return and(
         notNew,
-        sql`${lastInv}::date > ${dormantCutoff}`,
+        notDormant,
         sql`${lastInv}::date < ${activeCutoff}`,
       )
     default: return undefined
@@ -333,6 +344,42 @@ export function dormantThresholdCaseSql(p: SegmentParams, customerAlias = 'c', d
   )
 }
 
+/**
+ * Ambang dormant KALENDER-BULAN PENUH, BUKAN aritmatika hari mentah
+ * (2026-08-27, task029.md §36.52 — koreksi KERAS user: "pelanggan baru
+ * pindah status dorman saat bulan agustus sudah habis, mereka baru
+ * berstatus dorman saat masuk bulan september... ada kesalahan logika
+ * disini" — kasus konkret: transaksi terakhir 27 Februari, ambang 6
+ * bulan, `refDate - 6 bulan` mentah = 27 Agustus PERSIS, jadi status
+ * dormant "meletus" di tengah bulan Agustus. SEHARUSNYA (pola SAMA
+ * PERSIS koreksi `months_dormant` sebelumnya, task029.md §-25: "CUTOFF
+ * APRIL ITU AKHIR BULAN... SEHARUSNYA TERHITUNG MEI JUNI JULI TANPA
+ * ORDERAN, MASUK DORMANT DI AGUSTUS" — last order April + ambang 3 bulan
+ * → 3 bulan PENUH tanpa order (Mei/Juni/Juli) baru dormant MULAI
+ * Agustus, BUKAN pada tanggal presisi "April + 3 bulan"): last order
+ * Februari (tanggal berapa pun) + ambang 6 bulan → 6 bulan PENUH tanpa
+ * order (Maret-Agustus) baru dormant MULAI September, BUKAN 27 Agustus.
+ *
+ * Formula: refDate >= DATE_TRUNC('month', lastDate) + (threshold+1) bulan
+ * — anchor ke AWAL BULAN transaksi terakhir (bukan tanggal presisinya),
+ * +1 supaya bulan transaksi terakhir SENDIRI tidak ikut terhitung "bulan
+ * tanpa order" (customer yang order 27 Februari tetap "aktif" sepanjang
+ * Februari, grace period baru mulai Maret).
+ *
+ * `lastDateSql`/`refDateSql`/`thresholdSql` — fragment SQL (kolom atau
+ * ekspresi), BUKAN nilai JS — caller kirim apa pun yang sudah valid di
+ * scope query (kolom CTE, parameter `${x}::date`, dll), fungsi ini murni
+ * merangkai perbandingannya. `negate=true` mengembalikan kebalikannya
+ * (`refDate < ...`, dipakai utk cek "BELUM dormant"/"masih dalam masa
+ * tenggang") — dipisah sbg parameter (bukan caller nulis `NOT (...)`
+ * sendiri) supaya index NULL-handling (`lastDate IS NULL`) konsisten di
+ * satu tempat.
+ */
+export function dormantCrossedSql(lastDateSql: SQL, refDateSql: SQL, thresholdSql: SQL, negate = false): SQL {
+  const cmp = negate ? sql`<` : sql`>=`
+  return sql`(${refDateSql} ${cmp} DATE_TRUNC('month', ${lastDateSql}) + (${thresholdSql} + 1) * INTERVAL '1 month')`
+}
+
 // ─── Bundel kondisi scope invoice (refactor, 2026-08-21) ───────────────────────
 
 /**
@@ -358,6 +405,7 @@ export interface InvoiceScopeConditions {
   divisionScopeCond: SQL
   companyCondI: SQL
   excludeIntercompanyCond: SQL
+  onlyParetoCond: SQL
 }
 
 // Tipe STRUKTURAL (subset field), bukan `SegmentParams` penuh — beberapa file
@@ -373,6 +421,16 @@ export interface InvoiceScopeParams {
   otherIdByBranch?: Map<number, number>
   intercompanyIdByCompany?: Map<number, number>
   excludeIntercompany?: boolean
+  // filterDate/onlyPareto (task029.md §35, 2026-08-25) — OPSIONAL (beda dari
+  // field lain di interface ini) SENGAJA supaya caller ad-hoc lama
+  // (AvgCategoryRepoParams/HmDetailRepoParams dst, fitur Product/Customer
+  // Workbench yang TIDAK punya UI filter Pareto) tetap compile tanpa
+  // perubahan — mereka cukup tidak destructure `onlyParetoCond` dari hasil
+  // fungsi ini, aman/backward-compatible. onlyParetoCond akan selalu `true`
+  // (no-op) kalau onlyPareto falsy, jadi aman dipanggil dgn filterDate
+  // kosong SELAMA onlyPareto juga tidak pernah true utk caller itu.
+  filterDate?: string
+  onlyPareto?: boolean
 }
 
 export function resolveInvoiceScopeConditions(
@@ -387,6 +445,7 @@ export function resolveInvoiceScopeConditions(
     divisionScopeCond: buildDivisionConditionRaw(`${i}.branch_id`, `${cd}.division_id`, p.divisionScope, p.otherIdByBranch),
     companyCondI: buildCompanyConditionRaw(`${i}.company_id`, p.cid, p.companyScopeIds),
     excludeIntercompanyCond: buildExcludeIntercompanyRaw(`${i}.company_id`, `COALESCE(${c}.division_override_id, ${cd}.division_id)`, p.intercompanyIdByCompany, p.excludeIntercompany),
+    onlyParetoCond: buildOnlyParetoRaw(`${c}.id`, `${i}.company_id`, p.filterDate ?? '', p.onlyPareto),
   }
 }
 

@@ -25,6 +25,7 @@ export const metricsApi = {
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
+    only_pareto?: boolean;
   }): Promise<CrossSellingData> => {
     const res = await api.get<ApiResponse<CrossSellingData>>('/metrics/cross-selling', { params });
     return res.data.data;
@@ -42,6 +43,7 @@ export const metricsApi = {
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
+    only_pareto?: boolean;
   }): Promise<CustomerMetricsData> => {
     const res = await api.get<ApiResponse<CustomerMetricsData>>('/metrics/customer-metrics', { params });
     return res.data.data;
@@ -63,40 +65,52 @@ export const metricsApi = {
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
+    only_pareto?: boolean;
   }): Promise<DormantData> => {
     const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer', { params });
     return res.data.data;
   },
 
-  getRevenueBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RevenueBreakdownData> => {
+  // date_from (2026-08-25, task029.md §33 — M3 dipakai di Value page yg
+  // SEKARANG py filter granularitas) — pola sama persis getGpBreakdown/getExpansionBreakdown.
+  getRevenueBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<RevenueBreakdownData> => {
     const res = await api.get<ApiResponse<RevenueBreakdownData>>('/metrics/revenue-breakdown', { params });
     return res.data.data;
   },
 
-  getExpansionBreakdown: async (params: { period_end?: string; date_from?: string; period_type?: 'monthly' | 'quarter' | 'semester' | 'annual'; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<ExpansionBreakdownData> => {
+  getExpansionBreakdown: async (params: { period_end?: string; date_from?: string; period_type?: 'monthly' | 'quarter' | 'semester' | 'annual'; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<ExpansionBreakdownData> => {
     const res = await api.get<ApiResponse<ExpansionBreakdownData>>('/metrics/expansion-breakdown', { params });
     return res.data.data;
   },
 
-  getGpBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<GpBreakdownData> => {
+  // date_from (2026-08-25) — backend SUDAH siap sejak task026 §8e, FE
+  // baru sekarang benar-benar mengirimnya (Value page dapat filter granularitas).
+  getGpBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<GpBreakdownData> => {
     const res = await api.get<ApiResponse<GpBreakdownData>>('/metrics/gp-breakdown', { params });
     return res.data.data;
   },
 
-  getHmBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<HmBreakdownData> => {
+  // date_from (2026-08-25, task029.md §33) — pola sama persis getGpBreakdown.
+  getHmBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<HmBreakdownData> => {
     const res = await api.get<ApiResponse<HmBreakdownData>>('/metrics/hm-breakdown', { params });
     return res.data.data;
   },
 
   // date_from (2026-08-24, M6 dipakai di Retention page yg py filter
   // granularitas — pola sama persis getGpBreakdown/getExpansionBreakdown).
-  getRorBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<RorBreakdownData> => {
+  getRorBreakdown: async (params: { period_end?: string; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<RorBreakdownData> => {
     const res = await api.get<ApiResponse<RorBreakdownData>>('/metrics/ror-breakdown', { params });
     return res.data.data;
   },
 
   // Drill-down M8 (2026-08-24) — pola sama persis getRorBreakdown.
-  getDormantBreakdown: async (params: { period_end?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }): Promise<DormantBreakdownData> => {
+  getDormantBreakdown: async (params: {
+    period_end?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    cutoff_day?: number;
+    skip_elapsed_clamp?: boolean;
+    company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }): Promise<DormantBreakdownData> => {
     const res = await api.get<ApiResponse<DormantBreakdownData>>('/metrics/dormant-breakdown', { params });
     return res.data.data;
   },
@@ -108,10 +122,14 @@ export const metricsApi = {
     period_end?: string;
     date_from?: string;
     period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    cutoff_day?: number;
+    skip_elapsed_clamp?: boolean;
     company_id?: number | 'all';
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
+    only_pareto?: boolean;
     status?: DormantCustomerStatus;
   }): Promise<DormantStatusBreakdownData> => {
     const res = await api.get<ApiResponse<DormantStatusBreakdownData>>('/metrics/dormant-status-breakdown', { params });
@@ -128,6 +146,7 @@ export const metricsApi = {
     division?: number;
     branch_id?: number;
     exclude_intercompany?: boolean;
+    only_pareto?: boolean;
   }): Promise<DormantValueHistoryData> => {
     const res = await api.get<ApiResponse<DormantValueHistoryData>>('/metrics/dormant-value-history', { params });
     return res.data.data;

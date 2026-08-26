@@ -1,26 +1,215 @@
-# Dokumentasi Metrik M3 · M4 · M5
+# Dokumentasi Metrik 10 KPI — Customer Loyal Dashboard
 
 > Dokumen ini menjelaskan definisi bisnis, formula, parameter, dan sumber data untuk
-> tiga metrik utama pada halaman `/customer-metrics`.
+> metrik-metrik pada halaman `/customer-metrics`, `/cross-selling`, dan
+> `/dormant-customer`.
 >
-> Last updated: 2026-06-28
+> Ditulis ulang bertahap (task029.md §36, mulai 2026-08-25) mengikuti dokumen SSOT
+> resmi "DEFINISI OPERASIONAL Customer Loyal Dashboard" — sebelumnya dokumen ini
+> cuma mencakup M3-M7 (judul lama "Dokumentasi Metrik M3 · M4 · M5") dan beberapa
+> bagian sudah usang (mis. window "30 hari" M6/M7 — lihat catatan di section
+> masing-masing). Dikerjakan satu KPI per satu, bukan sekaligus.
+>
+> Last updated: 2026-08-25 (M1, M2 ditambahkan; M3, M4, M5, M6 direview
+> ulang & disesuaikan ke SSOT + granularitas; M5 chart-nya juga diganti
+> total dari Donut snapshot ke trend 12 titik; M7 masih versi lama, belum
+> direview ulang)
 > Baca juga: `executive-dashboard/metrics.md` (definisi bisnis global)
 
 ---
 
 ## Definisi Umum
 
-### Existing Customer
+> **Kamus Penamaan Pelanggan v13** (task029.md §36.27-36.46, 2026-08-26) —
+> SEKARANG jadi SATU-SATUNYA kosakata resmi untuk SEMUA istilah populasi
+> pelanggan di dokumen ini DAN di kode/label aplikasi — **koreksi
+> 2026-08-26, instruksi user: "Samakan semua definisi sesuai Kamus v13
+> agar tidak menimbulkan ambiguitas dan kebingungan"**. SEBELUMNYA
+> catatan di sini bilang kamus ini "murni soal penamaan, belum ada
+> kode/label yang diubah" — itu SUDAH TIDAK BERLAKU: sepanjang
+> task029.md §36.28-36.46 puluhan kartu/dialog/tooltip di M1-M10 SUDAH
+> direname pakai istilah kamus ini (Existing Total, Retained Total,
+> Active Total, Non-Dormant, dst). Section di bawah ("Existing Customer")
+> DIREVISI supaya konsisten — sebelumnya section ini pakai kata generik
+> "Existing" utk 2 populasi BEDA (gerbang establish vs establish+transaksi
+> periode ini) tanpa nama pembeda, sumber ambiguitas yang komplain user.
+> Lihat subsection "Kamus Penamaan Pelanggan" di bawah untuk tabel
+> lengkap 6 status + 4 agregat.
+>
+> **SUSULAN (2026-08-26, task029.md §36.50)** — istilah kamus v13 di atas
+> (Retained/Active Total/Existing Total/Non-Dormant, dst) DIGANTI LAGI ke
+> istilah standar CRM yang lebih dikenal umum (Acquisition, Active
+> Customer, Lapsed, Relapsed, Existing Active, Active Transacting, Total
+> Customer Base, Customer Base (Addressable)) — instruksi user: *"tampilan
+> seluruhnya diganti yang standar ini, termasuk tooltip, rumus"*, disusul
+> *"termasuk update kamus V13 pakai definisi baru ini"*. Ini BUKAN
+> perubahan kalkulasi lagi — pemetaan 1:1 istilah lama→baru, lihat tabel
+> di bawah (kolom "dulu"). SELURUH kode/label aplikasi (id+en) SUDAH
+> diganti ke istilah baru ini.
 
-Customer yang dianggap "existing" pada suatu bulan adalah customer yang memenuhi syarat:
+Dashboard ini punya **DUA konsep populasi berbeda**, dipakai KPI yang berbeda pula
+(task029.md §34, dikonfirmasi ke dokumen SSOT resmi 2026-08-25) — jangan disamakan:
+
+### Customer Aktif
+
+Customer yang dianggap "aktif" pada suatu periode adalah customer yang memenuhi syarat:
+
+```
+customer punya ≥1 invoice DI DALAM rentang periode (period_start s.d. period_end)
+AND customers.is_placeholder = false
+```
+
+**TIDAK ADA syarat riwayat transaksi sebelumnya** — customer baru (transaksi pertama
+DI DALAM periode ini) IKUT terhitung. Dipakai **M1 (Cross Sell Ratio)** dan
+**M2 (Average Product Category per Customer)** — lihat section M1 di bawah.
+
+### Total Customer Base (gerbang establish)
+
+Customer yang dianggap **established** pada suatu bulan adalah customer yang memenuhi syarat:
 
 ```
 customers.first_invoice_date < awal bulan (period_start)
 AND customers.is_placeholder = false
 ```
 
+Customer baru (first invoice DI DALAM periode ini, alias **Acquisition**)
+**dikecualikan**. Ini GERBANG PALING LUAS — SEMUA status (Active
+Customer, Reactivated, Lapsed, Dormant) adalah SUBSET dari populasi ini;
+TIDAK mensyaratkan transaksi di periode berjalan sama sekali (customer
+yang sudah dormant bertahun-tahun TETAP masuk hitungan ini). **Bukan
+berarti tiap KPI M3-M7 pakai gerbang ini APA ADANYA sbg denominator** —
+masing-masing KPI menambahkan syarat lanjutan DI ATAS gerbang ini (lihat
+tabel pemetaan di subsection Kamus Penamaan Pelanggan di bawah: M3-M6 →
+**Existing Active**, M7 → **Customer Base (Addressable)**). Dipakai (sbg
+gerbang dasar) **M3, M4, M5, M6, M7** (masing-masing dengan syarat
+tambahan berbeda-beda, lihat section per KPI) dan sebagian **M8-M10**.
+
 Customer **dummy** (PELANGGAN UMUM, WALK-IN, dll.) dikecualikan melalui kolom
-`is_placeholder = true` yang di-set otomatis saat import.
+`is_placeholder = true` yang di-set otomatis saat import — berlaku di KEDUA
+definisi di atas.
+
+### Kamus Penamaan Pelanggan v13 (2026-08-26)
+
+> Menggantikan draft v12 sebelumnya (riwayat perubahan bertahap lengkap:
+> task029.md §36.27 draft awal → §36.31 v12 → §36.32 v13 tooltip →
+> §36.35 tambah "Non-Dormant" + kolom Formula, instruksi user: *"Tambahkan
+> 1 Definisi lagi non-dormant... Tambahkan rumus perhitungan di setiap
+> definisi"*).
+
+**A. Status per pelanggan di satu periode (6 status dasar)** — **KOREKSI
+2026-08-26 (task029.md §36.50)**: istilah kolom "Status" DIGANTI ke
+istilah standar CRM (lebih dikenal umum) menggantikan istilah kamus v13
+lama (kolom "dulu"), instruksi user: *"tampilan seluruhnya diganti yang
+standar ini, termasuk tooltip, rumus"*. Kolom "kunci kode" TIDAK berubah
+— key/enum di backend/frontend TETAP `new`/`retained`/`reactivated`/
+`inactive`/`dormant`/`newlyDormant`, cuma teks yang tampil ke user yang
+berganti:
+
+| Status (istilah baru) | dulu (kamus v13) | Definisi | Formula |
+|---|---|---|---|
+| **Acquisition** | New | Pelanggan yang melakukan transaksi pertama di periode berjalan. | Transaksi pertama customer (`first_invoice_date`) jatuh di dalam periode berjalan |
+| **Active Customer** | Retained | Pelanggan yang ada transaksi periode sebelumnya, dan transaksi di periode berjalan. | Ada transaksi di periode (t-1) DAN ada transaksi di periode (t) |
+| **Reactivated** | Reactivated | Pelanggan yang tidak ada transaksi periode sebelumnya, kembali transaksi di periode berjalan. | TIDAK ada transaksi di periode (t-1) DAN ada transaksi di periode (t) DAN BUKAN Acquisition |
+| **Lapsed** | Inactive | Pelanggan yang pernah transaksi sebelumnya, tidak ada transaksi di periode berjalan dan belum dormant. | Pernah transaksi sebelumnya DAN TIDAK ada transaksi di periode (t) DAN belum lewat ambang dormant |
+| **Dormant** | Dormant | Pelanggan yang pernah transaksi sebelumnya, dan masuk ambang dormant (dianggap hilang/churn). | Pernah transaksi sebelumnya DAN sudah lewat ambang dormant (X bulan, per kategori divisi) |
+| **Relapsed** | Newly Dormant | Pelanggan yang sempat reaktivasi (bertransaksi lagi setelah dormant), tapi dormant lagi di periode ini. | `was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me` — logika TIDAK berubah dari `newlyDormant`/`relapsed` (task029.md §36.43), cuma teksnya. TIDAK ada padanan formal di 5-status dasar lain, dipertahankan sbg status ekstra sesuai instruksi user. |
+
+**B. Metrik agregat (4)** — sama pola, istilah baru menggantikan istilah lama:
+
+| Metrik (istilah baru) | dulu (kamus v13) | Definisi | Formula |
+|---|---|---|---|
+| **Existing Active** | Retained Total | Pelanggan aktif di periode berjalan yang sudah establish sebelumnya. | `Active Customer + Reactivated` |
+| **Active Transacting** | Active Total | Jumlah semua pelanggan aktif di periode berjalan, terdiri dari Acquisition, Active Customer, Reactivated. | `Acquisition + Active Customer + Reactivated` |
+| **Total Customer Base** | Existing Total | Seluruh database pelanggan historis yang pernah transaksi, apa pun status terkininya. | `Active Customer + Reactivated + Lapsed + Dormant` (established customer — TIDAK termasuk Acquisition) |
+| **Customer Base (Addressable)** | Non-Dormant | Basis pelanggan yang masih bisa ditargetkan/belum hilang — belum masuk ambang dormant. | `Lapsed + Active Customer + Reactivated`, setara `Total Customer Base − Dormant` |
+
+*Catatan "X bulan" (ambang dormant): parameter per kategori bisnis
+divisi, SUDAH dikonfigurasi di `ThresholdConfig['dormant']` (B2B
+Distributor 3bln, B2B Project 12bln, B2C 6bln, Manufacturing 6bln) —
+BELUM dikonfirmasi user apakah ini yang dimaksud "masa tenggang =
+parameter, default 3 bulan" di kamus, atau mau diseragamkan (pertanyaan
+TERBUKA, task029.md §36.31, belum dijawab).*
+
+**C. Aturan penggunaan** (dari kamus asli — TIDAK semua diterapkan,
+lihat catatan konflik):
+- "Active Transacting" untuk: Revenue, Transaksi, AOV, Traffic
+- "Active Customer" untuk: Retention Rate, Repeat Purchase, Cross-Sell —
+  **KONFLIK dgn keputusan §34**: M1/M2 Cross Selling TETAP pakai
+  "Active Transacting" (bukan "Active Customer"), keputusan resmi lama
+  dari dokumen SSOT terpisah, override eksplisit bukan diabaikan diam-diam.
+- "Acquisition" untuk: Growth, Efektivitas Marketing
+- "Dormant" untuk: Churn, Winback Opportunity
+
+**D. Pemetaan populasi denominator tiap KPI ke istilah baru** (2026-08-26,
+task029.md §36.47/§36.50, instruksi user: *"Samakan semua definisi sesuai
+Kamus v13 agar tidak menimbulkan ambiguitas"*, lalu *"tampilan seluruhnya
+diganti yang standar [CRM] ini"*) — dokumen SSOT lama (per-KPI, ditulis
+SEBELUM kamus v13 ada) memakai kata generik **"Existing Customer"** utk 2
+populasi BEDA tanpa nama pembeda — ini SUMBER ambiguitas yang komplain
+user. Dipetakan eksplisit ke istilah baru:
+
+| KPI | Populasi denominator (definisi SSOT lama) | = Istilah baru |
+|---|---|---|
+| M1, M2 | Ada transaksi periode ini, TANPA syarat riwayat sebelumnya | **Active Transacting** |
+| M3, M4, M5, M6 | Riwayat sebelum periode ini DAN masih transaksi periode ini | **Existing Active** |
+| M7 | Riwayat sebelum periode ini DAN belum lewat ambang dormant (TANPA syarat transaksi periode ini) | **Customer Base (Addressable)** |
+| M8, M9, M10 (gerbang dasar) | Riwayat sebelum periode ini, status apa pun (termasuk dormant) | **Total Customer Base** |
+
+Tiap section KPI di bawah (M3-M7) SUDAH direvisi memakai nama baru ini
+secara eksplisit, bukan lagi kata generik "Existing Customer" sendirian.
+
+**Verifikasi arithmetic** (dibuktikan dari angka live UI, task029.md
+§36.35, bukan tebakan): Active Customer (751) + Lapsed (10.520) +
+Reactivated (104) = **11.375** = kartu "Customer Base (Addressable)" di
+tab Ekspansi. Active Customer (751) + Reactivated (104) = **855** =
+kartu "Existing Active" (tab Repeat Order & Ekspansi). Total Customer
+Base (32.631) − Dormant (21.256) = **11.375** — 2 cara hitung Customer
+Base (Addressable) hasilnya sama.
+
+**"Newly Dormant" — DIKLARIFIKASI via contoh konkret user (task029.md
+§36.36)**: *"tarik data periode 1 semester, Januari dia aktif/reaktivasi,
+Februari s.d Mei tidak aktif, Juni masuk dormant."* Ini MENJAWAB
+ambiguitas sebelumnya — "periode berjalan"/"periode yang sama" MERUJUK
+KE RENTANG PERIODE YANG SEDANG DITARIK SECARA UTUH (bisa lebar, mis. 1
+semester), BUKAN 1 titik waktu tunggal — transisi status (belum dormant
+→ dormant) terjadi DI DALAM rentang itu sendiri, dibandingkan AWAL vs
+AKHIR periode yang SAMA (bukan periode sebelumnya vs periode ini sbg 2
+bucket terpisah seperti dugaan awal). Konsisten dgn kenapa ambang
+dormant (multi-bulan) BISA terlewati DI DALAM 1 periode lebar (semester/
+kuartal), sesuatu yang tidak mungkin terjadi kalau periodenya sempit
+(bulanan) — makanya definisi ini baru "berbunyi" jelas via contoh
+granularitas lebar.
+
+**Status implementasi UI** (label yang SUDAH dipasang per tanggal doc
+ini) — **per 2026-08-26 (task029.md §36.50), SELURUH label tampilan di
+aplikasi (id+en: dormantCustomer.json, customerMetrics.json,
+crossSelling.json, dashboard.json) SUDAH diganti ke istilah baru** (kolom
+"A"/"B" di atas), menggantikan draft kamus v13 lama:
+
+| Tab/Halaman | Istilah dipakai (baru) |
+|---|---|
+| Laporan Retention · Reaktivasi (6 kartu) | Total Customer Base, Active Customer, Lapsed, Dormant, Reactivated, Relapsed |
+| Laporan Retention · Repeat Order | Existing Active |
+| Laporan Retention · Dormant | Dormant |
+| Laporan Growth · Cross Selling | Active Transacting |
+| Laporan Growth · Ekspansi | Total Customer Base, Dormant, Customer Base (Addressable), Existing Active |
+| Dashboard Retention · M8 Dormant Rate (kartu + dialog) | Total Customer Base, Customer Base (Addressable), Dormant |
+| Dashboard Overview (`/dashboard`, Definisi Kunci) | Acquisition, Active Customer, Total Customer Base, Dormant Customer |
+
+Formula rumus per KPI dan teks tooltip info SUDAH ikut diperbarui pakai
+istilah baru ini juga (bukan cuma label kartu) — lihat section per KPI
+di bawah.
+
+**PENTING — SQL backend SEBAGIAN disesuaikan ke definisi kamus** (split
+Active Customer/Reactivated MASIH BELUM): split status di
+`fetchCustomerDormantStatusLog` (m8m10.repository.ts) MASIH pakai logika
+lama (task029.md §36.28, berbasis ambang dormant multi-bulan
+`was_dormant_at_prev`), BUKAN definisi kamus murni (berbasis transaksi 1
+periode langsung sebelumnya). Label di atas SUDAH dipasang mengikuti
+nama baru, TAPI angka di baliknya belum tentu match presisi definisi
+kamus sampai SQL ditulis ulang — pending konfirmasi user (task029.md
+§36.31, 2 pertanyaan masih terbuka: lanjut rewrite SQL sekarang atau
+tunda, dan pilihan config "masa tenggang").
 
 ### Parameter Global
 
@@ -31,12 +220,177 @@ Customer **dummy** (PELANGGAN UMUM, WALK-IN, dll.) dikecualikan melalui kolom
 
 ---
 
-## M3 — Avg Revenue Existing Customer
+## M1 — Cross Sell Ratio
 
 ### Penjelasan
 
-Mengukur rata-rata pendapatan yang dihasilkan dari **existing customer yang aktif bertransaksi**
-di setiap bulan. Tren 12 bulan dipakai untuk melihat apakah nilai per customer naik atau turun.
+Mengukur keberhasilan strategi cross-selling dan kedalaman hubungan bisnis dengan
+customer — berapa persen customer yang beli lebih dari 1 kategori produk dalam
+1 periode. Populasinya **Customer Aktif** (lihat Definisi Umum), BUKAN Existing —
+customer baru IKUT dihitung sejak transaksi pertamanya, beda dari M3-M7.
+
+### Formula
+
+```
+Cross-Sell Rate (%) = COUNT(customer aktif, cat_count > 1) / COUNT(TOTAL customer aktif) × 100
+```
+
+- **Numerator**: customer aktif dengan `COUNT(DISTINCT product_category_id) > 1` di
+  dalam periode
+- **Denominator**: semua customer aktif periode itu (`COUNT(*)` dari populasi Customer
+  Aktif — TANPA syarat riwayat sebelumnya)
+
+Rentang transaksi yang dianalisis ikut LEBAR PERIODE PENUH sesuai granularitas
+filter (Bulanan/Kuartal/Semester/Tahunan — Kuartal/Tahunan pakai elapsed cutoff kalau
+periode itu masih berjalan, BUKAN dipotong ke 1 bulan terakhir).
+
+### Metrik turunan (kartu ringkasan)
+
+```
+avg_categories       = AVG(cat_count) dari semua customer aktif (bukan cuma yg >1 kategori)
+total_distinct_cats  = COUNT(DISTINCT product_category_id) terjual di periode itu
+```
+
+### Benchmark Interpretasi
+
+| Rentang | Label | Keterangan |
+|---|---|---|
+| `< 25%` | Rendah | Single Product Dependency |
+| `25% – 40%` | Cukup | Basic Solution Penetration — baseline sehat utk distributor AIDC |
+| `40% – 60%` | Baik | Cross-sell berjalan efektif / Integrated Customer Account |
+| `> 60%` | Sangat Baik | Customer engagement dan product penetration kuat |
+
+**STATUS: SEBAGIAN diimplementasikan** (2026-08-25) — 3 garis batas band (25/40/60,
+dashed, warna warning→success) ditampilkan langsung di chart trend M1
+(`ComboChartWidget`, prop `referenceLines` baru), menempel di axis rate yang sama
+dgn garis Cross-Sell Rate-nya (domain axis otomatis melebar supaya garis ini tidak
+pernah terpotong). BELUM ada: label kategori teks ("Rendah"/"Cukup"/dst) atau
+pewarnaan area/zona per band — cuma garis batas angka, bukan visualisasi warna
+penuh spt band M6/M8/M10 (`business_configs` + status chip warna). Threshold
+di sini HARDCODE di frontend (bukan `business_configs`) — dokumen SSOT
+menyatakan angka ini "benchmark umum, dapat disesuaikan dengan industri", beda
+sifat dari target M6/M8/M10 yang memang dirancang configurable per perusahaan.
+
+### Drill-Down — M1 Detail (klik titik chart / tombol)
+
+`GET /metrics/cross-selling` dgn `period_end` titik yang diklik
+(`fetchCrossSellingDetail`, `m1.repository.ts`):
+
+| Kolom | Keterangan |
+|---|---|
+| Nama customer | Dari tabel `customers` |
+| Jumlah Kategori | `category_count` — jumlah kategori produk unik dibeli |
+| Total Revenue | Revenue customer itu di periode tsb |
+| Branch/Divisi/Channel | Dari invoice TERBARU customer itu DI DALAM periode (bukan all-time) |
+| Tipe Produk | Breakdown per `item_type` (unit/consumable/sparepart) — qty & revenue masing-masing |
+
+### Drill-Down — M1.1 Heatmap (Customer × Kategori Produk)
+
+`GET /metrics/cross-selling` (`fetchCrossSellingHeatmap`) — matrix top 30 customer
+(berdasarkan revenue) × kategori produk, sel = jumlah transaksi customer itu di
+kategori itu (`—` = tidak pernah beli). Layout khusus mobile (grid kolom per
+customer, bukan scroll horizontal tabel penuh).
+
+### Sumber Data
+
+| Tabel | Kolom | Keterangan |
+|---|---|---|
+| `invoices` | `invoice_date`, `customer_id`, `branch_id`, `channel_name` | Header invoice |
+| `invoice_items` | `product_category_id`, `revenue`, `quantity` | Basis hitung kategori + breakdown tipe produk |
+| `customers` | `is_placeholder` | Filter dummy (TIDAK pakai `first_invoice_date` — populasi Customer Aktif tidak butuh riwayat) |
+| `channel_divisions` | `division_id` | Fallback mapping divisi dari channel |
+
+### Tampilan
+
+- **Chart**: `ComboChartWidget` — trend N-periode (bar = Pelanggan Aktif abu-abu +
+  Multi-Produk biru bertumpuk, garis = Cross-Sell Rate)
+- **KpiHeader**: current vs YoY (fetch 2x, `period_end` digeser -1 tahun, murni
+  frontend, tidak ada perubahan backend)
+- **Top 5**: Top Movers timeline, basis MoM (periode langsung sebelumnya, bukan YoY)
+- **Heatmap M1.1**: lihat Drill-Down di atas
+
+---
+
+## M2 — Average Product Category per Customer (APCPC)
+
+### Penjelasan
+
+Mengukur kedalaman pembelian (purchase depth) — rata-rata jumlah kategori produk
+unik yang dibeli tiap customer aktif dalam 1 periode. **Berbagi 100% data mentah
+dengan M1** (1 fetch, 1 populasi, 1 query backend — `fetchCrossSellingKPI`/
+`fetchCrossSellingTrend`, `m1.repository.ts`) — TIDAK ada query/populasi
+terpisah, cuma tampilan/drill-down yang beda.
+
+### Formula
+
+```
+Avg Category (APCPC) = AVG(cat_count) dari semua customer aktif
+                      = Total kategori unik dibeli SELURUH customer aktif ÷ Jumlah customer aktif
+```
+
+`cat_count` per customer = `COUNT(DISTINCT product_category_id)` dalam periode itu.
+Populasi = **Customer Aktif** (sama persis M1 — lihat Definisi Umum), BUKAN
+Existing.
+
+### Interpretasi KPI
+
+Tidak ada band angka resmi (beda dari M1 yang punya 25/40/60) — interpretasinya
+kualitatif: makin tinggi APCPC makin baik penetrasi produk; kenaikan biasanya
+menandakan bundling efektif, up-selling/cross-selling berhasil, atau customer
+engagement menguat.
+
+### Drill-Down — M2 Detail (klik titik chart)
+
+`GET /metrics/cross-selling` dgn `period_end` titik yang diklik
+(`fetchCrossSellingDetail`, sama fungsi dgn drill-down M1, filter/tampilan beda):
+
+| Kolom | Keterangan |
+|---|---|
+| Nama customer | Dari tabel `customers` |
+| Beli Unit / Consumable / Sparepart | 3 kolom checkbox (`has_unit`/`has_consumable`/`has_sparepart`) — apakah customer beli tipe produk itu di periode ini |
+| Jumlah Kategori | `category_count` |
+| Total Revenue | Revenue customer itu di periode tsb |
+
+Header dialog: rata-rata kategori, total kategori unik terjual (`total_distinct_cats`),
+jumlah customer aktif (`active_count`) — titik yang diklik, bukan titik terakhir.
+
+### Sumber Data
+
+Sama persis M1 (lihat section M1 — `invoices`, `invoice_items`, `customers.is_placeholder`,
+`channel_divisions`). Tidak ada tabel/kolom tambahan khusus M2.
+
+### Tampilan
+
+- **Chart**: `ComboChartWidget` — trend N-periode (bar STACKED: Single Category +
+  Multi Category = Total Customer Aktif, `single_category` dihitung di frontend
+  dari `total_active - multi_product`; garis = Avg Category)
+- **KpiHeader**: current vs YoY (fetch 2x, pola sama M1)
+- **Top 5**: Top Movers timeline, basis MoM (sama pola M1)
+
+---
+
+## M3 — Average Revenue per Existing Customer (ARPEC)
+
+### Penjelasan
+
+Mengukur rata-rata pendapatan yang dihasilkan dari **existing customer yang aktif
+bertransaksi** dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan — task029.md
+§30.13, generalisasi dari "Tren 12 bulan" hardcode lama). Dipakai mengukur nilai
+ekonomi customer yang dipertahankan dan efektivitas strategi retensi/pengembangan
+akun.
+
+**Populasi = Existing Active** (dulu "Retained Total" di kamus v13,
+task029.md §36.50) — dicek terhadap dokumen SSOT resmi (task029.md §36,
+2026-08-25) — SUDAH SESUAI: definisi "Existing Customer" di SSOT
+eksplisit mensyaratkan "riwayat sebelum periode DAN masih melakukan
+pembelian pada periode tersebut" — PERSIS **Existing Active**
+(`Active Customer + Reactivated`, lihat subsection Kamus Penamaan
+Pelanggan di atas), BUKAN "Total Customer Base" (established kumulatif
+tanpa syarat aktif). Konsekuensi penting: customer yang berhenti total
+(dormant) otomatis TIDAK masuk populasi ini dgn sendirinya (karena
+syarat "masih membeli" sudah menyingkirkan mereka) — TIDAK butuh gerbang
+dormant terpisah, beda dari M7 (populasi **Customer Base (Addressable)**,
+lihat section M7).
 
 ### Formula
 
@@ -44,8 +398,8 @@ di setiap bulan. Tren 12 bulan dipakai untuk melihat apakah nilai per customer n
 Avg Revenue (M3) = SUM(revenue existing yang transaksi) / COUNT(existing yang transaksi)
 ```
 
-- **Numerator**: total revenue dari invoice existing customer yang punya transaksi di bulan tersebut
-- **Denominator**: jumlah existing customer yang punya ≥ 1 invoice di bulan tersebut
+- **Numerator**: total revenue dari invoice existing customer yang punya transaksi di periode itu
+- **Denominator**: jumlah existing customer yang punya ≥ 1 invoice di periode itu
   (bukan total existing — yang tidak transaksi tidak masuk denominator)
 
 ### Enrichment: Top Contributor + Badge Konsentrasi
@@ -61,20 +415,44 @@ top_rev_pct = (revenue customer X) / SUM(revenue semua existing) × 100
 
 ### Drill-Down Modal
 
-*(Ditambahkan 2026-07-23)* Klik pada batang bulan tertentu membuka modal Revenue
-Breakdown (`GET /metrics/revenue-breakdown`, mirror pola M4 gp-breakdown) yang
-menampilkan:
+*(Ditambahkan 2026-07-23, granularitas-aware sejak 2026-08-25 §33)* Klik pada
+batang periode tertentu membuka modal Revenue Breakdown (`GET
+/metrics/revenue-breakdown`, `date_from` dikirim = awal periode yang diklik,
+mirror pola M4 gp-breakdown) yang menampilkan:
 
 | Kolom | Keterangan |
 |---|---|
 | Ranking | Urutan revenue terbesar ke terkecil |
 | Nama customer | Dari tabel `customers` |
-| Revenue | Revenue bulan tersebut |
-| % Total | Kontribusi revenue terhadap total revenue existing bulan itu |
-| Tier | Atas / Tengah / Bawah (berdasarkan median revenue bulan itu, pola sama dengan tier M4) |
+| Revenue | Revenue periode tersebut |
+| % Total | Kontribusi revenue terhadap total revenue existing periode itu |
+| Tier | Atas / Tengah / Bawah (berdasarkan median revenue periode itu, pola sama dengan tier M4) |
 
 Header modal menampilkan: total revenue existing, avg revenue/customer, median threshold,
 jumlah customer transaksi.
+
+*(Sempat dicoba 2026-08-25: breakdown populasi 4-angka — Total Pelanggan/
+Pelanggan Lama/Baru/Aktif — TAPI DIBATALKAN sama hari, instruksi user:
+"jangan ditampilkan kalau memang tidak masuk hitungan" — 3 dari 4 angka itu
+tidak ikut dipakai di rumus mana pun di modal ini (cuma informasi jumlah
+orang), dianggap membingungkan ditaruh bersebelahan dgn angka hasil
+hitungan. Modal kembali ke set info semula, cuma `total_existing` yang
+tetap benar sesuai koreksi di bawah.)*
+
+**KOREKSI 2026-08-25 (task029.md §36, susulan pertanyaan user thd screenshot
+modal M3)** — sebelumnya `total_existing` modal ini pakai `cteEstablishedCustomers`
+mentah (cohort FIXED, TERMASUK yang tidak transaksi sama sekali di periode ini,
+keputusan lama "template standar KPI4") — TERNYATA bertentangan dgn definisi
+SSOT sendiri ("Existing Customer... DAN MASIH MELAKUKAN PEMBELIAN PADA PERIODE
+TERSEBUT"). Diperbaiki: `total_existing` SEKARANG `COUNT(*)` dari
+`existing_revenue` (established customer yang BENAR-BENAR transaksi di
+`date_from`..`filterDate`) — persis sama populasi yang menyumbang "Total
+Revenue" di atasnya, dan SEKARANG konsisten dgn `existing_customers` trend
+chart utk periode yang sama (dulu modal SELALU jauh lebih besar, mis. 32.631
+vs 855 riil transaksi — 38× lipat, sekarang match). Efek ikutan: "Avg
+Revenue/Customer" (dihitung frontend, `total_revenue ÷ total_existing`) JADI
+JAUH LEBIH BESAR dari sebelumnya (pembagi mengecil drastis) — situasi
+Rp7 jutaan/customer, bukan lagi Rp100-200 ribuan.
 
 Tooltip chart dan modal drill-down memakai formatter angka yang sama persis
 (`fmtRpDetail`, 2 desimal) — sebelumnya tooltip pakai `fmtRp` (1 desimal) sehingga
@@ -89,20 +467,28 @@ angka tampak beda (mis. "2,4M" vs "2,35M") padahal data underlying identik.
 
 ### Tampilan
 
-- **Chart**: ComboChartWidget 12 bulan (batang = total revenue existing, garis = avg revenue)
+- **Chart**: ComboChartWidget N-periode (batang = total revenue existing, garis = avg revenue)
 - **Y-axis**: format `Rp` disingkat (`jt`, `rb`)
-- **Tooltip**: avg revenue bulan itu + top contributor + badge konsentrasi
-- **Modal**: tabel drill-down per bulan (lihat Drill-Down Modal di atas)
+- **Tooltip**: avg revenue periode itu + top contributor + badge konsentrasi
+- **Modal**: tabel drill-down per periode (lihat Drill-Down Modal di atas)
 
 ---
 
-## M4 — Avg Gross Profit Existing Customer (Tier Breakdown)
+## M4 — Average Gross Profit per Existing Customer (AGPEC, Tier Breakdown)
 
 ### Penjelasan
 
-Mengukur rata-rata gross profit dari existing customer yang bertransaksi, sekaligus membagi
-distribusi GP ke dalam **3 tier berdasarkan median GP bulan tersebut**. Tren 12 bulan
-dalam bentuk stacked bar memperlihatkan komposisi GP dari masing-masing tier.
+Mengukur rata-rata laba kotor (gross profit) dari existing customer yang bertransaksi
+dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan) — profitabilitas customer lama dari
+kontribusi margin, bukan cuma omzet. Sekaligus membagi distribusi GP ke dalam **3 tier
+berdasarkan median GP periode tersebut**, ditampilkan sbg stacked bar.
+
+**Populasi = Existing Active** (dulu "Retained Total"), sama persis M3 —
+dicek terhadap dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH
+SESUAI: definisi "Existing Customer" sama persis M3 ("riwayat sebelum
+periode DAN masih melakukan pembelian pada periode tersebut" =
+**Existing Active**), "Gross Profit = Revenue − COGS" (kolom
+`invoices.total_gp`, dihitung saat import).
 
 ### Formula Avg GP
 
@@ -110,12 +496,12 @@ dalam bentuk stacked bar memperlihatkan komposisi GP dari masing-masing tier.
 Avg GP (M4) = SUM(gross_profit existing yang transaksi) / COUNT(existing yang transaksi)
 ```
 
-- **Numerator**: total GP dari invoice existing customer yang punya transaksi di bulan tersebut
-- **Denominator**: jumlah existing customer yang punya ≥ 1 invoice di bulan tersebut
+- **Numerator**: total GP dari invoice existing customer yang punya transaksi di periode itu
+- **Denominator**: jumlah existing customer yang punya ≥ 1 invoice di periode itu
 
 ### Klasifikasi Tier (Median-Based)
 
-Tier dihitung ulang setiap bulan menggunakan **median GP individu** bulan tersebut:
+Tier dihitung ulang setiap periode menggunakan **median GP individu** periode tersebut:
 
 ```
 median_gp = PERCENTILE_CONT(0.5) dari GP per existing customer yang transaksi
@@ -146,17 +532,25 @@ top_gp_pct = (GP customer X) / SUM(GP semua existing) × 100
 
 ### Drill-Down Modal
 
-Klik pada batang bulan tertentu membuka modal GP Breakdown yang menampilkan:
+Klik pada batang periode tertentu membuka modal GP Breakdown (`GET
+/metrics/gp-breakdown`, `date_from` = awal periode yang diklik) yang menampilkan:
 
 | Kolom | Keterangan |
 |---|---|
 | Ranking | Urutan GP terbesar ke terkecil |
 | Nama customer | Dari tabel `customers` |
-| GP | Gross profit bulan tersebut |
-| % Total | Kontribusi GP terhadap total GP bulan itu |
-| Tier | Atas / Tengah / Bawah (berdasarkan median bulan itu) |
+| GP | Gross profit periode tersebut |
+| % Total | Kontribusi GP terhadap total GP periode itu |
+| Tier | Atas / Tengah / Bawah (berdasarkan median periode itu) |
 
 Header modal menampilkan: total GP, avg GP/customer, nilai median threshold, jumlah customer transaksi.
+
+**KOREKSI 2026-08-25 (task029.md §36)** — sama bug persis M3: `total_existing`
+modal ini SEBELUMNYA pakai `cteEstablishedCustomers` mentah (cohort FIXED,
+TERMASUK yang tidak transaksi periode ini). Diperbaiki: SEKARANG `COUNT(*)`
+dari `existing_gp` (established customer yang BENAR-BENAR transaksi di
+rentang ini) — konsisten dgn `existing_customers` trend chart. Efek ikutan:
+"Avg GP/Customer" (dihitung frontend) jadi lebih besar dari sebelumnya.
 
 Modal mendukung **export PDF** via jsPDF + autoTable.
 
@@ -169,120 +563,130 @@ Modal mendukung **export PDF** via jsPDF + autoTable.
 
 ### Tampilan
 
-- **Chart**: BarChartWidget stacked 12 bulan (tier1/tier2/tier3)
+- **Chart**: BarChartWidget stacked N-periode (tier1/tier2/tier3)
 - **Y-axis**: format `Rp` disingkat
 - **Tooltip**: total GP + avg GP + breakdown tier + top contributor
 - **Modal**: tabel drill-down per bulan + PDF export
 
 ---
 
-## M5 — High Margin Product Penetration
+## M5 — High Margin Product Penetration (HMPP)
 
 ### Penjelasan
 
-Mengukur berapa persen **existing customer** yang membeli produk dengan margin tinggi
-di bulan berjalan. Produk high margin ditentukan secara **otomatis dari data** —
-tidak perlu konfigurasi manual.
+Mengukur sejauh mana perusahaan berhasil mendorong penjualan produk bermargin
+tinggi — persentase existing customer yang membeli minimal 1 produk High
+Margin dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan). Mengukur porsi
+CUSTOMER yang membeli (penetrasi), BUKAN porsi revenue-nya (itu ranah M3
+"Kontribusi High Margin").
+
+**Populasi = Existing Active** (dulu "Retained Total") — dicek terhadap
+dokumen SSOT resmi (task029.md §36, 2026-08-25) — populasi M5 SEMPAT
+diperdebatkan (dokumen tidak py bullet "Existing Customer" lengkap di
+section-nya sendiri spt M3/M4/M7, cuma "Customer Aktif" generik) —
+**dikonfirmasi ULANG via data nyata** (perbandingan 12 bulan Existing vs
+Customer Aktif, rate SELALU lebih rendah kalau customer baru diikutkan,
+konsisten ~1-1,7pp tiap bulan): **keputusan akhir user TETAP "Existing"**
+("karena tidak disebutkan [customer baru harus diikutsertakan]" di
+dokumen) — yaitu **Existing Active** (sama pola M3/M4/M6).
 
 ### Formula
 
 ```
-M5 (%) = COUNT(existing customer yang beli ≥1 produk HM) / COUNT(TOTAL existing customer) × 100
+HMPP (%) = COUNT(existing customer yang beli ≥1 produk HM) / COUNT(Existing Customer aktif) × 100
 ```
 
-- **Numerator**: existing customer yang punya ≥ 1 `invoice_item` dari produk high margin di bulan itu
-- **Denominator**: **semua existing customer** (`first_invoice_date < awal bulan`),
-  termasuk yang tidak transaksi bulan ini
+- **Numerator**: existing customer yang punya ≥ 1 `invoice_item` dari produk High Margin di periode itu
+- **Denominator**: existing customer yang aktif (punya ≥1 invoice APA PUN) di periode itu —
+  BUKAN cuma yang beli HM, BUKAN JUGA fixed cohort (lihat KOREKSI di bawah)
 
-> Perbedaan penting dari M3 dan M4: denominator M5 = TOTAL existing (bukan hanya yang transaksi).
+### Definisi Produk High Margin — MANUAL (bukan dihitung otomatis)
 
-### Definisi Produk High Margin (Dinamis)
+**Koreksi dari versi dokumen lama** (deskripsi "auto-threshold dari median margin
+rate" di bawah ini SUDAH TIDAK BERLAKU, ditemukan usang 2026-08-25) — produk
+High Margin sekarang ditandai MANUAL oleh admin (tabel `high_margin_products`,
+halaman **Settings → High Margin**), BUKAN dihitung otomatis dari margin rate
+transaksi. 1 baris = 1 mapping `product_id` ATAU `product_category_id` →
+berlaku dalam rentang `effective_from`..`effective_until` (nullable = masih
+berlaku sampai sekarang). Invoice item masuk hitungan HM kalau tanggal
+invoice-nya jatuh dalam rentang effective mapping yang relevan.
 
-Produk diklasifikasikan sebagai high margin per bulan berdasarkan **margin rate aktual**:
+### KOREKSI 2026-08-25 (task029.md §36) — bug `total_existing` drilldown
 
-```
-margin_rate (per produk per bulan) = SUM(gross_profit) / SUM(revenue) × 100
-```
+Sama pola M6 (bukan M3/M4) — denominator M5 BUKAN "yang beli HM" (itu
+numerator), tapi SEMUA existing yang aktif transaksi APA PUN. `fetchHmBreakdown`
+SEBELUMNYA pakai `COUNT(*) FROM established_customers` (fixed cohort). Diperbaiki:
+CTE baru `inv_active` (any invoice di rentang, TANPA JOIN `high_margin_products`)
+— mirror alias `cur` di trend chart `high_margin_ratio`.
 
-Dihitung dari `invoice_items` level, diagregasikan per `product_id` per bulan.
+### Top 5 — ranking berdasarkan JUMLAH, bukan Rupiah
 
-#### Threshold
+**Koreksi 2026-08-25** (instruksi user: *"Top 5 itu harusnya jumlah terbanyak
+bukan value nya"*) — SEBELUMNYA ranking pakai `hm_revenue DESC` (nilai
+Rupiah), padahal M5 mengukur PENETRASI (jumlah/keluasan), bukan nilai uang.
+Diganti ke `hm_qty DESC` (total UNIT/quantity produk High Margin terjual,
+`SUM(invoice_items.quantity)`) — field baru `hm_qty` ditambahkan ke
+`fetchHmBreakdown`, kolom baru "Qty HM" juga muncul di tabel drilldown.
 
-| Kondisi | Threshold yang dipakai |
+### Drill-Down Modal (HM Breakdown)
+
+Klik titik chart → endpoint `GET /metrics/hm-breakdown` (`date_from` = awal periode yang diklik)
+
+| Kolom | Keterangan |
 |---|---|
-| `business_configs.high_margin_min_pct` tidak di-set atau = 0 | **Auto**: median margin rate semua produk bulan itu |
-| `business_configs.high_margin_min_pct` di-set, misal `30` | **Manual**: produk dengan `margin_rate ≥ 30%` |
+| Ranking | Urutan `hm_qty` (unit terbanyak) terbesar ke terkecil |
+| Nama customer | Dari tabel `customers` |
+| Qty HM | Total unit produk High Margin terjual ke customer itu |
+| Revenue HM | Total revenue dari produk High Margin (info tambahan, BUKAN basis ranking) |
+| % HM | Kontribusi revenue HM customer itu terhadap total revenue HM periode itu |
 
-Threshold auto dihitung:
-```sql
-PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY margin_rate)
--- dari semua produk yang terjual di bulan tersebut (revenue > 0)
-```
-
-Threshold yang dipakai ditampilkan di subtitle chart:
-`Auto-threshold: 28.8% margin rate` atau `Manual-threshold: 30% margin rate`
-
-### Pipeline Kalkulasi
-
-```
-1. product_margin_rates
-   → SUM(gp) / SUM(rev) per product_id per bulan
-   → filter: revenue > 0
-
-2. hm_threshold_calc
-   → threshold = config atau median dari product_margin_rates
-
-3. hm (high margin buyers)
-   → customer yang punya invoice_item dengan product margin_rate ≥ threshold
-
-4. M5 ratio
-   → COUNT(hm ∩ existing) / COUNT(existing) × 100
-```
+Header modal: total existing, jumlah pembeli HM, penetrasi (dihitung ULANG
+dari 2 angka drilldown itu sendiri — BUKAN dari titik terakhir trend, supaya
+benar walau titik yang diklik beda dari titik terakhir), total revenue HM.
 
 ### Sumber Data
 
 | Tabel | Kolom | Keterangan |
 |---|---|---|
 | `invoices` | `invoice_date`, `customer_id` | Relasi ke items |
-| `invoice_items` | `product_id`, `gross_profit`, `revenue` | Basis kalkulasi margin rate |
+| `invoice_items` | `product_id`, `quantity`, `revenue` | Basis Qty/Revenue HM |
+| `high_margin_products` | `product_id`, `product_category_id`, `effective_from`, `effective_until` | Mapping MANUAL admin — SSOT produk mana yang dianggap High Margin |
 | `customers` | `first_invoice_date`, `is_placeholder` | Filter existing + dummy |
-| `business_configs` | `high_margin_min_pct` | Threshold manual (opsional) |
-
-### Konfigurasi Threshold Manual
-
-Untuk menetapkan threshold fixed (misalnya selalu 30%):
-
-```sql
-INSERT INTO business_configs (key, value) VALUES ('high_margin_min_pct', '30')
-ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-```
-
-Kosongkan atau set `0` untuk kembali ke mode auto.
 
 ### Tampilan
 
-- **Chart**: DonutChartWidget snapshot bulan berjalan
-- **Hijau**: % existing customer yang membeli produk high margin
-- **Abu (inactive)**: sisanya
-- **Center**: persentase `bought_pct`
-- **Subtitle**: threshold yang dipakai + mode (auto/manual)
+- **Chart**: `ComboChartWidget` — trend N-periode (bar STACKED: Tidak Membeli +
+  Membeli High Margin = Total Existing Customer aktif; garis = Penetrasi HM %)
+  — **GANTI dari DonutChartWidget snapshot 1 titik** (koreksi 2026-08-25,
+  instruksi user: *"chart nya buat jadi 12 titik tren seperti cart lain"*)
+- **KpiHeader**: current vs YoY (titik terakhir trend vs titik terakhir trend YoY)
+- **Top 5**: Top Movers timeline, basis `hm_qty` (lihat di atas)
+- **Modal**: tabel drill-down per periode (lihat Drill-Down Modal di atas)
 
 ---
 
-## M6 — Repeat Order Rate
+## M6 — Repeat Order Rate (ROR)
 
 ### Penjelasan
 
-Mengukur berapa persen existing customer yang melakukan **lebih dari 1 transaksi** dalam active window 30 hari periode berjalan. "Repeat order" bukan sekadar transaksi, tapi minimal 2 invoice berbeda.
+Mengukur persentase existing customer yang melakukan pembelian ulang (**lebih dari 1 transaksi**) dalam 1 periode (Bulanan/Kuartal/Semester/Tahunan) — loyalitas customer, kualitas pengalaman pelanggan, dan efektivitas strategi retensi. "Repeat order" artinya minimal 2 invoice berbeda dalam periode itu, bukan sekadar pernah beli sebelumnya.
+
+**Populasi = Existing Active** (dulu "Retained Total") — dicek terhadap
+dokumen SSOT resmi (task029.md §36, 2026-08-25) — SUDAH SESUAI: "Customer
+yang Melakukan Repeat Order" (numerator, >1 transaksi periode ini) BEDA
+dari "Existing Customer"/**Existing Active** (denominator, cuma syarat
+riwayat + masih beli, TANPA syarat harus >1 kali) — dokumen memisahkan
+keduanya secara eksplisit.
 
 ### Formula
 
 ```
-M6 (%) = COUNT(existing yang punya >1 invoice dalam 30 hari) / COUNT(TOTAL existing) × 100
+ROR (%) = COUNT(existing yang punya >1 invoice periode ini) / COUNT(Existing Customer aktif) × 100
 ```
 
-- **Numerator**: existing customer dengan `COUNT(DISTINCT invoice_id) > 1` dalam window `(period_end - 30 hari, period_end]`
-- **Denominator**: semua existing customer di bulan itu (termasuk yang tidak transaksi)
+- **Numerator**: existing customer dengan `COUNT(DISTINCT invoice_id) > 1` dalam periode
+- **Denominator**: existing customer yang punya ≥ 1 invoice di periode itu (SEMUA yang aktif,
+  bukan cuma yang repeat order)
 
 ### Threshold & Konfigurasi
 
@@ -291,24 +695,6 @@ Target diambil dari `business_configs.repeat_order_target_pct` (default: 80). Da
 Threshold ini mengontrol:
 - Warna RadialBarWidget (lingkaran penuh = target, bukan 100%)
 - Status label: `✓ Sesuai Target` / `⚠ Mendekati Target` / `✗ Di Bawah Target`
-
-```sql
--- CTE repeat_orders di fetchCustomerMetricsTrend
-repeat_orders AS (
-  SELECT e.ms, ri.customer_id
-  FROM raw_inv ri
-  JOIN months m ON
-    ri.invoice_date > (m.ms + INTERVAL '1 month' - INTERVAL '1 day') - activeDays * INTERVAL '1 day'
-    AND ri.invoice_date <= (m.ms + INTERVAL '1 month' - INTERVAL '1 day')
-  JOIN existing e ON e.id = ri.customer_id AND e.ms = m.ms
-  GROUP BY e.ms, ri.customer_id
-  HAVING COUNT(DISTINCT ri.invoice_id) > 1
-)
-
--- Di SELECT utama:
-ROUND(COUNT(DISTINCT ro.customer_id)::numeric * 100 / NULLIF(COUNT(DISTINCT e.id), 0), 1)
-AS repeat_order_rate
-```
 
 ### API Response
 
@@ -326,7 +712,7 @@ AS repeat_order_rate
 
 ### Drill-Down Modal (ROR Breakdown)
 
-Klik RadialBarWidget → endpoint `GET /metrics/ror-breakdown?month=YYYY-MM&company_id=...`
+Klik RadialBarWidget → endpoint `GET /metrics/ror-breakdown` (`date_from` = awal periode yang diklik)
 
 | Kolom | Keterangan |
 |---|---|
@@ -334,15 +720,23 @@ Klik RadialBarWidget → endpoint `GET /metrics/ror-breakdown?month=YYYY-MM&comp
 | Nama Customer | Dari tabel `customers` |
 | Kode | `customer_code` (nullable, tampil `—` jika null) |
 | Jumlah Order | `invoice_count` — badge StatusChip (≥10=success, ≥5=primary, ≥3=info, default) |
-| Total Revenue | Agregat revenue invoice di 30 hari itu |
+| Total Revenue | Agregat revenue invoice di periode itu |
 
 Header modal: total existing, count repeat buyer, rate.
+
+**KOREKSI 2026-08-25 (task029.md §36)** — `total_existing` modal ini
+SEBELUMNYA `COUNT(*)` dari `established_customers` mentah (fixed cohort).
+Diperbaiki: SEKARANG `COUNT(*)` dari established customer yang benar-benar
+punya invoice APA PUN di rentang ini (CTE baru `inv_active`, BUKAN cuma yang
+repeat order — beda dari fix M3/M4 yang cukup swap ke populasi numerator,
+di M6 numeratornya sendiri SUDAH subset lebih sempit dari denominator yang
+benar). Konsisten dgn `existing_customers`/`repeat_order_rate` trend chart.
 
 Modal menggunakan `ResponsiveListView` (DataGrid desktop / card mobile).
 
 ### Tampilan
 
-- **Chart**: RadialBarWidget snapshot bulan berjalan
+- **Chart**: RadialBarWidget snapshot titik terakhir trend (granularitas-aware)
 - **Domain**: `[0, target_pct]` — lingkaran penuh = target
 - **Warna**: proporsi terhadap target (`pct = value / target_pct × 100`)
   - Hijau: `pct ≥ 100`
@@ -356,48 +750,72 @@ Modal menggunakan `ResponsiveListView` (DataGrid desktop / card mobile).
 
 ### Penjelasan
 
-Mengukur berapa persen existing customer yang spend-nya **naik** dibanding 30 hari sebelum active window. Denominator = semua existing, bukan hanya yang aktif di kedua periode.
+Mengukur pertumbuhan nilai bisnis dari existing customer melalui peningkatan
+pembelian — dipakai utk menilai efektivitas strategi account growth dan
+customer value expansion. Berapa persen existing customer (yang BELUM
+lewat ambang dormant) yang spend-nya **naik** dibanding periode
+SEBELUMNYA (lebar sama, calendar-anchored, granularitas-aware — bukan lagi
+30/60 hari hardcode, lihat "REVISI 2026-08-23/25" di bawah).
+
+**Populasi = Customer Base (Addressable)** (dulu "Non-Dormant" di kamus
+v13, REVISI 2026-08-25, task029.md §34.1/§36.47/§36.50) — BUKAN "Total
+Customer Base" polos (established, ANY status) atau "Existing Active"
+(definisi §M3-M6, mensyaratkan transaksi periode ini). Existing customer
+yang SUDAH resmi dormant (melewati `dormantThresholdCaseSql`, sama
+ambang per kategori bisnis divisi dgn M8) DIKELUARKAN dari denominator —
+itu ranah M8, bukan lagi soal "expansion". Yang tersisa = **Customer
+Base (Addressable)** (`Lapsed + Active Customer + Reactivated`, alias
+kode `established_not_dormant`) — customer yang baru absen tapi belum
+resmi dormant TETAP masuk hitungan (TIDAK mensyaratkan transaksi di
+periode berjalan sama sekali), kebaca sbg kategori "Lapsed" (sinyal
+dini, masih actionable).
 
 ### Formula
 
 ```
-M7 (%) = COUNT(existing dimana rev_cur > rev_prev) / COUNT(TOTAL existing) × 100
+M7 (%) = COUNT(existing_not_dormant dimana rev_cur > rev_prev) / COUNT(TOTAL existing_not_dormant) × 100
 ```
 
-- **Window aktif (cur)**: `(period_end - 30 hari, period_end]`
-- **Window sebelumnya (prev)**: `(period_end - 60 hari, period_end - 30 hari]`
-- **Numerator**: `COALESCE(cur.rev, 0) > COALESCE(prev.rev, 0)`
-  - Termasuk customer yang tidak order di prev (prev.rev = 0) tapi order sekarang
-  - Tidak termasuk customer yang tidak order di keduanya (0 > 0 = false)
-- **Denominator**: `COUNT(DISTINCT e.id)` — semua existing
+- **Window aktif (cur)**: bucket granularitas yang sedang dilihat (`dateFrom`..`filterDate`, ikut periodType — bulanan/kuartal/semester/tahunan)
+- **Window sebelumnya (prev)**: bucket SEBELUMNYA, lebar sama, calendar-anchored (period-anchored posisi relatif sama, BUKAN lagi rolling 30 hari mundur — koreksi user 2026-08-23: "membandingkan 1-7 vs 26-31 itu makesense?")
+- **Numerator**: `cur_revenue > prev_revenue` (`COALESCE(...,0)` implisit dari `LEFT JOIN`)
+  - Termasuk customer yang tidak order di prev tapi order sekarang
+  - Tidak termasuk customer yang tidak order di keduanya (0 > 0 = false, masuk `inactive`)
+- **Denominator**: `COUNT(*)` dari `established_customers JOIN established_not_dormant` — fixed cohort per business rule di `filterDate` (pola "Template Standar Kartu KPI4": Total = fixed cohort, kategori = partisi eksak dari cohort itu, BUKAN rata-rata snapshot)
 
 ```sql
--- CTE prev_inv_agg di fetchCustomerMetricsTrend
-prev_inv_agg AS (
-  SELECT e.ms, ri.customer_id, SUM(ri.rev) AS rev
-  FROM raw_inv ri
-  JOIN months m ON
-    ri.invoice_date > (m.ms + '1 month'::interval - '1 day'::interval) - activeDays * 2
-    AND ri.invoice_date <= (m.ms + '1 month'::interval - '1 day'::interval) - activeDays
-  JOIN existing e ON e.id = ri.customer_id AND e.ms = m.ms
-  GROUP BY e.ms, ri.customer_id
+-- CTE established_not_dormant (m3m7.repository.ts, fetchExpansionBreakdown/
+-- fetchCustomerMetricsTrend) — gerbang dormant, SAMA PERSIS ambang M8
+established_not_dormant AS (
+  SELECT ec.id
+  FROM established_customers ec
+  JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
+  LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= filterDate
+  GROUP BY ec.id, cdt.dormant_threshold
+  HAVING MAX(li.invoice_date) IS NOT NULL
+    AND MAX(li.invoice_date) > filterDate - cdt.dormant_threshold * INTERVAL '1 month'
 )
 
--- Di SELECT utama:
-ROUND(
-  COUNT(DISTINCT CASE WHEN COALESCE(cur.rev, 0) > COALESCE(prv.rev, 0) THEN e.id END)::numeric * 100
-  / NULLIF(COUNT(DISTINCT e.id), 0), 1
-) AS expansion_rate
+-- Status per customer (exhaustive partition dari combined = established JOIN established_not_dormant)
+CASE
+  WHEN cur_revenue > prev_revenue THEN 'up'
+  WHEN cur_revenue = prev_revenue AND cur_revenue = 0 THEN 'inactive'
+  WHEN cur_revenue = prev_revenue THEN 'flat'
+  ELSE 'down'
+END AS status
 ```
 
 ### Service Layer
 
 ```typescript
-up_rate:        row.expansion_rate,
-flat_down_rate: parseFloat((100 - row.expansion_rate).toFixed(1)),
+expansion_rate: row.expansion_rate,  // up_rate — dulu bernama up_rate, sekarang expansion_rate (m3m7.repository.ts TrendRow)
+flat_rate:      row.flat_rate,
+inactive_rate:  row.inactive_rate,
+down_rate:      row.down_rate,
 ```
 
-`flat_down_rate` = sisa existing yang spending-nya flat/turun (termasuk yang tidak order sama sekali).
+Field lama `up_rate`/`flat_down_rate` (binary) SUDAH DIGANTI 4 field
+terpisah di atas sejak revisi 4-way (2026-08-21) — lihat tabel di bawah.
 
 **4-way (REVISI 2026-08-21, KERAS — user: "datamu tidak valid jika tanpa
 transaksi kamu beri label stabil")** — versi 3-way lama (`flat_rate` =
@@ -494,3 +912,137 @@ menurun tapi masih order) dgn fitur "fill by value" recharts
 posisi pixel titik 0 dari `useYAxisScale()`) — garis DAN fill area
 SAMA-SAMA ganti warna monokrom (primary solid vs grey) tepat di titik
 silang 0.
+
+---
+
+## M9 — Dormant Customer Value (DCV)
+
+### Penjelasan
+
+Mengukur total nilai bisnis yang "tertahan"/berisiko hilang dari customer
+yang sudah masuk kategori dormant — dipakai utk menilai seberapa besar
+revenue yang belum berhasil dipertahankan atau diaktivasi ulang. Ranking
+per-customer, diurutkan dari estimasi kerugian terbesar.
+
+**Populasi (Dormant Customer)**: customer yang punya riwayat transaksi
+(established) TAPI transaksi terakhirnya sudah melewati ambang dormant —
+ambang SAMA PERSIS M8 (`dormantThresholdCaseSql`, per kategori bisnis
+divisi). Digate juga oleh SSOT "New/Existing" §30.10 (`existingSince` =
+awal kalender label periode yang dilihat) — customer yang first-purchase-
+nya BARU tapi sudah lewat ambang dormant (kasus langka) DIKELUARKAN, itu
+bukan populasi "Existing" yang relevan.
+
+### Formula
+
+```
+recent_12m_rev      = SUM(revenue) 12 bulan kalender SEBELUM transaksi terakhir customer
+avg_monthly_revenue  = recent_12m_rev / 12
+months_dormant       = (tahun,bulan filterDate) - (tahun,bulan transaksi terakhir), min 1
+estimated_lost_value = avg_monthly_revenue × months_dormant
+```
+
+`recent_12m_rev` DIBATASI 12 bulan kalender TERAKHIR sebelum dormant
+(bukan total all-time dibagi jumlah bulan yang ada transaksi saja) —
+pembeli borongan/jarang tidak dapat rata-rata yang melambung karena
+pembaginya window waktu TETAP, bukan cuma bulan yang kebetulan ada
+transaksi (pola sama `avgMonthlyExpr`, `customers.repository.ts`).
+
+`months_dormant` — selisih BULAN KALENDER murni (`tahun*12+bulan`),
+BUKAN selisih hari mentah dibagi 30 (koreksi keras user 2026-08-25: cutoff
+akhir bulan April harus terhitung Mei/Juni/Juli tanpa order = 3 bulan
+dormant di Agustus, bukan `107 hari / 30 = 4` dibulatkan).
+
+```sql
+-- m8m10.repository.ts, fetchDormantValueRanking
+cust_last AS (
+  SELECT c.id, MAX(inv.invoice_date) AS last_invoice_date
+  FROM customers c JOIN inv ON inv.customer_id = c.id
+  JOIN established_customers ec ON ec.id = c.id
+  GROUP BY c.id
+  HAVING MAX(inv.invoice_date) <= filterDate - dormantThreshold * INTERVAL '1 month'
+),
+cust_agg AS (
+  SELECT cl.customer_id,
+    SUM(inv.rev) FILTER (
+      WHERE inv.invoice_date <= cl.last_invoice_date
+        AND inv.invoice_date >= DATE_TRUNC('month', cl.last_invoice_date - INTERVAL '11 months')
+    ) AS recent_12m_rev
+  FROM cust_last cl LEFT JOIN inv ON inv.customer_id = cl.customer_id
+  GROUP BY cl.customer_id
+)
+```
+
+**GAP diketahui (2026-08-26, task029.md §36.12)** — dokumen SSOT
+mendefinisikan DUA komponen historis paralel: *"Historical Revenue... dan
+Historical Gross Profit adalah laba kotor historis yang pernah
+dihasilkan customer tersebut."* Implementasi SAAT INI 100% berbasis
+REVENUE (`recent_12m_rev`/`avg_monthly_revenue`/`estimated_lost_value`
+semua Rupiah omset) — TIDAK ADA komponen gross profit sama sekali, baik
+di backend (`DormantValueRow` tidak punya field GP) maupun UI (tidak ada
+mention "gross profit"/"laba" di M9DormantValue.tsx). Belum diputuskan
+apakah ini disengaja (SSOT pakai kata "atau" — pendapatan ATAU GP, bisa
+dibaca sbg 2 lensa alternatif, revenue-only sah) atau harus ditambah
+metrik GP paralel. Menunggu keputusan user, belum dikerjakan.
+
+### Bug diperbaiki (2026-08-26, task029.md §36.12)
+
+**"Total Potensi Kerugian" (`value_ranking_total_current`) SEBELUMNYA
+cuma menjumlah TOP 20 customer** (`fetchDormantValueRanking(p, 20, ...)`,
+limit hardcode dipakai jg utk hitung total) — bukan SEMUA dormant
+customer. Diverifikasi via query langsung (data lokal, `company_id=all`,
+2026-08): total SEMUA dormant = **Rp 37.594.149.575**, sedangkan jumlah
+top 20 saja cuma **Rp 2.807.182.082** — kartu ringkasan UNDERSTATED ~93%.
+
+Fix: `metrics.service.ts` `getDormantCustomerMetrics` — `fetchDormantValueRanking`
+dipanggil dgn `limit=null` (SEMUA dormant, pola sama `getDormantBreakdown`
+M8 yg sudah lebih dulu begini), top-20 utk TAMPILAN (chart/ranking table)
+di-`slice(0, 20)` dari array penuh itu di JS (TIDAK fetch 2x query
+terpisah), total (`value_ranking_total_current`/`_comparison`) dijumlah
+dari array PENUH. Kartu "Customer Ter-ranking" (`ranking.length`) TETAP
+menampilkan hitungan yang ditampilkan (≤20) — labelnya sudah jujur
+("ter-ranking" = yang tampil di daftar, bukan klaim "total dormant"),
+tidak perlu diubah.
+
+---
+
+## M10 — Customer Reactivation Rate (CRR)
+
+### Penjelasan
+
+Mengukur efektivitas strategi reactivation/win-back — persentase customer
+dormant yang berhasil kembali bertransaksi. Beda dari kebanyakan KPI lain,
+numerator dihitung dari transaksi yang BENAR-BENAR sudah terjadi sampai
+HARI INI di periode berjalan (bukan tunggu periode tutup) — customer bisa
+"reaktivasi" kapan saja dalam periode, terdeteksi langsung.
+
+**Populasi (Total Customer Dormant)**: customer yang SUDAH dormant per
+snapshot di AWAL periode yang diukur (secara teknis: akhir periode
+SEBELUMNYA yang sudah tutup — titik waktu yang SAMA). **Numerator
+(Kembali Bertransaksi)**: subset populasi itu yang order terakhirnya
+(dicek ulang di HARI INI, bukan cuma di akhir periode) sudah cukup baru
+utk keluar dari status dormant lagi.
+
+### Formula
+
+```
+dormant_count (denominator)   = COUNT(existing customer, last order <= akhir periode SEBELUMNYA - ambang dormant)
+reactivated_count (numerator) = subset dormant_count di atas, TAPI last order (dicek s.d HARI INI) > HARI INI - ambang dormant
+reactivation_rate = reactivated_count / dormant_count × 100
+```
+
+Field `prev_dormant_count` (snapshot titik SEBELUM `dormant_count`, beda
+window lagi) BUKAN denominator formula ini — sempat salah dipakai di kartu
+ringkasan (diperbaiki 2026-08-24) dan di tooltip hover chart (diperbaiki
+2026-08-26, task029.md §36.13) — keduanya SEKARANG konsisten pakai
+`dormant_count`.
+
+### Bug diperbaiki (2026-08-26, task029.md §36.13)
+
+Tooltip hover chart M10 (`M10Tooltip`, `M10ReactivationRate.tsx`) masih
+menampilkan `prev_dormant_count` sbg "denominator", padahal kartu
+ringkasan SUDAH dikoreksi ke `dormant_count` sejak 2026-08-24 (2 field
+BEDA titik waktu, `prev_me` vs `me`) — akibatnya kalau user coba verifikasi
+manual `reactivated_count ÷ [angka di tooltip]`, hasilnya TIDAK match
+persis dgn `reactivation_rate` yang ditampilkan di baris pertama tooltip
+yang sama. Diperbaiki: tooltip ganti ke `dormant_count`, konsisten dgn
+kartu ringkasan.

@@ -115,13 +115,10 @@ export default function Growth() {
   const periodTypeFilter = usePeriodTypeFilter();
   const draftPeriodTypeFilter = usePeriodTypeFilter();
 
-  // Toggle Customer Pareto (§komponen filter global, 2026-08-20) — SAMA seperti
-  // Granularitas di atas: baru UI, endpoint M1/M2/M7 belum menerima parameter
-  // "only Pareto customer" sama sekali. Nilai applied-nya belum ada consumer
-  // (belum ada query yang membacanya) — value-nya sengaja tidak di-destructure
-  // (cuma setter yang dipakai handleApplyFilter), tinggal diaktifkan begitu
-  // backend menerima parameter ini.
-  const [, setOnlyPareto] = useState(false);
+  // Toggle Customer Pareto (task029.md §35, 2026-08-25 — backend M1-M10
+  // SEKARANG menerima parameter "only Pareto customer", value-nya dibaca
+  // dan diteruskan ke fetch + komponen anak, bukan dibuang lagi).
+  const [onlyPareto, setOnlyPareto] = useState(false);
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -188,6 +185,7 @@ export default function Growth() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canCrossSelling });
 
   const { data: cmData, isLoading: cmLoading } = useCustomerMetrics({
@@ -198,6 +196,7 @@ export default function Growth() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canExpansion });
 
   return (
@@ -352,6 +351,7 @@ export default function Growth() {
               periodType={periodTypeFilter.periodType}
               applyDateCutoff={applyDateCutoff}
               excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
             />
           ) : (
             <NoSectionAccess />
@@ -368,6 +368,7 @@ export default function Growth() {
               periodType={periodTypeFilter.periodType}
               applyDateCutoff={applyDateCutoff}
               excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
             />
           ) : (
             <NoSectionAccess />
@@ -390,6 +391,7 @@ export default function Growth() {
               applyDateCutoff={applyDateCutoff}
               periodType={periodTypeFilter.periodType}
               excludeIntercompany={excludeIntercompany}
+              onlyPareto={onlyPareto}
             />
           ) : (
             <NoSectionAccess />

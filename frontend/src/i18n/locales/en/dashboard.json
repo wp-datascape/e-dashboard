@@ -18,8 +18,8 @@
   "activeWindowStripLabel": "Active Window: {{months}} months",
   "execSummaryTitle": "Executive Summary",
   "execSummarySubtitle": "The most important business KPIs this period",
-  "existingCustomersTitle": "Existing Customers",
-  "existingCustomersDesc": "All customers except New (including those already Dormant)",
+  "existingCustomersTitle": "Total Customer Base",
+  "existingCustomersDesc": "All customers except Acquisition (including those already Dormant)",
   "dormantCustomersTitle": "Dormant Customers",
   "dormantCustomersDesc": "No transaction past the threshold, which varies by business category",
   "growthSectionTitle": "Customer Growth",
@@ -53,14 +53,14 @@
     "title": "Key Definitions",
     "activeCustomer": {
       "term": "Active Customer",
-      "def": "Existing customer with a transaction in this period"
+      "def": "Established customer with a transaction in this period"
     },
     "existingCustomer": {
-      "term": "Existing Customer",
-      "def": "All customers except New — including those already Dormant"
+      "term": "Total Customer Base",
+      "def": "All customers except Acquisition — including those already Dormant"
     },
     "newCustomer": {
-      "term": "New Customer",
+      "term": "Acquisition",
       "def": "Their first transaction just happened within this period"
     },
     "dormantCustomer": {

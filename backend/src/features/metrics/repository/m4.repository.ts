@@ -25,7 +25,7 @@ export async function fetchGpBreakdown(
   const rangeStartCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH
@@ -45,6 +45,7 @@ export async function fetchGpBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     ),
     existing_gp AS (
@@ -57,9 +58,15 @@ export async function fetchGpBreakdown(
       FROM existing_gp
     ),
     total AS (
+      -- total_existing (2026-08-25, task029.md §36 — sama fix persis M3
+      -- fetchRevenueBreakdown, dokumen SSOT "Existing Customer... DAN MASIH
+      -- MELAKUKAN PEMBELIAN PADA PERIODE TERSEBUT") — GANTI dari COUNT(*)
+      -- established_customers (fixed cohort) ke COUNT(*) existing_gp (yang
+      -- BENAR-BENAR transaksi di rentang ini) — konsisten dgn existing_customers
+      -- trend chart utk periode yang sama.
       SELECT
         COALESCE(SUM(gp), 0)                                AS total_gp,
-        (SELECT COUNT(*) FROM established_customers)::int   AS total_existing
+        COUNT(*)::int                                       AS total_existing
       FROM existing_gp
     )
     SELECT
@@ -86,12 +93,11 @@ export async function fetchGpBreakdown(
 
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
-    const [totRow] = await db.execute(sql`
-      WITH ${establishedCTE}
-      SELECT COUNT(*)::int AS total_existing FROM established_customers
-    `) as unknown[]
-    const tot = totRow as Record<string, unknown>
-    return { rows: [], total_gp: 0, median_threshold: 0, total_existing: Number(tot?.total_existing ?? 0) }
+    // total_existing = 0 (2026-08-25, susulan fix di atas) — rawRows kosong
+    // berarti TIDAK ADA established customer yang transaksi di rentang ini
+    // sama sekali, jadi populasi "Existing" (mensyaratkan "masih beli
+    // periode ini") memang 0.
+    return { rows: [], total_gp: 0, median_threshold: 0, total_existing: 0 }
   }
 
   const first = rawRows[0] as Record<string, unknown>

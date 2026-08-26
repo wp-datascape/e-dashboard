@@ -92,9 +92,9 @@ function M1Tooltip({ active, payload, periodType }: TooltipContentProps<number, 
     <ChartTooltipCard
       title={t('crossSelling.m1TooltipTitle', { month: formatPeriodLabel(t, periodType, d.month) })}
       rows={[
-        { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: String(d.multi_product) },
-        { label: t('crossSelling.m1TooltipSingleCategory'), value: String(singleCategory) },
-        { label: t('crossSelling.m1TooltipExistingCustomers'), value: String(d.total_active) },
+        { label: t('crossSelling.m1TooltipCrossSellingCustomers'), value: d.multi_product.toLocaleString('id-ID') },
+        { label: t('crossSelling.m1TooltipSingleCategory'), value: singleCategory.toLocaleString('id-ID') },
+        { label: t('crossSelling.m1TooltipExistingCustomers'), value: d.total_active.toLocaleString('id-ID') },
         { label: t('crossSelling.m1TooltipCrossSellRate'), value: `${d.ratio.toFixed(1)}%` },
         { label: t('crossSelling.m1TooltipAvgCategories'), value: d.avg_category.toFixed(2) },
       ]}
@@ -119,9 +119,10 @@ interface Props {
    * (kalau OFF, pembanding pakai default clampToElapsedEnd seperti biasa). */
   applyDateCutoff?: boolean;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M1CrossSelling({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
+export function M1CrossSelling({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -166,6 +167,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Fetch MoM (task029.md §31, 2026-08-23, koreksi user: "Top 5 M1, M2 itu
@@ -182,6 +184,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // ─── M1.1 Drill-down (klik sel heatmap customer × kategori) ─────────────────
@@ -332,7 +335,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
             <KpiCard
               label={t('crossSelling.kpi1Label')}
               value={`${data?.kpi1.rate ?? 0}%`}
-              sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
+              sub={t('crossSelling.kpi1Sub', { multi: (data?.kpi1.multi_cat_count ?? 0).toLocaleString('id-ID'), active: (data?.kpi1.active_count ?? 0).toLocaleString('id-ID') })}
               color={theme.palette.primary.main}
             />
           )}
@@ -365,7 +368,8 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               // datanya scope-nya BUKAN 1 bulan. Info periode akurat SUDAH
               // ada di `sub` di bawah, tidak perlu diulang di label.
               label={t('crossSelling.activeCustomerLabel')}
-              value={data?.kpi1.active_count ?? 0}
+              value={(data?.kpi1.active_count ?? 0).toLocaleString('id-ID')}
+              info={t('crossSelling.activeCustomerInfo')}
               // formatDateID (2026-08-22, koreksi user: "perbaiki formating
               // penulisan tanggal lokal ID pakai util yang ada") — dulu
               // period.start/end (raw 'YYYY-MM-DD') dilempar mentah ke
@@ -503,6 +507,21 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               height={280}
               xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
               renderTooltip={(props) => <M1Tooltip {...props} periodType={periodType} />}
+              // Benchmark interpretasi Cross-Sell Rate (task029.md §36,
+              // metrics_docs.md M1) — 3 garis batas band: <25% Rendah,
+              // 25-40% Cukup, 40-60% Baik, >60% Sangat Baik. yAxisId
+              // default 'right' (axis `ratio`/lineKey di atas), domain
+              // axis itu otomatis melebar supaya garis ini tidak terpotong
+              // walau data historis jauh di bawah/atas nilainya.
+              referenceLines={[
+                { value: 25, color: theme.palette.warning.main },
+                { value: 40, color: theme.palette.success.light },
+                { value: 60, color: theme.palette.success.main },
+              ]}
+              // Tick sumbu kanan kelipatan 10 (2026-08-25, laporan user: tick
+              // auto-scale 17.3/32.3/47.3/63.9% "tidak sesuai pola") — bukan
+              // angka bulat hasil padding 10%.
+              rightAxisTickStep={10}
             />
           )}
           </Grid>
@@ -765,8 +784,8 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               {data?.period ? formatPeriodRangeSub(t, periodType, periodKey, data.period.start, data.period.end) : ''}
             </Typography>
             {productSummary && ([
-              [t('crossSelling.m11SummaryProducts'), String(productSummary.product_count ?? 0)],
-              [t('crossSelling.m11SummaryInvoices'), String(productSummary.invoice_count ?? 0)],
+              [t('crossSelling.m11SummaryProducts'), (productSummary.product_count ?? 0).toLocaleString('id-ID')],
+              [t('crossSelling.m11SummaryInvoices'), (productSummary.invoice_count ?? 0).toLocaleString('id-ID')],
               [t('crossSelling.m11SummaryRevenue'), formatRupiah(productSummary.total_revenue ?? 0)],
               [t('crossSelling.m11SummaryGp'), formatRupiah(productSummary.total_gp ?? 0)],
             ] as [string, string][]).map(([label, val]) => (

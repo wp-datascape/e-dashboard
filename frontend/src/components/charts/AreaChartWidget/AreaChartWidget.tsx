@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { SplitColorGradient } from '../shared/SplitColorGradient';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -12,8 +13,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  useYAxisScale,
-  useChartHeight,
 } from 'recharts';
 import type { MouseHandlerDataParam } from 'recharts';
 
@@ -29,47 +28,6 @@ export interface AreaSeries {
    * di bawah 0 pakai `negativeColor`. Tidak diisi = perilaku lama (gradient
    * 1 warna), tidak berubah. */
   negativeColor?: string;
-}
-
-/** Gradient split-warna di titik 0 (2026-08-21) — HARUS dirender sbg child
- * `<AreaChart>` (bukan di AreaChartWidget langsung) krn `useYAxisScale`/
- * `useChartHeight` baca context internal recharts yang cuma ada di dalam
- * chart. Posisi split dihitung dari scale sumbu-Y asli (bukan diasumsikan
- * di tengah) — benar brp pun rentang datanya (mis. data condong ke negatif
- * makin banyak, titik 0 makin ke atas, bukan selalu 50%). */
-function SplitColorGradient({ id, positiveColor, negativeColor }: { id: string; positiveColor: string; negativeColor: string }) {
-  const scale = useYAxisScale();
-  const height = useChartHeight();
-  const scaledZero = scale?.(0);
-  if (scaledZero == null || height == null) return null;
-  const ratio = Math.min(1, Math.max(0, scaledZero / height));
-  return (
-    <defs>
-      {/* Opacity dinaikkan lagi 0.7->0.9 (2026-08-21, koreksi user ke-2
-          "sama saja tidak ada perubahan warna" — data net-nya sendiri
-          jarang & tipis nyembul ke positif, jadi AREA biru-nya kecil apa
-          pun opacity-nya; kompensasi dgn opacity HAMPIR PENUH biar sliver
-          kecil itu tetap keliatan tegas, bukan pudar). Tetap monokrom. */}
-      <linearGradient id={id} x1="0" x2="0" y1="0" y2={height} gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor={positiveColor} stopOpacity={0.9} />
-        <stop offset={`${ratio}`} stopColor={positiveColor} stopOpacity={0.08} />
-        <stop offset={`${ratio}`} stopColor={negativeColor} stopOpacity={0.08} />
-        <stop offset="1" stopColor={negativeColor} stopOpacity={0.9} />
-      </linearGradient>
-      {/* Gradient KEDUA khusus buat `stroke` GARIS-nya (bukan cuma fill) —
-          user: "tetap line ... tidak ada perubahan warna" — garis paling
-          menonjol di chart, kalau cuma fill-nya yang split tapi garis tetap
-          1 warna terus, keliatannya "tidak berubah". Opacity SELALU penuh
-          (bukan fade ke transparan spt gradient fill) — garis tidak boleh
-          menghilang/menipis tepat di titik silang 0. */}
-      <linearGradient id={`${id}-stroke`} x1="0" x2="0" y1="0" y2={height} gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor={positiveColor} stopOpacity={1} />
-        <stop offset={`${ratio}`} stopColor={positiveColor} stopOpacity={1} />
-        <stop offset={`${ratio}`} stopColor={negativeColor} stopOpacity={1} />
-        <stop offset="1" stopColor={negativeColor} stopOpacity={1} />
-      </linearGradient>
-    </defs>
-  );
 }
 
 export interface AreaChartWidgetProps {
@@ -172,7 +130,7 @@ export const AreaChartWidget = ({
             ))}
           </defs>
           {series.filter((s): s is typeof s & { negativeColor: string } => !!s.negativeColor).map((s) => (
-            <SplitColorGradient key={s.key} id={`area-split-${s.key}`} positiveColor={s.color} negativeColor={s.negativeColor} />
+            <SplitColorGradient key={s.key} id={`area-split-${s.key}`} aboveColor={s.color} belowColor={s.negativeColor} />
           ))}
           <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
           <XAxis

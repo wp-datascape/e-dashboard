@@ -1,5 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import MuiTooltip from '@mui/material/Tooltip';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Card } from '@/components/ui';
 
 // `icon` opsional (koreksi user 2026-08-21: "hapus prefix M1 langsung judul
@@ -46,21 +48,61 @@ export function KpiCard({
   value,
   sub,
   color = 'primary.main',
+  icon: Icon,
+  highlighted = false,
+  info,
 }: {
   label: string;
   value: string | number;
-  sub: string;
+  /** Opsional (2026-08-26, task029.md §36.17 — instruksi user: "buat text
+   * lebih singkat jadi cukup 2 line") — kartu ringkasan Reaktivasi TIDAK
+   * pakai baris ke-3 ini lagi (angka+persentase digabung 1 baris di
+   * `value`), tapi caller lama yang masih kirim `sub` TIDAK berubah. */
+  sub?: string;
   color?: string;
+  /** Ikon kecil di depan label (2026-08-26) — pola SAMA PERSIS
+   * `SectionLabel` (fontSize 14, color text.secondary, BUKAN badge
+   * lingkaran berwarna) supaya konsisten dgn gaya ikon aplikasi
+   * keseluruhan (koreksi user: "gaya icon tidak sesuai dengan desain
+   * secara keseluruhan"). Opsional, default tanpa ikon (perilaku lama). */
+  icon?: React.ElementType;
+  /** Border teal (2026-08-26) — penanda "kartu ini konteks tab aktif",
+   * pola minimal (cuma border, TANPA bg tint berwarna) sesuai gaya flat
+   * aplikasi. Opsional, default false (perilaku lama). */
+  highlighted?: boolean;
+  /** Ikon info + tooltip di sebelah label (2026-08-26, task029.md §36.51 —
+   * instruksi user: "kamu belum memberikan tooltip di 3 card yang
+   * menggunakan istilah asing itu", label kartu ganti ke istilah CRM
+   * seperti "Active Transacting" tanpa penjelasan) — pola SAMA PERSIS
+   * `ReportSummaryCards.tsx` (MuiTooltip + InfoOutlinedIcon), reuse bukan
+   * komponen baru. Opsional, default tanpa ikon (perilaku lama). */
+  info?: string;
 }) {
   return (
-    <Card sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: '0.68rem' }}>
-        {label}
-      </Typography>
+    <Card sx={{
+      p: 2.5, height: '100%', display: 'flex', flexDirection: 'column', gap: 1,
+      ...(highlighted && { borderColor: 'primary.main', borderWidth: 2 }),
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {Icon && <Icon sx={{ fontSize: 14, color: 'text.secondary' }} />}
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: '0.68rem' }}>
+          {label}
+        </Typography>
+        {info && (
+          <MuiTooltip
+            title={info}
+            placement="top"
+            arrow
+            slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+          >
+            <InfoOutlinedIcon sx={{ fontSize: 14, color: 'text.disabled', cursor: 'help', '&:hover': { color: 'text.secondary' } }} />
+          </MuiTooltip>
+        )}
+      </Box>
       <Typography variant="h3" sx={{ fontWeight: 800, color, lineHeight: 1 }}>
         {value}
       </Typography>
-      <Typography variant="caption" color="text.secondary">{sub}</Typography>
+      {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
     </Card>
   );
 }

@@ -47,10 +47,18 @@ interface Props {
   /** Granularitas trend (2026-08-24, susulan task029.md §30.9 poin 1).
    * Default 'monthly' kalau caller belum wired. */
   periodType?: PeriodGranularity;
+  /** Apply date cutoff (2026-08-27, task029.md §36.56) — dipakai dialog
+   * "Status Customer" mode ringkasan (drillStart kosong, BUKAN klik titik
+   * chart historis) supaya kartu "Dormant" rekonsiliasi PERSIS ke kartu KPI
+   * M8 di kedua mode (lihat rumus di counts.dormant di bawah). Default
+   * false — caller lama (DormantCustomer/index.tsx, tidak punya filter
+   * cutoff) tetap sama persis. */
+  applyDateCutoff?: boolean;
   companyId?: number | 'all';
   branchId?: number;
   division?: number;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
 // Tooltip custom (2026-08-24, instruksi user: "Perbaikan tooltip di judul,
@@ -60,7 +68,7 @@ interface Props {
 function M10Tooltip({ active, payload, targetLow, periodType }: TooltipContentProps<number, string> & { targetLow: number; periodType: PeriodGranularity }) {
   const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
-  const d = payload[0].payload as { month: string; reactivation_rate: number; reactivated_count: number; prev_dormant_count: number };
+  const d = payload[0].payload as { month: string; reactivation_rate: number; reactivated_count: number; dormant_count: number };
 
   return (
     <ChartTooltipCard
@@ -69,14 +77,21 @@ function M10Tooltip({ active, payload, targetLow, periodType }: TooltipContentPr
         { label: t('dormantCustomer.lineLabelReactivationRate'), value: `${d.reactivation_rate.toFixed(1)}%` },
         { label: t('dormantCustomer.targetMinLabel', { targetLow }), value: `${targetLow}%` },
         { label: t('dormantCustomer.reactivatedCountLabel'), value: d.reactivated_count.toLocaleString('id-ID') },
-        { label: t('dormantCustomer.prevDormantCountLabel'), value: d.prev_dormant_count.toLocaleString('id-ID') },
+        // dormant_count (2026-08-26, task029.md §36.13 — koreksi konsistensi:
+        // kartu ringkasan SUDAH diganti dari prev_dormant_count ke
+        // dormant_count 2026-08-24 (basis DENOMINATOR reactivation_rate yang
+        // benar, prev_dormant_count itu snapshot BEDA titik/prev_me), tapi
+        // tooltip hover chart ini TERLEWAT, masih pakai prev_dormant_count —
+        // sekarang disamakan, biar reactivated_count/[baris ini] = rate yang
+        // ditampilkan di baris pertama, bukan angka lain.
+        { label: t('dormantCustomer.dormantCountLabel'), value: d.dormant_count.toLocaleString('id-ID') },
       ]}
       hint={t('dormantCustomer.m10TooltipClickHint')}
     />
   );
 }
 
-export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', companyId = 'all', branchId, division, excludeIntercompany }: Props) {
+export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', applyDateCutoff = false, companyId = 'all', branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -118,7 +133,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
 
   // Top 5 (2026-08-24, instruksi user: "buatkan juga 3 card summary diatas
   // cart, dan top 5") — REUSE `data.reactivated_customers` (SUDAH di-fetch
-  // bareng data utama, backend filter status reactivated+relapsed pada
+  // bareng data utama, backend filter status reactivated+newlyDormant pada
   // bucket TERAKHIR trend, lihat getDormantCustomerMetrics), bukan fetch
   // baru — pola sama persis M8 (value_ranking) dan M6 (breakdown periode
   // terbaru).
@@ -127,7 +142,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
     name: r.customer_name,
     metricText: r.reactivation_date ? formatDateID(r.reactivation_date) : '—',
     icon: RestartAltIcon,
-    iconColor: r.status === 'relapsed' ? theme.palette.warning.main : theme.palette.success.main,
+    iconColor: r.status === 'newlyDormant' ? theme.palette.warning.main : theme.palette.success.main,
   }));
 
   // Drill-down status per customer (2026-08-24, susulan pertanyaan user soal
@@ -148,10 +163,15 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
     period_end: drillEnd,
     date_from: drillStart ?? undefined,
     period_type: periodType,
+    // apply_date_cutoff (2026-08-27, §36.56) — backend abaikan param ini
+    // otomatis saat date_from terisi (mode klik-titik historis), jadi aman
+    // dikirim selalu tanpa perlu dikondisikan di sini.
+    apply_date_cutoff: applyDateCutoff,
     company_id: companyId,
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Ringkasan 4 status (2026-08-24) — dihitung dari SEMUA baris hasil fetch
@@ -164,21 +184,28 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
     const rows = breakdown?.rows ?? [];
     return {
       active:      rows.filter((r) => r.status === 'active').length,
+      // inactive (2026-08-26, task029.md §36.28) — status BARU, split dari
+      // 'active' lama (lihat JSDoc backend fetchCustomerDormantStatusLog).
+      inactive:    rows.filter((r) => r.status === 'inactive').length,
       dormant:     rows.filter((r) => r.status === 'dormant').length,
+      // newlyDormant (2026-08-26, task029.md §36.43) — customer yang sempat
+      // reaktivasi lalu dormant lagi, NAMA BARU dari status lama 'relapsed'
+      // (koreksi user: "Dormant kembali itu diganti nama menjadi
+      // newlydormant, hanya itu" — logika TIDAK berubah, cuma nama/key).
+      newlyDormant: rows.filter((r) => r.status === 'newlyDormant').length,
       reactivated: rows.filter((r) => r.status === 'reactivated').length,
-      relapsed:    rows.filter((r) => r.status === 'relapsed').length,
     };
   }, [breakdown]);
 
   // List di bawah ringkasan SENGAJA cuma tampilkan kategori reaktivasi
-  // (reactivated + relapsed) — instruksi user 2026-08-24: "Untuk di
+  // (reactivated + newlyDormant) — instruksi user 2026-08-24: "Untuk di
   // drilldown tampilkan list customer kategory reactivasi saja, untuk
   // kategory lainnya detail kita pakai di tabel menu laporan". Endpoint
   // backend TETAP kembalikan SEMUA status (tidak dipangkas server-side) —
   // kategori aktif/dormant tetap tersedia utk halaman Laporan nanti (dan
   // dipakai ringkasan di atas), cuma difilter di sini utk list-nya.
   const reactivationRows = useMemo(
-    () => (breakdown?.rows ?? []).filter((r) => r.status === 'reactivated' || r.status === 'relapsed'),
+    () => (breakdown?.rows ?? []).filter((r) => r.status === 'reactivated' || r.status === 'newlyDormant'),
     [breakdown],
   );
 
@@ -240,6 +267,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
               value={(last?.dormant_count ?? 0).toLocaleString('id-ID')}
               sub={dormantCountPeriodSub}
               color={theme.palette.error.main}
+              info={t('dormantCustomer.dormantCountInfo')}
             />
           )}
         </Grid>
@@ -253,7 +281,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
               title={t('dormantCustomer.m10TooltipInfo')}
               placement="top"
               arrow
-              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.5 } } }}
+              slotProps={{ tooltip: { sx: { maxWidth: 320, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
             >
               <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
                 <InfoOutlinedIcon sx={{ fontSize: 14 }} />
@@ -344,7 +372,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
       {/* Status breakdown dialog (2026-08-24) — klik titik chart di atas.
           Subtitle = ringkasan 4 status (info, bukan filter — pola sama
           persis Dialog M2AvgCategory.tsx), list di bawahnya khusus
-          kategori reaktivasi (reactivated + relapsed) saja. */}
+          kategori reaktivasi (reactivated + newlyDormant) saja. */}
       <Dialog
         open={!!drillEnd}
         onClose={() => { setDrillEnd(null); setDrillStart(null); setDrillMonth(null); }}
@@ -373,17 +401,56 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
             <Typography variant="caption" color="text.secondary">
               {drillMonth && drillStart && drillEnd ? formatPeriodRangeSub(t, periodType, drillMonth, drillStart, drillEnd) : ''}
             </Typography>
+            {/* Label baris (2026-08-26, task029.md §36.48 — instruksi user:
+                "ini sudah sesuai kamus v13 belum?") — SEBELUMNYA pakai key
+                long-form ("Total Pelanggan Existing", "Pelanggan Existing
+                Aktif" dst, peninggalan instruksi rename SEBELUM Kamus v13
+                ada). Diganti reuse key *Short milik kartu ringkasan (sudah
+                persis istilah Kamus v13: "Existing Total"/"Retained"/
+                "Inactive"/"Dormant"/"Reactivated"/"Newly Dormant") — 1
+                sumber teks, bukan 2 set kata berbeda utk populasi yang sama.
+
+                Relapsed/Reactivated diberi indent (2026-08-27, task029.md
+                §36.53 — pertanyaan user: "bukankah reactivated ini termasuk
+                dalam total customer base seharusnya" — user coba jumlahkan
+                5 baris flat, hasilnya 72 lebih banyak dari Total Customer
+                Base, krn Dormant DI SINI SUDAH gabungan (termasuk Relapsed+
+                Reactivated, keputusan §36.47 supaya match kartu KPI) —
+                TAPI tampilannya sejajar/flat spt 5 kategori independen,
+                jadi wajar dikira harus dijumlah rata. Indent + "↳" menandai
+                Relapsed/Reactivated sbg RINCIAN DI DALAM Dormant, bukan
+                kategori sejajar tambahan — 4 baris pertama (Total/Active/
+                Lapsed/Dormant) tetap mutually exclusive & jumlahnya = Total. */}
             {([
-              [t('dormantCustomer.m10SummaryAll'), String(breakdown.rows.length)],
-              [t('dormantCustomer.m10SummaryActive'), String(counts.active)],
-              [t('dormantCustomer.m10SummaryDormant'), String(counts.dormant)],
-              [t('dormantCustomer.m10SummaryReactivated'), String(counts.reactivated)],
-              [t('dormantCustomer.m10SummaryRelapsed'), String(counts.relapsed)],
-            ] as [string, string][]).map(([label, val]) => (
-              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
+              [t('dormantCustomer.m10SummaryAllShort'), breakdown.rows.length.toLocaleString('id-ID'), false],
+              [t('dormantCustomer.m10SummaryActiveShort'), counts.active.toLocaleString('id-ID'), false],
+              [t('dormantCustomer.m10SummaryInactiveShort'), counts.inactive.toLocaleString('id-ID'), false],
+              // Dormant (2026-08-26, task029.md §36.47 — koreksi KERAS
+              // user: "itu dormant jadi 19.200 darimana, dormant di card
+              // 19.304") — baris ini HARUS sama persis dgn kartu KPI
+              // "Dormant" — bukan dikurangi lagi dgn Newly Dormant/Reaktivasi
+              // (yang cuma sub-rincian tambahan DI BAWAHnya, bukan kategori
+              // terpisah yang mengurangi angka Dormant utama).
+              //
+              // +reactivated DIKECUALIKAN saat mode "periode berjalan" (drillStart
+              // kosong) DAN cutoff aktif (2026-08-27, §36.56 — koreksi user:
+              // "Ya kalau namanya dormant bukan kah harusnya datanya sama?")
+              // — di mode itu, `dormant`+`newlyDormant` SUDAH PERSIS = kartu
+              // KPI (backend punya cabang tambahan "baru menyebrang dormant
+              // DI DALAM periode ini"), menambah `reactivated` di sini malah
+              // DOUBLE-COUNT (reactivated by definisi TIDAK dormant sekarang).
+              // Mode klik-titik historis (drillStart terisi) TIDAK terpengaruh
+              // — backend abaikan cutoff sepenuhnya di mode itu, formula lama
+              // (+reactivated) tetap benar.
+              [t('dormantCustomer.m10SummaryDormantShort'), (counts.dormant + counts.newlyDormant + (!drillStart && applyDateCutoff ? 0 : counts.reactivated)).toLocaleString('id-ID'), false],
+              [t('dormantCustomer.m10SummaryNewlyDormantShort'), counts.newlyDormant.toLocaleString('id-ID'), true],
+              [t('dormantCustomer.m10SummaryReactivatedShort'), counts.reactivated.toLocaleString('id-ID'), true],
+            ] as [string, string, boolean][]).map(([label, val, indented]) => (
+              <Box key={label} sx={{ display: 'flex', gap: 0.5, pl: indented ? 2 : 0 }}>
+                {indented && <Typography component="span" variant="caption" sx={{ color: 'text.disabled' }}>↳</Typography>}
+                <Typography component="span" variant="caption" color={indented ? 'text.disabled' : 'text.secondary'}>{label}</Typography>
+                <Typography component="span" variant="caption" color={indented ? 'text.disabled' : 'text.secondary'}>:</Typography>
+                <Typography component="span" variant="caption" sx={{ color: indented ? 'text.secondary' : 'text.primary', fontWeight: indented ? 500 : 600 }}>{val}</Typography>
               </Box>
             ))}
           </Box>

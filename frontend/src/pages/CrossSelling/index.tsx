@@ -84,7 +84,7 @@ export default function CrossSelling() {
             <KpiCard
               label={t('crossSelling.kpi1Label')}
               value={`${data?.kpi1.rate ?? 0}%`}
-              sub={t('crossSelling.kpi1Sub', { multi: data?.kpi1.multi_cat_count ?? 0, active: data?.kpi1.active_count ?? 0 })}
+              sub={t('crossSelling.kpi1Sub', { multi: (data?.kpi1.multi_cat_count ?? 0).toLocaleString('id-ID'), active: (data?.kpi1.active_count ?? 0).toLocaleString('id-ID') })}
               color={theme.palette.primary.main}
             />
           )}
@@ -103,7 +103,8 @@ export default function CrossSelling() {
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('crossSelling.activeCustomerLabel', { months: data?.period.active_months ?? '…' })}
-              value={data?.kpi1.active_count ?? 0}
+              value={(data?.kpi1.active_count ?? 0).toLocaleString('id-ID')}
+              info={t('crossSelling.activeCustomerInfo')}
               sub={t('crossSelling.activeCustomerSub', { start: data?.period.start ?? '—', end: data?.period.end ?? '—' })}
               color={theme.palette.success.main}
             />

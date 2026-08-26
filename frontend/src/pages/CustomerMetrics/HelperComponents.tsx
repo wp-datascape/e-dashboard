@@ -6,14 +6,20 @@ import { Card } from '@/components/ui';
 // dari "M1 jadi standar layout semua KPI") — ganti prefix teks "M7 ·" dkk
 // jadi ikon kecil di depan label, bukan diulang tiap judul.
 export function SectionLabel({ label, icon: Icon }: { label: string; icon?: React.ElementType }) {
+  // `mb: 0.5` di Box INDUK, bukan di Typography anak (2026-08-25, koreksi
+  // user: "icon belum sejajar" — screenshot M3 vs M1). Sebelumnya mb ada di
+  // Typography saja, jadi box-margin Typography lebih tinggi dari Icon
+  // (yang tidak py margin), bikin `alignItems:'center'` pada Box flex ini
+  // memusatkan keduanya secara TIDAK simetris (icon kelihatan turun/naik
+  // relatif teks). Pola yang benar SUDAH ada duluan di
+  // `CrossSelling/HelperComponents.tsx` (dipakai M1/M2) — disamakan ke sana.
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
       {Icon && <Icon sx={{ fontSize: 14, color: 'text.secondary' }} />}
       <Typography
         variant="body2"
         sx={{
           fontWeight: 700,
-          mb: 0.5,
           color: 'text.secondary',
           fontSize: '0.72rem',
           textTransform: 'uppercase',

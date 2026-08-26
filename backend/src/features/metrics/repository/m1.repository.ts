@@ -1,24 +1,31 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
-import { cteExistingCustomersByPeriod, cteFirstInvoiceDate } from '../segment.helper'
 import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
 import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
 
-// Populasi = "Existing" RELATIF PERIODE (task029 §30.10, 2026-08-20, revisi
-// user — GANTI TOTAL dari activeMonths mundur yang dipakai sebelumnya):
-// customer yang transaksi PERTAMANYA (sepanjang hidup) sudah SEBELUM awal
-// periode ini (`cteExistingCustomersByPeriod`), DAN py transaksi di dalam
-// [periodStart, periodEnd] (dijamin lewat INNER JOIN invoices di bawah, TIDAK
-// perlu EXISTS terpisah). Rentang transaksi yang dianalisis (buat cat_count)
-// ikut LEBAR PERIODE PENUH (Kuartal = 3 bulan/elapsed, Tahunan = YTD) — BUKAN
+// Populasi = "Customer Aktif" (koreksi 2026-08-25, task029.md §34 — dokumen
+// SSOT resmi "DEFINISI OPERASIONAL Customer Loyal Dashboard" dijadikan
+// acuan): "Customer Aktif adalah pelanggan yang melakukan minimal 1
+// transaksi pembelian dalam periode pengukuran" — TANPA syarat riwayat
+// transaksi sebelumnya. GANTI dari definisi "Existing relatif periode"
+// (§30.10, 2026-08-20) yang SEBELUMNYA dipakai di sini — pilot §30.10 keliru
+// menganggap M1/M2 populasinya "Existing", padahal dokumen SSOT eksplisit
+// bilang populasi M1 ("Cross Sell Ratio") & M2 ("Average Product Category
+// per Customer") itu "Customer Aktif" murni, BUKAN "Existing Customer" (beda
+// dari M3/M4/M6/M7 yang MEMANG "Existing Customer" secara definisi resmi,
+// lihat §34 tabel ringkasan). Konsekuensi: customer baru (first invoice DI
+// DALAM periode ini) SEKARANG IKUT terhitung — sebelumnya sengaja
+// dikecualikan, itu yang salah.
+//
+// Rentang transaksi yang dianalisis (buat cat_count) tetap ikut LEBAR
+// PERIODE PENUH (Kuartal = 3 bulan/elapsed, Tahunan = YTD) — BUKAN
 // activeMonths 1 bulan lagi, ini juga yang menjawab temuan user "Q3 harusnya
 // 51 hari (elapsed sejak 1 Juli), bukan 1 bulan terakhir". `periodStart`
 // SELALU batas kalender (tidak pernah dipotong), `periodEnd` BISA dipotong
 // elapsed/day-cutoff oleh service layer (period.util.ts) — lihat pemanggil.
 const CS_INV_CTE = (p: SegmentParams, periodStart: string, periodEnd: string) => sql`
-  ${cteExistingCustomersByPeriod(p, periodStart)},
   inv AS (
     SELECT DISTINCT
       i.id, i.customer_id, i.total_revenue::numeric AS total_revenue,
@@ -30,7 +37,6 @@ const CS_INV_CTE = (p: SegmentParams, periodStart: string, periodEnd: string) =>
       COALESCE(c.division_override_id, cd.division_id) AS division_id
     FROM invoices i
     JOIN customers c ON c.id = i.customer_id
-    JOIN existing_customers ec ON ec.id = i.customer_id
     LEFT JOIN channel_divisions cd
       ON  cd.channel_name  = i.channel_name
       AND cd.company_id = i.company_id
@@ -44,6 +50,7 @@ const CS_INV_CTE = (p: SegmentParams, periodStart: string, periodEnd: string) =>
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
       AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
       AND ${buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)}
+      AND ${buildOnlyParetoRaw('c.id', 'i.company_id', p.filterDate, p.onlyPareto)}
   )
 `
 
@@ -90,13 +97,12 @@ export async function fetchCrossSellingKPI(p: SegmentParams, periodStart: string
  * Trend N-periode (default 12, task029.md §30) — `buckets` sudah dihitung di
  * SERVICE layer (`buildTrailingPeriods`, period.util.ts) sesuai granularitas
  * filter (monthly/quarter/semester/annual), masing-masing bawa {label,start,
- * end} sendiri. Populasi "Existing" DIHITUNG ULANG PER BUCKET relatif ke
- * `start`-nya sendiri-sendiri (task029 §30.10 — customer New di bucket Juli
- * otomatis Existing lagi di bucket Agustus, TANPA logic tambahan, murni dari
- * posisi first_invoice_date vs `bk.ps` tiap baris) — beda dari implementasi
- * lama yang pakai 1 window activeMonths yang SAMA di semua titik.
- * `first_invoice_date` (SSOT, segment.helper) dihitung SEKALI dipakai semua
- * bucket (bukan 12x EXISTS terpisah) — lebih efisien.
+ * end} sendiri. Populasi "Customer Aktif" (koreksi 2026-08-25, task029.md
+ * §34 — SEBELUMNYA "Existing" §30.10, GANTI ke definisi resmi dokumen SSOT:
+ * siapa saja dgn minimal 1 transaksi DI DALAM bucket itu, TANPA syarat
+ * riwayat transaksi sebelumnya — customer baru IKUT terhitung) — cukup dari
+ * `base` (invoice dalam rentang bucket), tidak perlu CTE first_invoice_date/
+ * gerbang tambahan apa pun lagi.
  */
 export async function fetchCrossSellingTrend(p: SegmentParams, buckets: TrailingPeriodBucket[]): Promise<CrossSellingTrendRow[]> {
   const bucketValues = sql.join(
@@ -108,7 +114,6 @@ export async function fetchCrossSellingTrend(p: SegmentParams, buckets: Trailing
 
   const rawRows = await db.execute(sql`
     WITH
-    ${cteFirstInvoiceDate(p)},
     buckets(label, ps, pe) AS (VALUES ${bucketValues}),
     base AS (
       SELECT
@@ -131,6 +136,7 @@ export async function fetchCrossSellingTrend(p: SegmentParams, buckets: Trailing
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
         AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
         AND ${buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)}
+        AND ${buildOnlyParetoRaw('c.id', 'i.company_id', p.filterDate, p.onlyPareto)}
         AND ii.product_category_id IS NOT NULL
     ),
     per_bucket AS (
@@ -140,7 +146,6 @@ export async function fetchCrossSellingTrend(p: SegmentParams, buckets: Trailing
         COUNT(DISTINCT b.product_category_id) AS cat_count
       FROM buckets bk
       JOIN base b ON b.invoice_date >= bk.ps AND b.invoice_date <= bk.pe
-      JOIN first_invoice_date fid ON fid.customer_id = b.customer_id AND fid.first_date < bk.ps
       GROUP BY bk.label, b.customer_id
     ),
     -- Agregasi per bucket sebelum LEFT JOIN ke buckets agar periode tanpa transaksi tetap muncul (nilai 0)
