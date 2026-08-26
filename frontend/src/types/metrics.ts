@@ -74,6 +74,8 @@ export interface RevenueBreakdownData {
   period_end: string;
   total_revenue: number;
   median_threshold: number;
+  // "Existing" YANG AKTIF (riwayat sebelum periode DAN masih beli periode
+  // ini, task029.md §36) — bukan lagi fixed cohort.
   total_existing: number;
   hm_revenue: number;
   rows: RevenueBreakdownRow[];
@@ -136,6 +138,8 @@ export interface HmBreakdownRow {
   ranking: number;
   customer_name: string;
   customer_code: string | null;
+  // Basis ranking (task029.md §36) — unit/quantity produk High Margin terjual.
+  hm_qty: number;
   hm_revenue: number;
   hm_pct: number;
 }
@@ -182,6 +186,8 @@ export interface CustomerMetricsTrendPoint {
   top_gp_pct: number;
   is_gp_concentrated: boolean;
   high_margin_ratio: number;
+  // Angka mentah numerator high_margin_ratio (task029.md §36) — bar chart trend M5.
+  high_margin_buyer_count: number;
   repeat_order_rate: number;
   expansion_rate: number;
   up_rate: number;
@@ -277,6 +283,12 @@ export interface DormantValueRankingRow {
   months_dormant: number;
   avg_monthly_revenue: number;
   estimated_lost_value: number;
+  // avg_monthly_gp/estimated_lost_gp (2026-08-26, task029.md §36.12 — SSOT
+  // M9 sebut "Historical Gross Profit" sbg komponen paralel Historical
+  // Revenue, keputusan user: "Tambah versi Gross Profit paralel"). Ranking
+  // (urutan baris) TETAP basis revenue, field ini tampilan tambahan.
+  avg_monthly_gp: number;
+  estimated_lost_gp: number;
 }
 
 // Riwayat revenue bulanan per customer (2026-08-25, drilldown M9 — klik bar
@@ -349,11 +361,17 @@ export interface DormantData {
   value_ranking: DormantValueRankingRow[];
   dormant_rate_current: DormantRateCurrent;
   reactivation_current: ReactivationCurrent;
-  // Total estimated_lost_value dari value_ranking, current vs setahun lalu
-  // (2026-08-24, sudah dihitung backend sejak lama, YATIM — sekarang dipakai
-  // KpiHeader M9, "Tata layout M9 seperti layout lainnya").
+  // Total estimated_lost_value dari SEMUA dormant customer (2026-08-24,
+  // sudah dihitung backend sejak lama, YATIM — sekarang dipakai KpiHeader
+  // M9, "Tata layout M9 seperti layout lainnya"; DIPERBAIKI 2026-08-26,
+  // task029.md §36.12 — SEBELUMNYA cuma jumlah top-20 ranking, understated
+  // ~93%), current vs setahun lalu.
   value_ranking_total_current: number;
   value_ranking_total_comparison: number;
+  // value_ranking_total_gp_current/_comparison (2026-08-26, §36.12) — versi
+  // Gross Profit paralel, SAMA PERSIS pola di atas cuma basis GP.
+  value_ranking_total_gp_current: number;
+  value_ranking_total_gp_comparison: number;
   // Daftar customer reaktivasi periode berjalan (2026-08-24, susulan "buatkan
   // juga 3 card summary diatas cart, dan top 5" M10) — top 20 by tanggal
   // reaktivasi terbaru, sudah difilter status reactivated+relapsed di backend.

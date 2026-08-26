@@ -76,9 +76,10 @@ interface Props {
   branchId?: number
   division?: number
   excludeIntercompany?: boolean
+  onlyPareto?: boolean
 }
 
-export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'monthly', periodEnd, companyId, branchId, division, excludeIntercompany }: Props) {
+export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'monthly', periodEnd, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -99,6 +100,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const top5Items: TopMoverItem[] = (currentBreakdown?.rows ?? []).slice(0, 5).map((r) => ({
     id: r.ranking,
@@ -115,6 +117,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   const last = trend.at(-1);

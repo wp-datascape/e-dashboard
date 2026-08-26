@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Button from '@mui/material/Button';
@@ -13,6 +11,10 @@ import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import PauseCircleOutlinedIcon from '@mui/icons-material/PauseCircleOutlined';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { useTranslation } from 'react-i18next';
 
 import { useRorBreakdown, useDormantBreakdown, useDormantStatusBreakdown } from '@/hooks/useMetrics';
@@ -29,10 +31,14 @@ import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { todayIsoDate as todayStr } from '../../CustomerMetrics/helpers';
 import { clampDateNotFuture } from '@/utils/date';
-import { getCurrentPeriodKey, getPeriodDateRange } from '@/utils/analisisPeriod';
+import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday } from '@/utils/analisisPeriod';
 import { useRorColumns } from '../../CustomerMetrics/rorHelpers';
 import { useDormantBreakdownColumns, useDormantStatusColumns } from '../../DormantCustomer/dormantHelpers';
 import type { DormantCustomerStatus } from '@/types/metrics';
+import { formatRupiah } from '@/utils/format';
+import { ReportTabCard } from '../ReportTabCard';
+import { ReportSummaryCards } from '../ReportSummaryCards';
+import { ReactivationSummaryCards } from './ReactivationSummaryCards';
 
 // Laporan > Retention (task029.md §30.19/§32, 2026-08-24) — sebelumnya
 // placeholder "coming soon" (Report/Retention/index.tsx belum pernah diisi,
@@ -102,7 +108,7 @@ export default function ReportRetention() {
   const periodTypeFilter = usePeriodTypeFilter();
   const draftPeriodTypeFilter = usePeriodTypeFilter();
 
-  const [, setOnlyPareto] = useState(false);
+  const [onlyPareto, setOnlyPareto] = useState(false); // task029.md §35
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -138,14 +144,24 @@ export default function ReportRetention() {
   const [py, pm, pd] = periodEnd.split('-').map(Number);
   const reportPeriodKey = getCurrentPeriodKey(periodTypeFilter.periodType, new Date(py, pm - 1, pd));
   const periodStart = getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).start;
+  // periodEndEffective (2026-08-26, task031.md — bug SAMA PERSIS
+  // Report/Revenue/Report/Growth: `periodEnd` mentah saat "Apply date
+  // cutoff" OFF cuma tanggal 1 bulan yang dipilih, bukan tanggal query
+  // sungguhan — useRorBreakdown/useDormantBreakdown/useDormantStatusBreakdown
+  // TIDAK terima `apply_date_cutoff`, jadi period_end HARUS akhir periode
+  // sungguhan dari sini.
+  const periodEndEffective = applyDateCutoff
+    ? periodEnd
+    : clampPeriodEndToToday(periodTypeFilter.periodType, reportPeriodKey, getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).end);
 
   const { data: rorData, isLoading: rorLoading } = useRorBreakdown({
-    period_end: periodEnd,
+    period_end: periodEndEffective,
     date_from: periodStart,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const rorColumns = useRorColumns(t);
   const [rorSearch, setRorSearch] = useState('');
@@ -164,11 +180,12 @@ export default function ReportRetention() {
   }, [rorData, rorSearch, rorSort]);
 
   const { data: dormantData, isLoading: dormantLoading } = useDormantBreakdown({
-    period_end: periodEnd,
+    period_end: periodEndEffective,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const dormantColumns = useDormantBreakdownColumns(t);
   const [dormantSearch, setDormantSearch] = useState('');
@@ -185,15 +202,29 @@ export default function ReportRetention() {
     else sorted.sort((a, b) => b.estimated_lost_value - a.estimated_lost_value);
     return sorted;
   }, [dormantData, dormantSearch, dormantSort]);
+  // dormantTotals (2026-08-26, task029.md §36.16) — DormantBreakdownData
+  // TIDAK punya field agregat top-level (beda dari Revenue/GP/HM), cuma
+  // `rows` — dijumlah di sini. AMAN krn `useDormantBreakdown` (backend
+  // `getDormantBreakdown`) SUDAH limit=null (SEMUA dormant customer, bukan
+  // top-N), bukan pola bug task031.md §12 (sum dari array terpotong).
+  const dormantTotals = useMemo(() => {
+    const rows = dormantData?.rows ?? [];
+    return {
+      count: rows.length,
+      lostValue: rows.reduce((acc, r) => acc + r.estimated_lost_value, 0),
+      lostGp: rows.reduce((acc, r) => acc + r.estimated_lost_gp, 0),
+    };
+  }, [dormantData]);
 
   const { data: statusData, isLoading: statusLoading } = useDormantStatusBreakdown({
-    period_end: periodEnd,
+    period_end: periodEndEffective,
     date_from: periodStart,
     period_type: periodTypeFilter.periodType,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const statusColumns = useDormantStatusColumns(t);
   const [statusSearch, setStatusSearch] = useState('');
@@ -327,130 +358,133 @@ export default function ReportRetention() {
 
           {activeTab === 'ror' && (
             <Box sx={{ pt: 1 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
-                <TextField
-                  size="small"
-                  placeholder={t('crossSelling.tableSearchPlaceholder')}
-                  value={rorSearch}
-                  onChange={(e) => setRorSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 240 } }}
+              {/* Standar layout Reaktivasi diterapkan (2026-08-26,
+                  task029.md §36.18/§36.19 — keputusan user: "layout
+                  reaktivasi adalah layout standar untuk menu laporan") —
+                  kartu ringkasan ikon+persentase, di LUAR ReportTabCard. */}
+              {/* info tooltip (2026-08-26, task029.md §36.20 — instruksi
+                  user: "verifikasi setiap data nya dan berikan info
+                  tooltip agar user tidak salah faham") — "Total Existing
+                  Customer" di sini HANYA yang aktif periode ini, angkanya
+                  jauh lebih kecil dari "Jumlah Dormant" tab sebelah
+                  (populasi SELURUH customer established) — diverifikasi
+                  langsung ke DB (bukan bug, beda window). */}
+              <ReportSummaryCards items={[
+                { label: t('customerMetrics.m6.summaryExisting'), value: (rorData?.total_existing ?? 0).toLocaleString('id-ID'), icon: PeopleOutlineIcon,
+                  info: t('customerMetrics.m6.summaryExistingInfo') },
+                { label: t('customerMetrics.m6.summaryRepeatCount'), value: (rorData?.repeat_count ?? 0).toLocaleString('id-ID'),
+                  pct: rorData && rorData.total_existing > 0 ? `${((rorData.repeat_count / rorData.total_existing) * 100).toFixed(1)}%` : null,
+                  icon: RefreshIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m6.summaryRepeatCountInfo') },
+              ]} />
+              <ReportTabCard
+                searchValue={rorSearch}
+                onSearchChange={setRorSearch}
+                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
+                sortValue={rorSort}
+                onSortChange={(v) => setRorSort(v as typeof rorSort)}
+                sortLabel={t('crossSelling.tableSortLabel')}
+                sortOptions={[
+                  { value: 'name', label: t('crossSelling.tableSortName') },
+                  { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
+                  { value: 'order_desc', label: t('customerMetrics.m6.colOrderCount') },
+                ]}
+              >
+                <ResponsiveListView
+                  rows={rorRows.map((r) => ({ ...r, id: r.ranking }))}
+                  columns={rorColumns}
+                  loading={rorLoading}
+                  height={560}
+                  pageSize={25}
+                  pageSizeOptions={[25, 50, 100]}
+                  emptyMessage={t('customerMetrics.m6.emptyMessage')}
+                  mobileFields={['customer_name', 'invoice_count', 'total_revenue']}
                 />
-                <TextField
-                  select
-                  size="small"
-                  label={t('crossSelling.tableSortLabel')}
-                  value={rorSort}
-                  onChange={(e) => setRorSort(e.target.value as typeof rorSort)}
-                  sx={{ width: { xs: '100%', sm: 200 } }}
-                >
-                  <MenuItem value="name">{t('crossSelling.tableSortName')}</MenuItem>
-                  <MenuItem value="revenue_desc">{t('crossSelling.tableSortRevenueDesc')}</MenuItem>
-                  <MenuItem value="order_desc">{t('customerMetrics.m6.colOrderCount')}</MenuItem>
-                </TextField>
-              </Box>
-
-              <ResponsiveListView
-                rows={rorRows.map((r) => ({ ...r, id: r.ranking }))}
-                columns={rorColumns}
-                loading={rorLoading}
-                height={560}
-                pageSize={25}
-                pageSizeOptions={[25, 50, 100]}
-                emptyMessage={t('customerMetrics.m6.emptyMessage')}
-                mobileFields={['customer_name', 'invoice_count', 'total_revenue']}
-              />
+              </ReportTabCard>
             </Box>
           )}
 
           {activeTab === 'dormant' && (
             <Box sx={{ pt: 1 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
-                <TextField
-                  size="small"
-                  placeholder={t('crossSelling.tableSearchPlaceholder')}
-                  value={dormantSearch}
-                  onChange={(e) => setDormantSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 240 } }}
+              {/* info tooltip (2026-08-26, §36.20) — "Jumlah Dormant" di
+                  sini mencakup SELURUH customer established (tidak
+                  dibatasi periode berjalan), makanya jauh lebih besar
+                  dari "Total Existing Customer" tab Repeat Order — sudah
+                  diverifikasi ke DB, bukan bug. */}
+              <ReportSummaryCards items={[
+                { label: t('dormantCustomer.dormantCountLabel'), value: dormantTotals.count.toLocaleString('id-ID'), icon: PauseCircleOutlinedIcon, iconColor: 'warning', highlighted: true,
+                  info: t('dormantCustomer.dormantCountInfo') },
+                { label: t('dormantCustomer.m9TotalLossLabel'), value: formatRupiah(dormantTotals.lostValue), icon: TrendingDownIcon, iconColor: 'error',
+                  info: t('dormantCustomer.m9TotalLossInfo') },
+                { label: t('dormantCustomer.m9TotalLossGpLabel'), value: formatRupiah(dormantTotals.lostGp), icon: TrendingDownIcon, iconColor: 'error',
+                  info: t('dormantCustomer.m9TotalLossGpInfo') },
+              ]} />
+              <ReportTabCard
+                searchValue={dormantSearch}
+                onSearchChange={setDormantSearch}
+                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
+                sortValue={dormantSort}
+                onSortChange={(v) => setDormantSort(v as typeof dormantSort)}
+                sortLabel={t('crossSelling.tableSortLabel')}
+                sortOptions={[
+                  { value: 'loss_desc', label: t('dormantCustomer.colEstimatedLoss') },
+                  { value: 'months_desc', label: t('dormantCustomer.colMonthsDormant') },
+                  { value: 'name', label: t('crossSelling.tableSortName') },
+                ]}
+              >
+                <ResponsiveListView
+                  rows={dormantRows.map((r) => ({ ...r, id: r.customer_id }))}
+                  columns={dormantColumns}
+                  loading={dormantLoading}
+                  height={560}
+                  pageSize={25}
+                  pageSizeOptions={[25, 50, 100]}
+                  emptyMessage={t('dormantCustomer.m8TopCustomersEmpty')}
+                  mobileFields={['customer_name', 'months_dormant', 'estimated_lost_value', 'estimated_lost_gp']}
                 />
-                <TextField
-                  select
-                  size="small"
-                  label={t('crossSelling.tableSortLabel')}
-                  value={dormantSort}
-                  onChange={(e) => setDormantSort(e.target.value as typeof dormantSort)}
-                  sx={{ width: { xs: '100%', sm: 200 } }}
-                >
-                  <MenuItem value="loss_desc">{t('dormantCustomer.colEstimatedLoss')}</MenuItem>
-                  <MenuItem value="months_desc">{t('dormantCustomer.colMonthsDormant')}</MenuItem>
-                  <MenuItem value="name">{t('crossSelling.tableSortName')}</MenuItem>
-                </TextField>
-              </Box>
-
-              <ResponsiveListView
-                rows={dormantRows.map((r) => ({ ...r, id: r.customer_id }))}
-                columns={dormantColumns}
-                loading={dormantLoading}
-                height={560}
-                pageSize={25}
-                pageSizeOptions={[25, 50, 100]}
-                emptyMessage={t('dormantCustomer.m8TopCustomersEmpty')}
-                mobileFields={['customer_name', 'months_dormant', 'estimated_lost_value']}
-              />
+              </ReportTabCard>
             </Box>
           )}
 
           {activeTab === 'reactivation' && (
             <Box sx={{ pt: 1 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-                {([
-                  [t('dormantCustomer.m10SummaryAll'), String(statusData?.rows.length ?? 0)],
-                  [t('dormantCustomer.m10SummaryActive'), String(statusCounts.active)],
-                  [t('dormantCustomer.m10SummaryDormant'), String(statusCounts.dormant)],
-                  [t('dormantCustomer.m10SummaryReactivated'), String(statusCounts.reactivated)],
-                  [t('dormantCustomer.m10SummaryRelapsed'), String(statusCounts.relapsed)],
-                ] as [string, string][]).map(([label, val]) => (
-                  <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                    <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
-                  </Box>
-                ))}
-              </Box>
-
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
-                <TextField
-                  size="small"
-                  placeholder={t('crossSelling.tableSearchPlaceholder')}
-                  value={statusSearch}
-                  onChange={(e) => setStatusSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 240 } }}
-                />
-                <TextField
-                  select
-                  size="small"
-                  label={t('dormantCustomer.colStatus')}
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                  sx={{ width: { xs: '100%', sm: 200 } }}
-                >
-                  <MenuItem value="all">{t('dormantCustomer.statusAll')}</MenuItem>
-                  <MenuItem value="active">{t('dormantCustomer.statusActive')}</MenuItem>
-                  <MenuItem value="dormant">{t('dormantCustomer.statusDormant')}</MenuItem>
-                  <MenuItem value="reactivated">{t('dormantCustomer.statusReactivated')}</MenuItem>
-                  <MenuItem value="relapsed">{t('dormantCustomer.statusRelapsed')}</MenuItem>
-                </TextField>
-              </Box>
-
-              <ResponsiveListView
-                rows={statusRows.map((r) => ({ ...r, id: r.customer_id }))}
-                columns={statusColumns}
-                loading={statusLoading}
-                height={560}
-                pageSize={25}
-                pageSizeOptions={[25, 50, 100]}
-                emptyMessage={t('dormantCustomer.m10ReactivationEmpty')}
-                mobileFields={['customer_name', 'status', 'reactivation_date']}
+              {/* ReactivationSummaryCards (2026-08-26, task029.md §36.17 —
+                  instruksi user: "Summary Stats Redesign", kartu Avatar+ikon
+                  ganti baris caption ReportSummaryLine lama) — DI LUAR
+                  ReportTabCard (bukan summaryItems lagi), krn spec pisahkan
+                  "Summary Stats" dari "Filter Bar" sbg 2 blok visual beda. */}
+              <ReactivationSummaryCards
+                total={statusData?.rows.length ?? 0}
+                active={statusCounts.active}
+                dormant={statusCounts.dormant}
+                reactivated={statusCounts.reactivated}
+                relapsed={statusCounts.relapsed}
               />
+              <ReportTabCard
+                searchValue={statusSearch}
+                onSearchChange={setStatusSearch}
+                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
+                sortValue={statusFilter}
+                onSortChange={(v) => setStatusFilter(v as typeof statusFilter)}
+                sortLabel={t('dormantCustomer.colStatus')}
+                sortOptions={[
+                  { value: 'all', label: t('dormantCustomer.statusAll') },
+                  { value: 'active', label: t('dormantCustomer.statusActive') },
+                  { value: 'dormant', label: t('dormantCustomer.statusDormant') },
+                  { value: 'reactivated', label: t('dormantCustomer.statusReactivated') },
+                  { value: 'relapsed', label: t('dormantCustomer.statusRelapsed') },
+                ]}
+              >
+                <ResponsiveListView
+                  rows={statusRows.map((r) => ({ ...r, id: r.customer_id }))}
+                  columns={statusColumns}
+                  loading={statusLoading}
+                  height={560}
+                  pageSize={25}
+                  pageSizeOptions={[25, 50, 100]}
+                  emptyMessage={t('dormantCustomer.m10ReactivationEmpty')}
+                  mobileFields={['customer_name', 'status', 'dormant_duration', 'reactivation_date']}
+                />
+              </ReportTabCard>
             </Box>
           )}
         </>

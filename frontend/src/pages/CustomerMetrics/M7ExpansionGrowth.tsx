@@ -70,9 +70,10 @@ interface Props {
    * ini, tapi jaga-jaga). */
   periodType?: PeriodGranularity;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, division, periodEnd, resolvedPeriodEnd, applyDateCutoff = false, periodType = 'monthly', excludeIntercompany }: Props) {
+export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, division, periodEnd, resolvedPeriodEnd, applyDateCutoff = false, periodType = 'monthly', excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -106,6 +107,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const yoyCurrent = yoyData?.trend[yoyData.trend.length - 1];
 
@@ -129,6 +131,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Top Movers (tab Overview) — breakdown periode SAAT INI (bukan klik),
@@ -146,6 +149,7 @@ export function M7ExpansionGrowth({ trend, isLoading, companyId, branchId, divis
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const topMovers = useMemo(() => (currentBreakdown?.rows ?? []).slice(0, 5), [currentBreakdown]);
 

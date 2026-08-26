@@ -20,6 +20,9 @@ export type TrendRow = {
   top_gp_revenue: number
   top_gp_pct: number
   high_margin_ratio: number
+  // Angka mentah numerator high_margin_ratio (2026-08-25, task029.md §36) —
+  // dipakai bar chart trend M5.
+  high_margin_buyer_count: number
   repeat_order_rate: number
   expansion_rate: number
   flat_rate: number
@@ -85,7 +88,7 @@ export type TrendRow = {
  */
 export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
   const { cid, division, companyScopeIds } = p
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   // M7 dormant threshold (2026-08-25) — SAMA PERSIS pola m8m10.repository.ts
   // (dormantThresholdCaseSql + cteCustDivision), reuse bukan tulis ulang.
@@ -125,6 +128,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
         AND i.invoice_date >= ${earliestStart}::date
         AND i.invoice_date <= ${latestEnd}::date
     ),
@@ -154,6 +158,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
         AND i.invoice_date >= ${earliestStart}::date
         AND i.invoice_date <= ${latestEnd}::date
     ),
@@ -203,6 +208,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
             AND ${branchCond}
             AND ${divisionScopeCond}
             AND ${excludeIntercompanyCond}
+            AND ${onlyParetoCond}
             AND i.invoice_date <= b.pe
         )
     ),
@@ -243,6 +249,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     last_inv_per_bucket AS (
       SELECT b.label, e.id AS customer_id, b.pe AS bucket_end, cdt.dormant_threshold,
@@ -410,6 +417,15 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 1
       ) AS high_margin_ratio,
 
+      -- high_margin_buyer_count (2026-08-25, task029.md §36) — angka
+      -- mentah dari high_margin_ratio di atas (SAMA numerator, alias
+      -- 'hia', TANPA dibagi/dikali 100) — dibutuhkan chart trend M5
+      -- (bar = existing_customers vs high_margin_buyer_count, pola SAMA
+      -- up_count/flat_count dst M7) yang MENGGANTIKAN DonutChartWidget
+      -- snapshot lama (instruksi user: "chart nya buat jadi 12 titik
+      -- tren seperti cart lain").
+      COUNT(DISTINCT hia.customer_id)::int AS high_margin_buyer_count,
+
       ROUND(
         COUNT(DISTINCT CASE WHEN cur.invoice_count > 1 THEN cur.customer_id END)::numeric * 100
         / NULLIF(COUNT(DISTINCT cur.customer_id), 0), 1
@@ -529,6 +545,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       avg_revenue:            Number(row.avg_revenue ?? 0),
       avg_gross_profit:       Number(row.avg_gross_profit ?? 0),
       high_margin_ratio:      Number(row.high_margin_ratio ?? 0),
+      high_margin_buyer_count: Number(row.high_margin_buyer_count ?? 0),
       repeat_order_rate:      Number(row.repeat_order_rate ?? 0),
       expansion_rate:         Number(row.expansion_rate ?? 0),
       flat_rate:              Number(row.flat_rate ?? 0),
@@ -573,7 +590,7 @@ export async function fetchRevenueBreakdown(
   const rangeStartCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH
@@ -593,6 +610,7 @@ export async function fetchRevenueBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     ),
     existing_revenue AS (
@@ -624,6 +642,7 @@ export async function fetchRevenueBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
         AND hmp.effective_from <= i.invoice_date
         AND (hmp.effective_until IS NULL OR hmp.effective_until >= i.invoice_date)
       GROUP BY i.customer_id
@@ -638,9 +657,18 @@ export async function fetchRevenueBreakdown(
       FROM existing_revenue
     ),
     total AS (
+      -- total_existing (2026-08-25, task029.md §36 — koreksi user: dokumen SSOT
+      -- "Existing Customer adalah customer... DAN MASIH MELAKUKAN PEMBELIAN PADA
+      -- PERIODE TERSEBUT") — GANTI dari COUNT(*) established_customers (fixed
+      -- cohort, TERMASUK yang tidak transaksi sama sekali di rentang ini, dulu
+      -- disebut "template standar KPI4") ke COUNT(*) existing_revenue (customer
+      -- established YANG BENAR-BENAR transaksi di rentang ini) — populasi ini
+      -- SEKARANG konsisten dgn definisi "Existing" yang dipakai trend chart
+      -- (existing_customers, m3m7.repository.ts fetchCustomerMetricsTrend),
+      -- bukan lagi angka lebih besar yang beda populasi.
       SELECT
         COALESCE(SUM(revenue), 0)                           AS total_revenue,
-        (SELECT COUNT(*) FROM established_customers)::int   AS total_existing,
+        COUNT(*)::int                                        AS total_existing,
         (SELECT COALESCE(SUM(hm_revenue), 0) FROM existing_hm_revenue) AS hm_revenue
       FROM existing_revenue
     )
@@ -673,12 +701,12 @@ export async function fetchRevenueBreakdown(
 
   const rawRows = rows as unknown[]
   if (rawRows.length === 0) {
-    const [totRow] = await db.execute(sql`
-      WITH ${establishedCTE}
-      SELECT COUNT(*)::int AS total_existing FROM established_customers
-    `) as unknown[]
-    const tot = totRow as Record<string, unknown>
-    return { rows: [], total_revenue: 0, median_threshold: 0, total_existing: Number(tot?.total_existing ?? 0), hm_revenue: 0 }
+    // total_existing = 0 (2026-08-25, susulan fix di atas) — rawRows kosong berarti
+    // TIDAK ADA established customer yang transaksi di rentang ini sama sekali,
+    // jadi populasi "Existing" (yang mensyaratkan "masih beli periode ini") memang
+    // 0 — TIDAK perlu query terpisah ke established_customers lagi (fixed cohort,
+    // sudah bukan definisi yang dipakai).
+    return { rows: [], total_revenue: 0, median_threshold: 0, total_existing: 0, hm_revenue: 0 }
   }
 
   const first = rawRows[0] as Record<string, unknown>
@@ -751,7 +779,7 @@ export async function fetchExpansionBreakdown(
     : dateFrom
       ? sql`i.invoice_date >= (${dateFrom}::date - (${filterDate}::date - ${dateFrom}::date)) AND i.invoice_date < ${dateFrom}::date`
       : sql`i.invoice_date >  ${filterDate}::date - (${activeMonths}::int * 2) * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month'`
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rows = await db.execute(sql`
     WITH
@@ -782,6 +810,7 @@ export async function fetchExpansionBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     established_not_dormant AS (
       SELECT ec.id
@@ -806,6 +835,7 @@ export async function fetchExpansionBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     ),
     inv_previous AS (
@@ -822,6 +852,7 @@ export async function fetchExpansionBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     ),
     -- Branch/Division/Channel (2026-08-21, samakan §28.10 standar — user:
@@ -850,6 +881,7 @@ export async function fetchExpansionBreakdown(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       ORDER BY i.customer_id, i.invoice_date DESC, i.id DESC
     ),
     combined AS (
@@ -932,6 +964,7 @@ export async function fetchExpansionBreakdown(
           AND ${branchCond}
           AND ${divisionScopeCond}
           AND ${excludeIntercompanyCond}
+          AND ${onlyParetoCond}
       ),
       established_not_dormant AS (
         SELECT ec.id

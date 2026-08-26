@@ -88,9 +88,10 @@ interface Props {
   branchId?: number
   division?: number
   excludeIntercompany?: boolean
+  onlyPareto?: boolean
 }
 
-export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'monthly', periodEnd, companyId, branchId, division, excludeIntercompany }: Props) {
+export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'monthly', periodEnd, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const theme = useTheme();
   const { palette: paletteKey, isDark } = useThemeMode();
   const { t } = useTranslation();
@@ -123,6 +124,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const top5Items: TopMoverItem[] = (currentBreakdown?.rows ?? []).slice(0, 5).map((r) => ({
     id: r.ranking,
@@ -139,13 +141,19 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
-  // hm_pct dihitung di frontend (bukan dari API) - sama seperti avg_revenue dialog yang
-  // juga dihitung inline dari total_revenue/total_existing, konsisten dgn pola existing.
-  const trendWithHmPct = trend.map((d) => ({
+  // non_hm_revenue (2026-08-25, task029.md §36, instruksi user: "Ganti cart
+  // m3 menjadi stack bar cart, bar utuh untuk total revenue, bar dalam
+  // untuk high margin value") — DERIVED (total_revenue_existing - hm_revenue),
+  // pola SAMA PERSIS M2AvgCategory.tsx (single_category) / M5HighMargin.tsx
+  // (not_bought_count) — supaya stacking bar bawah+atas balik ke total
+  // revenue, bukan dobel hitung (hm_revenue SUDAH subset dari
+  // total_revenue_existing).
+  const trendWithNonHm = trend.map((d) => ({
     ...d,
-    hm_pct: d.total_revenue_existing > 0 ? (d.hm_revenue / d.total_revenue_existing) * 100 : 0,
+    non_hm_revenue: d.total_revenue_existing - d.hm_revenue,
   }));
 
   // KpiHeader current-vs-YoY (2026-08-25, task029.md §33) — pola sama
@@ -228,20 +236,51 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
             <Skeleton variant="rectangular" height={280} />
           ) : (
             <ComboChartWidget
-              data={trendWithHmPct}
-              barKey="total_revenue_existing"
+              // Stacked bar (2026-08-25, task029.md §36, instruksi user:
+              // "Ganti cart m3 menjadi stack bar cart, bar utuh untuk total
+              // revenue, bar dalam untuk high margin value") — barKey
+              // (bawah) = non_hm_revenue (DERIVED, total - HM), bar2Key
+              // (atas) = hm_revenue mentah. Stacking keduanya balik ke
+              // total_revenue_existing, jadi tinggi bar keseluruhan TETAP
+              // "total revenue" persis sebelumnya, cuma sekarang porsi HM
+              // kelihatan LANGSUNG sbg segmen Rupiah, bukan cuma garis %
+              // terpisah (line3/hm_pct DIHAPUS, digantikan visual bar ini).
+              data={trendWithNonHm}
+              barKey="non_hm_revenue"
               barLabel={t('customerMetrics.m3.barLabel')}
               barColor={theme.palette.primary.main}
+              bar2Key="hm_revenue"
+              bar2Label={t('customerMetrics.m3.bar2LabelHm')}
+              // bar2Color (2026-08-25, koreksi user: "jangan terlalu
+              // kontras orange, bisa gunakan hijau lebih muda... warna ini
+              // selalu berganti tergantung palet jadi jangan hardcode") —
+              // GANTI dari theme.palette.warning.main (warna semantik
+              // FIXED, tidak ikut palet) ke PALETTES[paletteKey].secondary
+              // (token yang MEMANG didesain utk "Bar 2" chart 2-bar,
+              // lihat komentar di palettes.ts — otomatis beda tiap palet,
+              // mis. hijau muda di palet "Executive Green").
+              bar2Color={PALETTES[paletteKey].secondary[mode]}
+              stacked
+              // lineVariant="area" (2026-08-25, instruksi user: "Rubah
+              // average menjadi area chart") — warna TETAP lineTemplate.line1
+              // (SUDAH palette-aware sejak awal, kebetulan cyan di palet
+              // default "Enterprise Blue" — tidak perlu diganti, sudah
+              // otomatis ikut palet).
               lineKey="avg_revenue"
               lineLabel={t('customerMetrics.m3.lineLabelAvg')}
               lineColor={lineTemplate.line1}
+              lineVariant="area"
               line2Key="median_revenue"
               line2Label={t('customerMetrics.m3.lineLabelMedian')}
               line2Color={lineTemplate.line2}
-              line3Key="hm_pct"
-              line3Label={t('customerMetrics.m3.lineLabelHm')}
-              line3Color={lineTemplate.line3}
-              formatLine3={(v) => `${v.toFixed(1)}%`}
+              // line2Variant="area" (2026-08-25, susulan instruksi user:
+              // "line median juga bagus jika dijadikan area cart") — warna
+              // TETAP lineTemplate.line2 (palette-aware sejak awal). Render
+              // Area TIDAK pernah dashed (beda dari Line), jadi otomatis
+              // solid — line2Dash (dulu dipakai utk minta "median line
+              // solid" sblm Area ini) sekarang tidak relevan lagi, tidak
+              // perlu dikirim.
+              line2Variant="area"
               concentrationKey="top_customer_pct"
               concentrationThreshold={25}
               concentrationColor={concentrationColor}
@@ -348,20 +387,38 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
             <Typography variant="caption" color="text.secondary">
               {drillMonth && drillDateFrom && drillDate ? formatPeriodRangeSub(t, periodType, drillMonth, drillDateFrom, drillDate) : ''}
             </Typography>
-            {([
-              [t('customerMetrics.m3.dialogRevenueExisting'), formatRupiah(breakdown.total_revenue)],
-              [t('customerMetrics.m3.dialogTotalExisting'),    breakdown.total_existing.toLocaleString('id-ID')],
-              [t('customerMetrics.m3.dialogAvgRevenue'),       formatRupiah(breakdown.total_existing > 0 ? breakdown.total_revenue / breakdown.total_existing : 0)],
-              [t('customerMetrics.m3.dialogMedianThreshold'),  formatRupiah(breakdown.median_threshold)],
-              [t('customerMetrics.m3.dialogHmContribution'),   formatRupiah(breakdown.hm_revenue)],
-              [t('customerMetrics.m3.dialogHmContributionPct'), `${breakdown.total_revenue > 0 ? ((breakdown.hm_revenue / breakdown.total_revenue) * 100).toFixed(1) : '0'}%`],
-            ] as [string, string][]).map(([label, val]) => (
-              <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
-                <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
+            {/* 2 kolom (2026-08-25, instruksi user: "pindahkan ke sebelah
+                kanan") — kolom kiri 4 baris utama (revenue/existing/avg/
+                median), kolom kanan 2 baris High Margin (dipindah dari
+                stack vertikal tunggal, mengisi ruang kosong di kanan). */}
+            <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                {([
+                  [t('customerMetrics.m3.dialogRevenueExisting'), formatRupiah(breakdown.total_revenue)],
+                  [t('customerMetrics.m3.dialogTotalExisting'),    breakdown.total_existing.toLocaleString('id-ID')],
+                  [t('customerMetrics.m3.dialogAvgRevenue'),       formatRupiah(breakdown.total_existing > 0 ? breakdown.total_revenue / breakdown.total_existing : 0)],
+                  [t('customerMetrics.m3.dialogMedianThreshold'),  formatRupiah(breakdown.median_threshold)],
+                ] as [string, string][]).map(([label, val]) => (
+                  <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
+                  </Box>
+                ))}
               </Box>
-            ))}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                {([
+                  [t('customerMetrics.m3.dialogHmContribution'),   formatRupiah(breakdown.hm_revenue)],
+                  [t('customerMetrics.m3.dialogHmContributionPct'), `${breakdown.total_revenue > 0 ? ((breakdown.hm_revenue / breakdown.total_revenue) * 100).toFixed(1) : '0'}%`],
+                ] as [string, string][]).map(([label, val]) => (
+                  <Box key={label} sx={{ display: 'flex', gap: 0.5 }}>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary' }}>:</Typography>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.primary', fontWeight: 600 }}>{val}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
           </Box>
         )}
       >

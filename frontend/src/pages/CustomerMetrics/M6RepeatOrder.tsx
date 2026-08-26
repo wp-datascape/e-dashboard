@@ -24,6 +24,8 @@ import type { TopMoverItem } from '@/components/dashboard/TopMoversTimeline';
 import { useRorBreakdown, useCustomerMetrics } from '@/hooks/useMetrics';
 import { formatPeriodLabelShort, formatPeriodLabel, formatPeriodRangeSub, getCurrentPeriodKey, getYoyPeriodKey, shiftDateByYears, getPeriodDateRange, clampPeriodEndToToday } from '@/utils/analisisPeriod';
 import { useTheme } from '@mui/material/styles';
+import { useThemeMode } from '@/theme/theme.context';
+import { PALETTES } from '@/theme/palettes';
 import type { CustomerMetricsTrendPoint } from '@/types/metrics';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 import { SectionLabel } from './HelperComponents';
@@ -77,12 +79,20 @@ interface Props {
   branchId?: number
   division?: number
   excludeIntercompany?: boolean
+  onlyPareto?: boolean
 }
 
-export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], periodType = 'monthly', periodEnd, applyDateCutoff = false, companyId, branchId, division, excludeIntercompany }: Props) {
+export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], periodType = 'monthly', periodEnd, applyDateCutoff = false, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
+  // paletteKey/mode (2026-08-26, instruksi user: "rubah warna m6" — pola
+  // sama persis M3 §36.2c/M5 §36.6: warna GARIS trend chart pakai token
+  // `line1` palet, bukan `theme.palette.primary.main` yang sudah dipakai
+  // warna kartu "Customer Repeat Order" di atas, biar garis chart beda
+  // visual dari aksen kartu, dan ikut ganti saat user ganti palet.
+  const { palette: paletteKey, isDark } = useThemeMode();
+  const mode = isDark ? 'dark' : 'light';
   const [drillDate, setDrillDate] = useState<string | null>(null);
   // drillDateFrom (2026-08-24, koreksi user: "M6RepeatOrder.tsx SUDAH py
   // periodType, dipakai di Retention page yg SUDAH py filter granularitas
@@ -121,6 +131,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
   const top5 = (currentBreakdown?.rows ?? []).slice(0, 5);
   const top5Items: TopMoverItem[] = top5.map((r) => ({
@@ -138,6 +149,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   const isOnTarget = value >= thresholdPct;
@@ -160,6 +172,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: !!yoyPeriodEnd });
   const yoyCurrent = yoyData?.trend.at(-1);
 
@@ -262,6 +275,7 @@ export function M6RepeatOrder({ isLoading, value, thresholdPct, trend = [], peri
                   higherIsBetter
                   height={280}
                   variant="area"
+                  lineColor={PALETTES[paletteKey].line1[mode]}
                   yAxisMin={-5}
                   xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
                   renderTooltip={(props) => <M6Tooltip {...props} thresholdPct={thresholdPct} periodType={periodType} />}

@@ -13,6 +13,9 @@ export interface CustomerMetricsTrendPoint {
   top_gp_pct: number
   is_gp_concentrated: boolean
   high_margin_ratio: number
+  // Angka mentah numerator high_margin_ratio (2026-08-25, task029.md §36) —
+  // dipakai bar chart trend M5.
+  high_margin_buyer_count: number
   repeat_order_rate: number
   expansion_rate: number
   up_rate: number
@@ -67,6 +70,8 @@ export interface RevenueBreakdownData {
   period_end: string
   total_revenue: number
   median_threshold: number
+  // "Existing" YANG AKTIF (riwayat sebelum periode DAN masih beli periode
+  // ini, task029.md §36) — SAMA populasi dgn total_revenue di atas.
   total_existing: number
   // Task006 — total revenue produk yang terdaftar di high_margin_products,
   // dalam populasi & window yang sama dengan total_revenue di atas.
@@ -142,6 +147,10 @@ export interface HmBreakdownRow {
   ranking: number
   customer_name: string
   customer_code: string | null
+  // hm_qty (2026-08-25, task029.md §36) — basis ranking SEKARANG (koreksi
+  // user: "Top 5 itu harusnya jumlah terbanyak bukan value nya") — unit/
+  // quantity produk High Margin terjual, BUKAN hm_revenue.
+  hm_qty: number
   hm_revenue: number
   hm_pct: number
 }
@@ -212,6 +221,14 @@ export interface DormantValueRow {
   months_dormant: number
   avg_monthly_revenue: number
   estimated_lost_value: number
+  // avg_monthly_gp/estimated_lost_gp (2026-08-26, task029.md §36.12 —
+  // SSOT M9 sebut "Historical Gross Profit" sbg komponen paralel Historical
+  // Revenue, keputusan user: "Tambah versi Gross Profit paralel") — rumus
+  // SAMA PERSIS avg_monthly_revenue/estimated_lost_value, basis GP bukan
+  // revenue. Ranking (ORDER BY) TETAP basis revenue, field ini murni
+  // tampilan tambahan paralel.
+  avg_monthly_gp: number
+  estimated_lost_gp: number
 }
 
 // Riwayat revenue bulanan per customer (2026-08-25, drilldown M9) — dipakai
@@ -329,11 +346,17 @@ export interface DormantMetricsData {
     target_high: number
     comparison_value: number
   }
-  // Total estimated_lost_value dari top-20 ranking, current vs setahun lalu
-  // (top-20 dihitung ULANG di tanggal pembanding, bukan snapshot ranking yang
+  // Total estimated_lost_value dari SEMUA dormant customer (2026-08-26,
+  // task029.md §36.12 — DIPERBAIKI, SEBELUMNYA cuma jumlah top-20 ranking,
+  // understated ~93% — lihat komentar di metrics.service.ts), current vs
+  // setahun lalu (dihitung ULANG di tanggal pembanding, bukan snapshot yang
   // sama) — dipakai KpiSummaryStrip halaman Nilai Hilang (KPI9).
   value_ranking_total_current: number
   value_ranking_total_comparison: number
+  // value_ranking_total_gp_current/_comparison (2026-08-26, §36.12) — versi
+  // Gross Profit paralel, SAMA PERSIS pola di atas cuma basis GP.
+  value_ranking_total_gp_current: number
+  value_ranking_total_gp_comparison: number
   // Daftar customer yang reaktivasi di periode berjalan (KPI10 top 5/tabel,
   // top 20 by tanggal reaktivasi terbaru) — REUSE fetchCustomerDormantStatusLog
   // pada bucket TERAKHIR trend (2026-08-24, susulan "buatkan juga 3 card

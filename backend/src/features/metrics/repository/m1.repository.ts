@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
 import type { CrossSellingTrendRow, CrossSellingDetailRow, CrossSellingHeatmapRow } from '../metrics.types'
 import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
 
 // Populasi = "Customer Aktif" (koreksi 2026-08-25, task029.md §34 — dokumen
 // SSOT resmi "DEFINISI OPERASIONAL Customer Loyal Dashboard" dijadikan
@@ -50,6 +50,7 @@ const CS_INV_CTE = (p: SegmentParams, periodStart: string, periodEnd: string) =>
       AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
       AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
       AND ${buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)}
+      AND ${buildOnlyParetoRaw('c.id', 'i.company_id', p.filterDate, p.onlyPareto)}
   )
 `
 
@@ -135,6 +136,7 @@ export async function fetchCrossSellingTrend(p: SegmentParams, buckets: Trailing
         AND ${buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)}
         AND ${buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)}
         AND ${buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)}
+        AND ${buildOnlyParetoRaw('c.id', 'i.company_id', p.filterDate, p.onlyPareto)}
         AND ii.product_category_id IS NOT NULL
     ),
     per_bucket AS (

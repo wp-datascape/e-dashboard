@@ -104,9 +104,10 @@ interface Props {
    * sama M1CrossSelling.tsx. */
   applyDateCutoff?: boolean;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M2AvgCategory({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
+export function M2AvgCategory({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -148,6 +149,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Fetch MoM (task029.md §31, 2026-08-23) — sama persis M1CrossSelling.tsx,
@@ -161,6 +163,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // ─── Drill-down (klik titik grafik avg-category) ────────────────────────
@@ -182,6 +185,7 @@ export function M2AvgCategory({ data, isLoading, companyId, branchId, division, 
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Kolom Kode Pelanggan (customer_code) DIHAPUS dari tabel drilldown ini

@@ -35,7 +35,7 @@
 
 import { sql, and, or, type SQL } from 'drizzle-orm'
 import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ export interface SegmentParams {
   division: number | null // filter laporan (business_unit param, division_id — task012 v2) - beda dari divisionScope (RBAC)
   branchFilter: number | null // filter laporan (branch_id param) - beda dari branchScope (RBAC)
   excludeIntercompany?: boolean // toggle laporan - exclude division 'intercompany', lihat utils/scope.ts
+  onlyPareto?: boolean // toggle laporan (task029.md §35) - persempit ke customer flagged Pareto (tabel pareto_customers, task016), lihat utils/scope.ts buildOnlyParetoRaw
   branchScope?: Map<number, number[]>   // RBAC — lihat docs-v2/task/task001.md §4
   divisionScope?: Map<number, number[]> // RBAC — lihat docs-v2/task/task001.md §4
   // Fallback division_id 'other'/'intercompany' per branch/company (task012 v2, resolusi
@@ -75,6 +76,7 @@ export function buildSegmentParams(
   companyScopeIds?: number[],
   branchFilter?: number,
   excludeIntercompany?: boolean,
+  onlyPareto?: boolean,
 ): SegmentParams {
   return {
     cid: companyId === 'all' ? 0 : companyId,
@@ -87,6 +89,7 @@ export function buildSegmentParams(
     division: division ?? null,
     branchFilter: branchFilter ?? null,
     excludeIntercompany,
+    onlyPareto,
     branchScope,
     divisionScope,
     otherIdByBranch,
@@ -358,6 +361,7 @@ export interface InvoiceScopeConditions {
   divisionScopeCond: SQL
   companyCondI: SQL
   excludeIntercompanyCond: SQL
+  onlyParetoCond: SQL
 }
 
 // Tipe STRUKTURAL (subset field), bukan `SegmentParams` penuh — beberapa file
@@ -373,6 +377,16 @@ export interface InvoiceScopeParams {
   otherIdByBranch?: Map<number, number>
   intercompanyIdByCompany?: Map<number, number>
   excludeIntercompany?: boolean
+  // filterDate/onlyPareto (task029.md §35, 2026-08-25) — OPSIONAL (beda dari
+  // field lain di interface ini) SENGAJA supaya caller ad-hoc lama
+  // (AvgCategoryRepoParams/HmDetailRepoParams dst, fitur Product/Customer
+  // Workbench yang TIDAK punya UI filter Pareto) tetap compile tanpa
+  // perubahan — mereka cukup tidak destructure `onlyParetoCond` dari hasil
+  // fungsi ini, aman/backward-compatible. onlyParetoCond akan selalu `true`
+  // (no-op) kalau onlyPareto falsy, jadi aman dipanggil dgn filterDate
+  // kosong SELAMA onlyPareto juga tidak pernah true utk caller itu.
+  filterDate?: string
+  onlyPareto?: boolean
 }
 
 export function resolveInvoiceScopeConditions(
@@ -387,6 +401,7 @@ export function resolveInvoiceScopeConditions(
     divisionScopeCond: buildDivisionConditionRaw(`${i}.branch_id`, `${cd}.division_id`, p.divisionScope, p.otherIdByBranch),
     companyCondI: buildCompanyConditionRaw(`${i}.company_id`, p.cid, p.companyScopeIds),
     excludeIntercompanyCond: buildExcludeIntercompanyRaw(`${i}.company_id`, `COALESCE(${c}.division_override_id, ${cd}.division_id)`, p.intercompanyIdByCompany, p.excludeIntercompany),
+    onlyParetoCond: buildOnlyParetoRaw(`${c}.id`, `${i}.company_id`, p.filterDate ?? '', p.onlyPareto),
   }
 }
 

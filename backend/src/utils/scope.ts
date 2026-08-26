@@ -258,3 +258,35 @@ export function buildExcludeIntercompanyRaw(
   )
   return sql`(${sql.join(clauses, sql` OR `)})`
 }
+
+/**
+ * Toggle laporan "Customer Pareto" (task029.md §35, 2026-08-25) — persempit
+ * hasil ke customer yang ditandai Pareto (flag MANUAL admin, tabel
+ * `pareto_customers`, task016 — BUKAN 80/20 dihitung ulang tiap query).
+ * Mirror PERSIS pola buildExcludeIntercompanyRaw() di atas (return `true`
+ * kalau toggle mati, langsung di-embed `AND (${cond})` tanpa cek undefined).
+ *
+ * customerExpr/companyExpr HARUS string literal trusted (nama kolom/alias
+ * tetap dari kode, BUKAN dari input user) — sama seperti *Raw lain di file
+ * ini.
+ *
+ * filterDate = titik evaluasi status Pareto (SegmentParams.filterDate,
+ * BUKAN CURRENT_DATE mentah spt fitur Analisis/task016) — konsisten dgn
+ * toggle lain di filter bar KPI (statis/uniform di semua titik trend,
+ * bukan per-bucket berubah).
+ */
+export function buildOnlyParetoRaw(
+  customerExpr: string,
+  companyExpr: string,
+  filterDate: string,
+  onlyPareto: boolean | undefined,
+): SQL {
+  if (!onlyPareto) return sql`true`
+  return sql`EXISTS (
+    SELECT 1 FROM pareto_customers pc
+    WHERE pc.customer_id = ${sql.raw(customerExpr)}
+      AND pc.company_id = ${sql.raw(companyExpr)}
+      AND pc.effective_from <= ${filterDate}::date
+      AND (pc.effective_until IS NULL OR pc.effective_until >= ${filterDate}::date)
+  )`
+}

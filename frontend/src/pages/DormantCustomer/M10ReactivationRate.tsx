@@ -51,6 +51,7 @@ interface Props {
   branchId?: number;
   division?: number;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
 // Tooltip custom (2026-08-24, instruksi user: "Perbaikan tooltip di judul,
@@ -60,7 +61,7 @@ interface Props {
 function M10Tooltip({ active, payload, targetLow, periodType }: TooltipContentProps<number, string> & { targetLow: number; periodType: PeriodGranularity }) {
   const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
-  const d = payload[0].payload as { month: string; reactivation_rate: number; reactivated_count: number; prev_dormant_count: number };
+  const d = payload[0].payload as { month: string; reactivation_rate: number; reactivated_count: number; dormant_count: number };
 
   return (
     <ChartTooltipCard
@@ -69,14 +70,21 @@ function M10Tooltip({ active, payload, targetLow, periodType }: TooltipContentPr
         { label: t('dormantCustomer.lineLabelReactivationRate'), value: `${d.reactivation_rate.toFixed(1)}%` },
         { label: t('dormantCustomer.targetMinLabel', { targetLow }), value: `${targetLow}%` },
         { label: t('dormantCustomer.reactivatedCountLabel'), value: d.reactivated_count.toLocaleString('id-ID') },
-        { label: t('dormantCustomer.prevDormantCountLabel'), value: d.prev_dormant_count.toLocaleString('id-ID') },
+        // dormant_count (2026-08-26, task029.md §36.13 — koreksi konsistensi:
+        // kartu ringkasan SUDAH diganti dari prev_dormant_count ke
+        // dormant_count 2026-08-24 (basis DENOMINATOR reactivation_rate yang
+        // benar, prev_dormant_count itu snapshot BEDA titik/prev_me), tapi
+        // tooltip hover chart ini TERLEWAT, masih pakai prev_dormant_count —
+        // sekarang disamakan, biar reactivated_count/[baris ini] = rate yang
+        // ditampilkan di baris pertama, bukan angka lain.
+        { label: t('dormantCustomer.dormantCountLabel'), value: d.dormant_count.toLocaleString('id-ID') },
       ]}
       hint={t('dormantCustomer.m10TooltipClickHint')}
     />
   );
 }
 
-export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', companyId = 'all', branchId, division, excludeIntercompany }: Props) {
+export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', companyId = 'all', branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -152,6 +160,7 @@ export function M10ReactivationRate({ data, isLoading, periodType = 'monthly', c
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Ringkasan 4 status (2026-08-24) — dihitung dari SEMUA baris hasil fetch

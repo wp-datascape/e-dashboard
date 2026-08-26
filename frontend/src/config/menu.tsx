@@ -6,7 +6,6 @@ import PersonOffIcon from '@mui/icons-material/PersonOff';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InventoryIcon from '@mui/icons-material/Inventory';
-import StarIcon from '@mui/icons-material/Star';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -172,6 +171,12 @@ export const NAV_ITEMS: NavItem[] = [
   // `/products/trend` TIDAK dihapus dari routeConstants.tsx/page_settings
   // (pola sama halaman lama lain di file ini — "isinya sama, cuma sudah
   // tidak ada entry langsung di sidebar").
+  // 'high-margin' (task031.md §10, 2026-08-26 — instruksi user: "pindahkan
+  // ke menu laporan") DIHAPUS dari sini SAMA PERSIS pola 'product-trend' —
+  // isinya (tab Penetrasi Produk + Target Upsell) sudah digabung jadi
+  // sub-tab Report/Revenue -> "hm", route `/products/high-margin` TETAP
+  // ada (tidak dihapus dari routeConstants.tsx), cuma tidak ada entry
+  // langsung di sidebar lagi.
   // ─────────────────────────────────────────────────────────────────────────
   {
     key: 'data',
@@ -192,13 +197,6 @@ export const NAV_ITEMS: NavItem[] = [
         labelKey: 'nav.productLedger',
         icon: <InventoryIcon fontSize="small" />,
         permissionKey: 'product:menu',
-      },
-      {
-        key: 'high-margin',
-        path: '/products/high-margin',
-        labelKey: 'nav.highMarginPush',
-        icon: <StarIcon fontSize="small" />,
-        permissionKey: 'high.margin:menu',
       },
       {
         key: 'transaction',

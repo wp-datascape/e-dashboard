@@ -32,7 +32,6 @@ export default function CustomerMetrics() {
   });
 
   const trend = data?.trend ?? [];
-  const hm    = data?.high_margin_current;
   const ror   = data?.repeat_order_current;
 
   return (
@@ -92,8 +91,8 @@ export default function CustomerMetrics() {
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
           <M5HighMargin
+            trend={trend}
             isLoading={isLoading}
-            hm={hm}
             companyId={companyId}
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}

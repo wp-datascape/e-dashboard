@@ -66,7 +66,9 @@ export default function Value() {
   const periodTypeFilter = usePeriodTypeFilter();
   const draftPeriodTypeFilter = usePeriodTypeFilter();
 
-  const [, setOnlyPareto] = useState(false);
+  // task029.md §35 — value dibaca (BUKAN dibuang), backend M3-M7 sekarang
+  // menerima only_pareto.
+  const [onlyPareto, setOnlyPareto] = useState(false);
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -104,6 +106,7 @@ export default function Value() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canExpansion });
 
   // YoY (period_end -1 tahun, 2026-08-25) — dipakai KpiHeader M3/M4/M5,
@@ -118,12 +121,11 @@ export default function Value() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canExpansion });
 
   const trend = data?.trend ?? [];
   const yoyTrend = yoyData?.trend ?? [];
-  const hm = data?.high_margin_current;
-  const yoyHm = yoyData?.high_margin_current;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -226,6 +228,7 @@ export default function Value() {
             branchId={resolvedBranchId}
             division={resolvedDivision}
             excludeIntercompany={excludeIntercompany}
+            onlyPareto={onlyPareto}
           />
 
           <M4GrossProfit
@@ -239,12 +242,13 @@ export default function Value() {
             branchId={resolvedBranchId}
             division={resolvedDivision}
             excludeIntercompany={excludeIntercompany}
+            onlyPareto={onlyPareto}
           />
 
           <M5HighMargin
+            trend={trend}
+            yoyTrend={yoyTrend}
             isLoading={isLoading}
-            hm={hm}
-            yoyHm={yoyHm}
             periodType={periodTypeFilter.periodType}
             companyId={companyId}
             branchId={resolvedBranchId}
@@ -252,6 +256,7 @@ export default function Value() {
             periodEnd={periodEnd}
             applyDateCutoff={applyDateCutoff}
             excludeIntercompany={excludeIntercompany}
+            onlyPareto={onlyPareto}
           />
         </>
       )}

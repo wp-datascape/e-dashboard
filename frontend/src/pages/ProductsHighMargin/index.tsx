@@ -7,6 +7,9 @@ import Tab from '@mui/material/Tab'
 import Stack from '@mui/material/Stack'
 import Chip from '@mui/material/Chip'
 import LinearProgress from '@mui/material/LinearProgress'
+import MuiTooltip from '@mui/material/Tooltip'
+import IconButton from '@mui/material/IconButton'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
 import { useHighMarginProductDetail, useUpsellTargets } from '@/hooks/useProducts'
@@ -24,11 +27,11 @@ import type {
 } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { StatusChip } from '@/components/ui'
-import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { formatRupiah } from '@/utils/format'
 import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
 import { ProductBreakdownDialog } from './components/ProductBreakdownDialog'
+import { ChipOverflowCell } from './components/ChipOverflowCell'
 import type { ProductBreakdownTarget } from './components/ProductBreakdownDialog'
 
 function todayMonth(): string {
@@ -55,7 +58,11 @@ function PenetrationBar({ value }: { value: number }) {
 }
 
 // ─── Shared Filter Props ──────────────────────────────────────────────────────
-interface FilterState {
+// FilterState/HighMarginProductTab/UpsellTargetsTab diekspor (2026-08-26,
+// task031.md §10 — instruksi user: "pindahkan ke menu laporan", digabung
+// jadi sub-tab Report/Revenue "hm" bareng Ranking Customer M5 yang sudah
+// ada) — dipakai ULANG oleh Report/Revenue/index.tsx, BUKAN diduplikasi.
+export interface FilterState {
   companyId: number | 'all'
   branchId: number | 'all'
   // Division sekarang FK integer per company (task012 v2) — division_id, bukan
@@ -68,7 +75,7 @@ interface FilterState {
 
 // ─── Tab 1a: Product Penetration (DEFAULT — high margin adalah flag per-produk,
 // bukan per-kategori, lihat catatan backend di fetchHmProductDetail()) ────────
-function HighMarginProductTab({ filter }: { filter: FilterState }) {
+export function HighMarginProductTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
   const [selectedProduct, setSelectedProduct] = useState<ProductBreakdownTarget | null>(null)
@@ -190,7 +197,7 @@ function HighMarginProductTab({ filter }: { filter: FilterState }) {
 }
 
 // ─── Tab 2: Upsell Targets ────────────────────────────────────────────────────
-function UpsellTargetsTab({ filter }: { filter: FilterState }) {
+export function UpsellTargetsTab({ filter }: { filter: FilterState }) {
   const { t } = useTranslation()
   const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 })
 
@@ -217,7 +224,10 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
     branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
-    business_unit: filter.division || undefined,
+    // division (2026-08-26, task031.md §4 — GANTI dari 'business_unit',
+    // key backend yang lama tapi nilainya SUDAH divisi selama ini, cuma
+    // salah nama key).
+    division: filter.division || undefined,
     exclude_intercompany: filter.excludeIntercompany,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
@@ -244,11 +254,14 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
       ),
     },
     {
-      field: 'business_unit',
+      // division_label (2026-08-26, task031.md §4 — GANTI dari
+      // business_unit legacy) — nama Divisi dominan langsung dari backend
+      // (bukan lagi kode enum B2B_DC/dst yang perlu di-mapping BuChip).
+      field: 'division_label',
       headerName: t('customers.detail.businessUnit'),
-      width: 130,
+      width: 150,
       sortable: false,
-      renderCell: ({ row }) => <BuChip bu={row.business_unit as import('@/types/customers').BusinessUnit} />,
+      renderCell: ({ row }) => (row.division_label ? <StatusChip label={row.division_label} /> : '—'),
     },
     {
       field: 'avg_monthly_revenue',
@@ -264,37 +277,48 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
       flex: 1,
       minWidth: 200,
       sortable: false,
-      cellClassName: 'wrap-chips-cell',
+      // ChipOverflowCell (2026-08-26, task031.md §9 — refactor, instruksi
+      // user: "setiap chip HARUS bisa diklik, jangan sembunyikan di balik
+      // tombol '+N' tanpa akses mudah") — preview 2 chip + tombol
+      // "Tampilkan semua (N)" buka Popover berisi SEMUA chip (tetap bisa
+      // diklik satu-satu), row height jadi seragam krn preview selalu
+      // maks 2 chip. GANTI dari cap-3-chip-mentok (task031 §8) yang
+      // MEMBUANG akses ke chip ke-4 dst.
       renderCell: ({ row }) => (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
-          {row.categories_bought.map((cat) => (
-            <StatusChip
-              key={cat.id}
-              label={cat.name}
-              onClick={(e) => openHistory(row, cat, e)}
-            />
-          ))}
-        </Box>
+        <ChipOverflowCell
+          items={row.categories_bought.map((cat) => ({
+            id: cat.id,
+            label: cat.name,
+            tooltipText: cat.name,
+            onClick: (e: React.MouseEvent<HTMLDivElement>) => openHistory(row, cat, e),
+          }))}
+        />
       ),
     },
     {
       field: 'missing_high_margin_categories',
       headerName: t('productsHighMargin.missingHighMargin'),
       flex: 1,
-      minWidth: 200,
+      minWidth: 240,
       sortable: false,
-      cellClassName: 'wrap-chips-cell',
+      // ChipOverflowCell — SAMA PERSIS pola kolom categories_bought di
+      // atas. Label chip bawa persentase afinitas DI-BOLD (instruksi user
+      // spec: "Include the percentage... bolded") — TruncatedChip terima
+      // ReactNode utk label, tooltipText tetap plain string. Sudah
+      // TERURUT DESC by affinity_pct dari backend query, jadi preview 2
+      // chip pertama otomatis yang PALING relevan.
       renderCell: ({ row }) => (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
-          {row.missing_high_margin_categories.map((cat) => (
-            <StatusChip
-              key={cat.id}
-              label={cat.name}
-              color="info"
-              onClick={(e) => openHmCategory(cat, e)}
-            />
-          ))}
-        </Box>
+        <ChipOverflowCell
+          color="info"
+          items={row.missing_high_margin_categories.map((cat) => ({
+            id: cat.id,
+            label: cat.affinity_pct > 0
+              ? <>{cat.name} <Box component="span" sx={{ fontWeight: 800 }}>— {cat.affinity_pct}%</Box></>
+              : cat.name,
+            tooltipText: cat.affinity_pct > 0 ? `${cat.name} — ${cat.affinity_pct}%` : cat.name,
+            onClick: (e: React.MouseEvent<HTMLDivElement>) => openHmCategory(cat, e),
+          }))}
+        />
       ),
     },
     {
@@ -307,6 +331,26 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
 
   return (
     <Box>
+      {/* Tooltip metodologi (2026-08-26, task031.md — instruksi user
+          "Tambahkan tooltip penjelasan" setelah diskusi soal validasi data/
+          metode Target Upsell) — jelaskan divisi dominan + ambang 20
+          pembeli + arti persentase afinitas, biar tidak jadi "kotak hitam"
+          kalau ada yang tanya dasar rekomendasinya. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+          {t('productsHighMargin.tabUpsellTargets')}
+        </Typography>
+        <MuiTooltip
+          title={t('productsHighMargin.upsellTooltipInfo')}
+          placement="top"
+          arrow
+          slotProps={{ tooltip: { sx: { maxWidth: 340, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' } } }}
+        >
+          <IconButton size="small" sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+            <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </MuiTooltip>
+      </Box>
       <ResponsiveListView
         rows={data?.data ?? []}
         columns={columns}
@@ -322,7 +366,7 @@ function UpsellTargetsTab({ filter }: { filter: FilterState }) {
         onRowClick={(row) => openHistory(row as unknown as UpsellTargetRow, null)}
         // Nama customer sebagai judul card mobile, bukan customer_code (kolom
         // pertama di tabel desktop) — customer_code jarang terisi di database.
-        mobileFields={['customer_name', 'customer_code', 'business_unit', 'avg_monthly_revenue', 'categories_bought', 'missing_high_margin_categories', 'last_invoice_date']}
+        mobileFields={['customer_name', 'customer_code', 'division_label', 'avg_monthly_revenue', 'categories_bought', 'missing_high_margin_categories', 'last_invoice_date']}
       />
 
       {/* Customer purchase history dialog */}

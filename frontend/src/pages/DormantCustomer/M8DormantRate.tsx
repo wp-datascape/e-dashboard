@@ -103,9 +103,10 @@ interface Props {
   branchId?: number;
   division?: number;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDateCutoff = false, companyId, branchId, division, excludeIntercompany }: Props) {
+export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDateCutoff = false, companyId, branchId, division, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -152,6 +153,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
     branch_id: branchId,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   const top5Items: TopMoverItem[] = (data?.value_ranking ?? []).slice(0, 5).map((r) => ({
@@ -355,7 +357,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
           pageSize={25}
           pageSizeOptions={[25, 50, 100]}
           emptyMessage={t('dormantCustomer.m8TopCustomersEmpty')}
-          mobileFields={['customer_name', 'months_dormant', 'estimated_lost_value']}
+          mobileFields={['customer_name', 'months_dormant', 'estimated_lost_value', 'estimated_lost_gp']}
         />
       </Dialog>
     </>

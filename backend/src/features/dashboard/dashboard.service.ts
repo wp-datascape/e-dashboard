@@ -110,14 +110,18 @@ export async function getDashboard(
       // period_type: 'monthly' eksplisit — Overview selalu bulanan (task029.md
       // §30 granularitas cuma dipakai halaman Growth/Retention/Value, bukan
       // Overview), disamakan dgn behavior sebelum param ini ada.
-      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      // only_pareto: false eksplisit (task029.md §35, 2026-08-25) — Dashboard
+      // Overview tidak punya UI filter Pareto sama sekali, field ini WAJIB
+      // diisi (bukan optional lagi setelah melewati transform Zod), hardcode
+      // false = behavior lama (tidak ada filter Pareto sebelum field ini ada).
+      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
       loadThresholds(),
       resolveSegmentParams(companyId, filterDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
-      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
-      getDormantCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC }, scope),
+      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getDormantCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
       resolveSegmentParams(companyId, comparisonDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
     ])
 

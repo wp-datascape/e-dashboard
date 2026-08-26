@@ -34,7 +34,7 @@ import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
  */
 export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], liveBuckets: TrailingPeriodBucket[]): Promise<DormantTrendRow[]> {
   const { cid, division, companyScopeIds } = p
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
 
@@ -82,6 +82,7 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
 
     -- Customer dalam scope (ada minimal 1 invoice). first_invoice_date ikut
@@ -303,7 +304,7 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
  */
 export async function fetchDormantValueRanking(p: SegmentParams, limit: number | null = 20, existingSince?: string): Promise<DormantValueRow[]> {
   const { cid, filterDate, division, companyScopeIds } = p
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
 
@@ -312,7 +313,12 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
     ${cteCustDivision(p)},
     ${cteEstablishedCustomers(p, existingSince ?? `${filterDate.slice(0, 7)}-01`)},
     inv AS (
-      SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
+      -- gp (2026-08-26, task029.md §36.12 — SSOT sebut "Historical Gross
+      -- Profit" sbg komponen paralel Historical Revenue, keputusan user:
+      -- "Tambah versi Gross Profit paralel") — 'invoices.total_gp' SUDAH
+      -- kolom jadi (pola sama M4 'fetchGpBreakdown'), tidak perlu join
+      -- invoice_items/COGS manual.
+      SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev, i.total_gp::numeric AS gp
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
@@ -326,6 +332,7 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     cust_last AS (
       SELECT
@@ -357,7 +364,13 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
         COALESCE(SUM(inv.rev) FILTER (
           WHERE inv.invoice_date <= cl.last_invoice_date
             AND inv.invoice_date >= DATE_TRUNC('month', cl.last_invoice_date::date - INTERVAL '11 months')
-        ), 0) AS recent_12m_rev
+        ), 0) AS recent_12m_rev,
+        -- recent_12m_gp (2026-08-26, §36.12) — window 12 bulan SAMA PERSIS
+        -- recent_12m_rev, cuma SUM kolom gp bukan rev.
+        COALESCE(SUM(inv.gp) FILTER (
+          WHERE inv.invoice_date <= cl.last_invoice_date
+            AND inv.invoice_date >= DATE_TRUNC('month', cl.last_invoice_date::date - INTERVAL '11 months')
+        ), 0) AS recent_12m_gp
       FROM cust_last cl
       LEFT JOIN inv ON inv.customer_id = cl.customer_id
       GROUP BY cl.customer_id, cl.customer_name, cl.customer_code, cl.company_name, cl.division_label, cl.last_invoice_date
@@ -399,7 +412,17 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
               (EXTRACT(YEAR FROM ${filterDate}::date)::int * 12 + EXTRACT(MONTH FROM ${filterDate}::date)::int)
               - (EXTRACT(YEAR FROM last_invoice_date)::int * 12 + EXTRACT(MONTH FROM last_invoice_date)::int)
             , 1)
-        )::bigint                                                                                   AS estimated_lost_value
+        )::bigint                                                                                   AS estimated_lost_value,
+        -- avg_monthly_gp/estimated_lost_gp (2026-08-26, §36.12) — rumus
+        -- SAMA PERSIS versi revenue di atas, cuma basis recent_12m_gp.
+        ROUND(recent_12m_gp / 12.0)::bigint                                                         AS avg_monthly_gp,
+        ROUND(
+          recent_12m_gp / 12.0
+          * GREATEST(
+              (EXTRACT(YEAR FROM ${filterDate}::date)::int * 12 + EXTRACT(MONTH FROM ${filterDate}::date)::int)
+              - (EXTRACT(YEAR FROM last_invoice_date)::int * 12 + EXTRACT(MONTH FROM last_invoice_date)::int)
+            , 1)
+        )::bigint                                                                                   AS estimated_lost_gp
       FROM cust_agg
     )
     SELECT
@@ -412,7 +435,9 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
       last_invoice_date,
       months_dormant,
       avg_monthly_revenue,
-      estimated_lost_value
+      estimated_lost_value,
+      avg_monthly_gp,
+      estimated_lost_gp
     FROM ranked
     ORDER BY estimated_lost_value DESC NULLS LAST
     ${limit != null ? sql`LIMIT ${limit}` : sql``}
@@ -431,6 +456,8 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
       months_dormant:       Number(row.months_dormant ?? 0),
       avg_monthly_revenue:  Number(row.avg_monthly_revenue ?? 0),
       estimated_lost_value: Number(row.estimated_lost_value ?? 0),
+      avg_monthly_gp:       Number(row.avg_monthly_gp ?? 0),
+      estimated_lost_gp:    Number(row.estimated_lost_gp ?? 0),
     }
   })
 }
@@ -450,7 +477,7 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
  */
 export async function fetchDormantValueHistory(p: SegmentParams, customerId: number, refDate: string): Promise<DormantValueHistoryRow[]> {
   const { division } = p
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
 
   const rawRows = await db.execute(sql`
     WITH months AS (
@@ -480,6 +507,7 @@ export async function fetchDormantValueHistory(p: SegmentParams, customerId: num
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY 1
     )
     SELECT m.month, COALESCE(a.revenue, 0)::text AS revenue
@@ -513,7 +541,7 @@ export async function fetchCustomerDormantStatusLog(
   prevBucket: { start: string; end: string },
 ): Promise<CustomerDormantStatusRow[]> {
   const { cid, division, companyScopeIds } = p
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
 
@@ -534,6 +562,7 @@ export async function fetchCustomerDormantStatusLog(
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     scoped_cust AS (
       SELECT DISTINCT c.id AS cid, c.first_invoice_date AS first_date,

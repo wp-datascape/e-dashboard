@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
+import { SplitColorGradient } from '../shared/SplitColorGradient';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -15,7 +16,6 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
-  ReferenceArea,
 } from 'recharts';
 import type { MouseHandlerDataParam, TooltipContentProps } from 'recharts';
 
@@ -76,6 +76,14 @@ export interface LineAlertWidgetProps {
    * area ATAS threshold hijau (tercapai), area BAWAH threshold merah
    * (belum tercapai). */
   higherIsBetter?: boolean;
+  /** Warna series utama (2026-08-26, instruksi user: "rubah warna m6" —
+   * lanjutan §36.2c/§36.6: garis/area trend TUNGGAL (bukan bar) sebaiknya
+   * pakai token `line1`/`line2` palet, bukan `primary.main` yang sudah
+   * dipakai warna bar di tempat lain (M6 KpiCard "Customer Repeat Order"),
+   * supaya garis chart tetap beda visual dari warna bar/aksen kartu).
+   * Opsional, default `theme.palette.primary.main` (perilaku LAMA, TIDAK
+   * berubah utk caller existing M8/M10 yang belum kirim prop ini). */
+  lineColor?: string;
 }
 
 export const LineAlertWidget = ({
@@ -97,10 +105,12 @@ export const LineAlertWidget = ({
   onPointClick,
   renderTooltip,
   higherIsBetter = false,
+  lineColor,
 }: LineAlertWidgetProps) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const gradientId = useId();
+  const resolvedLineColor = lineColor ?? theme.palette.primary.main;
 
   const handleChartClick = onPointClick
     ? (state: MouseHandlerDataParam) => {
@@ -144,17 +154,25 @@ export const LineAlertWidget = ({
           onClick={handleChartClick}
           style={onPointClick ? { cursor: 'pointer' } : undefined}
         >
+          {/* Fill area ikut warna ambang (2026-08-26, instruksi user M8:
+              "area cart dibawah ambang berwarna hijau dan yang menembus
+              berwarna merah") — GANTI dari gradient 1 warna (`resolvedLineColor`
+              solid) ke `SplitColorGradient` yang di-split TEPAT di posisi
+              piksel `threshold` (bukan asumsi persentase, baca dari scale
+              sumbu-Y asli — pola sama persis M7 net expansion, cuma splitValue
+              beda: di sana 0, di sini `threshold`). Arah warna ikut
+              `higherIsBetter` (M8 "makin tinggi makin buruk" = atas merah;
+              M6/M10 "target min" = atas hijau). Sejak band `ReferenceArea`
+              dihapus (susulan sama hari, "hapus background biar warna cart
+              lebih terlihat"), fill Area ini SATU-SATUNYA sumber warna
+              ambang di chart. */}
           {variant === 'area' && (
-            <defs>
-              {/* Arah gradasi DIBALIK (2026-08-24) — isian sekarang di ATAS
-                  garis (baseValue="dataMax" di bawah), jadi warna paling
-                  pekat harus dekat GARIS (offset 95%, bawah SVG), memudar
-                  ke atas (offset 5%) — kebalikan dari isian-di-bawah lama. */}
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.05} />
-                <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0.4} />
-              </linearGradient>
-            </defs>
+            <SplitColorGradient
+              id={gradientId}
+              splitValue={threshold}
+              aboveColor={higherIsBetter ? theme.palette.success.main : theme.palette.error.main}
+              belowColor={higherIsBetter ? theme.palette.error.main : theme.palette.success.main}
+            />
           )}
           <CartesianGrid
             strokeDasharray="3 3"
@@ -186,19 +204,14 @@ export const LineAlertWidget = ({
               }}
             />
           )}
-          {/* Shading di kedua sisi threshold (2026-08-25) — arah warna
-              tergantung `higherIsBetter`: default (M8, "Ambang 10%" makin
-              tinggi makin buruk) area ATAS = merah (alert). `higherIsBetter`
-              (M6/M10, "Target Min X%") DIBALIK: area ATAS = hijau (target
-              tercapai), area BAWAH = merah (belum tercapai). */}
-          {higherIsBetter ? (
-            <>
-              <ReferenceArea y1={threshold} y2={yMax} fill={theme.palette.success.main} fillOpacity={0.1} ifOverflow="hidden" />
-              <ReferenceArea y1={yAxisMin} y2={threshold} fill={theme.palette.error.main} fillOpacity={0.1} ifOverflow="hidden" />
-            </>
-          ) : (
-            <ReferenceArea y1={threshold} y2={yMax} fill={theme.palette.error.main} fillOpacity={0.1} ifOverflow="hidden" />
-          )}
+          {/* Band background ReferenceArea (2026-08-25/26) DIHAPUS
+              2026-08-26 — instruksi user: "untuk background nya hapus
+              saja biar warna cart lebih terlihat". Sejak §36.11 isian
+              Area sendiri SUDAH split hijau/merah tepat di ambang
+              (`SplitColorGradient`, `baseValue={threshold}`) — band flat
+              ini jadi redundan sekaligus meredam kontras warna isian di
+              atasnya. Arah warna (higherIsBetter) tetap dipegang sisi
+              Area fill saja sekarang, bukan lagi 2 sumber (band + fill). */}
 
           {/* Threshold reference line */}
           <ReferenceLine
@@ -216,7 +229,7 @@ export const LineAlertWidget = ({
 
           {variant === 'bar' ? (
             <>
-              <Bar dataKey={lineKey} name={lineLabel} fill={theme.palette.primary.main} radius={0} />
+              <Bar dataKey={lineKey} name={lineLabel} fill={resolvedLineColor} radius={0} />
               {targetBarKey && (
                 <Bar
                   dataKey={targetBarKey}
@@ -230,17 +243,26 @@ export const LineAlertWidget = ({
             <Area
               dataKey={lineKey}
               name={lineLabel}
-              stroke={theme.palette.primary.main}
+              stroke={resolvedLineColor}
               strokeWidth={2}
               fill={`url(#${gradientId})`}
-              // baseValue="dataMax" (2026-08-24, instruksi user: "warna area
-              // cart bukan dibawah line tapi diatas line") — default Area
-              // recharts isi dari garis TURUN ke baseline (dataMin/0).
-              // dataMax membalik referensi penutup polygon ke ATAS (dari
-              // garis NAIK ke nilai maksimum sumbu), jadi isian ada di ATAS
-              // garis, bukan di bawahnya.
-              baseValue="dataMax"
-              dot={{ r: 3, fill: theme.palette.primary.main }}
+              // baseValue={threshold} (2026-08-26, GANTI dari "dataMax" —
+              // instruksi user, contoh resmi recharts "Area Chart Fill By
+              // Value": polygon isian HARUS ditutup di titik SPLIT-nya
+              // sendiri (di situ 0, di sini `threshold`), bukan di ekstrem
+              // sumbu. Dgn "dataMax", isian selalu membentang dari garis
+              // sampai PUNCAK chart — begitu splitnya taruh di piksel
+              // `threshold`, sebagian besar area yang kelihatan tetap
+              // "merah" (di atas threshold pixel) walau nilai sebenarnya
+              // masih AMAN di bawah ambang, krn dataMax jauh di atas
+              // threshold. baseValue={threshold} menutup polygon TEPAT di
+              // ambang — nilai di bawah ambang isiannya SEMUA hijau
+              // (tersisa antara garis & ambang), nilai yang menembus
+              // isiannya SEMUA merah (antara ambang & garis) — pola SAMA
+              // PERSIS reference recharts (baseValue implisit=0, isian
+              // hijau di atas / merah di bawah 0).
+              baseValue={threshold}
+              dot={{ r: 3, fill: resolvedLineColor }}
               activeDot={{ r: 5 }}
               type="monotone"
             />
@@ -248,9 +270,9 @@ export const LineAlertWidget = ({
             <Line
               dataKey={lineKey}
               name={lineLabel}
-              stroke={theme.palette.primary.main}
+              stroke={resolvedLineColor}
               strokeWidth={2}
-              dot={{ r: 3, fill: theme.palette.primary.main }}
+              dot={{ r: 3, fill: resolvedLineColor }}
               activeDot={{ r: 5 }}
               type="monotone"
             />
@@ -267,7 +289,7 @@ export const LineAlertWidget = ({
           series utama (biru) + warna target (merah/abu, tergantung variant). */}
       <Box sx={{ display: 'flex', gap: 2, mt: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Box sx={{ width: 12, height: 3, borderRadius: 1, bgcolor: theme.palette.primary.main }} />
+          <Box sx={{ width: 12, height: 3, borderRadius: 1, bgcolor: resolvedLineColor }} />
           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
             {lineLabel}
           </Typography>

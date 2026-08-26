@@ -16,6 +16,15 @@ const excludeIntercompanyField = z
   .optional()
   .transform((v) => v === 'true')
 
+// Toggle laporan (task029.md §35, 2026-08-25) — persempit ke customer yang
+// ditandai Pareto (flag manual admin, tabel pareto_customers, task016).
+// Lihat utils/scope.ts buildOnlyParetoRaw(). Pola sama persis
+// excludeIntercompanyField di atas — BUKAN z.coerce.boolean().
+const onlyParetoField = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true')
+
 // Granularitas trend/KPI Header (task029.md §30, 2026-08-20) — 4 nilai resmi
 // dari filter Growth/Retention/Value, BUKAN termasuk 'ytd' (itu khusus
 // Analisis/task016, lihat period.util.ts). Default 'monthly' — behavior lama
@@ -83,6 +92,7 @@ export const crossSellingQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
 })
 export type CrossSellingQuery = z.infer<typeof crossSellingQuerySchema>
 
@@ -117,6 +127,7 @@ export const customerMetricsQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
 })
 
 export type CustomerMetricsQuery = z.infer<typeof customerMetricsQuerySchema>
@@ -130,6 +141,7 @@ export const revenueBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   // date_from (2026-08-25, task029.md §33 — M3 dipakai di Value page yg
   // SEKARANG py filter granularitas) — pola sama persis gpBreakdownQuerySchema/M4.
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
@@ -146,6 +158,7 @@ export const expansionBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   // Rentang PENARIKAN DATA — mirror `gpBreakdownQuerySchema.date_from`
   // persis (koreksi user 2026-08-10: "standarnya KPI4 untuk layout, desain,
   // DAN DATA"). Window current/previous yang dibandingkan (naik/turun)
@@ -174,6 +187,7 @@ export const gpBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   // Rentang PENARIKAN DATA (task026 §8e, koreksi user 2026-08-09) — start
   // date dari periode filter (periodType), end date TETAP `period_end` di
   // atas. TERPISAH dari business_configs.active_window_months (window
@@ -194,6 +208,7 @@ export const hmBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   // date_from (2026-08-25, task029.md §33 — M5 dipakai di Value page yg
   // SEKARANG py filter granularitas) — pola sama persis gpBreakdownQuerySchema/M4.
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format must be YYYY-MM-DD').optional(),
@@ -210,6 +225,7 @@ export const rorBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   // date_from (2026-08-24, M6 dipakai di Retention page yg SUDAH py filter
   // granularitas — pola sama persis gpBreakdownQuerySchema/M4) — opsional,
   // fallback ke awal bulan kalender lama kalau kosong.
@@ -238,6 +254,7 @@ export const dormantCustomerQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
 })
 
 export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>
@@ -259,6 +276,7 @@ export const dormantStatusBreakdownQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
   status: z.enum(['active', 'dormant', 'reactivated', 'relapsed']).optional(),
 })
 
@@ -278,6 +296,7 @@ export const dormantValueHistoryQuerySchema = z.object({
   division: divisionEnum,
   branch_id: z.coerce.number().int().positive().optional(),
   exclude_intercompany: excludeIntercompanyField,
+  only_pareto: onlyParetoField,
 })
 
 export type DormantValueHistoryQuery = z.infer<typeof dormantValueHistoryQuerySchema>
@@ -461,7 +480,9 @@ export const upsellTargetQuerySchema = z.object({
     .optional()
     .default(currentMonth),
   active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
-  business_unit: z.string().optional(),
+  // division (2026-08-26, task031.md §3 — GANTI dari 'business_unit'
+  // string legacy ke FK numeric, pola SAMA filter Divisi query lain).
+  division: z.coerce.number().int().positive().optional(),
   page:     z.coerce.number().int().positive().optional().default(1),
   per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
 })

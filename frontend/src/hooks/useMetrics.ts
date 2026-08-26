@@ -18,6 +18,7 @@ export function useCrossSelling(params?: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }, options?: { enabled?: boolean }) {
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling', params],
@@ -48,6 +49,7 @@ export function useCrossSellingDetail(params: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }) {
   const { periodParams, ...rest } = params;
   return useQuery<CrossSellingData>({
@@ -70,6 +72,7 @@ export function useCustomerMetrics(params?: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }, options?: { enabled?: boolean }) {
   return useQuery<CustomerMetricsData>({
     queryKey: ['metrics', 'customer-metrics', params],
@@ -81,10 +84,10 @@ export function useCustomerMetrics(params?: {
 
 // ── M3 Revenue Drill-down ─────────────────────────────────────────────────────
 // date_from (2026-08-25, task029.md §33) — pola sama persis useGpBreakdown/useExpansionBreakdown.
-export function useRevenueBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useRevenueBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<RevenueBreakdownData>({
     queryKey: ['metrics', 'revenue-breakdown', params],
-    queryFn: () => metricsApi.getRevenueBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getRevenueBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -105,10 +108,11 @@ export function useExpansionBreakdown(params: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }) {
   return useQuery<ExpansionBreakdownData>({
     queryKey: ['metrics', 'expansion-breakdown', params],
-    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, date_from: params.date_from, period_type: params.period_type, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, date_from: params.date_from, period_type: params.period_type, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -117,10 +121,10 @@ export function useExpansionBreakdown(params: {
 // ── M4 GP Drill-down ─────────────────────────────────────────────────────────
 // date_from (2026-08-25) — backend sudah siap sejak task026 §8e, FE baru
 // sekarang benar-benar mengirimnya.
-export function useGpBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useGpBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<GpBreakdownData>({
     queryKey: ['metrics', 'gp-breakdown', params],
-    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -128,10 +132,10 @@ export function useGpBreakdown(params: { period_end: string | null; date_from?: 
 
 // ── M5 HM Drill-down ─────────────────────────────────────────────────────────
 // date_from (2026-08-25, task029.md §33) — pola sama persis useGpBreakdown.
-export function useHmBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useHmBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<HmBreakdownData>({
     queryKey: ['metrics', 'hm-breakdown', params],
-    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -141,10 +145,10 @@ export function useHmBreakdown(params: { period_end: string | null; date_from?: 
 // date_from (2026-08-24) — dipakai M6RepeatOrder.tsx di Retention page
 // (filter granularitas Kuartal/Semester/Tahun), pola sama persis
 // useGpBreakdown/useExpansionBreakdown.
-export function useRorBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useRorBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<RorBreakdownData>({
     queryKey: ['metrics', 'ror-breakdown', params],
-    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -162,6 +166,7 @@ export function useDormantCustomer(params?: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }, options?: { enabled?: boolean }) {
   return useQuery<DormantData>({
     queryKey: ['metrics', 'dormant-customer', params],
@@ -172,10 +177,10 @@ export function useDormantCustomer(params?: {
 }
 
 // Drill-down M8 (2026-08-24) — pola sama persis useRorBreakdown (M6).
-export function useDormantBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useDormantBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<DormantBreakdownData>({
     queryKey: ['metrics', 'dormant-breakdown', params],
-    queryFn: () => metricsApi.getDormantBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getDormantBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
@@ -191,6 +196,7 @@ export function useDormantStatusBreakdown(params: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
   status?: DormantCustomerStatus;
 }) {
   return useQuery<DormantStatusBreakdownData>({
@@ -211,6 +217,7 @@ export function useDormantValueHistory(params: {
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }) {
   return useQuery<DormantValueHistoryData>({
     queryKey: ['metrics', 'dormant-value-history', params],
@@ -221,6 +228,7 @@ export function useDormantValueHistory(params: {
       division: params.division,
       branch_id: params.branch_id,
       exclude_intercompany: params.exclude_intercompany,
+      only_pareto: params.only_pareto,
     }),
     enabled: !!params.customerId && !!params.refDate,
     staleTime: STALE_TIME,

@@ -119,9 +119,10 @@ interface Props {
    * (kalau OFF, pembanding pakai default clampToElapsedEnd seperti biasa). */
   applyDateCutoff?: boolean;
   excludeIntercompany?: boolean;
+  onlyPareto?: boolean;
 }
 
-export function M1CrossSelling({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany }: Props) {
+export function M1CrossSelling({ data, isLoading, companyId, branchId, division, periodEnd, periodType = 'monthly', applyDateCutoff = false, excludeIntercompany, onlyPareto }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -166,6 +167,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // Fetch MoM (task029.md §31, 2026-08-23, koreksi user: "Top 5 M1, M2 itu
@@ -182,6 +184,7 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
     apply_date_cutoff: applyDateCutoff,
     division,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
 
   // ─── M1.1 Drill-down (klik sel heatmap customer × kategori) ─────────────────
@@ -503,6 +506,21 @@ export function M1CrossSelling({ data, isLoading, companyId, branchId, division,
               height={280}
               xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
               renderTooltip={(props) => <M1Tooltip {...props} periodType={periodType} />}
+              // Benchmark interpretasi Cross-Sell Rate (task029.md §36,
+              // metrics_docs.md M1) — 3 garis batas band: <25% Rendah,
+              // 25-40% Cukup, 40-60% Baik, >60% Sangat Baik. yAxisId
+              // default 'right' (axis `ratio`/lineKey di atas), domain
+              // axis itu otomatis melebar supaya garis ini tidak terpotong
+              // walau data historis jauh di bawah/atas nilainya.
+              referenceLines={[
+                { value: 25, color: theme.palette.warning.main },
+                { value: 40, color: theme.palette.success.light },
+                { value: 60, color: theme.palette.success.main },
+              ]}
+              // Tick sumbu kanan kelipatan 10 (2026-08-25, laporan user: tick
+              // auto-scale 17.3/32.3/47.3/63.9% "tidak sesuai pola") — bukan
+              // angka bulat hasil padding 10%.
+              rightAxisTickStep={10}
             />
           )}
           </Grid>

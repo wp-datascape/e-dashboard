@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Button from '@mui/material/Button';
@@ -13,9 +11,17 @@ import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import CategoryIcon from '@mui/icons-material/Category';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
+import PauseCircleOutlinedIcon from '@mui/icons-material/PauseCircleOutlined';
+import BoltIcon from '@mui/icons-material/Bolt';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { useTranslation } from 'react-i18next';
 
-import { useCrossSelling, useExpansionBreakdown } from '@/hooks/useMetrics';
+import { useCrossSelling, useExpansionBreakdown, useDormantBreakdown } from '@/hooks/useMetrics';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { usePeriodTypeFilter } from '@/hooks/usePeriodTypeFilter';
 import { useCan } from '@/hooks/useCan';
@@ -29,9 +35,11 @@ import { NoSectionAccess } from '@/components/dashboard/NoSectionAccess';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { todayStr } from '../../CrossSelling/helpers';
 import { clampDateNotFuture } from '@/utils/date';
-import { getCurrentPeriodKey, getPeriodDateRange } from '@/utils/analisisPeriod';
+import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday } from '@/utils/analisisPeriod';
 import { BreakdownTable } from '../../CrossSelling/BreakdownTable';
 import { useExpansionColumns } from '../../CustomerMetrics/expansionHelpers';
+import { ReportSummaryCards } from '../ReportSummaryCards';
+import { ReportTabCard } from '../ReportTabCard';
 
 // Laporan > Growth (task029.md §30.19, 2026-08-22) — tabel breakdown Cross
 // Selling/Category (BreakdownTable, sama komponen persis M1CrossSelling.tsx/
@@ -104,7 +112,7 @@ export default function ReportGrowth() {
   const periodTypeFilter = usePeriodTypeFilter();
   const draftPeriodTypeFilter = usePeriodTypeFilter();
 
-  const [, setOnlyPareto] = useState(false);
+  const [onlyPareto, setOnlyPareto] = useState(false); // task029.md §35
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -142,6 +150,7 @@ export default function ReportGrowth() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canCrossSelling && activeTab === 'cross_selling' });
 
   // YoY (period_end -1 tahun) — dibutuhkan BreakdownTable utk kolom YoY
@@ -156,6 +165,7 @@ export default function ReportGrowth() {
     apply_date_cutoff: applyDateCutoff,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   }, { enabled: canCrossSelling && activeTab === 'cross_selling' });
 
   // date_from = awal periode AKTIF (granularitas-aware — bukan selalu awal
@@ -163,15 +173,45 @@ export default function ReportGrowth() {
   // fetchExpansionBreakdown fallback ke window activeMonths lama utk
   // Kuartal/Semester/Tahun, bukan rentang penuh periode yang dipilih).
   const reportPeriodKey = getCurrentPeriodKey(periodTypeFilter.periodType, new Date(py, pm - 1, pd));
+  // periodEndEffective (2026-08-26, task031.md — bug SAMA PERSIS
+  // Report/Revenue: `periodEnd` mentah saat "Apply date cutoff" OFF cuma
+  // tanggal 1 bulan yang dipilih (konvensi UI, bukan tanggal query
+  // sungguhan) — `useExpansionBreakdown` TIDAK terima `apply_date_cutoff`
+  // (beda dari `useCrossSelling` di atas yang backend-nya sendiri yang
+  // urus), jadi period_end HARUS akhir periode sungguhan dari sini.
+  const periodEndEffective = applyDateCutoff
+    ? periodEnd
+    : clampPeriodEndToToday(periodTypeFilter.periodType, reportPeriodKey, getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).end);
   const { data: expansionData, isLoading: expansionLoading } = useExpansionBreakdown({
-    period_end: periodEnd,
+    period_end: periodEndEffective,
     date_from: getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).start,
     period_type: periodTypeFilter.periodType,
     company_id: companyId,
     branch_id: resolvedBranchId,
     division: resolvedDivision,
     exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
   });
+
+  // dormantData (2026-08-26, task029.md §36.23 — instruksi user: "Tambahkan
+  // Total pelanggan -> All customer, Dormant, Belum dormant, aktif") —
+  // `fetchExpansionBreakdown` cuma tahu populasi "belum dormant"
+  // (`total_existing`), TIDAK tahu berapa yang SUDAH dormant. Reuse
+  // `useDormantBreakdown` (hook yang SAMA dipakai tab Dormant Laporan
+  // Retention, bukan fetch/hitungan baru) dgn scope+periode yang SAMA
+  // persis, supaya "Dormant" + "Belum Dormant" di sini konsisten dgn
+  // angka di tab Dormant Retention.
+  const { data: dormantData } = useDormantBreakdown({
+    period_end: periodEndEffective,
+    company_id: companyId,
+    branch_id: resolvedBranchId,
+    division: resolvedDivision,
+    exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
+  });
+  const dormantCount = dormantData?.rows.length ?? 0;
+  const belumDormantCount = expansionData?.total_existing ?? 0;
+  const totalPelangganCount = dormantCount + belumDormantCount;
 
   const expansionColumns = useExpansionColumns(t);
   const [expansionSearch, setExpansionSearch] = useState('');
@@ -295,44 +335,75 @@ export default function ReportGrowth() {
 
           {activeTab === 'cross_selling' && (
             <Box sx={{ pt: 1 }}>
+              {/* Kartu ringkasan (2026-08-26, task029.md §36.20 — standar
+                  layout Reaktivasi diterapkan ke tab ini) — DI LUAR
+                  BreakdownTable (bukan diubah internal-nya) krn komponen
+                  ini SHARED dipakai jg M1CrossSelling.tsx/M2AvgCategory.tsx
+                  di dashboard utama — ubah layout internalnya (Card+search
+                  kiri/sort kanan) akan ikut mengubah tampilan di sana juga,
+                  di luar scope permintaan user (khusus halaman Laporan). */}
+              <ReportSummaryCards items={[
+                { label: t('crossSelling.activeCustomerLabelFull'), value: (csData?.kpi1.active_count ?? 0).toLocaleString('id-ID'),
+                  icon: PeopleOutlineIcon, info: t('crossSelling.activeCustomerInfo') },
+                { label: t('crossSelling.kpi1Label'), value: `${csData?.kpi1.rate ?? 0}%`,
+                  icon: SwapHorizIcon, iconColor: 'primary', highlighted: true, info: t('crossSelling.kpi1Info') },
+                { label: t('crossSelling.kpi2Label'), value: String(csData?.kpi2.avg_categories ?? 0),
+                  icon: CategoryIcon, info: t('crossSelling.kpi2Info') },
+              ]} />
               <BreakdownTable data={csData} yoyData={yoyData} isLoading={csLoading} />
             </Box>
           )}
 
           {activeTab === 'expansion' && (
             <Box sx={{ pt: 1 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
-                <TextField
-                  size="small"
-                  placeholder={t('crossSelling.tableSearchPlaceholder')}
-                  value={expansionSearch}
-                  onChange={(e) => setExpansionSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 240 } }}
+              {/* Kartu ringkasan (2026-08-26, §36.23 — instruksi user:
+                  "Tambahkan Total pelanggan -> All customer, Dormant,
+                  Belum dormant, aktif") — 6 kartu berjenjang: Total
+                  Pelanggan pecah jadi Dormant vs Belum Dormant, Belum
+                  Dormant pecah lagi jadi Aktif (transaksi periode ini)
+                  vs tidak, Aktif pecah jadi Naik vs Turun. Urutan kartu
+                  MENGIKUTI urutan pecahan ini (bukan acak) supaya
+                  hubungan antar angka kelihatan, bukan angka lepas yang
+                  membingungkan (lihat keluhan user soal 855 vs 11.375
+                  vs 1.218 di 3 tab berbeda). */}
+              <ReportSummaryCards items={[
+                { label: t('customerMetrics.m7.summaryTotalPelanggan'), value: totalPelangganCount.toLocaleString('id-ID'),
+                  icon: PeopleOutlineIcon, info: t('customerMetrics.m7.summaryTotalPelangganInfo'), md: 2 },
+                { label: t('dormantCustomer.dormantCountLabel'), value: dormantCount.toLocaleString('id-ID'),
+                  icon: PauseCircleOutlinedIcon, iconColor: 'warning', info: t('customerMetrics.m7.summaryDormantInfo'), md: 2 },
+                { label: t('customerMetrics.m7.summaryBelumDormant'), value: belumDormantCount.toLocaleString('id-ID'),
+                  icon: CheckCircleOutlineIcon, iconColor: 'success', info: t('customerMetrics.m7.summaryExistingInfo'), md: 2 },
+                { label: t('customerMetrics.m7.summaryAktif'), value: (expansionData?.active_count ?? 0).toLocaleString('id-ID'),
+                  icon: BoltIcon, iconColor: 'primary', info: t('customerMetrics.m7.dialogActiveCountInfo'), md: 2 },
+                { label: t('customerMetrics.m7.seriesUp'), value: (expansionData?.up_count ?? 0).toLocaleString('id-ID'),
+                  icon: TrendingUpIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m7.seriesUpInfo'), md: 2 },
+                { label: t('customerMetrics.m7.seriesDown'), value: (expansionData?.down_count ?? 0).toLocaleString('id-ID'),
+                  icon: TrendingDownIcon, iconColor: 'error', info: t('customerMetrics.m7.seriesDownInfo'), md: 2 },
+              ]} />
+              <ReportTabCard
+                searchValue={expansionSearch}
+                onSearchChange={setExpansionSearch}
+                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
+                sortValue={expansionSort}
+                onSortChange={(v) => setExpansionSort(v as typeof expansionSort)}
+                sortLabel={t('crossSelling.tableSortLabel')}
+                sortOptions={[
+                  { value: 'name', label: t('crossSelling.tableSortName') },
+                  { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
+                  { value: 'change_desc', label: t('customerMetrics.m7.tableSortChangeDesc') },
+                ]}
+              >
+                <ResponsiveListView
+                  rows={expansionRows.map((r) => ({ ...r, id: r.ranking }))}
+                  columns={expansionColumns}
+                  loading={expansionLoading}
+                  height={560}
+                  pageSize={25}
+                  pageSizeOptions={[25, 50, 100]}
+                  emptyMessage={t('customerMetrics.m7.emptyMessage')}
+                  mobileFields={['customer_name', 'cur_revenue', 'change_pct', 'status']}
                 />
-                <TextField
-                  select
-                  size="small"
-                  label={t('crossSelling.tableSortLabel')}
-                  value={expansionSort}
-                  onChange={(e) => setExpansionSort(e.target.value as typeof expansionSort)}
-                  sx={{ width: { xs: '100%', sm: 200 } }}
-                >
-                  <MenuItem value="name">{t('crossSelling.tableSortName')}</MenuItem>
-                  <MenuItem value="revenue_desc">{t('crossSelling.tableSortRevenueDesc')}</MenuItem>
-                  <MenuItem value="change_desc">{t('customerMetrics.m7.tableSortChangeDesc')}</MenuItem>
-                </TextField>
-              </Box>
-
-              <ResponsiveListView
-                rows={expansionRows.map((r) => ({ ...r, id: r.ranking }))}
-                columns={expansionColumns}
-                loading={expansionLoading}
-                height={560}
-                pageSize={25}
-                pageSizeOptions={[25, 50, 100]}
-                emptyMessage={t('customerMetrics.m7.emptyMessage')}
-                mobileFields={['customer_name', 'cur_revenue', 'change_pct', 'status']}
-              />
+              </ReportTabCard>
             </Box>
           )}
         </>

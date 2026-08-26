@@ -57,6 +57,7 @@ export async function resolveSegmentParams(
   divisionScope?: Map<number, number[]>,
   branchId?: number,
   excludeIntercompany?: boolean,
+  onlyPareto?: boolean,
 ): Promise<SegmentParams> {
   // `activeMonths`/`dormantMonths` SELALU dari business_configs, TIDAK ADA
   // jalur override dari filter periode apa pun (task026 §8e, koreksi user
@@ -92,7 +93,7 @@ export async function resolveSegmentParams(
     getDormantCategoryMap(cid !== 0 ? cid : undefined),
   ])
   const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany)
-  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, dormant, dormantCategoryMap, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany)
+  return buildSegmentParams(companyId, filterDate, activeMonths, dormantMonths, otherIdByBranch, intercompanyIdByCompany, dormant, dormantCategoryMap, division, branchScope, divisionScope, companyScopeIds, branchId, excludeIntercompany, onlyPareto)
 }
 
 export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingMetricsData> {
@@ -149,7 +150,7 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
     const periodEndDate = resolved.periodEndDate
     const resolvedBuckets = resolved.buckets
 
-    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
 
     const [kpiRaw, trend, detailResult, heatmapResult] = await Promise.all([
       fetchCrossSellingKPI(segParams, periodStartDate, periodEndDate),
@@ -251,7 +252,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
     })
 
     const [segParams, { repeatOrderTargetPct }] = await Promise.all([
-      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto),
       loadThresholds(),
     ])
 
@@ -272,6 +273,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
       top_gp_pct:              row.top_gp_pct,
       is_gp_concentrated:      row.top_gp_pct > 25,
       high_margin_ratio:       row.high_margin_ratio,
+      high_margin_buyer_count: row.high_margin_buyer_count,
       repeat_order_rate:       row.repeat_order_rate,
       expansion_rate:          row.expansion_rate,
       up_rate:                 row.expansion_rate,
@@ -319,7 +321,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
 export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: MetricsScope = {}): Promise<RevenueBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const result = await fetchRevenueBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
@@ -338,7 +340,7 @@ export async function getRevenueBreakdown(params: RevenueBreakdownQuery, scope: 
 export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, scope: MetricsScope = {}): Promise<ExpansionBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
     // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
     // "existing", tetap fixed).
@@ -387,7 +389,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
 export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsScope = {}): Promise<GpBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     // date_from = periode penarikan data (task026 §8e) — TERPISAH dari
     // segParams.activeMonths (business config "existing", tetap fixed di atas).
     const result = await fetchGpBreakdown(segParams, params.date_from)
@@ -407,7 +409,7 @@ export async function getGpBreakdown(params: GpBreakdownQuery, scope: MetricsSco
 export async function getHmBreakdown(params: HmBreakdownQuery, scope: MetricsScope = {}): Promise<HmBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const result = await fetchHmBreakdown(segParams, params.date_from)
     return {
       period_end:       filterDate,
@@ -542,7 +544,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     })
 
     const [segParams, thresholds] = await Promise.all([
-      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany),
+      resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto),
       loadThresholds(),
     ])
     const comparisonSegParams = { ...segParams, filterDate: comparisonFilterDate }
@@ -556,21 +558,35 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     const liveBucket = liveBuckets.at(-1)!
     const dormantBaselineBucket = resolvedBuckets.at(-1)!
 
-    const [trend, valueRanking, comparisonTrend, comparisonValueRanking, statusLog, valueTrend] = await Promise.all([
+    const [trend, valueRankingAll, comparisonTrend, comparisonValueRankingAll, statusLog, valueTrend] = await Promise.all([
       fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets),
       // existingSince = liveBucket.start (task029.md §32.2, 2026-08-24) —
       // gate New/Existing SSOT §30.10, titik referensi SAMA PERSIS lb.ps
       // di fetchDormantTrend/is_existing_at_me (awal kalender ASLI label
       // yang sedang dilihat, bukan window data yang sudah digeser).
-      fetchDormantValueRanking(segParams, 20, liveBucket.start),
+      //
+      // limit=null (2026-08-26, task029.md §36.12 — bug ditemukan: "Total
+      // Loss" M9 SEBELUMNYA dijumlah dari hasil `limit=20` ini, jadi cuma
+      // total TOP 20 customer, BUKAN total SEMUA dormant customer — makin
+      // banyak dormant customer di luar top 20, makin understated angkanya.
+      // Sekarang fetch SEMUA (pola sama fetchDormantValueRanking limit=null
+      // yang sudah dipakai getDormantBreakdown/M8), top-20 utk chart/tabel
+      // di-slice di JS dari array penuh ini, TIDAK fetch 2x.
+      fetchDormantValueRanking(segParams, null, liveBucket.start),
       // Comparison (YoY) TIDAK dipakai UI apa pun saat ini (lihat komentar
       // di atas) — comparisonBuckets dipakai juga sbg liveBuckets (kalender
       // penuh, tanpa shift/elapsed-clamp, sudah pasti periode lampau tutup).
       fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
-      fetchDormantValueRanking(comparisonSegParams, 20, comparisonBuckets.at(-1)!.start),
+      fetchDormantValueRanking(comparisonSegParams, null, comparisonBuckets.at(-1)!.start),
       fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket),
       fetchDormantValueTrend(segParams),
     ])
+    // valueRanking/comparisonValueRanking (2026-08-26, lihat komentar di
+    // atas) — top 20 UTK TAMPILAN (chart/ranking table), sudah ORDER BY
+    // estimated_lost_value DESC dari query, slice aman. Total (di bawah)
+    // TETAP dijumlah dari array PENUH (*All), bukan hasil slice ini.
+    const valueRanking = valueRankingAll.slice(0, 20)
+    const comparisonValueRanking = comparisonValueRankingAll.slice(0, 20)
 
     // Top reaktivasi periode berjalan (2026-08-24, susulan instruksi user
     // "buatkan juga 3 card summary diatas cart, dan top 5" M10) — filter
@@ -597,6 +613,9 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     const last = trend.at(-1)
     const comparisonLast = comparisonTrend.at(-1)
     const sumLostValue = (rows: DormantValueRow[]) => rows.reduce((acc, r) => acc + r.estimated_lost_value, 0)
+    // sumLostGp (2026-08-26, task029.md §36.12) — versi Gross Profit
+    // paralel, pola sama persis sumLostValue.
+    const sumLostGp = (rows: DormantValueRow[]) => rows.reduce((acc, r) => acc + r.estimated_lost_gp, 0)
 
     return {
       trend,
@@ -620,8 +639,10 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         target_high:      thresholds.reactivationTargetHigh,
         comparison_value: comparisonLast?.reactivation_rate ?? 0,
       },
-      value_ranking_total_current:    sumLostValue(valueRanking),
-      value_ranking_total_comparison: sumLostValue(comparisonValueRanking),
+      value_ranking_total_current:    sumLostValue(valueRankingAll),
+      value_ranking_total_comparison: sumLostValue(comparisonValueRankingAll),
+      value_ranking_total_gp_current:    sumLostGp(valueRankingAll),
+      value_ranking_total_gp_comparison: sumLostGp(comparisonValueRankingAll),
       reactivated_customers: reactivatedCustomers,
       value_trend: valueTrend,
     }
@@ -634,7 +655,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
 export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsScope = {}): Promise<RorBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const result = await fetchRorBreakdown(segParams, params.date_from)
     return {
       period_end:     filterDate,
@@ -656,7 +677,7 @@ export async function getRorBreakdown(params: RorBreakdownQuery, scope: MetricsS
 export async function getDormantBreakdown(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantBreakdownData> {
   try {
     const filterDate = params.period_end ?? todayDate()
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const rows = await fetchDormantValueRanking(segParams, null)
     return {
       period_end: filterDate,
@@ -677,7 +698,7 @@ export async function getDormantStatusBreakdown(params: DormantStatusBreakdownQu
   try {
     const filterDate = params.period_end ?? todayDate()
     const bucketStart = params.date_from ?? filterDate
-    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
 
     // Bucket sebelumnya SELALU akhir kalender penuh (2026-08-24, koreksi
     // user: "DORMAN JULI ITU JUMLAH AKHIR JUNI SEHARUSNYA" — maksudnya
@@ -726,7 +747,7 @@ export async function getDormantStatusBreakdown(params: DormantStatusBreakdownQu
 // paling relevan (sama dgn window revenue yang dihitung).
 export async function getDormantValueHistory(params: DormantValueHistoryQuery, scope: MetricsScope = {}): Promise<DormantValueHistoryData> {
   try {
-    const segParams = await resolveSegmentParams(params.company_id, params.ref_date, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany)
+    const segParams = await resolveSegmentParams(params.company_id, params.ref_date, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
     const rows = await fetchDormantValueHistory(segParams, params.customer_id, params.ref_date)
     return {
       customer_id: params.customer_id,
@@ -1049,7 +1070,7 @@ export async function getUpsellTargets(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
-      businessUnit: params.business_unit || null,
+      divisionId: params.division ?? null,
       page: params.page, perPage: params.per_page,
     })
 
