@@ -225,18 +225,33 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- M8 (dormantThresholdCaseSql, per kategori bisnis divisi) — 1 sumber
     -- kebenaran, bukan aturan baru.
     ${cteCustDivision(p)},
-    cust_dormant_threshold AS (
+    -- MATERIALIZED (2026-08-27, task030.md §6) — cust_division (dari
+    -- cteCustDivision, DISTINCT ON invoice per customer) TANPA hint ini
+    -- ke-inline ulang tiap cust_dormant_threshold di-JOIN (9.581 kali,
+    -- 1 per baris bucket x customer) — bukan dihitung sekali lalu dipakai
+    -- ulang, root cause SEBENARNYA lambatnya query ini (bukan
+    -- last_inv_per_bucket di atas, itu SUDAH cepat sejak LATERAL+LIMIT 1).
+    -- Hasil 1 baris per customer, murah dipaksa materialize sekali.
+    cust_dormant_threshold AS MATERIALIZED (
       SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
       FROM customers c
       LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false AND ${companyCondC}
     ),
-    -- Invoice TANPA batas bawah tanggal (beda dari raw_inv yang dibatasi ke
-    -- window trailing-buckets) — status dormant butuh tahu transaksi
-    -- TERAKHIR sungguhan, bisa jauh sebelum window trend 12 titik dimulai.
-    -- Pola SAMA PERSIS m8m10.repository.ts CTE 'inv'.
-    last_inv_unbounded AS (
-      SELECT i.customer_id, i.invoice_date
+    -- customer_inv_dates (2026-08-27, task030.md §6 lanjutan — user: "masih
+    -- di 14 detik, apa lagi yang bisa dilakukan?") — SEBELUMNYA
+    -- last_inv_per_bucket lookup index PER (customer x bucket) — 12x lookup
+    -- TERPISAH per customer (1x per titik bulan), padahal invoice seorang
+    -- customer TIDAK BERUBAH antar titik, cuma batas atas tanggalnya yang
+    -- beda. Diukur company besar (KNT, 32rb customer): 276.854 lookup index
+    -- @ ~17µs = ~4,7 detik SENDIRIAN, walau tiap lookup sudah pakai index.
+    -- Sekarang: 1x scan per customer (array_agg SEMUA tanggal invoice
+    -- qualifying, terurut), dipakai ULANG utk ke-12 titik bucket via
+    -- unnest+filter di memori (jauh lebih murah drpd 12x index descent
+    -- terpisah) — filter scope SAMA PERSIS dgn versi lookup-per-bucket
+    -- sebelumnya, TIDAK ada yang dihapus/diringkas.
+    customer_inv_dates AS MATERIALIZED (
+      SELECT i.customer_id, array_agg(i.invoice_date ORDER BY i.invoice_date) AS dates
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
@@ -250,15 +265,15 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
         AND ${onlyParetoCond}
+      GROUP BY i.customer_id
     ),
-    last_inv_per_bucket AS (
+    last_inv_per_bucket AS MATERIALIZED (
       SELECT b.label, e.id AS customer_id, b.pe AS bucket_end, cdt.dormant_threshold,
-        MAX(li.invoice_date) AS last_inv_before_be
+        (SELECT MAX(d) FROM unnest(cid.dates) AS d WHERE d <= b.pe) AS last_inv_before_be
       FROM buckets b
       JOIN existing e ON e.label = b.label
       JOIN cust_dormant_threshold cdt ON cdt.cid = e.id
-      LEFT JOIN last_inv_unbounded li ON li.customer_id = e.id AND li.invoice_date <= b.pe
-      GROUP BY b.label, e.id, b.pe, cdt.dormant_threshold
+      LEFT JOIN customer_inv_dates cid ON cid.customer_id = e.id
     ),
     existing_not_dormant AS (
       SELECT label, customer_id
@@ -273,7 +288,14 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- ke-6 pada spine customer x bucket yang sama persis - restrukturisasi
     -- 2026-08-21, audit performa: 8+ Merge Join berantai pada ~275rb baris
     -- dominasi waktu eksekusi).
-    active_inv_agg AS (
+    -- MATERIALIZED (2026-08-27, task030.md §6 lanjutan) — ketiga CTE
+    -- agregat ini dirujuk BERKALI-KALI di query akhir (avg_revenue,
+    -- top_contrib, gp_median, dst) — tanpa hint ini Postgres re-inline +
+    -- re-hitung ulang agregasinya tiap rujukan (diukur: 1 scan
+    -- active_inv_agg 17.763 baris makan ~1,9 detik SENDIRIAN, padahal cuma
+    -- scan tabel materialized biasa harusnya <1ms) — pola SAMA PERSIS
+    -- cust_dormant_threshold/last_inv_per_bucket di atas.
+    active_inv_agg AS MATERIALIZED (
       SELECT b.label, ri.customer_id, SUM(ri.rev) AS rev, SUM(ri.gp) AS gp,
         COUNT(DISTINCT ri.invoice_id) AS invoice_count
       FROM raw_inv ri
@@ -285,7 +307,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- M7: revenue per existing customer di BUCKET SEBELUMNYA (lebar sama
     -- dgn bucket current, Keputusan desain #2) — bukan lagi 2×activeMonths
     -- mundur dari bucket_end.
-    prev_inv_agg AS (
+    prev_inv_agg AS MATERIALIZED (
       SELECT pb.label, ri.customer_id, SUM(ri.rev) AS rev
       FROM raw_inv ri
       JOIN prev_buckets pb ON ri.invoice_date >= pb.ps AND ri.invoice_date <= pb.pe
@@ -299,7 +321,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- dipakai sbg penentu keanggotaan M5 (customer yang MUNCUL di sini
     -- otomatis "beli HM dalam window ini", tidak perlu CTE keanggotaan
     -- terpisah).
-    hm_inv_agg AS (
+    hm_inv_agg AS MATERIALIZED (
       SELECT b.label, hr.customer_id, SUM(hr.revenue) AS hm_revenue
       FROM hm_raw hr
       JOIN buckets b ON hr.invoice_date >= b.ps AND hr.invoice_date <= b.pe
@@ -791,35 +813,43 @@ export async function fetchExpansionBreakdown(
     -- Referensi "as of" = filterDate (titik snapshot yang sedang dilihat,
     -- sama pola dgn b.pe di fetchCustomerMetricsTrend).
     ${cteCustDivision(p)},
-    cust_dormant_threshold AS (
+    -- MATERIALIZED (2026-08-27, task030.md §6, pola sama fetchCustomerMetricsTrend
+    -- di atas) — cust_division ke-inline ulang kalau tidak dipaksa.
+    cust_dormant_threshold AS MATERIALIZED (
       SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
       FROM customers c
       LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false AND ${companyCondC}
     ),
-    last_inv_unbounded AS (
-      SELECT i.customer_id, i.invoice_date
-      FROM invoices i
-      LEFT JOIN channel_divisions cd
-        ON cd.channel_name = i.channel_name
-        AND cd.company_id = i.company_id
-      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
-      WHERE i.deleted_at IS NULL
-        AND ${companyCondI}
-        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
-        AND ${branchCond}
-        AND ${divisionScopeCond}
-        AND ${excludeIntercompanyCond}
-        AND ${onlyParetoCond}
-    ),
+    -- established_not_dormant (2026-08-27, task030.md §6) — LATERAL +
+    -- ORDER BY...LIMIT 1 (bukan LEFT JOIN + GROUP BY MAX lama), pola sama
+    -- last_inv_per_bucket di fetchCustomerMetricsTrend — index scan
+    -- langsung per customer, bukan scan+sort seluruh invoice company.
     established_not_dormant AS (
       SELECT ec.id
       FROM established_customers ec
       JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
-      LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
-      GROUP BY ec.id, cdt.dormant_threshold
-      HAVING MAX(li.invoice_date) IS NOT NULL
-        AND ${dormantCrossedSql(sql`MAX(li.invoice_date)`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
+      LEFT JOIN LATERAL (
+        SELECT i.invoice_date
+        FROM invoices i
+        LEFT JOIN channel_divisions cd
+          ON cd.channel_name = i.channel_name
+          AND cd.company_id = i.company_id
+        LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+        WHERE i.customer_id = ec.id
+          AND i.invoice_date <= ${filterDate}::date
+          AND i.deleted_at IS NULL
+          AND ${companyCondI}
+          AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
+          AND ${branchCond}
+          AND ${divisionScopeCond}
+          AND ${excludeIntercompanyCond}
+          AND ${onlyParetoCond}
+        ORDER BY i.invoice_date DESC
+        LIMIT 1
+      ) li ON true
+      WHERE li.invoice_date IS NOT NULL
+        AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
     ),
     inv_current AS (
       SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
@@ -897,8 +927,13 @@ export async function fetchExpansionBreakdown(
       LEFT JOIN latest_inv   li ON li.customer_id = ec.id
     )
     SELECT
+      -- tie-breaker "id" DESC (2026-08-27, task030.md §6b — ditemukan saat
+      -- verifikasi restrukturisasi performa: customer dgn selisih
+      -- cur_revenue-prev_revenue PERSIS SAMA urutannya tidak deterministik
+      -- tanpa ini, celah LAMA yang sudah ada sebelum restrukturisasi —
+      -- rencana eksekusi APA PUN sekarang menghasilkan urutan yang SAMA).
       ROW_NUMBER() OVER (
-        ORDER BY (cur_revenue - prev_revenue) DESC
+        ORDER BY (cur_revenue - prev_revenue) DESC, combined.id DESC
       )::int                                                                AS ranking,
       customer_code,
       customer_name,
@@ -936,7 +971,7 @@ export async function fetchExpansionBreakdown(
     FROM combined
     LEFT JOIN company_branches cb ON cb.id = combined.branch_id
     LEFT JOIN divisions d ON d.id = combined.division_id
-    ORDER BY (cur_revenue - prev_revenue) DESC
+    ORDER BY (cur_revenue - prev_revenue) DESC, combined.id DESC
   `)
 
   const rawRows = rows as unknown[]
@@ -945,35 +980,40 @@ export async function fetchExpansionBreakdown(
       WITH
       ${establishedCTE},
       ${cteCustDivision(p)},
-      cust_dormant_threshold AS (
+      -- MATERIALIZED + LATERAL (2026-08-27, task030.md §6) — pola sama
+      -- persis blok utama fetchExpansionBreakdown di atas, cabang ini
+      -- cuma fallback jarang (rawRows.length === 0).
+      cust_dormant_threshold AS MATERIALIZED (
         SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
         FROM customers c
         LEFT JOIN cust_division cdv ON cdv.cid = c.id
         WHERE c.is_placeholder = false AND ${companyCondC}
       ),
-      last_inv_unbounded AS (
-        SELECT i.customer_id, i.invoice_date
-        FROM invoices i
-        LEFT JOIN channel_divisions cd
-          ON cd.channel_name = i.channel_name
-          AND cd.company_id = i.company_id
-        LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
-        WHERE i.deleted_at IS NULL
-          AND ${companyCondI}
-          AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
-          AND ${branchCond}
-          AND ${divisionScopeCond}
-          AND ${excludeIntercompanyCond}
-          AND ${onlyParetoCond}
-      ),
       established_not_dormant AS (
         SELECT ec.id
         FROM established_customers ec
         JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
-        LEFT JOIN last_inv_unbounded li ON li.customer_id = ec.id AND li.invoice_date <= ${filterDate}::date
-        GROUP BY ec.id, cdt.dormant_threshold
-        HAVING MAX(li.invoice_date) IS NOT NULL
-          AND ${dormantCrossedSql(sql`MAX(li.invoice_date)`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
+        LEFT JOIN LATERAL (
+          SELECT i.invoice_date
+          FROM invoices i
+          LEFT JOIN channel_divisions cd
+            ON cd.channel_name = i.channel_name
+            AND cd.company_id = i.company_id
+          LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
+          WHERE i.customer_id = ec.id
+            AND i.invoice_date <= ${filterDate}::date
+            AND i.deleted_at IS NULL
+            AND ${companyCondI}
+            AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
+            AND ${branchCond}
+            AND ${divisionScopeCond}
+            AND ${excludeIntercompanyCond}
+            AND ${onlyParetoCond}
+          ORDER BY i.invoice_date DESC
+          LIMIT 1
+        ) li ON true
+        WHERE li.invoice_date IS NOT NULL
+          AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
       )
       SELECT COUNT(*)::int AS total_existing FROM established_not_dormant
     `) as unknown[]
