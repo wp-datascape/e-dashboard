@@ -64,6 +64,11 @@ export interface UserPreferences {
   theme_mode?: 'light' | 'dark'
   color_palette?: string
   language?: string
+  // Kunci banner pengumuman (task032) yang sudah ditutup/di-klik user - dicek
+  // di frontend (config/announcements.ts) sebelum render, supaya banner yang
+  // sudah dilihat tidak muncul lagi. Per user (kolom ini per baris users),
+  // BUKAN flag global.
+  dismissed_banners?: string[]
 }
 
 export type User = typeof users.$inferSelect

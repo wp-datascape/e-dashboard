@@ -15,10 +15,12 @@ Every customer who has ever transacted falls into exactly one of these statuses 
 
 These numbers are used as the denominator population on the summary cards of various KPIs, each built from a combination of the statuses above.
 
-- **Active Transacting** (`Acquisition + Active Customer + Reactivated`): All customers who transacted in the current period, including first-time customers.
-- **Existing Active** (`Active Customer + Reactivated`): Customers who have transacted before (not first-time) and are still actively transacting in the current period.
-- **Customer Base (Addressable)** (`Active Customer + Reactivated + Lapsed`): Customers who have transacted before and have not yet crossed the dormant threshold, still reachable or actionable.
-- **Total Customer Base** (`Active Customer + Reactivated + Lapsed + Dormant`): All customers who have ever transacted, regardless of current status, including those already dormant.
+| Term | Definition | Formula |
+| --- | --- | --- |
+| **Active Transacting** | All customers who transacted in the current period, including first-time customers. | `Acquisition + Active Customer + Reactivated` |
+| **Existing Active** | Customers who have transacted before (not first-time) and are still actively transacting in the current period. | `Active Customer + Reactivated` |
+| **Customer Base (Addressable)** | Customers who have transacted before and have not yet crossed the dormant threshold, still reachable or actionable. | `Active Customer + Reactivated + Lapsed` |
+| **Total Customer Base** | All customers who have ever transacted, regardless of current status, including those already dormant. | `Active Customer + Reactivated + Lapsed + Dormant` |
 
 ## Population Used by Each KPI
 

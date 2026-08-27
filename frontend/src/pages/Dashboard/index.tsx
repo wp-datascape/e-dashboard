@@ -15,6 +15,7 @@ import { StatCardSkeleton } from '@/components/dashboard/StatCardSkeleton';
 import { PeriodStrip } from '@/components/dashboard/PeriodStrip';
 import { MetricStatCard } from '@/components/dashboard/MetricStatCard';
 import { MetricChartSlot } from '@/components/dashboard/MetricChartSlot';
+import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
 
 // ─── Halaman Overview (task029) ────────────────────────────────────────────
 //
@@ -75,6 +76,8 @@ export default function Dashboard() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <AnnouncementBanner />
+
       {/* ── Page Header ── */}
       <Box
         sx={{
