@@ -30,6 +30,7 @@ import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import StorageIcon from '@mui/icons-material/Storage';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlineOutlined';
 
 export interface NavItem {
   key: string;
@@ -379,5 +380,16 @@ export const NAV_ITEMS: NavItem[] = [
         permissionKey: 'login.log:menu',
       },
     ],
+  },
+
+  // Help (task029.md §37, 2026-08-27, instruksi user) — item berdiri sendiri,
+  // TANPA permissionKey ("Undefined = always visible" — lihat komentar NavItem
+  // di atas), terlihat semua user login apa pun role-nya, bukan gated per-role
+  // spt item Administration di atas.
+  {
+    key: 'help',
+    path: '/help',
+    labelKey: 'nav.help',
+    icon: <HelpOutlineIcon fontSize="small" />,
   },
 ];

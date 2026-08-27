@@ -456,6 +456,9 @@ const defaultPageSettings = [
   { page_key: 'settings-app', ready: true },
   { page_key: 'config-integration', ready: true },
   { page_key: 'config-features', ready: true },
+  // Help (task029.md §37, 2026-08-27) — halaman definisi/rumus 10 KPI,
+  // terlihat semua user, TANPA permissionKey di routeConstants.tsx.
+  { page_key: 'help', ready: true },
 ]
 
 async function seedCompanies() {

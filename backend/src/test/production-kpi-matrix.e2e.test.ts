@@ -129,6 +129,33 @@ async function fetchCustomerMetricsTrend(
   }
 }
 
+interface DormantSnapshot {
+  dormantCount: number
+  totalCustomers: number
+  lostValue: number
+}
+
+async function fetchDormantSnapshot(
+  cookie: string,
+  companyId: number | 'all',
+  periodType: (typeof PERIOD_TYPES)[number],
+): Promise<{ status: number; snapshot?: DormantSnapshot }> {
+  const params = new URLSearchParams({ company_id: String(companyId), period_end: PERIOD_END, period_type: periodType })
+  const res = await app.request(`/api/v1/metrics/dormant-customer?${params}`, { headers: { Cookie: cookie } })
+  if (res.status !== 200) return { status: res.status }
+  const body = (await res.json()) as {
+    data: { dormant_rate_current: { dormant_count: number; total_customers: number }; value_ranking_total_current: number }
+  }
+  return {
+    status: 200,
+    snapshot: {
+      dormantCount: body.data.dormant_rate_current.dormant_count,
+      totalCustomers: body.data.dormant_rate_current.total_customers,
+      lostValue: body.data.value_ranking_total_current,
+    },
+  }
+}
+
 // Top-level await (ESM) — cek akun production ini ADA sebelum register describe,
 // supaya bisa skip 1x lewat describe.skipIf() (bukan gagal satu-satu per test) di
 // CI (DB seed kosong).
@@ -241,14 +268,16 @@ describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login su
       }
     })
 
-    // KNOWN ISSUE — MD KNT punya grant branch+division PENUH (7/7 cabang, 4/4 divisi
-    // di semua cabang, terverifikasi manual lewat query DB) yang seharusnya setara
-    // total dengan bypass superadmin untuk company KNT, TAPI angkanya TIDAK selalu
-    // identik (lihat production-scope-consistency.e2e.test.ts, temuan M9 serupa).
-    // Test ini SENGAJA dibiarkan sbg assertion asli (bukan skip) — kalau MASIH merah,
-    // berarti bug lama ini (kemungkinan bukan soal grant, tapi soal query builder
-    // scope map non-bypass vs bypass true menghasilkan plan/hasil sedikit beda)
-    // belum diperbaiki, bukan regresi baru.
+    // DIPERBAIKI (2026-08-27) — sebelumnya MD KNT (grant branch+division PENUH)
+    // TIDAK identik Super Admin @ KNT (selisih puluhan customer/invoice) walau
+    // grant-nya sudah lengkap. Root cause: 64 invoice KNT ber-branch_name "PUSAT"
+    // (teks mentah dari import) tidak match branch mana pun milik KNT — KNT belum
+    // punya branch "Pusat" di master data, cuma company SKI yang punya. Fix: bikin
+    // branch "Pusat" baru untuk KNT, backfill branch_id 64 invoice itu
+    // (scripts/backfill-invoice-branch-id.ts --apply), grant akses branch+division-nya
+    // ke semua user KNT. Diverifikasi identik persis di SEMUA granularitas periode +
+    // SEMUA 8 cabang + M8-M10 dormant (lihat Group 2/3/5 di bawah), bukan cuma
+    // snapshot default ini.
     test('MD KNT (grant branch+division penuh) identik Super Admin @ KNT', () => {
       expect(snapshots.get(key('MD KNT', COMPANY.KNT))).toEqual(snapshots.get(key('Super Admin', COMPANY.KNT)))
     })
@@ -272,6 +301,7 @@ describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login su
         { label: 'Super Admin', companyId: COMPANY.KNT },
         { label: 'MD KNT', companyId: COMPANY.KNT },
         { label: 'FAT Holding', companyId: COMPANY.KNT },
+        { label: 'Marketing Holding', companyId: COMPANY.KNT },
         { label: 'Super Admin', companyId: COMPANY.MKO },
         { label: 'MD MKO', companyId: COMPANY.MKO },
       ]
@@ -305,6 +335,21 @@ describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login su
       }
     })
 
+    // Uji KETAT (2026-08-27, diminta user setelah fix Pusat branch — "datanya tidak
+    // ada selisih untuk semua user pada setiap periode?") — bukan cuma "tidak lebih
+    // banyak" (toBeLessThanOrEqual di atas), tapi IDENTIK PERSIS (toEqual) di SEMUA
+    // 4 granularitas, utk SEMUA user scoped KNT sekaligus (bukan cuma FAT Holding).
+    test('MD KNT, FAT Holding, Marketing Holding identik PERSIS Super Admin @ KNT di SEMUA granularitas periode', () => {
+      for (const label of ['MD KNT', 'FAT Holding', 'Marketing Holding']) {
+        for (const periodType of PERIOD_TYPES) {
+          expect(
+            snapshots.get(key(label, COMPANY.KNT, periodType))!.snapshot,
+            `${label} @ KNT periode ${periodType} harus identik persis Super Admin`,
+          ).toEqual(snapshots.get(key('Super Admin', COMPANY.KNT, periodType))!.snapshot)
+        }
+      }
+    })
+
     test('Granularitas berbeda menghasilkan angka berbeda (bukan hardcode bulanan) — quarter != monthly untuk Super Admin @ KNT', () => {
       const monthly = snapshots.get(key('Super Admin', COMPANY.KNT, 'monthly'))!.snapshot!
       const quarter = snapshots.get(key('Super Admin', COMPANY.KNT, 'quarter'))!.snapshot!
@@ -314,45 +359,46 @@ describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login su
     })
   })
 
-  describe('Group 3 — Filter branch, prioritas KNT (7 cabang, omset jauh lebih besar dari MKO)', () => {
-    let semarangBranchId: number
-    let kaltimBranchId: number
+  describe('Group 3 — Filter branch, SEMUA cabang KNT (8 cabang termasuk "Pusat", omset jauh lebih besar dari MKO)', () => {
+    let kntBranches: { id: number; name: string }[]
     const snapshots = new Map<string, { status: number; snapshot?: TrendSnapshot }>()
     const key = (label: string, branchId: number) => `${label}|${branchId}`
 
     beforeAll(async () => {
-      const branches = await db
+      kntBranches = await db
         .select({ id: company_branches.id, name: company_branches.name })
         .from(company_branches)
         .where(eq(company_branches.company_id, COMPANY.KNT))
-      semarangBranchId = branches.find((b) => b.name === 'Semarang')!.id
-      kaltimBranchId = branches.find((b) => b.name === 'Kaltim Nusantara')!.id
 
-      for (const branchId of [semarangBranchId, kaltimBranchId]) {
+      for (const branch of kntBranches) {
         for (const label of ['Super Admin', 'FAT Holding', 'MD KNT']) {
-          snapshots.set(key(label, branchId), await fetchCustomerMetricsTrend(cookies.get(label)!, COMPANY.KNT, { branchId }))
+          snapshots.set(key(label, branch.id), await fetchCustomerMetricsTrend(cookies.get(label)!, COMPANY.KNT, { branchId: branch.id }))
         }
       }
     }, 300_000)
 
-    // Semarang: FAT Holding TIDAK punya grant division 'Ucard' di cabang ini (temuan
-    // audit 2026-08-27, lihat docs-v2/task/task029.md) — filter branch_id ke cabang
-    // ini HARUS menunjukkan FAT Holding lebih sempit dari Super Admin di sini.
-    test('Cabang Semarang: FAT Holding LEBIH SEMPIT dari Super Admin (grant divisi tidak penuh — tanpa Ucard)', () => {
-      const holding = snapshots.get(key('FAT Holding', semarangBranchId))!.snapshot!
-      const superadmin = snapshots.get(key('Super Admin', semarangBranchId))!.snapshot!
-      expect(holding.existingCustomers).toBeLessThanOrEqual(superadmin.existingCustomers)
+    // Uji KETAT SEMUA cabang (2026-08-27, diminta user) — dulu cuma 2 cabang sample
+    // (Semarang sengaja dipilih krn ADA gap grant divisi Ucard, Kaltim Nusantara krn
+    // TIDAK ada gap) sekarang dilebarkan ke SEMUA 8 cabang KNT, termasuk "Pusat" yang
+    // baru dibuat (fix backfill invoice branch_id, lihat komentar Group 1). Gap Ucard
+    // di Semarang sendiri SUDAH diperbaiki user langsung lewat dashboard — jadi
+    // sekarang HARUS identik persis di cabang mana pun, bukan cuma sebagian.
+    test('FAT Holding identik PERSIS Super Admin di SEMUA cabang KNT (termasuk Pusat)', () => {
+      for (const branch of kntBranches) {
+        expect(
+          snapshots.get(key('FAT Holding', branch.id))!.snapshot,
+          `Cabang ${branch.name} — FAT Holding harus identik persis Super Admin`,
+        ).toEqual(snapshots.get(key('Super Admin', branch.id))!.snapshot)
+      }
     })
 
-    // Kaltim Nusantara: FAT Holding grant divisinya PENUH (termasuk Ucard) — filter
-    // branch_id ke cabang ini seharusnya identik Super Admin, TIDAK ada gap grant.
-    test('Cabang Kaltim Nusantara: FAT Holding identik Super Admin (grant divisi penuh, termasuk Ucard)', () => {
-      expect(snapshots.get(key('FAT Holding', kaltimBranchId))!.snapshot).toEqual(snapshots.get(key('Super Admin', kaltimBranchId))!.snapshot)
-    })
-
-    test('MD KNT identik Super Admin di KEDUA cabang (grant divisi penuh di semua cabang)', () => {
-      expect(snapshots.get(key('MD KNT', semarangBranchId))!.snapshot).toEqual(snapshots.get(key('Super Admin', semarangBranchId))!.snapshot)
-      expect(snapshots.get(key('MD KNT', kaltimBranchId))!.snapshot).toEqual(snapshots.get(key('Super Admin', kaltimBranchId))!.snapshot)
+    test('MD KNT identik PERSIS Super Admin di SEMUA cabang KNT (termasuk Pusat)', () => {
+      for (const branch of kntBranches) {
+        expect(
+          snapshots.get(key('MD KNT', branch.id))!.snapshot,
+          `Cabang ${branch.name} — MD KNT harus identik persis Super Admin`,
+        ).toEqual(snapshots.get(key('Super Admin', branch.id))!.snapshot)
+      }
     })
   })
 
@@ -412,5 +458,40 @@ describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login su
       expect(custMetrics.status).toBe(200)
       expect(dashboard.status).toBe(200)
     }, 15_000)
+  })
+
+  // Uji KETAT M8-M10 (2026-08-27, diminta user) — dormant/nilai hilang/reaktivasi
+  // sebelumnya cuma teruji lewat summary card default di Group 1 (1 titik waktu,
+  // periode bulanan). Ini temuan paling mencurigakan di awal audit (M9 MD KNT vs
+  // Super Admin beda) — sekarang diuji identik persis di SEMUA 4 granularitas,
+  // bukan cuma titik default.
+  describe('Group 5 — M8-M10 (dormant/nilai hilang) konsistensi lintas periode, prioritas KNT', () => {
+    const snapshots = new Map<string, { status: number; snapshot?: DormantSnapshot }>()
+    const key = (label: string, periodType: string) => `${label}|${periodType}`
+
+    beforeAll(async () => {
+      for (const label of ['Super Admin', 'MD KNT', 'FAT Holding', 'Marketing Holding']) {
+        for (const periodType of PERIOD_TYPES) {
+          snapshots.set(key(label, periodType), await fetchDormantSnapshot(cookies.get(label)!, COMPANY.KNT, periodType))
+        }
+      }
+    }, 300_000)
+
+    test('Semua granularitas periode berhasil (200) untuk semua kombinasi dormant', () => {
+      for (const [comboKey, result] of snapshots) {
+        expect(result.status, `combo ${comboKey} gagal status ${result.status}`).toBe(200)
+      }
+    })
+
+    test('MD KNT, FAT Holding, Marketing Holding identik PERSIS Super Admin @ KNT (dormant + nilai hilang) di SEMUA granularitas periode', () => {
+      for (const label of ['MD KNT', 'FAT Holding', 'Marketing Holding']) {
+        for (const periodType of PERIOD_TYPES) {
+          expect(
+            snapshots.get(key(label, periodType))!.snapshot,
+            `${label} @ KNT periode ${periodType} (dormant) harus identik persis Super Admin`,
+          ).toEqual(snapshots.get(key('Super Admin', periodType))!.snapshot)
+        }
+      }
+    })
   })
 })
