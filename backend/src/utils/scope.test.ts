@@ -168,8 +168,22 @@ describe('buildExcludeIntercompanyCondition (Drizzle column-based, company-keyed
 
   test('toggle nyala → division_id IS DISTINCT FROM intercompany id company itu, NULL tetap lolos (bukan intercompany)', () => {
     const q = toQuery(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), true))
-    expect(q?.sql).toBe('("invoices"."company_id" = $1 and "channel_divisions"."division_id" IS DISTINCT FROM $2)')
-    expect(q?.params).toEqual([1, 4])
+    expect(q?.sql).toBe('("invoices"."company_id" NOT IN ($1) or ("invoices"."company_id" = $2 and "channel_divisions"."division_id" IS DISTINCT FROM $3))')
+    expect(q?.params).toEqual([1, 1, 4])
+  })
+
+  // Bug (2026-08-27, laporan user - toggle "Kecualikan Intercompany" bikin KNT nol
+  // data total, bukan cuma nge-exclude baris intercompany) - company yang TIDAK
+  // punya division 'intercompany' terdaftar (cuma company 1 yang punya di map ini)
+  // HARUS tetap lolos tanpa syarat, bukan ikut ter-exclude krn tidak match klausa
+  // OR mana pun.
+  test('company TIDAK ada di intercompanyIdByCompany → lolos tanpa syarat (bug fix, dulu row-nya ke-exclude semua)', () => {
+    // map cuma punya company 1 (MKO) - company 2 (KNT)/3 (SKI) HARUS tetap punya
+    // jalur lolos (klausa "NOT IN"), bukan cuma bergantung ke klausa company 1 yang
+    // tidak pernah match utk baris company lain.
+    const q = toQuery(buildExcludeIntercompanyCondition(invoices.company_id, channel_divisions.division_id, new Map([[1, 4]]), true))
+    expect(q?.sql).toContain('"invoices"."company_id" NOT IN ($1)')
+    expect(q?.params?.[0]).toBe(1)
   })
 })
 
@@ -186,7 +200,14 @@ describe('buildExcludeIntercompanyRaw (company-keyed)', () => {
 
   test('toggle nyala → division_id IS DISTINCT FROM intercompany id company itu (NULL tetap lolos)', () => {
     const q = dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map([[1, 4]]), true))
-    expect(q.sql).toBe('((i.company_id = $1 AND cd.division_id IS DISTINCT FROM $2))')
-    expect(q.params).toEqual([1, 4])
+    expect(q.sql).toBe('(i.company_id NOT IN ($1) OR (i.company_id = $2 AND cd.division_id IS DISTINCT FROM $3))')
+    expect(q.params).toEqual([1, 1, 4])
+  })
+
+  // Bug (2026-08-27) — pola sama persis versi Drizzle-column-based di atas.
+  test('company TIDAK ada di intercompanyIdByCompany → lolos tanpa syarat (bug fix, dulu row-nya ke-exclude semua)', () => {
+    const q = dialect.sqlToQuery(buildExcludeIntercompanyRaw('i.company_id', 'cd.division_id', new Map([[1, 4]]), true))
+    expect(q.sql).toContain('i.company_id NOT IN ($1)')
+    expect(q.params[0]).toBe(1)
   })
 })
