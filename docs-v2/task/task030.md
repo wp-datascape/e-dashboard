@@ -247,3 +247,186 @@ seperti yang sudah dicoba di Langkah 1/§2b).
 adalah kandidat kontributor terbesar sisa waktu `fetchCustomerMetricsTrend`
 (~3,1 detik sesudah Langkah 1), tapi besaran pastinya baru bisa dipastikan
 setelah profiling ulang pasca-implementasi.
+
+## §6. Bug performa nyata ditemukan+diperbaiki (2026-08-27) — bukan §5 di atas
+
+User tanya langsung: *"Kenapa untuk load grafik cart membutuhkan waktu
+sampai 15-20 detik? Bagaimana cara tuning performa nya? Apakah harus
+dipisah DB antara KNT dan MKO?"*. Diinvestigasi via `auto_explain` (SUDAH
+aktif di Postgres lokal — tidak perlu dipasang), bukan tebakan.
+
+**Temuan kunci #1 — BUKAN soal volume data.** Diukur `fetchCustomerMetricsTrend`
+(M3-M7) untuk 2 company yang datanya njomplang jauh:
+
+| Company | Customer | Waktu (sebelum fix) |
+|---|---|---|
+| PT MKO | 995 | 6,1–9,0 detik |
+| PT KNT | 32.000 | 7,5–9,5 detik |
+
+MKO yang customernya cuma 995 tetap 6+ detik — membuktikan lambatnya BUKAN
+proporsional data, tapi bug PILIHAN RENCANA EKSEKUSI Postgres yang konstan
+per-request, terlepas dari besar company.
+
+**Akar masalah — CTE inlining, bukan CTE `existing`/§5 di atas.** Postgres
+12+ inline CTE non-`MATERIALIZED` ke query pemanggilnya. Dua CTE di
+`fetchCustomerMetricsTrend` (`m3m7.repository.ts`) kena efek samping ini:
+
+1. **`cust_dormant_threshold`** (JOIN ke `cust_division`, hasil
+   `DISTINCT ON` per customer dari `cteCustDivision()`,
+   `customers/helper/segment.helper.ts`) — TANPA `MATERIALIZED`, Postgres
+   meng-inline-ulang seluruh komputasi `DISTINCT ON` (scan+sort SEMUA
+   invoice company) **setiap kali** `cust_dormant_threshold` di-JOIN oleh
+   CTE lain (9.581 kali untuk MKO — 1x per baris `bucket × customer`) —
+   padahal hasilnya cuma 1 baris per customer, harusnya dihitung SEKALI.
+2. **`last_inv_per_bucket`** (dulu `last_inv_unbounded LEFT JOIN ... GROUP
+   BY MAX(invoice_date)`) — pola `LEFT JOIN` + `GROUP BY MAX()` bikin
+   Postgres pilih rencana "scan+sort+dedup SELURUH invoice company sekali,
+   lalu nested-loop-filter per baris" (bukan index-scan per customer),
+   walau index `idx_invoices_customer_invoice_date(customer_id,
+   invoice_date)` sudah ada dan cocok dipakai.
+
+**Fix (`m3m7.repository.ts`, `fetchCustomerMetricsTrend` +
+`fetchExpansionBreakdown`, keduanya + fallback jarangnya):**
+1. `cust_dormant_threshold AS MATERIALIZED (...)` — paksa Postgres hitung
+   sekali, cache hasilnya, jangan inline-ulang.
+2. `last_inv_per_bucket`: `LEFT JOIN last_inv_unbounded ... GROUP BY
+   MAX(...)` → `LEFT JOIN LATERAL (SELECT invoice_date FROM invoices
+   WHERE customer_id = e.id AND invoice_date <= b.pe AND [filter scope
+   SAMA PERSIS, tidak ada yang dihapus] ORDER BY invoice_date DESC LIMIT
+   1) li ON true` — bentuk `ORDER BY ... LIMIT 1` (bukan `MAX()`) memaksa
+   Postgres pakai index scan mundur per customer (index-scan langsung,
+   bukan scan+sort seluruh tabel). CTE `last_inv_unbounded` dihapus
+   (dilebur ke dalam LATERAL).
+
+**Hasil (diverifikasi byte-per-byte 0 beda hasil, 4 skenario granularitas
+beda — bulanan/kuartalan, cutoff on/off, company tunggal/gabungan):**
+
+| Company | Sebelum | Sesudah | Faktor |
+|---|---|---|---|
+| PT MKO (995 customer) | 6,1–9,0 detik | **0,68–0,82 detik** | ~9-13x |
+| PT KNT (32.000 customer) | 7,5–9,5 detik | 6,5–9,4 detik | tipis |
+| Semua company (cutoff aktif) | ~18-25 detik (dilaporkan user) | 8,5–14,4 detik | ~2x |
+
+KNT membaik tipis karena setelah bug plan-choice hilang, sisa waktunya
+MEMANG proporsional data asli (276.854 lookup index @ ~17µs/lookup untuk
+`last_inv_per_bucket` KNT = ~4,7 detik murni kerja index-scan) — ini
+BUKAN lagi bug, cuma banyaknya kombinasi customer×bucket yang genuinely
+perlu dicek. Mengecilkan ini lebih lanjut butuh restrukturisasi algoritma
+(mis. "asof join" 1x scan per customer alih-alih 12x lookup terpisah per
+bucket) — TIDAK dikerjakan sesi ini (risiko lebih tinggi, belum ada
+kebutuhan mendesak, KNT saja masih di bawah 10 detik yang sebelumnya
+tercampur 15-25 detik akibat bug plan-choice).
+
+**`m8m10.repository.ts` (M8-M10 Dormant) DICEK, TIDAK py bug yang sama** —
+strukturnya beda (`scoped_cust CROSS JOIN buckets LEFT JOIN inv` dengan
+`MAX(...) FILTER (WHERE ...)` sekali per bucket dalam 1 pass, bukan
+LATERAL/GROUP BY berulang) — company kecil (MKO) sudah cepat dari awal
+(512ms), company besar (KNT, 7 detik) juga proporsional data asli (384.000
+baris grup customer×bucket) — tidak ada win murah yang ditemukan di sini,
+TIDAK disentuh.
+
+**Jawaban ke pertanyaan "apakah DB perlu dipisah KNT/MKO?": TIDAK.** Bukti
+dari tabel di atas: MKO yang 32x lebih kecil dari KNT tetap kena bug
+plan-choice yang HAMPIR SAMA lamanya sebelum fix (6,1-9,0 detik vs
+7,5-9,5 detik) — kalau akar masalahnya volume data, MKO harusnya jauh
+lebih cepat dari awal. Memisah DB tidak akan menghilangkan biaya bug
+plan-choice (sudah diperbaiki di sini) maupun biaya index-scan proporsional
+KNT (memang perlu, cuma pindah tempat) — dan menambah biaya baru: laporan
+"Semua Entitas" (1 query gabungan sekarang) harus dipecah jadi 2 query ke
+2 database + digabung di kode aplikasi, plus 2x biaya migrasi/backup/koneksi.
+
+**Metodologi verifikasi:** `ANALYZE` dicoba dulu (statistik basi?) — TIDAK
+berpengaruh, konfirmasi ini murni soal bentuk query. `auto_explain`
+(`log_min_duration_statement=0` on database lokal, di-reset lagi setelah
+selesai) dipakai membaca rencana eksekusi asli, bukan menebak dari nama
+CTE. Hasil sebelum/sesudah dibandingkan byte-per-byte (`JSON.stringify`
+identik) sebelum perubahan dianggap aman.
+
+### §6b. Lanjutan sama hari — user tanya "masih 14 detik, apa lagi?"
+
+**Temuan #2 — 12x lookup index terpisah per customer, seharusnya 1x scan
+dipakai ulang.** `last_inv_per_bucket` (sesudah fix §6 di atas) sudah pakai
+index per (customer × bucket) — TAPI itu tetap 12 index-descent TERPISAH
+per customer (1x per titik bulan), padahal daftar invoice seorang customer
+TIDAK BERUBAH antar 12 titik, cuma batas atas tanggalnya yang beda tiap
+titik. Diukur KNT: 276.854 lookup index @ ~17µs = ~4,7 detik SENDIRIAN.
+
+**Fix:** CTE baru `customer_inv_dates AS MATERIALIZED` — `array_agg(invoice_date
+ORDER BY invoice_date)` per customer, **1x scan** (bukan 12x). `last_inv_per_bucket`
+diganti dari `LEFT JOIN LATERAL (... ORDER BY ... LIMIT 1)` jadi
+`(SELECT MAX(d) FROM unnest(cid.dates) AS d WHERE d <= b.pe)` — filter di
+memori dari array yang sudah di-scan sekali, bukan index-descent ulang.
+
+**Temuan #3 — 3 CTE agregat (`active_inv_agg`/`prev_inv_agg`/`hm_inv_agg`)
+dirujuk berkali-kali (avg_revenue, top_contrib, gp_median, dst) tanpa
+`MATERIALIZED`** — Postgres re-inline+re-hitung ulang agregasinya tiap
+rujukan (diukur: scan `active_inv_agg` 17.763 baris makan ~1,9 detik
+SENDIRIAN, padahal cuma scan hasil materialized biasa harusnya <1ms).
+Fix: tambah `MATERIALIZED` di ketiganya — pola SAMA PERSIS §6.
+
+**Hasil kumulatif §6+§6b (diverifikasi ulang byte-per-byte, 0 beda),
+diukur di kondisi TIDAK ada beban bersamaan:**
+
+| Company | Awal (sebelum §6) | Sesudah §6 | Sesudah §6b |
+|---|---|---|---|
+| PT MKO (995 customer) | 6,1–9,0 detik | 0,68–0,82 detik | ~0,6–0,8 detik (tak berubah, sudah optimal) |
+| PT KNT (32.000 customer) | 7,5–9,5 detik | 6,5–9,4 detik | **~6 detik** (variasi tinggi kalau server dipakai bersamaan, sampai 14 detik teramati — BUKAN regresi, murni kontensi resource, lihat catatan di bawah) |
+| Semua company (cutoff aktif) | ~18-25 detik (dilaporkan user) | 8,5–14,4 detik | **~7-8 detik** bersih |
+
+**Sisa bottleneck (belum disentuh, effort/risiko lebih tinggi drpd
+sisa gain):** `last_inv_per_bucket` sendiri masih ambil ~5 detik dari
+276.854 pemanggilan `unnest()` (1 per baris bucket×customer) — overhead
+pemanggilan fungsi set-returning per baris, bukan lagi index-descent.
+Cara hilangkan ini butuh restrukturisasi lebih dalam: gabung array tanggal
+customer + 12 batas bucket jadi 1 urutan per customer, lalu 1x window
+function "merge scan" (asof-join pattern) — BUKAN dikerjakan sesi ini,
+effort besar + risiko ketepatan lebih tinggi drpd 2 perbaikan di atas.
+
+**PENTING — variasi waktu tinggi teramati (6-14 detik utk query yang
+SAMA) saat testing:** dicek langsung, penyebabnya browser user AKTIF
+memakai dashboard yang SAMA (dev server lokal) bersamaan dengan script
+pengukuran — 2 beban berat rebutan koneksi/CPU database yang sama, BUKAN
+fix ini yang tidak stabil. Angka "bersih" di tabel atas diambil saat tidak
+ada request lain berjalan.
+
+### §6c. Verifikasi ketat susulan — user tanya "untuk fungsi dan data tidak berubah?"
+
+Verifikasi §6/§6b sebelumnya cuma menutup `fetchCustomerMetricsTrend`
+(byte-per-byte). `fetchExpansionBreakdown` (drilldown M7, ikut direstruktur
+di §6) baru dicek "masuk akal" (angka tidak nol/error), BELUM dibandingkan
+ketat ke versi asli. Ditutup sekarang pakai `git stash` (aman, belum
+di-commit) — jalankan versi ASLI (stash push file), simpan hasil, `git
+stash pop` (kembalikan fix), jalankan lagi, bandingkan byte-per-byte utk
+`fetchCustomerMetricsTrend` (4 skenario) + `fetchExpansionBreakdown` (4
+skenario) + `fetchRevenueBreakdown` (2 skenario, tidak direstruktur tapi
+ikut dicek utk kelengkapan).
+
+**Ketemu 1 perbedaan** — `fetchExpansionBreakdown` company MKO: 3 customer
+(AWET SARANA SUKSES, BADAN CIPTA KARYA AGUNG ABADI, WINGS SURYA) punya
+selisih `cur_revenue - prev_revenue` **PERSIS SAMA** (-670.000). Query ASLI
+(sebelum disentuh sama sekali) `ORDER BY (cur_revenue - prev_revenue) DESC`
+TANPA tie-breaker kedua — urutan di antara nilai yang sama persis TIDAK
+PERNAH dijamin stabil oleh Postgres (celah LAMA, sudah ada sebelum
+restrukturisasi performa apa pun). Restrukturisasi §6 mengubah rencana
+eksekusi fisik, jadi 2 dari 3 customer itu tukar posisi ranking (453↔455)
+— **data per-customer itu sendiri (revenue, cabang, channel, status) 100%
+identik**, cuma nomor ranking utk yang seri yang goyah.
+
+**Dikonfirmasi BUKAN bug data** — dibandingkan sbg SET (urutan diabaikan,
+kolom `ranking` dikecualikan): seluruh baris di 4 skenario `fetchExpansionBreakdown`
++ 4 skenario `fetchCustomerMetricsTrend` + 2 skenario `fetchRevenueBreakdown`
+100% identik ke versi asli.
+
+**Ditutup sekalian** (bukan cuma didiamkan) — ditambah tie-breaker `id
+DESC` (customer id, deterministik) di KEDUA `ORDER BY (cur_revenue -
+prev_revenue) DESC` di `fetchExpansionBreakdown` (window function ranking
++ ORDER BY akhir query) — perlu kualifikasi `combined.id` (bukan `id`
+polos, ambiguous krn `company_branches`/`divisions` yang di-JOIN sama-sama
+py kolom `id`). Diverifikasi jalan 2x berturut-turut menghasilkan output
+byte-identik (deterministik), dan hasil (diabaikan `ranking`) tetap sama
+persis ke data asli.
+
+**Kesimpulan ke user:** fungsi dan data TIDAK berubah — satu-satunya efek
+adalah urutan tampil utk customer yang nilainya PERSIS sama (kasus langka),
+dan itu sekarang malah LEBIH BENAR (dulu acak/tidak stabil, sekarang
+deterministik) drpd sebelumnya, bukan regresi.
