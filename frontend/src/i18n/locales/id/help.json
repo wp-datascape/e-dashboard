@@ -2,6 +2,7 @@
   "title": "Bantuan",
   "subtitle": "Definisi, rumus, dan cara membaca setiap KPI di dashboard ini",
   "downloadDoc": "Unduh Dokumen Definisi Operasional (.docx)",
+  "downloadError": "Gagal mengunduh dokumen, coba lagi.",
   "glossary": {
     "title": "Glosarium Istilah Populasi Pelanggan"
   },
