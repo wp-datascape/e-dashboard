@@ -2,167 +2,19 @@
   "title": "Bantuan",
   "subtitle": "Definisi, rumus, dan cara membaca setiap KPI di dashboard ini",
   "downloadDoc": "Unduh Dokumen Definisi Operasional (.docx)",
-  "formulaLabel": "Rumus",
-  "definitionsLabel": "Definisi Istilah",
-  "interpretationLabel": "Cara Membaca Angkanya",
-  "benchmarkLabel": "Acuan Umum",
+  "glossary": {
+    "title": "Glosarium Istilah Populasi Pelanggan"
+  },
   "kpis": [
-    {
-      "key": "m1",
-      "code": "M1",
-      "title": "Cross Sell Ratio",
-      "purpose": "Mengukur keberhasilan strategi cross-selling dan kedalaman hubungan bisnis dengan pelanggan — seberapa banyak pelanggan yang dibujuk untuk membeli lebih dari satu kategori produk.",
-      "formula": "Jumlah Customer Beli >1 Kategori ÷ Jumlah Customer Aktif × 100%",
-      "definitions": [
-        { "term": "Customer Beli >1 Kategori", "desc": "Customer yang membeli lebih dari 1 kategori produk dalam periode pengukuran (bulanan, kuartalan, tahunan)." },
-        { "term": "Customer Aktif", "desc": "Pelanggan yang melakukan minimal 1 transaksi pembelian dalam periode pengukuran." }
-      ],
-      "interpretation": [
-        "Angka naik berarti strategi cross-selling makin berhasil menjangkau lebih banyak pelanggan.",
-        "Angka turun berarti pelanggan cenderung hanya membeli 1 kategori produk saja."
-      ],
-      "benchmark": [
-        "< 25% — Rendah (masih bergantung pada 1 produk saja)",
-        "25% – 40% — Cukup (baseline sehat untuk distributor AIDC)",
-        "40% – 60% — Baik (cross-selling berjalan efektif)",
-        "> 60% — Sangat baik (keterikatan pelanggan dan penetrasi produk kuat)"
-      ]
-    },
-    {
-      "key": "m2",
-      "code": "M2",
-      "title": "Rata-rata Kategori Produk per Customer",
-      "purpose": "Mengukur kedalaman pembelian (purchase depth) — rata-rata berapa banyak kategori produk yang dibeli tiap pelanggan aktif dalam satu periode.",
-      "formula": "Total Kategori Terjual ÷ Jumlah Customer Aktif",
-      "definitions": [
-        { "term": "Total Kategori Terjual", "desc": "Akumulasi jumlah kategori produk unik yang dibeli oleh semua customer dalam periode tertentu." },
-        { "term": "Customer Aktif", "desc": "Pelanggan yang melakukan minimal 1 transaksi pembelian dalam periode pengukuran." }
-      ],
-      "interpretation": [
-        "Angka naik biasanya menandakan strategi bundling berjalan efektif, tim sales berhasil melakukan up-selling/cross-selling, atau keterikatan pelanggan makin kuat.",
-        "Semakin tinggi angkanya, semakin baik penetrasi produk ke pelanggan."
-      ]
-    },
-    {
-      "key": "m3",
-      "code": "M3",
-      "title": "Rata-rata Revenue per Existing Customer",
-      "purpose": "Mengukur nilai ekonomi pelanggan yang dipertahankan dan efektivitas strategi retensi serta pengembangan akun — rata-rata pendapatan yang dihasilkan dari pelanggan lama.",
-      "formula": "Total Revenue dari Existing Customer ÷ Jumlah Existing Customer",
-      "definitions": [
-        { "term": "Total Revenue dari Existing Customer", "desc": "Total seluruh pendapatan yang berasal dari customer lama dalam periode pengukuran." },
-        { "term": "Existing Customer", "desc": "Customer yang sudah memiliki riwayat transaksi sebelum periode berjalan dan masih melakukan pembelian pada periode tersebut." }
-      ],
-      "interpretation": [
-        "Angka naik menunjukkan peningkatan nilai per pelanggan — bisa karena up-selling, cross-selling, atau kenaikan frekuensi/ukuran pesanan.",
-        "Angka turun bisa mengindikasikan penurunan pembelian, sebagian pelanggan mulai berhenti, atau tekanan harga."
-      ]
-    },
-    {
-      "key": "m4",
-      "code": "M4",
-      "title": "Rata-rata Gross Profit per Existing Customer",
-      "purpose": "Mengukur profitabilitas pelanggan lama — bukan hanya dari sisi omzet, tapi dari kontribusi margin (laba kotor) yang benar-benar dihasilkan.",
-      "formula": "Total Gross Profit dari Existing Customer ÷ Jumlah Existing Customer, dengan Gross Profit = Revenue − Harga Pokok Penjualan (HPP)",
-      "definitions": [
-        { "term": "Total Gross Profit dari Existing Customer", "desc": "Total pendapatan dari existing customer dikurangi harga pokok penjualan (HPP/COGS) dalam periode pengukuran." },
-        { "term": "Existing Customer", "desc": "Customer yang sudah memiliki riwayat transaksi sebelum periode berjalan dan masih melakukan pembelian pada periode tersebut." }
-      ],
-      "interpretation": [
-        "Angka naik menunjukkan pelanggan lama makin menguntungkan — bisa karena membeli produk bermargin lebih tinggi, harga lebih baik, atau efisiensi biaya lebih bagus.",
-        "Angka turun bisa berarti diskon terlalu besar, biaya produksi naik, atau bauran produk bergeser ke margin rendah."
-      ]
-    },
-    {
-      "key": "m5",
-      "code": "M5",
-      "title": "High Margin Product Penetration",
-      "purpose": "Mengukur sejauh mana perusahaan berhasil mendorong penjualan produk bermargin tinggi — persentase pelanggan aktif yang membeli produk dengan kontribusi profit lebih besar.",
-      "formula": "Jumlah Customer Existing yang Beli Produk High Margin ÷ Jumlah Customer Aktif × 100%",
-      "definitions": [
-        { "term": "Customer Existing yang Beli Produk High Margin", "desc": "Jumlah customer existing yang melakukan minimal satu pembelian pada kategori produk dengan margin kotor di atas ambang batas yang ditetapkan perusahaan." },
-        { "term": "Customer Aktif", "desc": "Pelanggan yang melakukan minimal 1 transaksi pembelian dalam periode pengukuran." }
-      ],
-      "interpretation": [
-        "Angka tinggi berarti tim sales berhasil mengarahkan pelanggan ke produk yang lebih menguntungkan.",
-        "Angka rendah berarti pelanggan masih dominan membeli produk bermargin rendah."
-      ]
-    },
-    {
-      "key": "m6",
-      "code": "M6",
-      "title": "Repeat Order Rate",
-      "purpose": "Mengukur loyalitas pelanggan, kualitas pengalaman berbelanja, dan efektivitas strategi retensi — persentase pelanggan yang membeli ulang setelah transaksi sebelumnya.",
-      "formula": "Jumlah Customer yang Repeat Order ÷ Jumlah Existing Customer × 100%",
-      "definitions": [
-        { "term": "Customer yang Repeat Order", "desc": "Customer yang melakukan lebih dari 1 transaksi dalam periode pengukuran, atau kembali membeli setelah transaksi sebelumnya." },
-        { "term": "Existing Customer", "desc": "Customer yang sudah memiliki riwayat transaksi sebelum periode berjalan dan masih melakukan pembelian pada periode tersebut." }
-      ],
-      "interpretation": [
-        "Angka tinggi berarti pelanggan puas, kebutuhan berulang terjaga, dan hubungan bisnis kuat.",
-        "Angka rendah bisa menandakan masalah pada layanan, kualitas produk, atau keterlibatan setelah penjualan."
-      ]
-    },
-    {
-      "key": "m7",
-      "code": "M7",
-      "title": "Customer Expansion Rate",
-      "purpose": "Mengukur keberhasilan strategi pertumbuhan akun (account growth) — persentase pertumbuhan nilai bisnis dari pelanggan lama lewat kenaikan pembelian, penambahan kategori produk, atau perluasan volume transaksi.",
-      "formula": "Jumlah Customer dengan Revenue Meningkat ÷ Jumlah Existing Customer × 100%",
-      "definitions": [
-        { "term": "Existing Customer", "desc": "Customer yang sudah memiliki riwayat transaksi sebelum periode berjalan dan masih melakukan pembelian pada periode tersebut." },
-        { "term": "Customer dengan Revenue Meningkat", "desc": "Existing customer yang nilai pembeliannya pada periode sekarang lebih tinggi dibanding periode sebelumnya." }
-      ],
-      "interpretation": [
-        "Angka tinggi berarti pengelolaan akun berjalan efektif dan hubungan dengan pelanggan terus berkembang.",
-        "Angka rendah berarti pelanggan cenderung stagnan, potensi akun belum tergarap maksimal."
-      ]
-    },
-    {
-      "key": "m8",
-      "code": "M8",
-      "title": "Dormant Customer Rate",
-      "purpose": "Mengukur tingkat pelanggan yang berhenti bertransaksi dan potensi kehilangan pendapatan dari basis pelanggan lama — persentase pelanggan yang sebelumnya aktif tapi tidak lagi membeli dalam batas waktu tertentu.",
-      "formula": "Jumlah Dormant Customer ÷ Jumlah Existing Customer × 100%",
-      "definitions": [
-        { "term": "Dormant Customer", "desc": "Customer yang memiliki riwayat transaksi sebelumnya, tetapi tidak bertransaksi lagi melewati ambang waktu dormant (bervariasi per kategori bisnis, umumnya 3 bulan untuk ritel, 6–12 bulan untuk B2B tergantung siklus bisnisnya)." },
-        { "term": "Existing Customer", "desc": "Customer yang sudah memiliki riwayat transaksi sebelum periode berjalan dan masih melakukan pembelian pada periode tersebut." }
-      ],
-      "interpretation": [
-        "Angka tinggi berarti risiko kehilangan pelanggan meningkat, keterlibatan pelanggan melemah.",
-        "Angka rendah berarti retensi pelanggan lebih sehat dan hubungan bisnis lebih terjaga."
-      ]
-    },
-    {
-      "key": "m9",
-      "code": "M9",
-      "title": "Dormant Customer Value",
-      "purpose": "Mengukur nilai bisnis yang \"tertahan\" atau berisiko hilang akibat pelanggan yang tidak lagi aktif — total nilai pendapatan atau potensi laba kotor yang hilang dari pelanggan dormant.",
-      "formula": "Total nilai historis (revenue/gross profit) dari seluruh pelanggan yang berstatus dormant pada periode tersebut",
-      "definitions": [
-        { "term": "Dormant Customer", "desc": "Customer yang memiliki riwayat transaksi sebelumnya, tetapi tidak bertransaksi lagi melewati ambang waktu dormant." },
-        { "term": "Historical Revenue", "desc": "Rata-rata atau total revenue yang pernah dihasilkan customer tersebut sebelum menjadi dormant." },
-        { "term": "Historical Gross Profit", "desc": "Laba kotor historis yang pernah dihasilkan customer tersebut." }
-      ],
-      "interpretation": [
-        "Angka tinggi menunjukkan banyak nilai pelanggan yang belum berhasil dipertahankan atau diaktifkan kembali.",
-        "Angka rendah berarti basis pelanggan lebih sehat dan risiko kehilangan pendapatan lebih kecil."
-      ]
-    },
-    {
-      "key": "m10",
-      "code": "M10",
-      "title": "Customer Reactivation Rate",
-      "purpose": "Mengukur efektivitas strategi reaktivasi dan keberhasilan memulihkan pelanggan yang sempat berhenti bertransaksi — persentase pelanggan dormant yang berhasil kembali bertransaksi.",
-      "formula": "Jumlah Customer Dormant yang Kembali Bertransaksi ÷ Jumlah Total Customer Dormant × 100%",
-      "definitions": [
-        { "term": "Customer Dormant yang Kembali Bertransaksi", "desc": "Customer yang sebelumnya berstatus dormant, lalu melakukan minimal 1 transaksi kembali dalam periode pengukuran." },
-        { "term": "Total Customer Dormant", "desc": "Seluruh customer yang berstatus dormant pada awal periode pengukuran." }
-      ],
-      "interpretation": [
-        "Angka tinggi berarti strategi follow-up, keterlibatan, dan kampanye win-back berjalan efektif.",
-        "Angka rendah berarti pelanggan sulit dipulihkan atau pendekatan reaktivasi belum tepat sasaran."
-      ]
-    }
+    { "key": "m1", "code": "M1", "title": "Cross Sell Ratio" },
+    { "key": "m2", "code": "M2", "title": "Rata-rata Kategori Produk per Customer" },
+    { "key": "m3", "code": "M3", "title": "Rata-rata Revenue per Existing Customer" },
+    { "key": "m4", "code": "M4", "title": "Rata-rata Gross Profit per Existing Customer" },
+    { "key": "m5", "code": "M5", "title": "High Margin Product Penetration" },
+    { "key": "m6", "code": "M6", "title": "Repeat Order Rate" },
+    { "key": "m7", "code": "M7", "title": "Customer Expansion Rate" },
+    { "key": "m8", "code": "M8", "title": "Dormant Customer Rate" },
+    { "key": "m9", "code": "M9", "title": "Dormant Customer Value" },
+    { "key": "m10", "code": "M10", "title": "Customer Reactivation Rate" }
   ]
 }
