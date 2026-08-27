@@ -11,6 +11,13 @@
   "showAll": "Show all ({{count}})",
   "summaryProducts": "{{count}} High Margin Products",
   "summaryAvgPenetration": "Avg Penetration {{pct}}%",
+  "summaryProductCountLabel": "High Margin Products",
+  "summaryProductCountInfo": "Number of high-margin products tracked for penetration rate this period.",
+  "summaryAvgPenetrationLabel": "Avg Penetration",
+  "summaryAvgPenetrationInfo": "Average share of active customers who already bought each high-margin product.",
+  "summaryUpsellTargetLabel": "Upsell Targets",
+  "summaryUpsellTargetInfo": "Number of customers who haven't bought one of the favorite high-margin categories in their business segment yet.",
+  "summaryUpsellAvgRevenueLabel": "Avg Revenue/Month",
   "assignTo": "Focus Divisions",
   "drawer": {
     "subtitle": "Purchase history • {{window}} month window",

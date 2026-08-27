@@ -100,7 +100,8 @@
     "summaryExistingInfo": "Number of repeat customers who transacted this period.",
     "topCustomersLabel": "Top 5 High Margin Buyers",
     "topCustomersInfo": "Sorted by highest high margin product revenue in the current period",
-    "viewDetailInReport": "View Detail in Report"
+    "viewDetailInReport": "View Detail in Report",
+    "hmTransactionsTabLabel": "High Margin Transactions"
   },
   "m6": {
     "tooltipInfo": "Measures customer loyalty — the share of repeat customers who keep transacting (Existing Active) who purchase again within this period, reflecting the quality of the customer experience and the effectiveness of retention strategy.\n\n\"Repeat order\" here means more than 1 transaction within this period — not just having bought before. The green target line is configured in Settings → Threshold, not always 100%.\n\nFormula: Repeat Order Rate = (Existing Active with >1 transaction this period ÷ Existing Active) × 100%.\nExisting Active = already had transaction history before this period, and still transacted during this period.",

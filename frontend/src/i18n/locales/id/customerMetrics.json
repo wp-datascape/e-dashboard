@@ -100,7 +100,8 @@
     "summaryExistingInfo": "Jumlah pelanggan lama yang tetap bertransaksi pada periode ini.",
     "topCustomersLabel": "Top 5 Pembeli High Margin",
     "topCustomersInfo": "Diurutkan dari revenue produk high margin tertinggi periode berjalan",
-    "viewDetailInReport": "Cek Detail di Laporan"
+    "viewDetailInReport": "Cek Detail di Laporan",
+    "hmTransactionsTabLabel": "Transaksi High Margin"
   },
   "m6": {
     "tooltipInfo": "Mengukur loyalitas customer — persentase pelanggan lama yang tetap bertransaksi (Existing Active) yang melakukan pembelian ulang dalam periode ini, mencerminkan kualitas pengalaman pelanggan dan efektivitas strategi retensi.\n\n\"Repeat order\" di sini artinya transaksi lebih dari 1x dalam periode ini — bukan sekadar pernah beli sebelumnya. Target garis hijau diatur di Settings → Threshold, bukan selalu 100%.\n\nRumus: Repeat Order Rate = (Existing Active dengan >1 transaksi periode ini ÷ Existing Active) × 100%.\nExisting Active = customer yang sudah punya riwayat transaksi sebelum periode ini, dan tetap bertransaksi pada periode ini.",

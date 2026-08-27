@@ -6472,3 +6472,55 @@ Non-Dormant, cocok kartu M8), dormant+newlyDormant+reactivated=19.304
 (tetap cocok kartu KPI Dormant, TIDAK regresi dari §36.45), total=32.631.
 Semua 3 pasang angka sekarang rekonsiliasi tanpa saling kontradiksi.
 `tsc --noEmit` bersih.
+
+## 37. Laporan Revenue: samakan layout ke standar + kartu ringkasan tiap tab + fix tab mobile hilang (2026-08-27)
+
+Instruksi user: *"lakukan perbaikan di menu laporan revenue. Penataan
+layout seperti laporan yang lain. Tambahkan card summary di setiap
+halaman tab nya. Perbaikan halaman tab target upsell di mode mobile
+tidak terlihat di mode mobile jadi tab nya tidak bisa dipilih dan
+dibuka."*
+
+**Temuan #1 — Revenue ketinggalan 1 standarisasi.** `Report/Growth` dan
+`Report/Retention` sudah pindah ke `ReportSummaryCards` (Grid kartu
+terpisah dgn ikon+tooltip, DI LUAR `ReportTabCard`) sejak sesi lampau
+(§36.18-20, "layout Reaktivasi adalah layout standar untuk menu
+laporan"). `Report/Revenue` masih pakai pola LAMA — `summaryItems` di
+dalam `ReportTabCard` (`ReportSummaryLine`, baris teks polos di atas
+search/sort, bukan kartu Grid terpisah) — untuk 3 tab yang SUDAH punya
+ringkasan (Revenue/GP/Ranking HM). 2 sub-tab lain ("Penetrasi Produk"/
+"Target Upsell", dipindahkan dari `/products/high-margin` di task031)
+malah TIDAK PUNYA kartu ringkasan sama sekali.
+
+**Perbaikan #1 — 5 tab, 5 set kartu `ReportSummaryCards`:**
+- Revenue: Existing Active, Total Revenue (highlighted), Kontribusi HM.
+- Laba Kotor: Existing Active, Total GP (highlighted).
+- Ranking HM: Existing Active, Customer Membeli HM, Kontribusi HM (highlighted).
+- Penetrasi Produk (BARU): Jumlah Produk HM, Rata-rata Penetrasi
+  (highlighted) — fetch tambahan `useHighMarginProductDetail(page:1,
+  per_page:100)`, pola SAMA PERSIS `ProductsHighMargin/index.tsx`
+  (halaman asal komponen ini) — REUSE cara hitung, bukan rumus baru.
+- Target Upsell (BARU): Jumlah Target Upsell (highlighted), Rata-rata
+  Revenue/Bulan — fetch tambahan `useUpsellTargets(page:1, per_page:100)`.
+  Diverifikasi angka "11.573" cocok PERSIS dgn footer paginasi tabelnya
+  sendiri ("1-50 of 11.573") — bukan bug kartu baru, murni nyalin total
+  yang backend memang sudah hitung.
+
+**Temuan #2 — bug mobile dikonfirmasi via screenshot (bukan tebakan),
+per aturan "Verify Don't Guess Visual".** Buka `/report/revenue` via
+Playwright emulasi iPhone 13 (390px), tab High Margin → inner Tabs
+("Top 5 Pembeli High Margin"/"Penetrasi Produk"/"Target Upsell") —
+**"Target Upsell" hilang total dari layar, tanpa indikator scroll apa
+pun** — total lebar 3 label melebihi 390px, `<Tabs>` tanpa
+`variant="scrollable"` cuma clip diam-diam.
+
+**Perbaikan #2**: tambah `variant="scrollable" scrollButtons="auto"
+allowScrollButtonsMobile` di `<Tabs>` inner (hmInnerTab). Diverifikasi
+ulang via screenshot sama: panah scroll kanan muncul, klik → "Penetrasi
+Produk"/"Target Upsell" kelihatan, tab "Target Upsell" bisa diklik dan
+kontennya (termasuk kartu ringkasan baru + tabel mobile-card) render
+normal.
+
+**Verifikasi:** `tsc --noEmit` bersih. Live browser desktop (5 tab) +
+mobile emulasi iPhone 13 (semua 5 tab termasuk scroll tab fix) — semua
+discreenshot, dicek visual langsung.

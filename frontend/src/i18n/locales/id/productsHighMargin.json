@@ -11,6 +11,13 @@
   "showAll": "Tampilkan semua ({{count}})",
   "summaryProducts": "{{count}} Produk High Margin",
   "summaryAvgPenetration": "Rata-rata Penetrasi {{pct}}%",
+  "summaryProductCountLabel": "Produk High Margin",
+  "summaryProductCountInfo": "Jumlah produk high margin yang dipantau tingkat penetrasinya pada periode ini.",
+  "summaryAvgPenetrationLabel": "Rata-rata Penetrasi",
+  "summaryAvgPenetrationInfo": "Rata-rata persentase pelanggan aktif yang sudah membeli tiap produk high margin.",
+  "summaryUpsellTargetLabel": "Jumlah Target Upsell",
+  "summaryUpsellTargetInfo": "Jumlah pelanggan yang belum membeli salah satu kategori high margin favorit di segmen usahanya.",
+  "summaryUpsellAvgRevenueLabel": "Rata-rata Revenue/Bulan",
   "assignTo": "Divisi Fokus",
   "drawer": {
     "subtitle": "Riwayat pembelian • window {{window}} bulan",

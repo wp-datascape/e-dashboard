@@ -11,9 +11,17 @@ import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
+import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
+import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
+import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import CategoryIcon from '@mui/icons-material/Category';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useTranslation } from 'react-i18next';
 
 import { useRevenueBreakdown, useGpBreakdown, useHmBreakdown } from '@/hooks/useMetrics';
+import { useHighMarginProductDetail, useUpsellTargets } from '@/hooks/useProducts';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { usePeriodTypeFilter } from '@/hooks/usePeriodTypeFilter';
 import { useCan } from '@/hooks/useCan';
@@ -40,6 +48,7 @@ import { HighMarginProductTab, UpsellTargetsTab } from '../../ProductsHighMargin
 import type { FilterState as HmFilterState } from '../../ProductsHighMargin';
 import { formatRupiah } from '@/utils/format';
 import { ReportTabCard } from '../ReportTabCard';
+import { ReportSummaryCards } from '../ReportSummaryCards';
 
 // Laporan > Revenue (task029.md §30.19/§33, 2026-08-25) — sebelumnya
 // placeholder "coming soon". Instruksi user: "STANDARTKAN SESUAI LAYOUT 2
@@ -213,6 +222,42 @@ export default function ReportRevenue() {
     excludeIntercompany,
   };
 
+  // Kartu ringkasan sub-tab "Penetrasi Produk"/"Target Upsell" (2026-08-27
+  // — instruksi user: "Tambahkan card summary di setiap halaman tab nya",
+  // sebelumnya 2 sub-tab ini TIDAK punya kartu ringkasan sama sekali).
+  // per_page=100 (maksimum backend, metrics.schema.ts) — pola SAMA PERSIS
+  // ProductsHighMargin/index.tsx (halaman asal komponen ini), REUSE bukan
+  // fetch baru yang beda cara hitung.
+  const { data: penetrationSummaryData } = useHighMarginProductDetail({
+    company_id: hmFilter.companyId,
+    branch_id: hmFilter.branchId === 'all' ? undefined : hmFilter.branchId,
+    division: hmFilter.division || undefined,
+    exclude_intercompany: hmFilter.excludeIntercompany,
+    period_month: hmFilter.periodMonth,
+    active_window: hmFilter.activeWindow,
+    page: 1,
+    per_page: 100,
+  });
+  const penetrationProductCount = penetrationSummaryData?.meta.total ?? 0;
+  const penetrationAvgRate = penetrationSummaryData?.data.length
+    ? penetrationSummaryData.data.reduce((sum, r) => sum + r.penetration_rate, 0) / penetrationSummaryData.data.length
+    : 0;
+
+  const { data: upsellSummaryData } = useUpsellTargets({
+    company_id: hmFilter.companyId,
+    branch_id: hmFilter.branchId === 'all' ? undefined : hmFilter.branchId,
+    division: hmFilter.division || undefined,
+    exclude_intercompany: hmFilter.excludeIntercompany,
+    period_month: hmFilter.periodMonth,
+    active_window: hmFilter.activeWindow,
+    page: 1,
+    per_page: 100,
+  });
+  const upsellTargetCount = upsellSummaryData?.meta.total ?? 0;
+  const upsellAvgRevenue = upsellSummaryData?.data.length
+    ? upsellSummaryData.data.reduce((sum, r) => sum + r.avg_monthly_revenue, 0) / upsellSummaryData.data.length
+    : 0;
+
   const isLoading = activeTab === 'revenue' ? revenueLoading : activeTab === 'gp' ? gpLoading : hmLoading;
 
   return (
@@ -322,12 +367,22 @@ export default function ReportRevenue() {
 
           {activeTab === 'revenue' && (
             <Box sx={{ pt: 1 }}>
+              {/* Kartu ringkasan (2026-08-27 — instruksi user: "Penataan
+                  layout seperti laporan yang lain") — SEBELUMNYA baris teks
+                  di dalam ReportTabCard (summaryItems/ReportSummaryLine,
+                  pola LAMA sebelum §36.18-20 standarisasi Reaktivasi) —
+                  Growth/Retention sudah pindah ke ReportSummaryCards
+                  (kartu Grid terpisah dgn ikon+tooltip), Revenue ketinggalan
+                  belum ikut. Disamakan di sini. */}
+              <ReportSummaryCards items={[
+                { label: t('customerMetrics.m3.summaryExisting'), value: (revenueData?.total_existing ?? 0).toLocaleString('id-ID'),
+                  icon: PeopleOutlineIcon, info: t('customerMetrics.m3.summaryExistingInfo') },
+                { label: t('customerMetrics.m3.summaryTotalRevenue'), value: formatRupiah(revenueData?.total_revenue ?? 0),
+                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true },
+                { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(revenueData?.hm_revenue ?? 0),
+                  icon: WorkspacePremiumIcon, iconColor: 'success' },
+              ]} />
               <ReportTabCard
-                summaryItems={[
-                  { label: t('customerMetrics.m3.summaryExisting'), value: (revenueData?.total_existing ?? 0).toLocaleString('id-ID') },
-                  { label: t('customerMetrics.m3.summaryTotalRevenue'), value: formatRupiah(revenueData?.total_revenue ?? 0) },
-                  { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(revenueData?.hm_revenue ?? 0) },
-                ]}
                 searchValue={revenueSearch}
                 onSearchChange={setRevenueSearch}
                 searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
@@ -356,11 +411,13 @@ export default function ReportRevenue() {
 
           {activeTab === 'gp' && (
             <Box sx={{ pt: 1 }}>
+              <ReportSummaryCards items={[
+                { label: t('customerMetrics.m4.summaryExisting'), value: (gpData?.total_existing ?? 0).toLocaleString('id-ID'),
+                  icon: PeopleOutlineIcon, info: t('customerMetrics.m4.summaryExistingInfo') },
+                { label: t('customerMetrics.m4.summaryTotalGp'), value: formatRupiah(gpData?.total_gp ?? 0),
+                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true },
+              ]} />
               <ReportTabCard
-                summaryItems={[
-                  { label: t('customerMetrics.m4.summaryExisting'), value: (gpData?.total_existing ?? 0).toLocaleString('id-ID') },
-                  { label: t('customerMetrics.m4.summaryTotalGp'), value: formatRupiah(gpData?.total_gp ?? 0) },
-                ]}
                 searchValue={gpSearch}
                 onSearchChange={setGpSearch}
                 searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
@@ -390,24 +447,51 @@ export default function ReportRevenue() {
             <Box sx={{ pt: 1 }}>
               {/* Sub-tab (2026-08-26, task031.md §10) — "Ranking Customer"
                   (M5, sudah ada) + "Penetrasi Produk"/"Target Upsell"
-                  (dipindahkan dari /products/high-margin). */}
+                  (dipindahkan dari /products/high-margin).
+                  variant="scrollable" (2026-08-27 — bug ditemukan user:
+                  "halaman tab target upsell di mode mobile tidak terlihat...
+                  tab nya tidak bisa dipilih") — SEBELUMNYA tanpa scrollable,
+                  3 label gabungan ("Top 5 Pembeli High Margin"/"Penetrasi
+                  Produk"/"Target Upsell") melebihi lebar layar mobile, tab
+                  ke-3 kepotong/tidak terjangkau TANPA indikator scroll sama
+                  sekali — diverifikasi langsung via screenshot mobile
+                  (390px), "Target Upsell" hilang total dari tampilan.
+                  scrollButtons="auto"+allowScrollButtonsMobile — panah
+                  navigasi tampil begitu tab melebihi lebar container, di
+                  mobile MAUPUN desktop sempit. */}
               <Tabs
                 value={hmInnerTab}
                 onChange={(_, v) => setHmInnerTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                allowScrollButtonsMobile
                 sx={{ mb: 1.5, minHeight: 36, '& .MuiTab-root': { minHeight: 36, textTransform: 'none', py: 0.5 } }}
               >
-                <Tab value="ranking" label={t('customerMetrics.m5.topCustomersLabel')} />
+                {/* hmTransactionsTabLabel (2026-08-27, koreksi user: "isinya
+                    adalah tabel customer bukan hanya 5") — key TERPISAH
+                    dari customerMetrics.m5.topCustomersLabel (dipakai
+                    M5HighMargin.tsx utk widget "Top 5" beneran, side panel
+                    kecil + tombol "Cek Detail di Laporan") — tab INI
+                    menampilkan tabel PENUH (semua customer pembeli HM,
+                    dipaginasi), bukan cuma 5, jadi label "Top 5" salah
+                    di sini walau benar di widget asalnya — TIDAK mengganti
+                    key lama (itu akan ikut mengubah widget yang benar). */}
+                <Tab value="ranking" label={t('customerMetrics.m5.hmTransactionsTabLabel')} />
                 <Tab value="penetration" label={t('productsHighMargin.tabCategories')} />
                 <Tab value="upsell" label={t('productsHighMargin.tabUpsellTargets')} />
               </Tabs>
 
               {hmInnerTab === 'ranking' && (
-                <ReportTabCard
-                  summaryItems={[
-                    { label: t('customerMetrics.m5.summaryExisting'), value: (hmData?.total_existing ?? 0).toLocaleString('id-ID') },
-                    { label: t('customerMetrics.m5.summaryBuyerCount'), value: (hmData?.hm_buyer_count ?? 0).toLocaleString('id-ID') },
-                    { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(hmData?.total_hm_revenue ?? 0) },
-                  ]}
+                <>
+                  <ReportSummaryCards items={[
+                    { label: t('customerMetrics.m5.summaryExisting'), value: (hmData?.total_existing ?? 0).toLocaleString('id-ID'),
+                      icon: PeopleOutlineIcon, info: t('customerMetrics.m5.summaryExistingInfo') },
+                    { label: t('customerMetrics.m5.summaryBuyerCount'), value: (hmData?.hm_buyer_count ?? 0).toLocaleString('id-ID'),
+                      icon: ShoppingCartOutlinedIcon, iconColor: 'primary' },
+                    { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(hmData?.total_hm_revenue ?? 0),
+                      icon: WorkspacePremiumIcon, iconColor: 'success', highlighted: true },
+                  ]} />
+                  <ReportTabCard
                   searchValue={hmSearch}
                   onSearchChange={setHmSearch}
                   searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
@@ -429,16 +513,41 @@ export default function ReportRevenue() {
                     emptyMessage={t('customerMetrics.m5.emptyMessage')}
                     mobileFields={['customer_name', 'hm_qty', 'hm_revenue', 'hm_pct']}
                   />
-                </ReportTabCard>
+                  </ReportTabCard>
+                </>
               )}
 
               {/* Filter periode TERPISAH sempat ada di sini, DIHAPUS
                   2026-08-26 (ditegur user, lihat komentar hmFilter di
                   atas) — "Penetrasi Produk"/"Target Upsell" sekarang
                   IKUT "Periode" global di header halaman (via periodMonth
-                  turunan `periodEnd`), TIDAK ADA kontrol tambahan di sini. */}
-              {hmInnerTab === 'penetration' && <HighMarginProductTab filter={hmFilter} />}
-              {hmInnerTab === 'upsell' && <UpsellTargetsTab filter={hmFilter} />}
+                  turunan `periodEnd`), TIDAK ADA kontrol tambahan di sini.
+                  Kartu ringkasan (2026-08-27 — instruksi user: "Tambahkan
+                  card summary di setiap halaman tab nya") — sebelumnya
+                  2 sub-tab ini TIDAK punya kartu ringkasan sama sekali,
+                  langsung render tabel. */}
+              {hmInnerTab === 'penetration' && (
+                <>
+                  <ReportSummaryCards items={[
+                    { label: t('productsHighMargin.summaryProductCountLabel'), value: penetrationProductCount.toLocaleString('id-ID'),
+                      icon: CategoryIcon, iconColor: 'primary', info: t('productsHighMargin.summaryProductCountInfo') },
+                    { label: t('productsHighMargin.summaryAvgPenetrationLabel'), value: `${penetrationAvgRate.toFixed(1)}%`,
+                      icon: DonutLargeIcon, iconColor: 'success', highlighted: true, info: t('productsHighMargin.summaryAvgPenetrationInfo') },
+                  ]} />
+                  <HighMarginProductTab filter={hmFilter} />
+                </>
+              )}
+              {hmInnerTab === 'upsell' && (
+                <>
+                  <ReportSummaryCards items={[
+                    { label: t('productsHighMargin.summaryUpsellTargetLabel'), value: upsellTargetCount.toLocaleString('id-ID'),
+                      icon: TrendingUpIcon, iconColor: 'primary', highlighted: true, info: t('productsHighMargin.summaryUpsellTargetInfo') },
+                    { label: t('productsHighMargin.summaryUpsellAvgRevenueLabel'), value: formatRupiah(upsellAvgRevenue),
+                      icon: PaidOutlinedIcon, iconColor: 'success' },
+                  ]} />
+                  <UpsellTargetsTab filter={hmFilter} />
+                </>
+              )}
             </Box>
           )}
         </>
