@@ -27,6 +27,7 @@ import type { UserPreferences } from '@/db/schema'
 // butuh nilai pasti, tidak ada "system preference" utk itu).
 const DEFAULT_PREFERENCES: UserPreferences = {
   color_palette: 'blue',
+  dismissed_banners: [],
 }
 
 function formatLockRemaining(lockedUntil: Date): string {
