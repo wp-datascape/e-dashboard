@@ -38,6 +38,7 @@ import {
   IntegrationPage,
   FeaturesPage,
   AbTesting,
+  HelpPage,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -132,6 +133,11 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'audit-log':            { path: '/audit-log',              element: withLayout(<AuditLog />),              protected: true, permissionKey: 'audit.log:view' },
   'activity-log':         { path: '/activity-log',            element: withLayout(<ActivityLog />),           protected: true, permissionKey: 'activity.log:view' },
   'login-log':            { path: '/login-log',               element: withLayout(<LoginLog />),              protected: true, permissionKey: 'login.log:view' },
+  // ── Help (task029.md §37) ────────────────────────────────────────────────
+  // Terlihat SEMUA user login (bukan gated per-role spt Settings) — sengaja
+  // TANPA permissionKey, ProtectedRoute cuma cek isAuthenticated kalau
+  // permissionKey undefined (lihat context/AuthContext.tsx).
+  'help':                 { path: '/help',                    element: withLayout(<HelpPage />),              protected: true },
   // ── Legacy (backward compat — tidak di menu) ─────────────────────────────
   'config':               { path: '/config',                 element: withLayout(<Config />),                protected: true },
 }

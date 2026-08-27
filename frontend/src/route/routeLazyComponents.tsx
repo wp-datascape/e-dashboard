@@ -47,3 +47,4 @@ export const AppSettings = lazy(() => import('../pages/Settings/AppSettings/inde
 export const IntegrationPage = lazy(() => import('../pages/Config/Integration/index'))
 export const FeaturesPage = lazy(() => import('../pages/Config/Features/index'))
 export const AbTesting = lazy(() => import('../pages/AbTesting/index'))
+export const HelpPage = lazy(() => import('../pages/Help/index'))

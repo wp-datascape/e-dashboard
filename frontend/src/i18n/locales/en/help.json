@@ -1,0 +1,168 @@
+{
+  "title": "Help",
+  "subtitle": "Definitions, formulas, and how to read every KPI on this dashboard",
+  "downloadDoc": "Download Operational Definitions Document (.docx)",
+  "formulaLabel": "Formula",
+  "definitionsLabel": "Term Definitions",
+  "interpretationLabel": "How to Read This Number",
+  "benchmarkLabel": "General Benchmark",
+  "kpis": [
+    {
+      "key": "m1",
+      "code": "M1",
+      "title": "Cross Sell Ratio",
+      "purpose": "Measures the success of cross-selling strategy and the depth of the business relationship with customers — how many customers were persuaded to buy more than one product category.",
+      "formula": "Customers Who Bought >1 Category ÷ Active Customers × 100%",
+      "definitions": [
+        { "term": "Customers Who Bought >1 Category", "desc": "Customers who purchased more than 1 product category within the measurement period (monthly, quarterly, yearly)." },
+        { "term": "Active Customer", "desc": "A customer who made at least 1 purchase transaction within the measurement period." }
+      ],
+      "interpretation": [
+        "A rising number means the cross-selling strategy is reaching more customers successfully.",
+        "A falling number means customers tend to buy only one product category."
+      ],
+      "benchmark": [
+        "< 25% — Low (still relying on a single product)",
+        "25% – 40% — Fair (healthy baseline for an AIDC distributor)",
+        "40% – 60% — Good (cross-selling is working effectively)",
+        "> 60% — Excellent (strong customer engagement and product penetration)"
+      ]
+    },
+    {
+      "key": "m2",
+      "code": "M2",
+      "title": "Average Product Category per Customer",
+      "purpose": "Measures purchase depth — the average number of product categories each active customer buys within a period.",
+      "formula": "Total Categories Sold ÷ Active Customers",
+      "definitions": [
+        { "term": "Total Categories Sold", "desc": "The accumulated number of unique product categories purchased by all customers within a period." },
+        { "term": "Active Customer", "desc": "A customer who made at least 1 purchase transaction within the measurement period." }
+      ],
+      "interpretation": [
+        "A rising number usually indicates effective bundling, successful up-selling/cross-selling by the sales team, or stronger customer engagement.",
+        "The higher the number, the better the product penetration into the customer base."
+      ]
+    },
+    {
+      "key": "m3",
+      "code": "M3",
+      "title": "Average Revenue per Existing Customer",
+      "purpose": "Measures the economic value of retained customers and the effectiveness of retention and account-growth strategy — the average revenue generated from existing customers.",
+      "formula": "Total Revenue from Existing Customers ÷ Number of Existing Customers",
+      "definitions": [
+        { "term": "Total Revenue from Existing Customers", "desc": "The total revenue generated from existing customers within the measurement period." },
+        { "term": "Existing Customer", "desc": "A customer who already had a transaction history before the current period and is still purchasing during that period." }
+      ],
+      "interpretation": [
+        "A rising number shows increased value per customer — could be from up-selling, cross-selling, or higher order frequency/size.",
+        "A falling number may indicate declining purchases, partial churn, or price pressure."
+      ]
+    },
+    {
+      "key": "m4",
+      "code": "M4",
+      "title": "Average Gross Profit per Existing Customer",
+      "purpose": "Measures the profitability of existing customers — not just revenue, but the actual margin contribution generated.",
+      "formula": "Total Gross Profit from Existing Customers ÷ Number of Existing Customers, where Gross Profit = Revenue − Cost of Goods Sold (COGS)",
+      "definitions": [
+        { "term": "Total Gross Profit from Existing Customers", "desc": "Total revenue from existing customers minus the cost of goods sold (COGS) within the measurement period." },
+        { "term": "Existing Customer", "desc": "A customer who already had a transaction history before the current period and is still purchasing during that period." }
+      ],
+      "interpretation": [
+        "A rising number shows existing customers are becoming more profitable — could be from buying higher-margin products, better pricing, or improved cost efficiency.",
+        "A falling number may indicate excessive discounts, rising production costs, or a shift toward a lower-margin product mix."
+      ]
+    },
+    {
+      "key": "m5",
+      "code": "M5",
+      "title": "High Margin Product Penetration",
+      "purpose": "Measures how well the company drives sales of high-margin products — the percentage of active customers who bought products with a bigger profit contribution.",
+      "formula": "Existing Customers Who Bought High-Margin Products ÷ Active Customers × 100%",
+      "definitions": [
+        { "term": "Existing Customers Who Bought High-Margin Products", "desc": "The number of existing customers who made at least one purchase in a product category with gross margin above the company's defined threshold." },
+        { "term": "Active Customer", "desc": "A customer who made at least 1 purchase transaction within the measurement period." }
+      ],
+      "interpretation": [
+        "A high number means the sales team successfully steered customers toward more profitable products.",
+        "A low number means customers still predominantly buy low-margin products."
+      ]
+    },
+    {
+      "key": "m6",
+      "code": "M6",
+      "title": "Repeat Order Rate",
+      "purpose": "Measures customer loyalty, experience quality, and retention strategy effectiveness — the percentage of customers who made a repeat purchase after a previous transaction.",
+      "formula": "Customers Who Made a Repeat Order ÷ Existing Customers × 100%",
+      "definitions": [
+        { "term": "Customer Who Made a Repeat Order", "desc": "A customer who made more than 1 transaction within the measurement period, or returned to purchase after a previous transaction." },
+        { "term": "Existing Customer", "desc": "A customer who already had a transaction history before the current period and is still purchasing during that period." }
+      ],
+      "interpretation": [
+        "A high number means customers are satisfied, recurring needs are being met, and the business relationship is strong.",
+        "A low number may signal issues with service, product quality, or post-sale engagement."
+      ]
+    },
+    {
+      "key": "m7",
+      "code": "M7",
+      "title": "Customer Expansion Rate",
+      "purpose": "Measures the success of account-growth strategy — the percentage of business value growth from existing customers through increased purchases, added product categories, or expanded transaction volume.",
+      "formula": "Customers with Increased Revenue ÷ Existing Customers × 100%",
+      "definitions": [
+        { "term": "Existing Customer", "desc": "A customer who already had a transaction history before the current period and is still purchasing during that period." },
+        { "term": "Customer with Increased Revenue", "desc": "An existing customer whose purchase value in the current period is higher than in the previous period." }
+      ],
+      "interpretation": [
+        "A high number means account management is effective and the customer relationship keeps growing.",
+        "A low number means customers tend to be stagnant, and account potential isn't fully tapped yet."
+      ]
+    },
+    {
+      "key": "m8",
+      "code": "M8",
+      "title": "Dormant Customer Rate",
+      "purpose": "Measures the level of customer inactivity and potential revenue loss from the existing customer base — the percentage of customers who used to be active but stopped buying within a certain time window.",
+      "formula": "Dormant Customers ÷ Existing Customers × 100%",
+      "definitions": [
+        { "term": "Dormant Customer", "desc": "A customer with a prior transaction history who hasn't transacted again past the dormancy threshold (varies by business category — typically 3 months for retail, 6–12 months for B2B depending on the business cycle)." },
+        { "term": "Existing Customer", "desc": "A customer who already had a transaction history before the current period and is still purchasing during that period." }
+      ],
+      "interpretation": [
+        "A high number means churn risk is rising and customer engagement is weakening.",
+        "A low number means customer retention is healthier and the business relationship is better maintained."
+      ]
+    },
+    {
+      "key": "m9",
+      "code": "M9",
+      "title": "Dormant Customer Value",
+      "purpose": "Measures the business value that is \"held up\" or at risk of being lost due to customers who are no longer active — the total revenue or potential gross profit lost from dormant customers.",
+      "formula": "Total historical value (revenue/gross profit) from all customers who are dormant during that period",
+      "definitions": [
+        { "term": "Dormant Customer", "desc": "A customer with a prior transaction history who hasn't transacted again past the dormancy threshold." },
+        { "term": "Historical Revenue", "desc": "The average or total revenue that customer previously generated before becoming dormant." },
+        { "term": "Historical Gross Profit", "desc": "The historical gross profit that customer previously generated." }
+      ],
+      "interpretation": [
+        "A high number shows a lot of customer value hasn't been successfully retained or won back.",
+        "A low number means the customer base is healthier and revenue-loss risk is smaller."
+      ]
+    },
+    {
+      "key": "m10",
+      "code": "M10",
+      "title": "Customer Reactivation Rate",
+      "purpose": "Measures the effectiveness of reactivation strategy and the company's success in recovering customers who had stopped transacting — the percentage of dormant customers who came back to transact.",
+      "formula": "Dormant Customers Who Transacted Again ÷ Total Dormant Customers × 100%",
+      "definitions": [
+        { "term": "Dormant Customer Who Transacted Again", "desc": "A customer who was previously dormant, then made at least 1 transaction again within the measurement period." },
+        { "term": "Total Dormant Customer", "desc": "All customers who were in dormant status at the start of the measurement period." }
+      ],
+      "interpretation": [
+        "A high number means follow-up strategy, engagement, and win-back campaigns are working effectively.",
+        "A low number means customers are hard to recover, or the reactivation approach isn't hitting the mark yet."
+      ]
+    }
+  ]
+}

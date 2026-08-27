@@ -5178,6 +5178,48 @@ eksekusi §37, supaya tidak nyangkut di riwayat git di 2 lokasi berbeda
 Prioritas SEKARANG (instruksi user): lanjutkan review KPI yang belum
 selesai (M6-M10, lihat tabel status §36) — §37 dilanjutkan setelah itu.
 
+### SELESAI (2026-08-27)
+
+User minta lanjutkan langsung ("Sekarang buat menu help, dan halaman help
+sesuai di dokumentasi task 29") — dieksekusi sesuai rencana di atas, tanpa
+menunggu M6-M10 direview ulang lagi (kontennya diambil LANGSUNG dari
+dokumen SSOT `.docx`, bukan dari tooltip yang statusnya bervariasi).
+
+1. Dokumen dipindah ke `frontend/public/docs/definisi-operasional-customer-loyal-dashboard.docx`
+   (dari root, nama file di-slug-kan). Dikonversi ke teks dulu via `pandoc`
+   utk diambil isinya (Read tool tidak bisa baca .docx langsung).
+2. Konten 10 KPI (purpose+formula+definisi+interpretasi, M1 juga py
+   benchmark) ditulis di `frontend/src/i18n/locales/{id,en}/help.json` —
+   namespace BARU (bukan reuse tooltip), sesuai keputusan desain #1. Formula
+   ditulis ulang jadi notasi pembilang÷penyebut dari deskripsi SSOT (SSOT
+   sendiri tidak nulis simbol matematis, cuma deskripsi komponennya).
+3. Halaman baru `frontend/src/pages/Help/index.tsx` — Accordion per KPI
+   (kode M1-M10 + judul di summary, formula/definisi/interpretasi/benchmark
+   di detail), tombol download dokumen SSOT di kanan atas.
+4. Route `/help` (`routeConstants.tsx`, `routeLazyComponents.tsx`) —
+   `protected: true` TANPA `permissionKey` (ProtectedRoute cuma cek
+   `isAuthenticated` kalau permissionKey undefined, lihat
+   `context/AuthContext.tsx`) — login wajib, tapi tidak digate per-role.
+5. Menu item standalone ikon "?" (`HelpOutlineOutlined` — versi bare
+   `HelpOutline` ternyata tidak ada di package `@mui/icons-material`
+   terpasang, cuma varian style-nya) di paling bawah `NAV_ITEMS`
+   (`config/menu.tsx`), juga tanpa `permissionKey`.
+6. `page_key: 'help'` ditambah ke `defaultPageSettings` (`seed.ts`) +
+   di-insert manual ke DB lokal (App.tsx cuma render route yang page_key-nya
+   ADA di tabel `page_settings`, lihat komentar di file itu).
+7. Verifikasi: `tsc -b` + `eslint` + `vite build` bersih. Screenshot
+   Playwright login sungguhan (desktop 1280×720 + mobile 390×844) — sidebar
+   item "Help" muncul benar, halaman render 10 KPI, accordion M1 dibuka
+   nampilkan formula+definisi+interpretasi+benchmark, tombol download
+   mengarah ke URL yang benar (dicek `curl` 200), tidak ada overflow di
+   mobile.
+
+**Belum dikerjakan / catatan**: file `presentasi-fitur-dashboard.docx`
+(juga di root, terpisah dari dokumen SSOT ini) TIDAK disentuh — di luar
+scope §37. Konten help.json ditulis LANGSUNG dari SSOT tanpa menunggu
+verifikasi ulang M5-M10 di §36 (keputusan user, prioritas berubah) — kalau
+nanti ada koreksi definisi bisnis dari review M5-M10, update di sini juga.
+
 ---
 
 ## 36.20 Tooltip info di kartu ringkasan Laporan (2026-08-26)
