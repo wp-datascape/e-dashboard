@@ -1,38 +1,37 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import Accordion from '@mui/material/Accordion'
-import AccordionSummary from '@mui/material/AccordionSummary'
-import AccordionDetails from '@mui/material/AccordionDetails'
-import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
+import Accordion from '@mui/material/Accordion'
+import AccordionSummary from '@mui/material/AccordionSummary'
+import AccordionDetails from '@mui/material/AccordionDetails'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import DownloadIcon from '@mui/icons-material/Download'
-import FunctionsIcon from '@mui/icons-material/Functions'
-import MenuBookIcon from '@mui/icons-material/MenuBook'
-import InsightsIcon from '@mui/icons-material/Insights'
 import { useTranslation } from 'react-i18next'
+import MarkdownContent from '../../components/ui/MarkdownContent'
+import { getHelpContent } from './helpContent'
 
-interface HelpKpiDefinition {
+interface HelpKpi {
   key: string
   code: string
   title: string
-  purpose: string
-  formula: string
-  definitions: { term: string; desc: string }[]
-  interpretation: string[]
-  benchmark?: string[]
 }
 
-// Dokumen sumber SSOT (task029.md §37) — statis di public/docs, TANPA proteksi
+interface HelpGlossary {
+  title: string
+}
+
+// Dokumen sumber SSOT (task029.md §37), statis di public/docs, TANPA proteksi
 // login (di luar SPA router). Untuk definisi bisnis internal ini risikonya
 // sudah diberi tahu eksplisit ke user, bukan disembunyikan.
 const REFERENCE_DOC_URL = '/docs/definisi-operasional-customer-loyal-dashboard.docx'
 
 export default function HelpPage() {
-  const { t } = useTranslation()
-  const kpis = t('help.kpis', { returnObjects: true }) as HelpKpiDefinition[]
+  const { t, i18n } = useTranslation()
+  const lang = i18n.language
+  const kpis = t('help.kpis', { returnObjects: true }) as HelpKpi[]
+  const glossary = t('help.glossary', { returnObjects: true }) as HelpGlossary
 
   return (
     <Box sx={{ p: 3 }}>
@@ -53,7 +52,14 @@ export default function HelpPage() {
         </Button>
       </Box>
 
-      <Stack spacing={1.5}>
+      <Divider sx={{ mb: 4 }} />
+
+      <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mb: 2 }}>
+        {glossary.title}
+      </Typography>
+      <MarkdownContent content={getHelpContent(lang, 'glossary')} />
+
+      <Stack spacing={1.5} sx={{ mt: 4 }}>
         {kpis.map((kpi) => (
           <Accordion
             key={kpi.key}
@@ -67,64 +73,12 @@ export default function HelpPage() {
             }}
           >
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                <Chip label={kpi.code} size="small" color="primary" sx={{ fontWeight: 700 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{kpi.title}</Typography>
-              </Stack>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {kpi.code}: {kpi.title}
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Stack spacing={2.5}>
-                <Typography variant="body2" color="text.secondary">{kpi.purpose}</Typography>
-
-                <Box>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.75 }}>
-                    <FunctionsIcon fontSize="small" color="action" />
-                    <Typography variant="subtitle2">{t('help.formulaLabel')}</Typography>
-                  </Stack>
-                  <Box sx={{ px: 2, py: 1.25, bgcolor: 'action.hover', borderRadius: 1, fontFamily: 'monospace' }}>
-                    <Typography variant="body2">{kpi.formula}</Typography>
-                  </Box>
-                </Box>
-
-                <Box>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.75 }}>
-                    <MenuBookIcon fontSize="small" color="action" />
-                    <Typography variant="subtitle2">{t('help.definitionsLabel')}</Typography>
-                  </Stack>
-                  <Stack spacing={1}>
-                    {kpi.definitions.map((d) => (
-                      <Box key={d.term}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{d.term}</Typography>
-                        <Typography variant="body2" color="text.secondary">{d.desc}</Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Box>
-
-                <Box>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.75 }}>
-                    <InsightsIcon fontSize="small" color="action" />
-                    <Typography variant="subtitle2">{t('help.interpretationLabel')}</Typography>
-                  </Stack>
-                  <Stack spacing={0.5}>
-                    {kpi.interpretation.map((line) => (
-                      <Typography key={line} variant="body2" color="text.secondary">• {line}</Typography>
-                    ))}
-                  </Stack>
-                </Box>
-
-                {kpi.benchmark && kpi.benchmark.length > 0 && (
-                  <Box>
-                    <Divider sx={{ mb: 1.5 }} />
-                    <Typography variant="subtitle2" sx={{ mb: 0.75 }}>{t('help.benchmarkLabel')}</Typography>
-                    <Stack spacing={0.5}>
-                      {kpi.benchmark.map((line) => (
-                        <Typography key={line} variant="body2" color="text.secondary">• {line}</Typography>
-                      ))}
-                    </Stack>
-                  </Box>
-                )}
-              </Stack>
+              <MarkdownContent content={getHelpContent(lang, kpi.key)} />
             </AccordionDetails>
           </Accordion>
         ))}

@@ -5220,6 +5220,64 @@ scope §37. Konten help.json ditulis LANGSUNG dari SSOT tanpa menunggu
 verifikasi ulang M5-M10 di §36 (keputusan user, prioritas berubah) — kalau
 nanti ada koreksi definisi bisnis dari review M5-M10, update di sini juga.
 
+### Lanjutan (2026-08-27): Glosarium Kamus v13 + rewrite ke Markdown
+
+User menegur konten Help masih pakai istilah generik "Existing Customer"/
+"Customer Aktif" seragam di semua KPI, padahal dokumen internal terpisah
+"Kamus Penamaan Pelanggan v13" (`task029.md §36`, bukan SSOT docx yang
+sama) sudah mendefinisikan 6 status dasar pelanggan per periode
+(Acquisition, Active Customer, Reactivated, Lapsed, Dormant, Relapsed) dan
+4 metrik populasi gabungan (Active Transacting, Existing Active, Customer
+Base (Addressable), Total Customer Base) dengan pemetaan eksplisit
+populasi per KPI (M1/M2 pakai Active Transacting; M3-M6 pakai Existing
+Active; M7 pakai Customer Base (Addressable); M8-M10 pakai Total Customer
+Base). Dicek juga `segment.helper.ts` (`sqlStatusExpr`): vocab 4-status
+milik halaman Customer List itu vocab TERPISAH, tidak konflik dengan
+kamus v13 yang khusus kartu/drilldown KPI.
+
+Lalu 2 permintaan lanjutan mengubah arsitektur kontennya:
+
+1. **Rich text + hapus em dash**: sempat dibangun parser `**tebal**`
+   custom (`RichText.tsx`) plus larangan em dash (`—`) ditegakkan di
+   seluruh teks. Aturan larangan em dash + frasa klise AI dicatat sbg
+   rule STRICT baru di `docs-v2/CLAUDE.md` (section "Writing Style —
+   Konten & Copy").
+2. **Markdown penuh via react-markdown** (permintaan berikutnya, lebih
+   luas): `RichText.tsx` custom di-drop, diganti `react-markdown` +
+   `remark-gfm` (paket baru, lihat `package.json`) supaya dukung heading,
+   list, tabel, blockquote, code, link sekaligus dari satu string
+   Markdown. Komponen baru `components/ui/MarkdownContent.tsx` memetakan
+   tiap elemen Markdown ke Typography/Box MUI dengan gaya minimalis
+   (rata kiri-kanan, line-height 1.75, lebar baca dibatasi 720px, tanpa
+   card/shadow/gradient) sesuai spesifikasi user.
+3. **Konten dipindah ke file `.md` terpisah** (permintaan lanjutan lagi:
+   "kalau file panduannya format markdown seperti dokumentasi task, tapi
+   komunikasinya tetap JSON") — isi Markdown panjang TIDAK lagi
+   dipadatkan jadi satu string ber-`\n` di `help.json` (susah dibaca/
+   diedit), dipecah jadi file asli per bagian:
+   `src/i18n/locales/{id,en}/help/{glossary,m1..m10}.md`, ditulis normal
+   spt dokumen di `docs-v2/task/`. `help.json` sendiri kini cuma metadata
+   ringan (title/subtitle/downloadDoc + daftar key/code/title per KPI).
+   Loader baru `pages/Help/helpContent.ts` memuat semua `.md` itu saat
+   build via `import.meta.glob(..., {query:'?raw', import:'default',
+   eager:true})`, diekspos sbg `getHelpContent(lang, slug)` — kontrak
+   yang dikonsumsi komponen (`Help/index.tsx`) tetap berupa string biasa,
+   "komunikasinya" tetap lewat objek JSON i18n untuk metadata + lookup
+   function utk konten, sesuai permintaan.
+4. Halaman `Help/index.tsx` dirombak dari Accordion+Chip+Card jadi
+   dokumen mengalir: Glossary + tiap KPI dipisah `Divider` tipis saja,
+   heading section pakai Typography `component="h1"/"h2"` (bukan
+   Accordion) — sesuai spesifikasi user "minimalis, jangan pakai card/
+   shadow/gradient, fokus keterbacaan teks".
+5. Verifikasi: `tsc -b` + `eslint` + `vite build` bersih tiap tahap,
+   `bunx tsc` konfirmasi `import.meta.glob` raw-markdown ter-tipe benar.
+   Playwright live (desktop 1280×3600 tinggi penuh + mobile 390px):
+   paragraf rata kiri-kanan kekonfirmasi visual, heading berjenjang,
+   bullet list asli, tabel M1 (Acuan Umum) tidak overflow di mobile
+   (scroll internal container), code block formula + inline code utk
+   notasi gabungan status (mis. `Active Customer + Reactivated`) render
+   benar, 0 console error.
+
 ---
 
 ## 36.20 Tooltip info di kartu ringkasan Laporan (2026-08-26)

@@ -84,6 +84,17 @@ Group 5: Admin                ← System operations
 - CSRF token required on all mutations
 - No hard-delete on invoice data (soft delete only)
 
+## Writing Style — Konten & Copy (STRICT)
+
+Berlaku untuk semua teks yang dibaca pengguna: halaman Help, tooltip, label UI, pesan error/toast, dokumentasi user-facing, dan draft PR/commit message.
+
+- **DILARANG** memakai em dash (`—`) sama sekali, di teks JSON i18n maupun komentar kode. Ganti dengan titik dua, koma, tanda kurung, atau pecah jadi kalimat baru.
+- **DILARANG** frasa generik ciri khas AI: "secara keseluruhan", "penting untuk dicatat", "dapat disimpulkan bahwa", dan sejenisnya.
+- Hindari pembukaan kalimat yang repetitif antar item sejenis (list/kartu tidak boleh semua mulai dengan kata yang sama).
+- Kalimat pendek, langsung ke insight utama, bukan berputar-putar dulu sebelum sampai ke poin.
+- Bahasa profesional, natural, ringkas, bukan gaya terjemahan kaku dari Inggris.
+- Struktur paragraf sederhana: satu gagasan per paragraf, tidak menumpuk banyak klausa dengan tanda baca berat.
+
 ## Backend Layer Responsibilities (MANDATORY)
 
 ```
