@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { company_branches, users, pageSettings, companies, roles, permissions, userRoles, userCompanies, userBranches, userDivisions, rolePermissions, businessConfigs, divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { eq, and, inArray } from 'drizzle-orm'
-import { seedDefaultDivisions } from '@/features/settings/divisions.repository'
+import { seedDefaultDivisions, MKO_DIVISIONS_TEMPLATE } from '@/features/settings/divisions.repository'
 
 const defaultCompanies = [
   { code: 'PT MKO', name: 'PT Mesin Kasir Online' },
@@ -18,7 +18,8 @@ const defaultBranches = [
   { company_code: 'PT MKO', name: 'Jakarta', code: 'JKT', is_active: true },
   { company_code: 'PT MKO', name: 'Surabaya', code: 'SBY', is_active: true },
   // PT KNT — 3 branches
-  { company_code: 'PT KNT', name: 'Surabaya', code: 'SBY', is_active: true },
+  { company_code: 'PT KNT', name: 'Surabaya Timur', code: 'SBT', is_active: true },
+  { company_code: 'PT KNT', name: 'Surabaya Barat', code: 'SBB', is_active: true },
   { company_code: 'PT KNT', name: 'Jakarta', code: 'JKT', is_active: true },
   { company_code: 'PT KNT', name: 'Semarang', code: 'SMG', is_active: true },
   // PT SKI — 1 branch (Pusat)
@@ -472,14 +473,53 @@ async function seedCompanies() {
  * (bukan cuma lewat hook createCompany) karena seedCompanies() di atas insert
  * company langsung ke DB (bypass companies.service.ts), dan seedUserAssignments()
  * di bawah BUTUH divisions sudah terisi utk assign superadmin/admin full access.
+ *
+ * HANYA company yang BENAR-BENAR belum punya division sama sekali (company baru,
+ * belum pernah di-setup) yang di-seed template 7-division penuh. Company yang
+ * sudah punya divisi apa pun (termasuk cuma sebagian, hasil kurasi manual sesuai
+ * kebutuhan bisnis asli — mis. KNT cuma pakai 4 dari 7) DILEWATI TOTAL, bukan
+ * ditambal per-key yang hilang (2026-08-27, koreksi bug: `seedDefaultDivisions`
+ * pakai `onConflictDoNothing` per KEY, jadi re-run seeder ini diam-diam menambah
+ * divisi generik/tidak terpakai ke company yang sudah dikurasi — ditemukan
+ * lewat audit data production, lihat docs-v2/task/task029.md). `onConflictDoNothing`
+ * di seedDefaultDivisions() sendiri TETAP dipertahankan (bukan dihapus) — masih
+ * dipakai apa adanya oleh hook createCompany (companies.service.ts) utk company
+ * BARU yang jelas belum punya divisi sama sekali.
  */
 async function seedDivisionsDefault() {
   console.log('Seeding divisions...')
   const allCompanies = await db.select({ id: companies.id, code: companies.code }).from(companies)
+  let seeded = 0
+  let skipped = 0
   for (const c of allCompanies) {
-    await seedDefaultDivisions(c.id)
+    const [existing] = await db.select({ id: divisions.id }).from(divisions).where(eq(divisions.company_id, c.id)).limit(1)
+    if (existing) { console.log(`  skip  ${c.code} (sudah punya divisi, tidak ditambal)`); skipped++; continue }
+
+    if (c.code === 'PT MKO') {
+      // MKO_DIVISIONS_TEMPLATE literal PERSIS kebutuhan bisnis MKO (7 divisi) —
+      // BUKAN template generik company lain, lihat komentar di divisions.repository.ts.
+      // Mirror pola defaultBranches di bawah (literal per-company, bukan lintas-company).
+      for (const d of MKO_DIVISIONS_TEMPLATE) {
+        await db.insert(divisions).values({
+          company_id: c.id,
+          branch_id: null,
+          key: d.key,
+          label: d.label,
+          dormant_category: d.dormant_category,
+          is_protected: 'is_protected' in d ? d.is_protected : false,
+        }).onConflictDoNothing()
+      }
+      console.log(`  ok    ${c.code} (7 divisi MKO)`)
+    } else {
+      // Company lain (KNT, SKI, dan company baru apa pun ke depan) cuma dapat
+      // 1 divisi minimal "Lainnya" — struktur divisi riilnya beda-beda per company,
+      // dibuat manual lewat Settings > Division Management, bukan ditebak seeder.
+      await seedDefaultDivisions(c.id)
+      console.log(`  ok    ${c.code} (1 divisi minimal: Lainnya)`)
+    }
+    seeded++
   }
-  console.log(`  ok    default divisions -> ${allCompanies.length} companies`)
+  console.log(`  ok    default divisions -> ${seeded} company baru, ${skipped} company dilewati (sudah punya divisi)`)
 }
 
 async function seedBranches() {

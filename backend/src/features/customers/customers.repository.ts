@@ -104,12 +104,31 @@ export async function findCustomers(
   const outerDivisionCond = buildDivisionCondition(invoices.branch_id, cdInv.division_id, divisionScope, otherIdByBranchEarly)
   const outerScopeGuard = sql`(${outerBranchCond ?? sql`true`}) AND (${outerDivisionCond ?? sql`true`})`
 
-  const invCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)
-  `
-  const catCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)
-  `
+  // Subquery: total_invoices/category_count per customer, agregasi SEKALI (GROUP BY)
+  // — BUKAN lagi JOIN invoices+invoice_items mentah langsung ke query customer di
+  // bawah. Fix bug performa (2026-08-27, ditemukan lewat audit production): JOIN
+  // invoices mentah bareng latestSalespersonSq (subquery DISTINCT ON) di query yang
+  // SAMA bikin planner Postgres pilih Nested Loop nyaris cross-product begitu ada
+  // kondisi scope branch/division (user non-superadmin) — /customers timeout 20
+  // detik (statement_timeout) utk SEMUA company, termasuk yang datanya kecil.
+  // Superadmin (bypass, tanpa kondisi scope) tidak kena krn planner kebetulan pilih
+  // strategi lain, tapi struktur query-nya tetap rapuh. Pola subquery ini SAMA
+  // PERSIS liveDatesSq di atas (agregasi per customer dulu, baru LEFT JOIN 1x hasil
+  // yang sudah 1-baris-per-customer) — sudah terbukti aman di kedua kasus scope.
+  const invAggSq = db
+    .select({
+      customer_id: invoices.customer_id,
+      inv_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)`.as('inv_count'),
+      cat_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)`.as('cat_count'),
+    })
+    .from(invoices)
+    .leftJoin(invoice_items, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
+    .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
+    .groupBy(invoices.customer_id)
+    .as('inv_agg')
+
+  const invCountExpr = invAggSq.inv_count
+  const catCountExpr = invAggSq.cat_count
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
@@ -236,11 +255,6 @@ export async function findCustomers(
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(companies, eq(customers.company_id, companies.id))
-      .leftJoin(invoices, eq(invoices.customer_id, customers.id))
-      .leftJoin(
-        invoice_items,
-        and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
-      )
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
       .leftJoin(
         channel_divisions,
@@ -250,12 +264,12 @@ export async function findCustomers(
         ),
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
-      // cdInv — lihat komentar di definisi outerScopeGuard di atas, JOIN kedua
-      // channel_divisions via channel invoice yang SEDANG dihitung (bukan channel
-      // invoice terbaru customer), khusus dipakai invCountExpr/catCountExpr.
-      .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
+      // invAggSq — sudah 1 baris per customer (agregasi COUNT DISTINCT di dalam
+      // subquery-nya sendiri, lihat komentar di definisinya di atas), BUKAN lagi
+      // JOIN invoices/invoice_items/cdInv mentah di sini.
+      .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
