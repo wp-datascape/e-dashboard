@@ -2,6 +2,7 @@
   "title": "Help",
   "subtitle": "Definitions, formulas, and how to read every KPI on this dashboard",
   "downloadDoc": "Download Operational Definitions Document (.docx)",
+  "downloadError": "Failed to download the document, please try again.",
   "glossary": {
     "title": "Customer Population Glossary"
   },

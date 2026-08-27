@@ -9,6 +9,7 @@ import AccordionDetails from '@mui/material/AccordionDetails'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import DownloadIcon from '@mui/icons-material/Download'
 import { useTranslation } from 'react-i18next'
+import { useSnackbar } from 'notistack'
 import MarkdownContent from '../../components/ui/MarkdownContent'
 import { getHelpContent } from './helpContent'
 
@@ -26,12 +27,35 @@ interface HelpGlossary {
 // login (di luar SPA router). Untuk definisi bisnis internal ini risikonya
 // sudah diberi tahu eksplisit ke user, bukan disembunyikan.
 const REFERENCE_DOC_URL = '/docs/definisi-operasional-customer-loyal-dashboard.docx'
+const REFERENCE_DOC_FILENAME = 'definisi-operasional-customer-loyal-dashboard.docx'
 
 export default function HelpPage() {
   const { t, i18n } = useTranslation()
+  const { enqueueSnackbar } = useSnackbar()
   const lang = i18n.language
   const kpis = t('help.kpis', { returnObjects: true }) as HelpKpi[]
   const glossary = t('help.glossary', { returnObjects: true }) as HelpGlossary
+
+  // Unduh lewat blob + elemen <a download> sintetis, BUKAN href+target="_blank"
+  // langsung - link biasa gagal diam-diam di PWA mode standalone (mobile,
+  // "Add to Home Screen") karena tidak ada browsing context baru yang bisa
+  // dibuka untuk target="_blank". Pola sama seperti downloadFakturTemplate
+  // di api/import.api.ts.
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(REFERENCE_DOC_URL)
+      if (!res.ok) throw new Error(String(res.status))
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = REFERENCE_DOC_FILENAME
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      enqueueSnackbar(t('help.downloadError'), { variant: 'error' })
+    }
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -40,14 +64,7 @@ export default function HelpPage() {
           <Typography variant="pageTitle">{t('help.title')}</Typography>
           <Typography variant="pageSubtitle">{t('help.subtitle')}</Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<DownloadIcon />}
-          href={REFERENCE_DOC_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleDownload}>
           {t('help.downloadDoc')}
         </Button>
       </Box>
