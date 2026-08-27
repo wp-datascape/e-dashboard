@@ -31,6 +31,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import StorageIcon from '@mui/icons-material/Storage';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 
 export interface NavItem {
   key: string;
@@ -380,6 +381,19 @@ export const NAV_ITEMS: NavItem[] = [
         permissionKey: 'login.log:menu',
       },
     ],
+  },
+
+  // What's New & Guide (task033, 2026-08-27) — item berdiri sendiri, TANPA
+  // permissionKey, pola sama Help di bawah: halaman discovery umum ("apa yang
+  // baru & bagaimana cara pakainya"), bukan fitur bisnis yang perlu digate
+  // RBAC. Sengaja TERPISAH dari Help — Help fokus "apa arti istilah ini"
+  // (glosarium), halaman ini fokus "apa yang baru & cara pakai fitur",
+  // jangan digabung (instruksi eksplisit user).
+  {
+    key: 'whats-new',
+    path: '/whats-new',
+    labelKey: 'nav.whatsNew',
+    icon: <AutoAwesomeOutlinedIcon fontSize="small" />,
   },
 
   // Help (task029.md §37, 2026-08-27, instruksi user) — item berdiri sendiri,

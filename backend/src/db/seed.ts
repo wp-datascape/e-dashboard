@@ -459,6 +459,9 @@ const defaultPageSettings = [
   // Help (task029.md §37, 2026-08-27) — halaman definisi/rumus 10 KPI,
   // terlihat semua user, TANPA permissionKey di routeConstants.tsx.
   { page_key: 'help', ready: true },
+  // What's New & Guide (task033, 2026-08-27) — halaman discovery fitur
+  // baru/panduan, terlihat semua user, TANPA permissionKey di routeConstants.tsx.
+  { page_key: 'whats-new', ready: true },
 ]
 
 async function seedCompanies() {

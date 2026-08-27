@@ -39,6 +39,7 @@ import {
   FeaturesPage,
   AbTesting,
   HelpPage,
+  WhatsNewPage,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -138,6 +139,9 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // TANPA permissionKey, ProtectedRoute cuma cek isAuthenticated kalau
   // permissionKey undefined (lihat context/AuthContext.tsx).
   'help':                 { path: '/help',                    element: withLayout(<HelpPage />),              protected: true },
+  // task033 — halaman "Info & Panduan", standalone spt Help, TANPA
+  // permissionKey (terlihat semua user login apa pun role-nya).
+  'whats-new':            { path: '/whats-new',               element: withLayout(<WhatsNewPage />),          protected: true },
   // ── Legacy (backward compat — tidak di menu) ─────────────────────────────
   'config':               { path: '/config',                 element: withLayout(<Config />),                protected: true },
 }

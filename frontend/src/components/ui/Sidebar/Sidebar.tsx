@@ -14,8 +14,7 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import AddIcon from '@mui/icons-material/Add';
-import RemoveIcon from '@mui/icons-material/Remove';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 import { useAuth } from '@/context/auth.context';
@@ -66,16 +65,39 @@ function NavButton({
         sx={{
           ...NAV_ITEM_SX,
           justifyContent: collapsed ? 'center' : 'flex-start',
-          pl: indented && !collapsed ? 4 : 2,
+          // pl:6 (bukan pl:4) - setelah chevron kiri ditambah di NavGroup,
+          // ikon parent sendiri mulai bergeser ke ~40px (16px padding +
+          // chevron+margin), jadi indentasi anak yang lama (32px) malah
+          // JATUH SEBELUM ikon parent-nya - hirarki tidak kelihatan
+          // (koreksi user, screenshot). 48px sekarang jatuh setelah ikon
+          // parent, submenu jelas menjorok ke kanan.
+          pl: indented && !collapsed ? 6 : 2,
           '&.Mui-selected': {
             ...NAV_ITEM_SX['&.Mui-selected'],
-            pl: collapsed ? 2 : (indented ? '29px' : '13px'),
+            pl: collapsed ? 2 : (indented ? '45px' : '13px'),
           },
         }}
       >
-        <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
-          {item.icon}
-        </ListItemIcon>
+        {/* Item top-level TANPA anak (Overview, Info & Panduan, Bantuan)
+            butuh ruang kosong seukuran chevron NavGroup (ikon 20px + mr
+            4px = 24px) SEBELUM ikonnya sendiri - kalau tidak, ikonnya
+            nempel ke kiri sementara item top-level yang PUNYA anak
+            (Business, Laporan, dst) ikonnya sudah didorong ke kanan oleh
+            chevron, jadi semua ikon top-level tidak sejajar satu baris
+            (koreksi user, screenshot). Submenu (indented) TIDAK butuh ini -
+            dia punya area/indentasi sendiri, tidak perlu sejajar dgn
+            top-level. */}
+        {!indented && !collapsed && <Box sx={{ width: '24px', flexShrink: 0 }} />}
+        {/* Item submenu (indented) SENGAJA tanpa ikon (instruksi user) -
+            submenu murni teks, biar tidak ramai berdampingan dengan ikon
+            besar milik parent-nya, dan hirarki lebih ditekankan lewat
+            indentasi + bgcolor area submenu (lihat NavGroup) daripada
+            ikon berulang. */}
+        {!indented && (
+          <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+            {item.icon}
+          </ListItemIcon>
+        )}
         {/* Selalu di-render (bukan collapsed && <ListItemText/>) — sebelumnya teks
             unmount/mount INSTAN pas collapsed berubah, jadi kedip tiba-tiba di tengah
             animasi lebar drawer yang smooth. Sekarang fade opacity sinkron durasi/easing
@@ -192,6 +214,21 @@ function NavGroup({
         selected={anyChildActive && !expanded}
         sx={{ ...NAV_ITEM_SX, justifyContent: 'flex-start' }}
       >
+        {/* Chevron indikator expand/collapse DI KIRI, sebelum ikon menu
+            (2026-08-27, instruksi user: "ganti tanda +/- jadi chevron di
+            sebelah kiri bukan kanan" — membalikkan keputusan 2026-08-22
+            yang sebelumnya ganti chevron ke +/-). 1 ikon diputar 90° saat
+            terbuka (mengarah ke bawah), bukan ganti-ganti 2 ikon berbeda —
+            transisinya jadi animasi rotate yang mulus. */}
+        <ChevronRightIcon
+          fontSize="small"
+          sx={{
+            color: 'text.secondary',
+            mr: 0.5,
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: (theme) => theme.transitions.create('transform', { duration: theme.transitions.duration.shorter }),
+          }}
+        />
         <ListItemIcon sx={{ minWidth: 0, mr: 1.5, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
           {item.icon}
         </ListItemIcon>
@@ -205,13 +242,41 @@ function NavGroup({
             },
           }}
         />
-        {/* Indikator +/- (2026-08-22, koreksi user: "jangan pakai arrow")
-            — bukan lagi chevron ExpandMore/Less. Tertutup = "+" (bisa
-            dibuka), terbuka = "-" (bisa ditutup). */}
-        {expanded ? <RemoveIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <AddIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
       </ListItemButton>
       <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <List dense disablePadding>
+        {/* bgcolor sedikit lebih gelap dari background sidebar (instruksi
+            user: "penanda area inside") - menandai area submenu ini
+            "di dalam" grup parent-nya, bukan cuma mengandalkan indentasi
+            teks. action.hover dipakai konsisten dgn pola "kotak subtle"
+            lain di app ini (mis. code block MarkdownContent). */}
+        {/* Garis vertikal lurus dari ujung chevron parent (instruksi user)
+            - posisi left:25px dihitung dari titik tengah ChevronRightIcon
+            di ListItemButton parent (px:2=16px padding + lebar ikon
+            "small"=20px, tengahnya jatuh di ~26px). '::before' dipakai,
+            bukan elemen terpisah, supaya tidak nambah node DOM per grup. */}
+        <List
+          dense
+          disablePadding
+          sx={{
+            position: 'relative',
+            bgcolor: 'action.hover',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: '25px',
+              top: 0,
+              bottom: 0,
+              width: '1px',
+              // 'divider' kontrasnya kurang di mode gelap terhadap bgcolor
+              // action.hover di atas (dilaporkan user, tidak terlihat) -
+              // text.disabled dipilih karena nilainya eksplisit beda di
+              // light/dark (theme/index.ts: #94A3B8 vs #475569), jadi
+              // kontrasnya terjamin di kedua tema, bukan cuma "kebetulan
+              // kelihatan" di salah satu mode saja.
+              bgcolor: 'text.disabled',
+            },
+          }}
+        >
           {visibleChildren.map((child) => (
             <NavButton key={child.key} item={child} collapsed={false} indented onNav={onNav} />
           ))}
