@@ -6524,3 +6524,57 @@ normal.
 **Verifikasi:** `tsc --noEmit` bersih. Live browser desktop (5 tab) +
 mobile emulasi iPhone 13 (semua 5 tab termasuk scroll tab fix) — semua
 discreenshot, dicek visual langsung.
+
+## 38. Fix CI dependency audit (nanoid) + CD tidak lagi jalan kalau CI gagal (2026-08-27)
+
+**Bagian 1 — audit nanoid.** User tanya "Bagaimana perbaikan CI nya?"
+setelah dilaporkan CI merah di beberapa merge terakhir (job Frontend,
+step "Dependency audit"). Akar masalah: `nanoid@3.3.16` (dependency
+transitif `postcss` → `vite`) py advisory HIGH
+(GHSA-2v37-7h3g-55p8, "custom generators can loop indefinitely when size
+is zero"), terpatch di 3.3.18. `postcss` sendiri minta `^3.3.16` (izinkan
+sampai <4.0.0), jadi 3.3.18 tetap valid tanpa ganti versi `postcss`/`vite`.
+
+Percobaan pertama `bun update nanoid` SALAH — nanoid bukan direct
+dependency proyek, bun malah menambahkannya sbg direct dependency baru
+(`"nanoid": "^6.0.1"` masuk ke `dependencies`), TIDAK menambal versi yang
+dipakai `postcss` sama sekali (tetap 3.3.16 di lockfile). Dikoreksi:
+field `overrides` di `package.json` (pola SAMA PERSIS `fast-uri`/
+`brace-expansion` yang sudah ada di situ) — `"nanoid": "^3.3.18"` — paksa
+seluruh dependency tree pakai 3.3.18. Diverifikasi: `bun audit
+--audit-level=high --ignore=GHSA-qwww-vcr4-c8h2` exit 0, `tsc --noEmit`
+bersih, `npm run build` sukses end-to-end.
+
+**Bagian 2 — CD tidak boleh jalan kalau CI gagal.** Susulan instruksi
+user: *"Perbaikan jika tidak lolos CI/ jangan lanjut CD"*. Ditemukan
+lewat pengecekan langsung (`gh run list`) — `ci.yml` dan `cd.yml`
+SELAMA INI 2 file terpisah, sama-sama trigger `on: push`, jalan PARALEL
+tanpa saling tahu. Dibuktikan konkret: commit merge PR #148, job CI
+"Dependency audit" GAGAL (❌, run 33030096734), job CD "Deploy Dev"
+TETAP SUKSES dan benar-benar deploy (✓, run 33030096728, commit SAMA).
+
+**Fix**: gabung `ci.yml`+`cd.yml` jadi 1 file `.github/workflows/pipeline.yml`
+(`ci.yml` dihapus, `cd.yml` dihapus) — job `deploy-dev`/`deploy-prod`
+ditambah `needs: [backend, frontend]` (job CI). Perilaku DEFAULT GitHub
+Actions utk job ber-`needs`: OTOMATIS di-skip kalau salah satu dependency
+gagal/dibatalkan — tidak perlu expression IF manual tambahan. Isi/step
+tiap job TIDAK diubah sama sekali dari file lama (diverifikasi via `diff`
+saat digabung, byte-per-byte identik kecuali baris `needs:` yang
+ditambahkan) — restrukturisasi murni, bukan mengubah cara kerja
+masing-masing job.
+
+Trigger ikut disatukan+diperluas: `push: [main, dev]` (dulu `ci.yml` CUMA
+`push: [dev]`, sama sekali TIDAK jalan di push `main` — gap tersembunyi
+lain yang ketemu: commit hasil merge PR ke `main` selama ini deploy
+produksi TANPA CI re-verify di commit itu sendiri, cuma pernah lolos CI
+versi PR sebelum di-merge). `pull_request: [main]` tidak berubah.
+
+Dokumentasi diperbarui (referensi nama file lama `ci.yml`/`cd.yml`):
+`docs-v2/shared/ci-cd.md` (§0 baru + update §1/§2/§6), `docs-v2/shared/
+deployment.md` (§0 CD).
+
+**Verifikasi**: YAML divalidasi (`python3 -c "import yaml; yaml.safe_load(...)"`)
++ `diff` byte-per-byte job backend/frontend/deploy-prod/deploy-dev vs
+file lama (identik kecuali `needs:` baru) — belum sempat lihat run
+sungguhan di GitHub Actions (baru di-commit, belum di-push) sampai
+langkah ini ditulis.
