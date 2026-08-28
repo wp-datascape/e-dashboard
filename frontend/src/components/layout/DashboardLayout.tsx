@@ -92,13 +92,23 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             p: { xs: 2, sm: 3 },
             bgcolor: 'background.default',
             contain: 'layout',
+            display: isMobile ? 'flex' : undefined,
+            flexDirection: isMobile ? 'column' : undefined,
           }}
         >
-          {children}
+          {/* flexGrow:1 di mobile — dorong Footer (di bawah, dalam Box yang
+              sama) supaya tetap jatuh di ujung viewport pada halaman yang
+              kontennya pendek, TAPI tetap ikut discroll (bukan pinned) begitu
+              konten lebih panjang dari layar — instruksi user: "footer jangan
+              sticky, tampil di bawah halaman, terlihat saat scroll sampai
+              batas terbawah saja". Footer TIDAK dipindah ke sini di desktop —
+              tetap di luar main (pinned), pola lama tidak diubah. */}
+          <Box sx={{ flexGrow: isMobile ? 1 : undefined }}>{children}</Box>
+          {isMobile && <Footer />}
         </Box>
 
-        {/* ── Footer (pinned to bottom) ───────────────── */}
-        <Footer />
+        {/* Footer desktop — tetap pinned di luar area scroll main, tidak berubah */}
+        {!isMobile && <Footer />}
       </Box>
     </Box>
   );
