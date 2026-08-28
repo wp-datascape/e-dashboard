@@ -9,8 +9,10 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import type { NavItem } from '@/config/menu';
 import { isPathActive } from '@/config/menu';
@@ -24,14 +26,17 @@ interface NavigationSheetProps {
   canSee: (permissionKey?: string) => boolean;
 }
 
-// Ambang gestur swipe-kiri (instruksi user: "swipe kiri untuk kembali ke
-// level atasnya, dari 3 ke 2, dari 2 ke 1" — bukan tombol back/close, "itu
-// tidak terkesan natif"). Swipe-turun-untuk-tutup TIDAK butuh kode di sini
-// sama sekali — itu perilaku BAWAAN SwipeableDrawer (drag ke arah anchor),
-// aktif selama tidak di-disable eksplisit.
+// Ambang gestur swipe horizontal — kiri ATAU kanan sama-sama "mundur"
+// (instruksi user: "swipe kiri untuk kembali ke level atasnya, dari 3 ke 2,
+// dari 2 ke 1", lalu susulan "tambahkan swipe kanan juga" — toleransi kedua
+// arah, bukan tombol back/close, "itu tidak terkesan natif"). Tombol back
+// eksplisit tetap ada di header (susulan lagi) sbg cara mundur yang pasti
+// terlihat, gestur ini pelengkap. Swipe-turun-untuk-tutup TIDAK butuh kode
+// di sini sama sekali — itu perilaku BAWAAN SwipeableDrawer (drag ke arah
+// anchor), aktif selama tidak di-disable eksplisit.
 const SWIPE_ACTIVATION_THRESHOLD_PX = 8; // touch-slop sebelum gestur dianggap disengaja
-const SWIPE_BACK_DISTANCE_PX = 60; // jarak minimum ke kiri utk dianggap "mundur"
-const SWIPE_BACK_VELOCITY_FLOOR = 0.5; // px/ms — flick cepat juga commit walau jarak belum jauh
+const SWIPE_BACK_DISTANCE_PX = 60; // jarak minimum (kiri/kanan) utk dianggap "mundur"
+const SWIPE_BACK_VELOCITY_FLOOR = 0.5; // px/ms — flick cepat (arah mana pun) juga commit walau jarak belum jauh
 
 /** Bottom sheet hierarkis (task034, direvisi sesuai instruksi user 2026-08-28:
  * "drawer muncul di belakang nav bottom" + "swipe down untuk menutup, swipe
@@ -174,14 +179,16 @@ function SheetBody({
     const dt = e.timeStamp - s.lastTime;
     s.lastX = e.clientX;
     s.lastTime = e.timeStamp;
-    if (dt > 0) s.velocity = stepDx / dt; // px/ms, negatif = ke kiri
+    if (dt > 0) s.velocity = stepDx / dt; // px/ms, negatif = ke kiri, positif = ke kanan
 
     if (!s.committed) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_ACTIVATION_THRESHOLD_PX) return; // masih dalam touch-slop, belum diputuskan
       // Dominan vertikal (biarkan scroll List / swipe-turun-tutup bawaan
-      // SwipeableDrawer yang menangani) ATAU bergerak ke KANAN (bukan
-      // gestur "mundur") — tolak, jangan pernah dievaluasi ulang di touch ini.
-      if (Math.abs(dy) >= Math.abs(dx) || dx > 0) {
+      // SwipeableDrawer yang menangani) — tolak, jangan pernah dievaluasi
+      // ulang di touch ini. Horizontal KE ARAH MANA PUN (kiri ATAU kanan)
+      // diterima sbg gestur "mundur" — instruksi user susulan: toleransi
+      // kedua arah, bukan cuma kiri.
+      if (Math.abs(dy) >= Math.abs(dx)) {
         s.rejected = true;
         return;
       }
@@ -194,8 +201,8 @@ function SheetBody({
     swipeRef.current = null;
     if (!s || !s.committed) return; // cuma tap, scroll biasa, atau gestur ditolak — tidak ada yang perlu dilakukan
     const dx = e.clientX - s.startX;
-    const isDecisiveFlick = s.velocity < -SWIPE_BACK_VELOCITY_FLOOR;
-    if (dx <= -SWIPE_BACK_DISTANCE_PX || isDecisiveFlick) goBack();
+    const isDecisiveFlick = Math.abs(s.velocity) > SWIPE_BACK_VELOCITY_FLOOR;
+    if (Math.abs(dx) >= SWIPE_BACK_DISTANCE_PX || isDecisiveFlick) goBack();
   };
 
   const handlePointerCancel = () => {
@@ -233,10 +240,17 @@ function SheetBody({
         <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
       </Box>
 
-      {/* Judul saja, TANPA tombol close/back (instruksi user: "itu tidak
-          terkesan natif") — mundur pakai swipe kiri, tutup pakai swipe turun
-          (bawaan SwipeableDrawer) atau tombol Escape (bawaan MUI Modal). */}
-      <Box sx={{ px: 2, pb: 1, flexShrink: 0 }}>
+      {/* Judul + tombol back KHUSUS saat drill-down (level 3) — instruksi
+          user susulan: swipe kiri tetap jalan, tapi tombol eksplisit tetap
+          disediakan supaya cara mundur tidak cuma gestur tersembunyi. Tombol
+          close TETAP tidak ada (tutup pakai swipe turun bawaan
+          SwipeableDrawer, atau Escape bawaan MUI Modal). */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: drillStack.length > 0 ? 0.5 : 2, pb: 1, flexShrink: 0 }}>
+        {drillStack.length > 0 && (
+          <IconButton size="small" onClick={goBack} aria-label={t('common.back')}>
+            <ArrowBackIcon fontSize="small" />
+          </IconButton>
+        )}
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
           {t(title)}
         </Typography>

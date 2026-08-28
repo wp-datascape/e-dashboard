@@ -38,6 +38,10 @@ export const MobileBottomNav = () => {
 
   const handleTap = (group: MobileNavGroup) => {
     if (group.children.length === 0) {
+      // Tutup sheet apa pun yang sedang terbuka — tanpa ini, tap Overview
+      // saat mis. sheet Business masih terbuka cuma pindah halaman di
+      // BALIK sheet, sheet lama tetap menutupi layar (dilaporkan user).
+      setOpenGroupKey(null);
       navigate(group.path);
       return;
     }
