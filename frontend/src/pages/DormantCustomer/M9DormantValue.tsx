@@ -149,20 +149,22 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label={t('dormantCustomer.m9TotalLossLabel')}
+              label={t('dormantCustomer.m9TopLossLabel', { count: ranking.length })}
               value={fmtRp(data?.value_ranking_total_current ?? 0)}
               sub={currentPeriodLabel}
               color={theme.palette.error.main}
+              info={t('dormantCustomer.m9TopLossInfo', { count: ranking.length })}
             />
           )}
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
-              label={t('dormantCustomer.m9TotalLossGpLabel')}
+              label={t('dormantCustomer.m9TopLossGpLabel', { count: ranking.length })}
               value={fmtRp(data?.value_ranking_total_gp_current ?? 0)}
               sub={currentPeriodLabel}
               color={theme.palette.error.main}
+              info={t('dormantCustomer.m9TopLossGpInfo', { count: ranking.length })}
             />
           )}
         </Grid>

@@ -39,10 +39,6 @@
       "title": "More Accurate Upsell Target Recommendations",
       "description": "The matching method for high-margin products per customer was tightened — business segmentation is more precise and the match score is now shown as a percentage."
     },
-    "pareto": {
-      "title": "Priority Customers (Pareto) on the Analysis Page",
-      "description": "Customers who contribute the most to revenue are now flagged and shown first, compared directly against the same period last year."
-    },
     "cross-sell-heatmap": {
       "title": "Cross-Sell Map (Heatmap)",
       "description": "See the buying pattern of your top 30 customers across product categories in one matrix view — green means a transaction happened, click a cell for details."
@@ -60,10 +56,6 @@
     "install-pwa": {
       "title": "How to Install on Desktop, Android & iPhone",
       "description": "Full install steps for each device: Chrome/Edge on desktop, Chrome on Android, and Safari on iPhone/iPad."
-    },
-    "pareto-customers": {
-      "title": "Understanding Pareto Customers",
-      "description": "Why some customers are flagged as priority on the Analysis page, and how to keep an eye on them."
     },
     "find-upsell": {
       "title": "Finding Upsell Opportunities for a Customer",
