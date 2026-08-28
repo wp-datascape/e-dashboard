@@ -31,6 +31,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import StorageIcon from '@mui/icons-material/Storage';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 
 export interface NavItem {
   key: string;
@@ -382,6 +383,19 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // What's New & Guide (task033, 2026-08-27) — item berdiri sendiri, TANPA
+  // permissionKey, pola sama Help di bawah: halaman discovery umum ("apa yang
+  // baru & bagaimana cara pakainya"), bukan fitur bisnis yang perlu digate
+  // RBAC. Sengaja TERPISAH dari Help — Help fokus "apa arti istilah ini"
+  // (glosarium), halaman ini fokus "apa yang baru & cara pakai fitur",
+  // jangan digabung (instruksi eksplisit user).
+  {
+    key: 'whats-new',
+    path: '/whats-new',
+    labelKey: 'nav.whatsNew',
+    icon: <AutoAwesomeOutlinedIcon fontSize="small" />,
+  },
+
   // Help (task029.md §37, 2026-08-27, instruksi user) — item berdiri sendiri,
   // TANPA permissionKey ("Undefined = always visible" — lihat komentar NavItem
   // di atas), terlihat semua user login apa pun role-nya, bukan gated per-role
@@ -393,3 +407,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <HelpOutlineIcon fontSize="small" />,
   },
 ];
+
+/** Cek apakah suatu path dianggap "aktif" dibanding pathname saat ini —
+ * dipusatkan di sini (dipakai Sidebar desktop DAN bottom nav mobile, task034)
+ * supaya definisi "aktif" tidak didefinisikan ulang beda-beda di tiap tempat. */
+export function isPathActive(itemPath: string, pathname: string): boolean {
+  return pathname === itemPath || (itemPath !== '/dashboard' && pathname.startsWith(itemPath));
+}
+
+/** Cek apakah satu item akan ter-render (visible) berdasarkan permission —
+ * dipusatkan di sini (sebelumnya cuma ada di Sidebar.tsx), dipakai juga oleh
+ * bottom nav mobile (task034) supaya aturan RBAC-nya identik. */
+export function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
+  if (!canSee(item.permissionKey)) return false;
+  if (!item.children) return true;
+  return item.children.some((c) => canSee(c.permissionKey));
+}

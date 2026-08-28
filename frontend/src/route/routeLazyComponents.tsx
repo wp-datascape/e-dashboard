@@ -48,3 +48,4 @@ export const IntegrationPage = lazy(() => import('../pages/Config/Integration/in
 export const FeaturesPage = lazy(() => import('../pages/Config/Features/index'))
 export const AbTesting = lazy(() => import('../pages/AbTesting/index'))
 export const HelpPage = lazy(() => import('../pages/Help/index'))
+export const WhatsNewPage = lazy(() => import('../pages/WhatsNew/index'))

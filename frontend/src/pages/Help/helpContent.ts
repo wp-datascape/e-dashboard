@@ -5,6 +5,8 @@
 // lalu mengekspos lookup (lang, slug) -> markdown mentah. Komponen Help tetap
 // mengonsumsinya sebagai string biasa lewat MarkdownContent, kontrak datanya
 // tidak berubah dari sebelumnya.
+import { normalizeLangCode } from '@/utils/langCode'
+
 const rawFiles = import.meta.glob('../../i18n/locales/*/help/*.md', {
   query: '?raw',
   import: 'default',
@@ -23,5 +25,6 @@ for (const [path, raw] of Object.entries(rawFiles)) {
 
 // Fallback ke 'id' kalau bahasa aktif belum punya file untuk slug tertentu.
 export function getHelpContent(lang: string, slug: string): string {
-  return contentByLangAndSlug[lang]?.[slug] ?? contentByLangAndSlug.id?.[slug] ?? ''
+  const normalized = normalizeLangCode(lang)
+  return contentByLangAndSlug[normalized]?.[slug] ?? contentByLangAndSlug.id?.[slug] ?? ''
 }

@@ -1,5 +1,6 @@
 {
   "dashboard": "Overview",
+  "mobileMenu": "Menu",
   "customers": "Customer",
   "expansionTargets": "Ekspansi",
   "churnRisk": "Risiko Churn",
@@ -20,6 +21,7 @@
   "activityLog": "Activity Log",
   "loginLog": "Login Log",
   "help": "Bantuan",
+  "whatsNew": "Info & Panduan",
   "profile": "Profil",
   "crossSelling": "Cross Selling",
   "customerMetrics": "Metrik Pelanggan",
