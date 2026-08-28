@@ -59,7 +59,7 @@
   "titleWithItemCount": "{{title}} — {{count}} items",
   "pageOf": "Page {{page}} of {{total}}",
   "copyright": "Developed by IT Department © {{year}} Executive Dashboard. All rights reserved.",
-  "appVersion": "v1.0.0",
+  "appVersion": "Version 2.0.0",
   "toggleSidebar": "Toggle sidebar",
   "progressTotal": "{{count}} total",
   "progressSuccess": "{{count}} success",

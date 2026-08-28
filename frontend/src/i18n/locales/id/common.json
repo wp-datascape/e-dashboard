@@ -59,7 +59,7 @@
   "titleWithItemCount": "{{title}} — {{count}} item",
   "pageOf": "Halaman {{page}} / {{total}}",
   "copyright": "Developed by IT Department © {{year}} Executive Dashboard. Hak cipta dilindungi.",
-  "appVersion": "v1.0.0",
+  "appVersion": "Version 2.0.0",
   "toggleSidebar": "Buka/tutup sidebar",
   "progressTotal": "{{count}} total",
   "progressSuccess": "{{count}} sukses",

@@ -194,6 +194,14 @@ function SheetBody({
       }
       s.committed = true;
     }
+
+    // WAJIB setelah committed — tanpa ini, swipe kanan yang dimulai dekat
+    // tepi kiri layar bisa BENTROK dengan gestur native browser mobile
+    // "swipe dari tepi = kembali ke halaman sebelumnya" (Chrome/Safari
+    // Android/iOS), berpotensi keluar dari aplikasi alih-alih cuma mundur
+    // 1 level sheet. Pointer event (beda dari touch event) TIDAK ditandai
+    // passive oleh React, jadi preventDefault() di sini beneran mencegahnya.
+    if (e.cancelable) e.preventDefault();
   };
 
   const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -227,7 +235,13 @@ function SheetBody({
     // flex:1+overflowY:auto — itu satu-satunya cara overflow beneran scroll,
     // bukan tumpah keluar batas sheet.
     <Box
-      sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
+      sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', touchAction: 'pan-y' }}
+      // touchAction:'pan-y' — browser TETAP boleh native-handle pan vertikal
+      // (scroll List, drag-to-close bawaan SwipeableDrawer), TAPI horizontal
+      // (X) diserahkan sepenuhnya ke handler kita, browser tidak mencoba
+      // gestur native-nya sendiri (mis. swipe-dari-tepi-untuk-kembali) di
+      // arah itu sejak awal — lapis pertahanan sebelum preventDefault() di
+      // handlePointerMove sempat jalan.
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
