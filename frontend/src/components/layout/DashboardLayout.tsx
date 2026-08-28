@@ -7,6 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import { DashboardAppBar } from '@/components/ui/AppBar';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Footer } from '@/components/ui/Footer';
+import { MobileBottomNav, MOBILE_BOTTOM_NAV_HEIGHT } from '@/components/ui/MobileNav';
 import { usePageViewTracking } from '@/hooks/usePageViewTracking';
 
 interface DashboardLayoutProps {
@@ -33,14 +34,16 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     // berubah. Shell utama ini paling kritis karena membungkus semua halaman.
     <Box sx={{ display: 'flex', height: '100dvh', overflow: 'hidden', bgcolor: 'background.default' }}>
       {/* ── App Bar ───────────────────────────────────── */}
-      <DashboardAppBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
+      {/* showMenuButton=false di mobile — tidak ada lagi Sidebar drawer utk
+          ditoggle di sana (diganti MobileBottomNav, task034), tombol hamburger
+          jadi tanpa fungsi kalau tetap ditampilkan. */}
+      <DashboardAppBar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} showMenuButton={!isMobile} />
 
-      {/* ── Sidebar ───────────────────────────────────── */}
-      <Sidebar
-        open={sidebarOpen}
-        onClose={closeSidebar}
-        variant={isMobile ? 'temporary' : 'permanent'}
-      />
+      {/* ── Sidebar (desktop) / Bottom Navigation (mobile) ────────────── */}
+      {/* task034: mobile TIDAK lagi pakai Sidebar sbg Drawer temporary — diganti
+          MobileBottomNav (5 tombol + bottom sheet drill-down), desktop (permanent)
+          sama sekali tidak berubah. */}
+      {isMobile ? <MobileBottomNav /> : <Sidebar open={sidebarOpen} onClose={closeSidebar} variant="permanent" />}
 
       {/* ── Right side: content + footer ──────────────── */}
       {/* flexGrow:1 TANPA width/transition eksplisit di sini (dulu ada, dihapus) —
@@ -61,6 +64,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           flexGrow: 1,
           width: isMobile ? '100%' : undefined,
           overflow: 'hidden',
+          // MobileBottomNav fixed di bawah viewport (task034) - kolom ini
+          // dipersempit sejumlah tinggi bar-nya di mobile supaya main+Footer
+          // tidak ketutup, bukan cuma padding di main saja (Footer sendiri
+          // sibling setelah main, di luar area scroll-nya).
+          pb: isMobile ? `calc(${MOBILE_BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))` : 0,
         }}
       >
         {/* Spacer for fixed AppBar — AppBar tinggi bertambah env(safe-area-inset-top)

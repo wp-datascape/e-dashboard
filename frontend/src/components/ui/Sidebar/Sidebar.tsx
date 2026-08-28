@@ -16,7 +16,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
-import { NAV_ITEMS, type NavItem } from '@/config/menu';
+import { NAV_ITEMS, type NavItem, isPathActive, isNavItemVisible } from '@/config/menu';
 import { useAuth } from '@/context/auth.context';
 
 export const SIDEBAR_WIDTH = 220;
@@ -54,8 +54,7 @@ function NavButton({
 }) {
   const { t } = useTranslation()
   const location = useLocation()
-  const active = location.pathname === item.path ||
-    (item.path !== '/dashboard' && location.pathname.startsWith(item.path))
+  const active = isPathActive(item.path, location.pathname)
 
   return (
     <Tooltip title={collapsed ? t(item.labelKey) : ''} placement="right" arrow>
@@ -153,9 +152,7 @@ function NavGroup({
   // Hooks WAJIB dipanggil sebelum early return manapun (Rules of Hooks) — makanya
   // visibleChildren/anyChildActive dihitung duluan di sini, bukan setelah cek canSee.
   const visibleChildren = (item.children ?? []).filter((c) => canSee(c.permissionKey))
-  const anyChildActive = visibleChildren.some(
-    (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
-  )
+  const anyChildActive = visibleChildren.some((c) => isPathActive(c.path, location.pathname))
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
@@ -185,7 +182,7 @@ function NavGroup({
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
           {visibleChildren.map((child) => {
-            const active = location.pathname === child.path || location.pathname.startsWith(child.path)
+            const active = isPathActive(child.path, location.pathname)
             return (
               <MenuItem
                 key={child.key}
@@ -286,13 +283,6 @@ function NavGroup({
   )
 }
 
-/** Cek apakah satu item akan ter-render (visible) berdasarkan permission */
-function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
-  if (!canSee(item.permissionKey)) return false
-  if (!item.children) return true
-  return item.children.some((c) => canSee(c.permissionKey))
-}
-
 /** Kelompokkan NAV_ITEMS menjadi sections berdasarkan groupLabel boundary */
 type NavSection = { groupLabelKey?: string; items: NavItem[] }
 function buildNavSections(items: NavItem[]): NavSection[] {
@@ -329,7 +319,7 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
   // kalau tidak ada yang match (semua grup tertutup).
   const [expandedKey, setExpandedKey] = useState<string | null>(() => {
     const activeGroup = NAV_ITEMS.find((i) =>
-      i.children?.some((c) => location.pathname === c.path || location.pathname.startsWith(c.path))
+      i.children?.some((c) => isPathActive(c.path, location.pathname))
     )
     return activeGroup?.key ?? null
   })

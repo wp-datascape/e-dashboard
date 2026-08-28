@@ -407,3 +407,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: <HelpOutlineIcon fontSize="small" />,
   },
 ];
+
+/** Cek apakah suatu path dianggap "aktif" dibanding pathname saat ini —
+ * dipusatkan di sini (dipakai Sidebar desktop DAN bottom nav mobile, task034)
+ * supaya definisi "aktif" tidak didefinisikan ulang beda-beda di tiap tempat. */
+export function isPathActive(itemPath: string, pathname: string): boolean {
+  return pathname === itemPath || (itemPath !== '/dashboard' && pathname.startsWith(itemPath));
+}
+
+/** Cek apakah satu item akan ter-render (visible) berdasarkan permission —
+ * dipusatkan di sini (sebelumnya cuma ada di Sidebar.tsx), dipakai juga oleh
+ * bottom nav mobile (task034) supaya aturan RBAC-nya identik. */
+export function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
+  if (!canSee(item.permissionKey)) return false;
+  if (!item.children) return true;
+  return item.children.some((c) => canSee(c.permissionKey));
+}
