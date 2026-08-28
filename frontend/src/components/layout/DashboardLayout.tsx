@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -20,6 +21,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+  // Reset scroll ke atas tiap ganti halaman (bug dilaporkan user: navigasi
+  // dari card Overview ke halaman lain mendarat di tengah/bawah, bukan di
+  // atas). window.scrollTo TIDAK CUKUP di sini — window/body sendiri tidak
+  // pernah scroll (outer shell height:100dvh + overflow:hidden), scroll
+  // SEBENARNYA terjadi di elemen <main> di bawah (overflow:auto), jadi
+  // reset-nya harus langsung ke elemen itu lewat ref.
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
   const closeSidebar = () => setSidebarOpen(false);
@@ -86,6 +99,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             shrink-to-fit konten), syarat utama contain:layout. */}
         <Box
           component="main"
+          ref={mainRef}
           sx={{
             flexGrow: 1,
             overflow: 'auto',
