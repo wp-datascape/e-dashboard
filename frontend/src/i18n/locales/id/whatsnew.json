@@ -39,10 +39,6 @@
       "title": "Rekomendasi Target Upsell Lebih Akurat",
       "description": "Metode pencocokan produk high margin untuk tiap pelanggan diperketat — segmentasi usaha lebih presisi dan skor kecocokan kini dalam bentuk persentase."
     },
-    "pareto": {
-      "title": "Pelanggan Prioritas (Pareto) di Halaman Analisis",
-      "description": "Pelanggan yang berkontribusi paling besar terhadap revenue kini ditandai dan ditampilkan lebih dulu, dibandingkan langsung dengan periode yang sama tahun lalu."
-    },
     "cross-sell-heatmap": {
       "title": "Peta Cross Selling (Heatmap)",
       "description": "Lihat pola pembelian 30 pelanggan teratas lintas kategori produk dalam satu tampilan matriks — hijau berarti ada transaksi, klik sel untuk rincian."
@@ -60,10 +56,6 @@
     "install-pwa": {
       "title": "Cara Memasang Dashboard di Desktop, Android & iPhone",
       "description": "Langkah instalasi lengkap untuk masing-masing perangkat: Chrome/Edge di desktop, Chrome di Android, dan Safari di iPhone/iPad."
-    },
-    "pareto-customers": {
-      "title": "Memahami Pelanggan Pareto",
-      "description": "Kenapa sebagian pelanggan ditandai prioritas di halaman Analisis, dan bagaimana cara memantaunya."
     },
     "find-upsell": {
       "title": "Menemukan Peluang Upsell untuk Pelanggan",

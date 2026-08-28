@@ -42,12 +42,18 @@ export interface FeatureGroup {
 // eksplisit user: "salah 1 fitur yang harus di blow up" adalah PWA), meski
 // tanggal rilisnya (git log) lebih lama dari entri lain - kapabilitas ini
 // belum pernah diberitahukan ke user sebelumnya di halaman mana pun.
+//
+// 'pareto' (Customer Pareto, halaman /analisis) DIHAPUS dari sini (2026-08-28,
+// koreksi keras user: "kenapa disebut di whats new jika menu tidak ada atau
+// deadcode") - route-nya masih ada, TAPI tidak ada link sidebar sama sekali
+// sejak restrukturisasi menu task029, jadi menyebutnya di sini menyesatkan
+// (user diarahkan ke fitur yang tidak bisa dijangkau). JANGAN ditambahkan
+// lagi sampai halaman itu benar-benar punya jalan masuk dari navigasi.
 export const WHATS_NEW_ITEMS: WhatsNewItem[] = [
   { key: 'pwa', category: 'new', date: '2026-07-03', ctaGuideKey: 'install-pwa' },
   { key: 'help-page', category: 'new', date: '2026-08-27', ctaTo: '/help' },
   { key: 'reports', category: 'new', date: '2026-08-26', ctaTo: '/report/growth' },
   { key: 'upsell-targets', category: 'improved', date: '2026-08-26', ctaGuideKey: 'find-upsell' },
-  { key: 'pareto', category: 'new', date: '2026-07-30', ctaGuideKey: 'pareto-customers' },
   { key: 'cross-sell-heatmap', category: 'new', date: '2026-07-24', ctaTo: '/growth' },
   { key: 'period-filter', category: 'improved', date: '2026-08-22', ctaTo: '/growth' },
   { key: 'mobile', category: 'improved', date: '2026-08-24' },
@@ -55,7 +61,6 @@ export const WHATS_NEW_ITEMS: WhatsNewItem[] = [
 
 export const GUIDES: GuideItem[] = [
   { key: 'install-pwa', slug: 'install-pwa' },
-  { key: 'pareto-customers', slug: 'pareto-customers' },
   { key: 'find-upsell', slug: 'find-upsell' },
   { key: 'accent-color', slug: 'accent-color' },
   { key: 'period-type', slug: 'period-type' },

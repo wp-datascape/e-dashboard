@@ -86,14 +86,52 @@ Group 5: Admin                ← System operations
 
 ## Writing Style — Konten & Copy (STRICT)
 
-Berlaku untuk semua teks yang dibaca pengguna: halaman Help, tooltip, label UI, pesan error/toast, dokumentasi user-facing, dan draft PR/commit message.
+Berlaku untuk semua teks yang dibaca pengguna: halaman Help, What's New/Guide, tooltip, label UI, pesan error/toast, dokumentasi user-facing (docs-v2/task/*), dan draft PR/commit message. Aplikasi ini bilingual (i18n id+en) — aturan di bawah berlaku di KEDUA bahasa, bukan cuma Indonesia.
 
-- **DILARANG** memakai em dash (`—`) sama sekali, di teks JSON i18n maupun komentar kode. Ganti dengan titik dua, koma, tanda kurung, atau pecah jadi kalimat baru.
-- **DILARANG** frasa generik ciri khas AI: "secara keseluruhan", "penting untuk dicatat", "dapat disimpulkan bahwa", dan sejenisnya.
-- Hindari pembukaan kalimat yang repetitif antar item sejenis (list/kartu tidak boleh semua mulai dengan kata yang sama).
+### Gaya bahasa
+
+- Bahasa langsung, jelas, dan praktis, bukan formal berlebihan atau "sophisticated" tanpa perlu.
 - Kalimat pendek, langsung ke insight utama, bukan berputar-putar dulu sebelum sampai ke poin.
-- Bahasa profesional, natural, ringkas, bukan gaya terjemahan kaku dari Inggris.
+- Hindari pembukaan kalimat yang repetitif antar item sejenis (list/kartu tidak boleh semua mulai dengan kata yang sama).
+- Jangan over-explain instruksi sederhana yang sudah jelas dari konteks/UI.
+- Jangan tambahkan pembuka atau penutup generik ("Secara keseluruhan...", "Sebagai kesimpulan...") kecuali benar-benar menambah informasi.
+- Fokus langsung ke apa yang perlu diketahui/dilakukan pengguna.
+- Istilah dipakai konsisten di seluruh dokumen, samakan dengan label yang benar-benar tampil di UI aplikasi (nama menu, nama tombol, nama field), bukan istilah teknis internal (query/populasi/nama variabel).
 - Struktur paragraf sederhana: satu gagasan per paragraf, tidak menumpuk banyak klausa dengan tanda baca berat.
+- Bahasa Indonesia natural, bukan gaya terjemahan kaku dari Inggris.
+
+### Frasa ciri khas AI (DILARANG)
+
+Bahasa Indonesia: "Secara keseluruhan...", "Penting untuk dicatat bahwa...", "Perlu diketahui bahwa...", "Dapat disimpulkan bahwa...", "Sebagai kesimpulan...", "Di era digital saat ini...", "Dalam lanskap digital saat ini...", "Mari kita telusuri/selami...", "Dengan mengikuti langkah-langkah ini...", "Dengan fitur ini, Anda dapat...", "Secara mulus...", "Tanpa hambatan..."
+
+English: "It is important to note that…", "In today's digital landscape…", "Whether you are…", "This comprehensive guide…", "Let's dive into…", "By following these steps…", "With this feature, you can…", "In conclusion…", "Overall…", "Seamlessly…", "Effortlessly…"
+
+Juga dilarang: klaim berlebihan, bahasa promosi/marketing, dan kalimat retoris yang tidak perlu ("Bayangkan jika...", "Pernahkah Anda...").
+
+### Tanda baca
+
+- **DILARANG** memakai em dash (`—`) sama sekali, di teks JSON i18n, konten Markdown, maupun komentar kode. Ganti dengan titik dua, koma, tanda kurung, atau pecah jadi kalimat baru.
+- Hindari en dash (`–`) kecuali untuk rentang angka (mis. "10–20").
+
+### Formatting Markdown (konten Help/Guide)
+
+Pakai Markdown hanya kalau benar-benar menambah keterbacaan, jangan berlebihan pakai bold/heading/bullet:
+- `#`/`##`/`###` untuk heading.
+- **Bold** untuk istilah penting, label UI, nama tombol/menu.
+- Bullet list untuk beberapa item sejenis yang tidak berurutan.
+- Numbered list untuk langkah-langkah berurutan.
+- Blockquote hanya untuk catatan/peringatan.
+- Code formatting hanya untuk kode, command, atau nilai teknis asli (nama field, endpoint), bukan untuk penekanan biasa.
+
+### Cek akhir sebelum konten dianggap selesai
+
+1. Tidak ada em dash sama sekali.
+2. Tidak ada frasa ciri khas AI (daftar di atas, kedua bahasa).
+3. Tidak ada pembuka/penutup generik yang tidak perlu.
+4. Kalimat terasa natural dan praktis, bukan terjemahan kaku.
+5. Ringkas, tidak ada bagian yang mengulang informasi yang sama.
+6. Formatting Markdown konsisten dan tidak berlebihan.
+7. Istilah konsisten dengan label yang benar-benar tampil di UI.
 
 ## Backend Layer Responsibilities (MANDATORY)
 
