@@ -45,7 +45,10 @@ export const MobileBottomNav = () => {
       navigate(group.path);
       return;
     }
-    setOpenGroupKey(group.key);
+    // Tap tombol grup yang SAMA dengan sheet yang sedang terbuka -> tutup
+    // (toggle), bukan tetap terbuka begitu saja (instruksi user: "jika menu
+    // yang sama dipilih ulang drawer tertutup").
+    setOpenGroupKey((prev) => (prev === group.key ? null : group.key));
   };
 
   return (
