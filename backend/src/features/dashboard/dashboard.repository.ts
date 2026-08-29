@@ -1,97 +1,50 @@
-import { db } from '@/config/db'
-import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '@/features/metrics/segment.helper'
+import { fetchDormantValueRanking } from '@/features/metrics/repository/m8m10.repository'
+import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 import type { MonthlyTrendPoint } from './dashboard.types'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 
 /**
- * Tren 12 bulan estimasi total nilai (revenue) yang berpotensi hilang dari
- * SELURUH customer dormant per titik bulan (bukan cuma top 20 seperti
- * fetchDormantValueRanking di metrics/repository/m8m10.repository.ts).
+ * Tren N titik (Bulanan/Kuartalan/Semesteran/Tahunan, 2026-08-28) estimasi
+ * total nilai (revenue) yang berpotensi hilang dari SELURUH customer dormant
+ * per titik — bukan cuma top 20 (beda dari `fetchDormantValueRanking` yang
+ * dipakai LANGSUNG di sini per titik dengan limit=null, hasilnya dijumlah).
  *
- * Formula per customer sama dengan m9 (avg_monthly_revenue × months_dormant),
- * dihitung ulang di tiap titik waktu `me` memakai pola cap yang sama dengan
- * fetchDormantTrend agar month grid & definisi dormant align dengan M8/M10.
+ * REWRITE (2026-08-28, task029.md §41) — 2 perubahan sekaligus:
+ * 1. Granularitas: signature lama `(p)` cuma terima 1 SegmentParams,
+ *    generate_series 12 BULAN kalender hardcode di SQL. Sekarang terima
+ *    `buckets: TrailingPeriodBucket[]` (pola sama fetchDormantTrend,
+ *    m8m10.repository.ts) — caller (dashboard.service.ts) yang tentukan
+ *    lebar & jumlah titik sesuai `period_type`.
+ * 2. Formula: versi lama pakai rumus SENDIRI (`total_rev / active_months
+ *    all-time × (hari dormant / 30)`) — BEDA dari formula M9 yang dipakai
+ *    di mana pun lagi di aplikasi (`fetchDormantValueRanking`, dipakai
+ *    Retention + getDormantCustomerMetrics: `recent_12m_rev / 12 ×
+ *    months_dormant KALENDER`, sudah melalui banyak koreksi presisi user
+ *    §36.12/§36.24/§36.25). Ditemukan user waktu granularitas ini dikerjakan
+ *    — 2 formula beda utk 1 konsep yang sama itu SALAH, keputusan user:
+ *    migrasi ke formula yang sudah dikoreksi, BUKAN pertahankan yang lama.
+ *    Sekarang REUSE `fetchDormantValueRanking` langsung (limit=null, existing
+ *    `estimated_lost_value` per customer) per titik bucket, dijumlah di JS
+ *    — BUKAN reimplementasi formula itu dalam bentuk SQL ber-bucket sendiri
+ *    (formula itu sudah rumit & sudah banyak dikoreksi, reuse fungsi yang
+ *    sudah teruji jauh lebih aman daripada menurunkan ulang rumusnya).
+ *    Konsekuensi: angka "Nilai Pelanggan Dorman" di Overview BERUBAH dari
+ *    sebelumnya (formula lama), sekarang konsisten dengan angka yang sama
+ *    di halaman Retention.
+ *
+ * N query paralel (1 per bucket, via Promise.all) — bukan 1 query SQL
+ * ber-CROSS-JOIN-bucket spt fetchDormantTrend, karena `estimated_lost_value`
+ * butuh CTE chain per-customer yang rumit (established_customers, months_dormant
+ * kalender, recent_12m window) yang SUDAH ada & teruji di fetchDormantValueRanking
+ * — reuse fungsi apa adanya lebih aman daripada menurunkan ulang jadi bentuk
+ * bucket-native.
  */
-export async function fetchDormantValueTrend(p: SegmentParams): Promise<MonthlyTrendPoint[]> {
-  const { cid, filterDate, dormantMonths, division, companyScopeIds } = p
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', cid, companyScopeIds)
-  const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c_ov.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
-
-  const rawRows = await db.execute(sql`
-    WITH
-    months AS (
-      SELECT generate_series(
-        date_trunc('month', ${filterDate}::date) - INTERVAL '11 months',
-        date_trunc('month', ${filterDate}::date),
-        INTERVAL '1 month'
-      )::date AS ms
-    ),
-    inv AS (
-      SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev
-      FROM invoices i
-      LEFT JOIN channel_divisions cd
-        ON cd.channel_name = i.channel_name
-        AND cd.company_id = i.company_id
-      LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
-      WHERE i.deleted_at IS NULL
-        AND ${companyCondI}
-        AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
-        AND (${p.branchFilter}::int IS NULL OR i.branch_id = ${p.branchFilter}::int)
-        AND ${branchCond}
-        AND ${divisionScopeCond}
-        AND ${excludeIntercompanyCond}
-    ),
-    scoped_cust AS (
-      SELECT DISTINCT c.id AS cid
-      FROM customers c
-      WHERE c.is_placeholder = false
-        AND ${companyCondC}
-        AND EXISTS (SELECT 1 FROM inv WHERE inv.customer_id = c.id)
-    ),
-    cxm AS (
-      SELECT
-        sc.cid,
-        m.ms AS month_start,
-        LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date, ${filterDate}::date) AS me,
-        MAX(inv.invoice_date) FILTER (
-          WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date, ${filterDate}::date)
-        ) AS last_at_me,
-        COUNT(DISTINCT DATE_TRUNC('month', inv.invoice_date)) FILTER (
-          WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date, ${filterDate}::date)
-        ) AS active_months,
-        COALESCE(SUM(inv.rev) FILTER (
-          WHERE inv.invoice_date <= LEAST((m.ms + INTERVAL '1 month' - INTERVAL '1 day')::date, ${filterDate}::date)
-        ), 0) AS total_rev
-      FROM scoped_cust sc
-      CROSS JOIN months m
-      LEFT JOIN inv ON inv.customer_id = sc.cid
-      GROUP BY sc.cid, m.ms
-    )
-    SELECT
-      TO_CHAR(month_start, 'YYYY-MM') AS month,
-      COALESCE(SUM(
-        CASE
-          WHEN last_at_me IS NOT NULL
-           AND last_at_me <= me - ${dormantMonths}::int * INTERVAL '1 month'
-          THEN ROUND(total_rev / NULLIF(active_months, 0))
-               * GREATEST(ROUND((me - last_at_me) / 30.0), 1)
-          ELSE 0
-        END
-      ), 0)::bigint AS value
-    FROM cxm
-    GROUP BY month_start
-    ORDER BY month_start
-  `)
-
-  return (rawRows as unknown[]).map((r) => {
-    const row = r as Record<string, unknown>
-    return {
-      month: String(row.month),
-      value: Number(row.value ?? 0),
-    }
-  })
+export async function fetchDormantValueTrend(p: SegmentParams, buckets: TrailingPeriodBucket[]): Promise<MonthlyTrendPoint[]> {
+  const rows = await Promise.all(
+    buckets.map((b) => fetchDormantValueRanking({ ...p, filterDate: b.end }, null, b.start)),
+  )
+  return buckets.map((b, i) => ({
+    month: b.label,
+    value: rows[i].reduce((sum, row) => sum + row.estimated_lost_value, 0),
+  }))
 }

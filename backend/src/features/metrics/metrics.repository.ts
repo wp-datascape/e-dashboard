@@ -4,7 +4,7 @@ export { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdo
 export { fetchGpBreakdown }           from './repository/m4.repository'
 export { fetchHmBreakdown }           from './repository/m5.repository'
 export { fetchRorBreakdown }          from './repository/m6.repository'
-export { fetchDormantTrend, fetchDormantValueRanking } from './repository/m8m10.repository'
+export { fetchDormantTrend, fetchDormantValueRanking, fetchCustomerDormantStatusLog, fetchDormantValueHistory } from './repository/m8m10.repository'
 export {
   fetchCrossSellingKPI,
   fetchCrossSellingTrend,

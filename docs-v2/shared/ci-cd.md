@@ -1,17 +1,37 @@
 # CI/CD — GitHub Actions
 
 > Status: CI Stage 1-2 sudah jalan (2026-07-07). **CD (deploy ke VPS) sudah dibangun dan live
-> sejak 2026-08-03** (`.github/workflows/cd.yml`, task019) — lihat `docs-v2/shared/deployment.md`
-> §0 untuk detail deploy (domain, GHCR, database, backup) dan `docs-v2/task/task002.md` Task F
-> untuk riwayat keputusan desainnya. Dokumen ini fokus ke **cara pakai** apa yang sudah ada,
-> bukan riwayat pembangunannya.
+> sejak 2026-08-03** (task019) — lihat `docs-v2/shared/deployment.md` §0 untuk detail deploy
+> (domain, GHCR, database, backup) dan `docs-v2/task/task002.md` Task F untuk riwayat keputusan
+> desainnya. Dokumen ini fokus ke **cara pakai** apa yang sudah ada, bukan riwayat pembangunannya.
+>
+> **2026-08-27 (task029.md §38): `ci.yml` dan `cd.yml` DIGABUNG jadi 1 file
+> `.github/workflows/pipeline.yml`** — SEBELUMNYA 2 workflow terpisah, sama-sama trigger
+> `on: push`, jalan PARALEL tanpa saling tahu, jadi CD **tetap deploy walau CI gagal** (dibuktikan
+> langsung: 1 commit, CI job "Dependency audit" merah, CD job "Deploy Dev" tetap hijau dan
+> benar-benar deploy). Sekarang job `deploy-dev`/`deploy-prod` pakai `needs: [backend, frontend]`
+> — kalau job `backend` atau `frontend` gagal, deploy OTOMATIS di-skip (perilaku default GitHub
+> Actions utk job ber-`needs`), bukan lagi cuma sinyal peringatan.
 
 ---
 
-## 1. Kapan CI Jalan
+## 0. Nama File Sekarang 1: `pipeline.yml`
 
-Workflow `.github/workflows/ci.yml` otomatis jalan di 2 kondisi:
-- **Setiap `git push` ke branch `dev`** — feedback cepat tiap kerja harian
+Isi/step SETIAP job (`backend`, `frontend`, `deploy-dev`, `deploy-prod`) TIDAK berubah sama
+sekali dari `ci.yml`/`cd.yml` lama (byte-per-byte identik, diverifikasi lewat diff saat
+digabung) — yang berubah HANYA: (1) digabung ke 1 file, (2) `deploy-dev`/`deploy-prod` dapat
+`needs: [backend, frontend]`, (3) trigger `push` disatukan ke `[main, dev]` (dulu `ci.yml` cuma
+`push: [dev]`, TIDAK jalan di push `main` sama sekali — commit hasil merge PR ke `main` sempat
+langsung deploy produksi TANPA verifikasi CI ulang di commit itu, cuma verifikasi CI versi PR-
+nya sebelum merge). Referensi lama ke `ci.yml`/`cd.yml` di dokumen ini & `deployment.md` sudah
+diperbarui — kalau ada dokumen LAIN yang masih menyebut nama file lama, itu belum sempat
+diperbarui, anggap `pipeline.yml` sumber kebenarannya.
+
+## 1. Kapan CI (job `backend`/`frontend`) Jalan
+
+Otomatis jalan di 3 kondisi:
+- **Setiap `git push` ke branch `dev`** — feedback cepat tiap kerja harian, DAN gerbang deploy-dev
+- **Setiap `git push` ke branch `main`** — gerbang deploy-prod (BARU 2026-08-27, lihat §0)
 - **Setiap Pull Request yang menyasar `main`** — gate sebelum kode masuk `main`
 
 Push ke branch lain (misal branch fitur pribadi) **tidak** memicu apa pun — kalau mau tes CI sebelum masuk `dev`, harus push ke `dev` dulu atau buka PR ke `main`.
@@ -33,7 +53,9 @@ Push ke branch lain (misal branch fitur pribadi) **tidak** memicu apa pun — ka
 2. Dependency audit (`bun audit --audit-level=high`)
 3. Build (`tsc -b && vite build` — typecheck sudah termasuk di sini)
 
-Kalau salah satu job gagal, PR ke `main` akan menampilkan tanda ❌ di GitHub — **belum ada branch protection** yang memblokir merge (itu Stage 4, opsional, belum dibangun), jadi secara teknis masih bisa di-merge manual meski CI merah. Anggap ini sebagai sinyal peringatan, bukan penghalang keras, sampai Stage 4 dibangun.
+Kalau salah satu job gagal, PR ke `main` akan menampilkan tanda ❌ di GitHub — **belum ada branch protection** yang memblokir MERGE (itu Stage 4, opsional, belum dibangun), jadi secara teknis masih bisa di-merge manual meski CI merah. Anggap ini sebagai sinyal peringatan utk langkah MERGE, bukan penghalang keras, sampai Stage 4 dibangun.
+
+**Beda dgn DEPLOY** (2026-08-27, §0 di atas) — biarpun merge tetap bisa lolos manual saat CI merah, commit hasil merge itu SENDIRI tetap memicu job `backend`/`frontend` lagi di push ke `dev`/`main`, dan job `deploy-dev`/`deploy-prod` (`needs: [backend, frontend]`) OTOMATIS di-skip kalau keduanya (atau salah satu) gagal — jadi walau MERGE tidak terhalang, DEPLOY sungguhan ke server tetap terhalang tanpa perlu Stage 4.
 
 ## 3. Cara Baca Hasil Run
 
@@ -75,7 +97,7 @@ Setelah aktif: PR update dependency muncul otomatis tiap minggu (kalau ada versi
 
 ## 6. Env Dummy di CI (Bukan Rahasia Asli)
 
-Job `backend` butuh beberapa env var (`JWT_SECRET`, `CSRF_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`, dll — lihat `backend/src/config/env.ts` untuk daftar lengkap) supaya validasi Zod di `config/env.ts` lolos. Nilai yang dipakai di `ci.yml` (didefinisikan sekali di level `jobs.backend.env`, otomatis berlaku ke semua step) **cuma string dummy 32+ karakter**, bukan rahasia produksi — aman ditulis literal di file YAML karena database yang dipakai juga cuma service container sementara yang dibuang begitu job selesai.
+Job `backend` butuh beberapa env var (`JWT_SECRET`, `CSRF_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`, dll — lihat `backend/src/config/env.ts` untuk daftar lengkap) supaya validasi Zod di `config/env.ts` lolos. Nilai yang dipakai di `pipeline.yml` (didefinisikan sekali di level `jobs.backend.env`, otomatis berlaku ke semua step) **cuma string dummy 32+ karakter**, bukan rahasia produksi — aman ditulis literal di file YAML karena database yang dipakai juga cuma service container sementara yang dibuang begitu job selesai.
 
 Kalau nanti ada step yang BENAR-BENAR butuh rahasia asli (misal Stage 3: kirim notifikasi Telegram beneran saat CI gagal), itu **wajib** lewat GitHub Secrets (`Settings → Secrets and variables → Actions`), dipanggil di YAML dengan `${{ secrets.NAMA_SECRET }}` — bukan ditulis literal seperti env dummy di atas.
 

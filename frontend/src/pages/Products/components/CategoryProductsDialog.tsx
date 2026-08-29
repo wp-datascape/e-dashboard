@@ -13,7 +13,7 @@ import { Dialog, StatusChip } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { useTranslation } from 'react-i18next'
 import { useCategoryProducts } from '@/hooks/useProducts'
-import { formatIDR } from '@/utils/format'
+import { formatRupiah } from '@/utils/format'
 import type { GridColDef } from '@mui/x-data-grid'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { HmCustomerBreakdown } from '@/pages/ProductsHighMargin/components/HmCustomerBreakdown'
@@ -143,7 +143,7 @@ export function CategoryProductsDialog({
       width: 130,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'total_gp',
@@ -151,7 +151,7 @@ export function CategoryProductsDialog({
       width: 120,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'gp_margin_percent',
@@ -228,8 +228,8 @@ export function CategoryProductsDialog({
           }}
         >
           {[
-            { label: t('products.drawer.statTotalRevenue'), value: formatIDR(stats.total_revenue ?? 0) },
-            { label: t('products.drawer.statTotalGp'),      value: formatIDR(stats.total_gp ?? 0) },
+            { label: t('products.drawer.statTotalRevenue'), value: formatRupiah(stats.total_revenue ?? 0) },
+            { label: t('products.drawer.statTotalGp'),      value: formatRupiah(stats.total_gp ?? 0) },
             { label: t('products.drawer.statMargin'),        value: `${(stats.gp_margin_percent ?? 0).toFixed(1)}%` },
             { label: t('products.drawer.statInvoice'),        value: String(stats.invoice_count ?? '—'), unique: true },
             { label: t('products.drawer.statCustomer'),      value: String(stats.customer_count ?? '—'), unique: true },

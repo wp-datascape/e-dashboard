@@ -57,8 +57,9 @@
   "branch": "Cabang",
   "ok": "OK",
   "titleWithItemCount": "{{title}} — {{count}} item",
+  "pageOf": "Halaman {{page}} / {{total}}",
   "copyright": "Developed by IT Department © {{year}} Executive Dashboard. Hak cipta dilindungi.",
-  "appVersion": "v1.0.0",
+  "appVersion": "Version 2.0.0",
   "toggleSidebar": "Buka/tutup sidebar",
   "progressTotal": "{{count}} total",
   "progressSuccess": "{{count}} sukses",
@@ -74,17 +75,15 @@
   "radialTargetLabel": "Target ≥ {{threshold}}%",
   "viewDetailOf": "Lihat detail {{title}}",
   "heatmap": {
-    "summaryLine": "{{count}} customer · chip hijau = ada transaksi",
-    "productsCount": "{{bought}}/{{total}} produk",
-    "totalTransactions": "Total {{count}} transaksi",
-    "cellTooltip": "{{customer}} — {{label}}: {{status}}",
+    "cellTooltipTitle": "{{customer}} — {{label}}",
+    "rowStatus": "Status",
+    "rowTransactionCount": "Jumlah Transaksi",
     "statusYes": "Ya ({{count}} transaksi · {{revenue}})",
     "statusNo": "Tidak ada transaksi",
+    "cellClickHint": "Klik untuk lihat detail",
     "legendBought": "Beli (nilai = jumlah transaksi)",
     "legendNotBought": "Tidak beli",
-    "mobileSubtitle": "Tampilan mobile: produk yang dibeli per customer",
-    "colTotalRevenue": "Total Revenue",
-    "totalRevenue": "Total revenue: {{value}}"
+    "colTotalRevenue": "Total Revenue"
   },
   "filters": {
     "entity": "Entitas",
@@ -93,6 +92,14 @@
     "allDivisions": "Semua Divisi",
     "periodDate": "Periode",
     "period": "Periode",
+    "periodType": "Granularitas",
+    "asOfDate": "Tanggal",
+    "comparisonRange": "Pembanding",
+    "onlyPareto": "Customer Pareto",
+    "applyFilter": "Terapkan Filter",
+    "resetFilter": "Reset Filter",
+    "applyDateCutoff": "Apply date cutoff",
+    "advancedFilters": "Filter Lanjutan",
     "range": "Rentang",
     "range1Month": "1 Bulan",
     "range3Months": "3 Bulan",
@@ -104,5 +111,15 @@
     "moreCount": "+{{count}} lainnya",
     "superadminBadge": "Superadmin — akses penuh",
     "allDivisions": "Semua divisi"
+  },
+  "report": {
+    "comingSoon": "Belum ada tabel di halaman ini — akan ditambahkan kemudian."
+  },
+  "period": {
+    "months": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
+    "monthsShort": ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"],
+    "quarterLabel": "Kuartal {{q}} Tahun {{year}}",
+    "semesterLabel": "Semester {{s}} Tahun {{year}}",
+    "ytdLabel": "s.d. {{month}} {{year}}"
   }
 }

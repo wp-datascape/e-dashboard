@@ -1,21 +1,50 @@
 // src/hooks/useMetrics.ts
 import { useQuery } from '@tanstack/react-query';
 import { metricsApi } from '@/api/metrics.api';
-import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
+import type { DrilldownPeriodParams } from '@/utils/analisisPeriod';
 
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
 
 // ── M1, M1.1, M2 — Cross Selling ─────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Growth (task029) supaya query
+// TIDAK fire sama sekali kalau user tidak punya cross.selling:view, bukan
+// fire lalu 403 dari backend (lihat pages/Growth/index.tsx).
 export function useCrossSelling(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+  only_pareto?: boolean;
+}, options?: { enabled?: boolean }) {
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling', params],
     queryFn: () => metricsApi.getCrossSelling(params),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Versi ringan useCrossSelling — cuma kpi1/kpi2 (2026-08-28), dipakai section
+// "Ringkasan Cross-Selling" di Overview. Lihat komentar getCrossSellingSummary
+// (backend metrics.service.ts) utk alasan endpoint terpisah ini dibuat
+// (endpoint /cross-selling penuh jalankan 4 query paralel, 3 di antaranya
+// tidak dipakai Overview sama sekali).
+export function useCrossSellingSummary(params?: {
+  company_id?: number | 'all';
+  period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+}, options?: { enabled?: boolean }) {
+  return useQuery<CrossSellingSummaryData>({
+    queryKey: ['metrics', 'cross-selling-summary', params],
+    queryFn: () => metricsApi.getCrossSellingSummary(params),
+    enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });
 }
@@ -29,94 +58,222 @@ export function useCrossSelling(params?: {
 export function useCrossSellingDetail(params: {
   period_end: string | null;
   company_id?: number | 'all';
+  // Dibangun via `buildDrilldownPeriodParams` (utils/analisisPeriod.ts) di
+  // sisi caller — SATU tempat pusat yang merakit period_type/apply_date_
+  // cutoff/cutoff_day/skip_elapsed_clamp dari state filter halaman, BUKAN
+  // diturunkan ulang per hook (2026-08-23, koreksi user: "filter ini
+  // fungsinya harus global... rawan bug di metric KPI lainnya" kalau tiap
+  // fungsi menulis ulang). Lihat JSDoc `buildDrilldownPeriodParams` dan
+  // backend `resolveTrendPeriod` (period.util.ts, prioritas yang sama)
+  // untuk penjelasan lengkap kenapa tiap field ini dibutuhkan.
+  periodParams: DrilldownPeriodParams;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
+  only_pareto?: boolean;
 }) {
+  const { periodParams, ...rest } = params;
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling-detail', params],
-    queryFn: () => metricsApi.getCrossSelling({ ...params, period_end: params.period_end! }),
+    queryFn: () => metricsApi.getCrossSelling({ ...rest, ...periodParams, period_end: params.period_end! }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M3–M7 — Customer Metrics ──────────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Growth/Retention/Value (task029)
+// supaya query TIDAK fire kalau user tidak punya expansion:view.
 export function useCustomerMetrics(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  // Granularitas trend (task029.md §30.9, 2026-08-22) — mirror useCrossSelling.
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+  only_pareto?: boolean;
+}, options?: { enabled?: boolean }) {
   return useQuery<CustomerMetricsData>({
     queryKey: ['metrics', 'customer-metrics', params],
     queryFn: () => metricsApi.getCustomerMetrics(params),
+    enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M3 Revenue Drill-down ─────────────────────────────────────────────────────
-export function useRevenueBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+// date_from (2026-08-25, task029.md §33) — pola sama persis useGpBreakdown/useExpansionBreakdown.
+export function useRevenueBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<RevenueBreakdownData>({
     queryKey: ['metrics', 'revenue-breakdown', params],
-    queryFn: () => metricsApi.getRevenueBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getRevenueBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M7 Expansion Drill-down ───────────────────────────────────────────────────
-export function useExpansionBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+export function useExpansionBreakdown(params: {
+  period_end: string | null;
+  company_id?: number | 'all';
+  // Granularitas (2026-08-22, bug class sama dgn useCrossSellingDetail) —
+  // tanpa ini backend fetchExpansionBreakdown fallback ke window
+  // activeMonths lama, bukan rentang penuh bucket yang diklik.
+  date_from?: string;
+  // period_type (2026-08-23) — dipakai backend menghitung window "sebelumnya"
+  // PERIOD-ANCHORED (posisi relatif sama di periode sebelumnya), bukan
+  // rolling-window mundur — lihat JSDoc getExpansionBreakdown (backend).
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}) {
   return useQuery<ExpansionBreakdownData>({
     queryKey: ['metrics', 'expansion-breakdown', params],
-    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getExpansionBreakdown({ period_end: params.period_end!, date_from: params.date_from, period_type: params.period_type, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M4 GP Drill-down ─────────────────────────────────────────────────────────
-export function useGpBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+// date_from (2026-08-25) — backend sudah siap sejak task026 §8e, FE baru
+// sekarang benar-benar mengirimnya.
+export function useGpBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<GpBreakdownData>({
     queryKey: ['metrics', 'gp-breakdown', params],
-    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getGpBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M5 HM Drill-down ─────────────────────────────────────────────────────────
-export function useHmBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+// date_from (2026-08-25, task029.md §33) — pola sama persis useGpBreakdown.
+export function useHmBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<HmBreakdownData>({
     queryKey: ['metrics', 'hm-breakdown', params],
-    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getHmBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M6 ROR Drill-down ─────────────────────────────────────────────────────────
-export function useRorBreakdown(params: { period_end: string | null; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean }) {
+// date_from (2026-08-24) — dipakai M6RepeatOrder.tsx di Retention page
+// (filter granularitas Kuartal/Semester/Tahun), pola sama persis
+// useGpBreakdown/useExpansionBreakdown.
+export function useRorBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<RorBreakdownData>({
     queryKey: ['metrics', 'ror-breakdown', params],
-    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany }),
+    queryFn: () => metricsApi.getRorBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
     enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
 
 // ── M8–M10 — Dormant Customer ─────────────────────────────────────────────────
+// `enabled` (default true) — dipakai halaman Retention (task029) supaya
+// query TIDAK fire kalau user tidak punya churn.risk:view.
 export function useDormantCustomer(params?: {
   company_id?: number | 'all';
   period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  skip_elapsed_clamp?: boolean;
   division?: number;
   branch_id?: number;
   exclude_intercompany?: boolean;
-}) {
+  only_pareto?: boolean;
+}, options?: { enabled?: boolean }) {
   return useQuery<DormantData>({
     queryKey: ['metrics', 'dormant-customer', params],
     queryFn: () => metricsApi.getDormantCustomer(params),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Drill-down M8 (2026-08-24) — pola sama persis useRorBreakdown (M6).
+// period_type/apply_date_cutoff/cutoff_day/skip_elapsed_clamp (2026-08-27,
+// task029.md §36.54) — OPSIONAL: kirim utk mode "periode berjalan" (Report
+// pages, backend resolve sendiri via resolveDormantSnapshotBucket), JANGAN
+// kirim utk mode "1 titik chart yang sudah final" (M8DormantRate drilldown,
+// period_end APA ADANYA, PERILAKU LAMA).
+export function useDormantBreakdown(params: {
+  period_end: string | null;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  cutoff_day?: number;
+  skip_elapsed_clamp?: boolean;
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}) {
+  return useQuery<DormantBreakdownData>({
+    queryKey: ['metrics', 'dormant-breakdown', params],
+    queryFn: () => metricsApi.getDormantBreakdown({ ...params, period_end: params.period_end! }),
+    enabled: !!params.period_end,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Status per customer utk 1 titik chart M10 (2026-08-24, susulan pertanyaan
+// user soal ambiguitas reaktivasi) — date_from = awal bucket yang diklik
+// (mode drilldown M10, PERILAKU LAMA). apply_date_cutoff/cutoff_day/
+// skip_elapsed_clamp (2026-08-27, §36.54) — dipakai mode "periode berjalan"
+// (Report/Retention tab Reaktivasi) TANPA date_from, sama pola di atas.
+export function useDormantStatusBreakdown(params: {
+  period_end: string | null;
+  date_from?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  cutoff_day?: number;
+  skip_elapsed_clamp?: boolean;
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+  status?: DormantCustomerStatus;
+}) {
+  return useQuery<DormantStatusBreakdownData>({
+    queryKey: ['metrics', 'dormant-status-breakdown', params],
+    queryFn: () => metricsApi.getDormantStatusBreakdown({ ...params, period_end: params.period_end! }),
+    enabled: !!params.period_end,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
+// ranking M9. `customerId`/`refDate` null = query disabled (dialog belum
+// dibuka).
+export function useDormantValueHistory(params: {
+  customerId: number | null;
+  refDate: string | null;
+  company_id?: number | 'all';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}) {
+  return useQuery<DormantValueHistoryData>({
+    queryKey: ['metrics', 'dormant-value-history', params],
+    queryFn: () => metricsApi.getDormantValueHistory({
+      customer_id: params.customerId!,
+      ref_date: params.refDate!,
+      company_id: params.company_id,
+      division: params.division,
+      branch_id: params.branch_id,
+      exclude_intercompany: params.exclude_intercompany,
+      only_pareto: params.only_pareto,
+    }),
+    enabled: !!params.customerId && !!params.refDate,
     staleTime: STALE_TIME,
   });
 }

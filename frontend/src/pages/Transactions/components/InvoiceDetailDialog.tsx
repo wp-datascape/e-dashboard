@@ -8,7 +8,7 @@ import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import { useInvoiceDetail } from '@/hooks/useTransactions'
 import type { InvoiceItem } from '@/types/transactions'
-import { formatIDR } from '@/utils/format'
+import { formatRupiah } from '@/utils/format'
 
 interface InvoiceDetailDialogProps {
   invoiceId: number | null
@@ -46,8 +46,8 @@ export function InvoiceDetailDialog({ invoiceId, onClose }: InvoiceDetailDialogP
               </Box>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{item.category.name}</Typography>
               <Box sx={{ display: 'flex', gap: 2 }}>
-                <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatIDR(item.revenue) })}</Typography>
-                <Typography variant="caption" color={theme.palette.success.main}>{t('customers.detail.gpColon', { value: formatIDR(item.gross_profit) })}</Typography>
+                <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatRupiah(item.revenue) })}</Typography>
+                <Typography variant="caption" color={theme.palette.success.main}>{t('customers.detail.gpColon', { value: formatRupiah(item.gross_profit) })}</Typography>
               </Box>
             </Box>
           ))}

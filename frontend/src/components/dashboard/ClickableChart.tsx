@@ -7,6 +7,10 @@ interface ClickableChartProps {
   children: ReactNode
 }
 
+// Dipulihkan (2026-08-29, task029.md §49) — sempat dihapus di §46 sbg "kode
+// mati" (Overview waktu itu tidak clickable sama sekali), sekarang dipakai
+// lagi: user minta tiap card chart bisa diklik ke halaman detailnya
+// ("Growth Cross Selling ke halaman Growth/Cross Selling").
 export function ClickableChart({ link, children }: ClickableChartProps) {
   const navigate = useNavigate()
   return (

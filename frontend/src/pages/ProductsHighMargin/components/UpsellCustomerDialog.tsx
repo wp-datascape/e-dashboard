@@ -4,13 +4,11 @@ import Stack from '@mui/material/Stack'
 import Skeleton from '@mui/material/Skeleton'
 import { Dialog, StatusChip } from '@/components/ui'
 import { useTranslation } from 'react-i18next'
-import { BuChip } from '@/pages/Transactions/components/BuChip'
 import { useCustomerProducts } from '@/hooks/useProducts'
-import { formatIDR } from '@/utils/format'
+import { formatRupiah } from '@/utils/format'
 import type { UpsellTargetRow, CategoryRef, CustomerProductRow } from '@/types/products'
 import type { GridColDef } from '@mui/x-data-grid'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import type { BusinessUnit } from '@/types/customers'
 
 interface Props {
   customer: UpsellTargetRow | null
@@ -78,7 +76,7 @@ export function UpsellCustomerDialog({
       width: 130,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'total_gp',
@@ -86,7 +84,7 @@ export function UpsellCustomerDialog({
       width: 110,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'gp_margin_percent',
@@ -116,8 +114,8 @@ export function UpsellCustomerDialog({
       title={title}
       subtitle={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-          {customer?.business_unit && (
-            <BuChip bu={customer.business_unit as BusinessUnit} />
+          {customer?.division_label && (
+            <StatusChip label={customer.division_label} />
           )}
           <Typography variant="caption" color="text.secondary">
             {t('productsHighMargin.drawer.subtitle', { window: activeWindow })}
@@ -134,7 +132,7 @@ export function UpsellCustomerDialog({
               {t('productsHighMargin.drawer.avgRevenueMonth')}
             </Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-              {formatIDR(customer.avg_monthly_revenue)}
+              {formatRupiah(customer.avg_monthly_revenue)}
             </Typography>
           </Box>
           <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, flex: 1 }}>

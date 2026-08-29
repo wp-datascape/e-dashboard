@@ -5,6 +5,17 @@ services:
     image: postgres:15-alpine
     container_name: e-dashboard-db
     restart: unless-stopped
+    # Tuning disamakan dengan docker-compose.prod.yml (2026-08-27) — supaya query
+    # plan/perilaku Postgres lokal 1:1 dengan production saat tes pakai data hasil
+    # restore backup production. Nilai default sama persis dengan prod, bisa
+    # dioverride lewat .env kalau perlu beda sementara.
+    command: >
+      postgres
+      -c shared_buffers=${PG_SHARED_BUFFERS:-1536MB}
+      -c work_mem=${PG_WORK_MEM:-32MB}
+      -c maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+      -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-3GB}
+      -c jit=${PG_JIT:-off}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dashboard}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dashboard123}
