@@ -6678,3 +6678,922 @@ deployment.md` (§0 CD).
 file lama (identik kecuali `needs:` baru) — belum sempat lihat run
 sungguhan di GitHub Actions (baru di-commit, belum di-push) sampai
 langkah ini ditulis.
+
+## 39. Row 1 Overview diganti dari 10 kartu generik ke 5 KPI Eksekutif (2026-08-28)
+
+**Temuan**: user menunjukkan screenshot Overview dan bertanya apakah Row 1
+(10 StatCard ringkas) dan Row 2 (chart Growth/Retention/Value, §2) itu
+sama. Dicek langsung ke kode, benar: `MetricStatCard.tsx` (Row 1) dan
+`renderMetricWidget.tsx` (Row 2) sama-sama menerima objek `metric` yang
+sama dan menarik field yang identik, `title`, `value`
+(`formatMetricValue`), `change` (`summary.change_percent`), `data`
+(`monthly_trend`). Jadi tiap 1 dari 10 KPI tampil 2 kali di halaman yang
+sama dengan angka persis sama, bedanya cuma ukuran chart (sparkline mini
+vs chart besar). Bukan 2 level detail berbeda, murni pengulangan.
+
+**Keputusan user**: Row 1 diganti isi jadi 5 "KPI Eksekutif" (quick
+glance), bukan 10. Row 2 (3 section Growth/Retention/Value) dipertahankan
+apa adanya. User kasih mockup ASCII dengan 5 kartu: Revenue, Profit,
+Cross Sell, Dormant, Retention, dengan nilai yang cocok persis ke data
+yang lagi tampil (Rp 5.8jt, Rp 1.3jt, 28.7%, 52.0%, 18.0%), jadi
+pemetaan ke `metric_key` deterministik tanpa perlu tanya ulang:
+
+| Label mockup | metric_key            | Nilai saat verifikasi |
+|---------------|------------------------|------------------------|
+| Revenue       | `avg_revenue`           | Rp 5.8jt               |
+| Profit        | `avg_gross_profit`      | Rp 1.3jt                |
+| Cross Sell    | `cross_selling_ratio`   | 28.7%                   |
+| Dormant       | `dormant_rate`          | 52.0%                   |
+| Retention     | `repeat_order_rate`     | 18.0%                   |
+
+Catatan: 5 metric_key ini TETAP muncul lagi di chart Row 2 (avg_revenue
+di section Value, cross_selling_ratio di section Growth, dst) — bedanya
+sekarang ini kombinasi yang jauh lebih umum dipakai di dashboard
+eksekutif (strip KPI ringkas di atas + breakdown penuh per pilar di
+bawah), bukan pengulangan 1:1 seperti sebelumnya (dulu 10 dari 10 kartu
+duplikat, sekarang cuma 5 dari 10 yang sengaja dipilih jadi highlight).
+
+**Implementasi**: `Dashboard/index.tsx`, tambah konstanta `EXEC_KEYS`
+(5 metric_key di atas, urutan sesuai mockup), Row 1 di-map dari
+`EXEC_KEYS` (bukan `metrics` mentah lagi), skeleton loading dikurangi
+dari 10 jadi 5. Komponen `MetricStatCard` dan breakpoint Grid
+(`xs:12, sm:6, md:4, lg:2.4`) tidak berubah, reuse persis, cuma jumlah
+item yang dikurangi. Row 2 (Growth/Retention/Value) tidak disentuh sama
+sekali.
+
+## 40. Section "Ringkasan Cross-Selling" (3 kartu KPI) ditambahkan ke Overview (2026-08-28)
+
+**Konteks**: user minta refactor 3 kartu KPI (Cross-Selling Rate, Avg
+Category/Customer, Active Transacting) dengan tooltip definisi selaras
+Kamus v13, awalnya dikira menyasar halaman Growth (M1CrossSelling.tsx,
+kartu itu memang ada di sana). Setelah dikerjakan di Growth, user
+klarifikasi: target sebenarnya halaman Overview, Growth diminta
+dikembalikan seperti semula.
+
+**Temuan blocking**: 3 kartu ini butuh data breakdown 1 periode
+(`kpi1.active_count`, `kpi1.multi_cat_count`, `kpi2.total_distinct_cats`)
+yang TIDAK ADA di endpoint `/dashboard` (metric `cross_selling_ratio` di
+sana cuma rata-rata 12 bulan tanpa breakdown, `dashboard.service.ts`).
+Data itu cuma ada di endpoint `/metrics/cross-selling` (dipakai Growth).
+Ditanya ke user: perbaiki kartu yang sudah ada di Overview (tanpa
+breakdown) vs tambah section baru fetch data tambahan dari
+`/cross-selling` (dobel fetch, breakdown lengkap sesuai spec). User
+pilih opsi kedua.
+
+**Implementasi**:
+- `Dashboard/index.tsx` tambah `useCrossSelling(...)` (hook yang sama
+  dipakai Growth), param sama dgn `useDashboard` yang sudah ada
+  (company/branch/division/period/exclude_intercompany). Fetch KEDUA
+  di halaman ini, SADAR melanggar prinsip "Overview tidak dobel fetch
+  M1-M10 penuh" yang didokumentasikan di §39/komentar file — dilakukan
+  krn instruksi eksplisit user, bukan default baru untuk metric lain.
+- Section baru ditaruh di dalam grup "Growth" (Row 2), di atas 3 chart
+  Growth yang sudah ada. Reuse `KpiCard` (`CrossSelling/HelperComponents.tsx`)
+  apa adanya, pola SAMA PERSIS section atas M1CrossSelling.tsx.
+- **Teks TIDAK reuse key `kpi1Sub`/`kpi1Info`/`kpi2Sub`/`kpi2Info`/
+  `activeCustomerInfo` yang dipakai Growth** — key itu sengaja
+  DIPERTAHANKAN dgn teks lama ("customer aktif", ambigu) krn instruksi
+  eksplisit "kembalikan growth seperti awal". Key BARU
+  `crossSelling.overviewSummary.*` (kpi1Sub/kpi1Info/kpi2Sub/kpi2Info/
+  activeCustomerInfo) dibuat khusus utk section Overview ini, isinya versi
+  yang sudah diperbaiki (istilah "pelanggan yang bertransaksi periode
+  ini", bukan "customer aktif"). Label (`kpi1Label`/`kpi2Label`/
+  `activeCustomerLabel`) TETAP reuse root `crossSelling.*` (tidak ambigu,
+  tidak perlu diduplikasi).
+- Teks tooltip (`info` prop) ditulis bahasa awam, BUKAN prefiks
+  "Populasi:"/"Formula:"/rujukan "Kamus v13:" — pola yang sama pernah
+  ditegur user sebelumnya (lihat memory
+  feedback_no_technical_jargon_user_facing_text), sudah diverifikasi via
+  hover di browser (3 tooltip: Cross-Selling Rate, Avg Category, Active
+  Transacting).
+
+**Verifikasi**: `tsc -b` + `eslint` bersih. Browser: kartu 1-3 tampil
+benar di Overview dgn angka sama persis dgn Growth (28.7%/1.58/1.218,
+data source sama), tooltip 3 kartu dicek via hover (dapat teks yang
+benar, bukan jargon). Halaman Growth dicek ulang setelah perubahan ini
+(`git status` file `M1CrossSelling.tsx` bersih, screenshot identik
+kondisi sebelum sesi ini) — dipastikan TIDAK ikut berubah walau sekilas
+key i18n terkait berada di file yang sama (`crossSelling.json`).
+
+## 41. Filter granularitas periode ditambahkan ke Overview (2026-08-28)
+
+**Konteks**: user tanya apakah Overview bisa pakai filter granularitas
+(Monthly/Quarterly/Semester/Annual) yang sama dengan Growth/Retention/
+Value. Dicek ke kode: 3 fungsi yang dipanggil `dashboard.service.ts`
+(`getCrossSellingMetrics`, `getCustomerMetrics`, `getDormantCustomerMetrics`)
+SUDAH terima param `period_type` penuh, Overview cuma selalu kirim
+`'monthly'` hardcode. Jadi sebagian besar KPI langsung bisa jalan tanpa
+kerja backend baru, tinggal berhenti hardcode.
+
+**Temuan blocking**: M9 Dormant Value trend di Overview (`fetchDormantValueTrend`,
+dashboard.repository.ts) beda dari 9 KPI lain, fungsinya SENDIRI, hardcode
+`generate_series` 12 bulan kalender. Ditelusuri lebih jauh, ketemu 2 masalah
+sekaligus:
+1. **Granularitas**: fungsi ini genuinely tidak punya versi bucket-aware —
+   perlu ditulis ulang.
+2. **Formula beda** (temuan tak terduga): fungsi ini pakai rumus SENDIRI
+   (`total_rev ÷ jumlah bulan aktif all-time × (hari dormant ÷ 30)`) — BEDA
+   dari formula M9 yang dipakai di Retention/`getDormantCustomerMetrics`
+   (`fetchDormantValueRanking`, m8m10.repository.ts: `recent_12m_rev ÷ 12 ×
+   months_dormant KALENDER`, sudah melalui banyak koreksi presisi §36.12/
+   §36.24/§36.25). Ditanya ke user: pertahankan formula lama (angka Overview
+   tidak berubah, tapi tetap inkonsisten dgn Retention) vs migrasi ke formula
+   yang sudah dikoreksi (angka Overview BERUBAH, tapi konsisten 1 formula di
+   seluruh app). User pilih migrasi.
+
+**Implementasi backend**:
+- `dashboard.schema.ts` — tambah `period_type` (enum sama persis
+  `crossSellingQuerySchema`), default `'monthly'` (behavior lama tidak
+  berubah kalau tidak dikirim).
+- `dashboard.service.ts` `getDashboard` — param baru `periodType` (posisi
+  terakhir, default `'monthly'`), 6 pemanggilan `getCrossSellingMetrics`/
+  `getCustomerMetrics`/`getDormantCustomerMetrics` (current + YoY) ganti
+  dari hardcode `'monthly'` jadi `periodType`. Tambah helper
+  `resolveTrailingBuckets(periodEnd, periodType)` (reuse
+  `getCurrentPeriodKey`/`getPeriodRange`/`buildTrailingPeriods`/
+  `resolveTrendPeriod` dari `period.util.ts`, pola sama persis
+  `getCrossSellingMetrics`) — dipakai khusus utk M9 (fungsi lain hitung
+  bucket-nya sendiri secara internal).
+- `dashboard.repository.ts` `fetchDormantValueTrend` — REWRITE TOTAL.
+  Signature lama `(p)`, sekarang `(p, buckets: TrailingPeriodBucket[])`.
+  Isi lama (SQL generate_series + formula sendiri) DIBUANG, diganti reuse
+  `fetchDormantValueRanking` (m8m10.repository.ts, formula yang sudah
+  dikoreksi) dipanggil N kali paralel (`Promise.all`, 1 per bucket, clone
+  `SegmentParams` dgn `filterDate: bucket.end`), `estimated_lost_value`
+  dijumlah per bucket di JS. Sengaja BUKAN query SQL ber-bucket sendiri —
+  formula `estimated_lost_value` sudah rumit & banyak dikoreksi, reuse
+  fungsi yang sudah teruji jauh lebih aman daripada menurunkan ulang jadi
+  bentuk lain.
+- `metrics.service.ts` `getDormantCustomerMetrics` — pemanggilan
+  `fetchDormantValueTrend(segParams)` yang sudah ada (mengisi field
+  `value_trend`, dikonfirmasi TIDAK dipakai frontend manapun/yatim) ikut
+  disesuaikan ke signature baru, dikirim `resolvedBuckets` yang sama dgn
+  `fetchDormantTrend`. Field tetap dihitung (kapabilitas backend
+  dipertahankan) walau belum dipakai UI.
+- Konsekuensi angka: nilai "Dormant Customer Value" di Overview BERUBAH
+  dari sebelumnya (basis bulanan lama: ~Rp390.3M) krn 2 hal sekaligus
+  (formula baru + kemungkinan granularitas beda) — SENGAJA, bukan bug.
+
+**Implementasi frontend**:
+- `dashboard.api.ts`/`useDashboard` — tambah `period_type` ke
+  `DashboardParams`.
+- `Dashboard/index.tsx` — **filter GLOBAL granularitas MENGGANTIKAN
+  `MonthYearPicker` sepenuhnya** (koreksi user: "UI tinggal menghapus
+  filter lama gunakan ganti filter granulal" — percobaan pertama SALAH,
+  `MonthYearPicker` dipertahankan + dropdown baru ditambah di sampingnya,
+  bukan diganti). `usePeriodTypeFilter()` + `<PeriodTypeFilterFields
+  filter={periodTypeFilter} />` (versi PENUH: dropdown Granularitas + field
+  tanggal "as of" + navigator chevron prev/next, pola sama halaman Analisis
+  task016) — state `periodMonth`/`resolvePeriodEnd`/`currentYearMonth`
+  DIHAPUS semua, `periodTypeFilter.endDate` jadi satu-satunya sumber
+  tanggal. `period_type: periodTypeFilter.periodType` dikirim ke
+  `useDashboard` DAN `useCrossSellingSummary` (§40) sekaligus.
+- `renderMetricWidget.tsx` — param baru `periodType` (default `'monthly'`),
+  `xAxisFormatter={formatMonthLabel}` (7 kartu chart trend) ganti jadi
+  `xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}`
+  (util yang sama dipakai M1CrossSelling.tsx dkk). 3 widget snapshot
+  (RadialBar/Bullet/Donut — repeat_order_rate/reactivation_rate/
+  high_margin_penetration) tidak py sumbu-X, tidak disentuh.
+- `MetricChartSlot.tsx` — terima+terusin prop `periodType` (opsional,
+  default `'monthly'`, backward-compat).
+
+**Verifikasi**: `tsc -b` (frontend+backend) + `eslint` bersih. Browser:
+ganti Granularity dropdown Monthly → Quarter — badge "Period: 2026-Q3"
+(bukan 2026-08), navigator "Quarter 3 2026 · Comparison: 1 Jul-28 Agu
+2025 · Period: 1 Jul-28 Agu 2026", 5 kartu eksekutif + 3 kartu Cross-
+Selling + SEMUA chart Row 2 (termasuk M9) angka & label sumbu-X berubah
+konsisten ke kuartal ("Q2 24, Q1 25, Q3 26" dst), tidak ada console error.
+Halaman Growth diverifikasi ulang tetap utuh (tidak kena efek samping).
+
+## 41-lanjutan. "Filter global" diekstrak jadi komponen sungguhan, dipasang di 7 halaman (2026-08-28)
+
+**Kesalahan yang dikoreksi user, 3 putaran berturut-turut**:
+1. Percobaan pertama filter granularitas Overview: `MonthYearPicker` lama
+   DIPERTAHANKAN, dropdown Granularitas baru ditambah DI SAMPINGNYA
+   (`PeriodTypeFilterFields showDateField=false`) — user: "Kenapa kamu
+   tidak pakai filter global???????" — instruksi eksplisit sebelumnya
+   ("UI tinggal menghapus filter lama gunakan ganti filter granulal")
+   tidak diikuti, saya nambah bukan mengganti.
+2. Percobaan kedua: `MonthYearPicker` dihapus, tapi hasilnya masih
+   berbeda dari Growth/Retention/Value — user: "Bukankah diawal aku sudah
+   bilang buat 'COMPONEN' filter global yang reuseable". Dicek ke kode:
+   pola quick-bar+panel-lanjutan+draft/apply state itu ternyata SUDAH
+   diinstruksikan berkali-kali sbg "filter global" (2026-08-20 dibangun,
+   2026-08-23 "filternya buat sama memakai filter global" utk Report/
+   Growth, 2026-08-25 "STANDARTKAN SESUAI LAYOUT" utk Value), TAPI tiap
+   kali cuma DISALIN ulang (copy-paste), bukan diekstrak — total 6 salinan
+   identik (Growth, Retention, Value, Report/Growth, Report/Retention,
+   Report/Revenue), dikonfirmasi user: "Filter di halaman business itu
+   sudah dipakai juga dihalaman laporan. Itu belum sebuah componen
+   independen?"
+3. Percobaan ekstraksi pertama: dipecah jadi 2 komponen
+   (`AdvancedFilterBarQuick`+`AdvancedFilterBarPanel`) krn quick bar &
+   panel duduk di 2 posisi layout beda — user: "Kenapa tidak dibuat 1
+   section? Kenapa harus dijadikan import 2X". Diperbaiki jadi 1 komponen
+   (`AdvancedFilterBar`) yang menerima `children` (konten KPI) dan
+   `title`/`titleAdornment`, menangani split posisi quick-bar/panel secara
+   INTERNAL (Fragment + judul-row + gate akses), bukan dibebankan ke
+   pemanggil.
+
+**Hasil akhir**:
+- `hooks/useAdvancedFilterBar.ts` (BARU) — state+logic murni: scope
+  (applied+draft), periode "as of" (quick, auto-apply), Apply date cutoff,
+  granularitas (applied+draft), Pareto (applied+draft), `advancedOpen`,
+  `handleApplyFilter`/`handleResetFilter`. Pola "hook = state, komponen =
+  presentational" SAMA PERSIS `useScopedCompanyFilter`/`usePeriodTypeFilter`
+  yang sudah lebih dulu dipisah begini.
+- `components/filters/AdvancedFilterBar.tsx` (BARU) — 1 komponen, terima
+  `title`, `titleAdornment?`, `filter`, `hasAccess`, `loading?`,
+  `showParetoAndDateCutoff?` (default true), `children`. Render: judul+
+  quick-bar 1 baris → `!hasAccess ? NoSectionAccess : (panel Collapse +
+  children)`.
+- **6 halaman existing DIRETROFIT** (Growth, Retention, Value, Report/
+  Growth, Report/Retention, Report/Revenue) — state+markup filter lama
+  (60-100 baris per halaman) DIHAPUS, ganti `useAdvancedFilterBar()` + 1
+  `<AdvancedFilterBar>` yang membungkus konten KPI/tabel yang sudah ada
+  (tidak diubah). Reuse murni, PERILAKU tidak berubah — diverifikasi
+  visual browser tiap halaman (screenshot identik sebelum/sesudah), tsc+
+  eslint bersih di semuanya.
+- **Overview** (`Dashboard/index.tsx`) — pakai komponen yang SAMA persis,
+  `showParetoAndDateCutoff={false}` (Overview tidak punya konsep Pareto/
+  date-cutoff sama sekali, backend `dashboardQuerySchema` juga tidak py
+  field itu). `titleAdornment={<PeriodStrip .../>}` — satu-satunya
+  penyesuaian genuinely spesifik Overview (badge Period/Active Window
+  yang halaman lain tidak punya).
+
+**Verifikasi**: `tsc -b` bersih di seluruh frontend (bukan cuma file yang
+disentuh). Browser: ke-7 halaman discreenshot setelah retrofit (Growth 2x
+termasuk cek panel Advanced Filters terbuka dgn benar, 5 halaman lain 1x,
+Overview 3x termasuk cek panel TANPA Pareto/date-cutoff dan tes ganti
+Quarter end-to-end via tombol Apply Filter — data & label berubah
+konsisten, sama seperti hasil verifikasi §41 sebelum ekstraksi). Tidak ada
+console error baru di halaman manapun.
+
+## 42. Semua kartu ringkasan Overview dihapus, data unik dipindah ke header chart (2026-08-28)
+
+**Konteks**: setelah §39-41, Overview masih punya 2 lapis kartu ringkasan
+di atas chart (5 KPI Eksekutif + 3 kartu Cross-Selling) yang isinya
+duplikat dengan header chart Row 2 di bawahnya. User: "Refactor the
+Overview dashboard to eliminate all redundant summary cards while
+preserving unique data points" — 5 kartu eksekutif aman dihapus (chart-nya
+sendiri sudah tampilkan title/value/change), TAPI 3 kartu Cross-Selling
+py 3 angka yang genuinely TIDAK ADA di mana pun lagi kalau dihapus begitu
+saja: breakdown "349 dari 1.218 pelanggan", "rata-rata kategori + total
+kategori terjual". User kirim mockup ASCII persis menunjukkan angka itu
+pindah jadi bagian header chart "Rasio Cross Selling" sendiri (bukan
+kartu terpisah), plus tombol aksi baru di bawah chart.
+
+**Implementasi**:
+- `BarChartWidget.tsx` — prop baru `footerAction?: React.ReactNode`
+  (opsional, render Box di bawah caption/chart kalau diisi) — pola SAMA
+  `headerContent` yang sudah ada (slot generik, TIDAK mengubah widget lain
+  yang tidak mengirim prop ini, diverifikasi: 9 file lain yang pakai
+  `BarChartWidget` tidak terdampak).
+- `renderMetricWidget.tsx` — param baru opsional
+  `crossSellingBreakdown?: CrossSellingSummaryData`. Case
+  `cross_selling_ratio`: kalau param ini diisi, `headerContent` custom
+  dibangun manual (value+`StatusChip` change badge, title+ikon info+tooltip
+  reuse `crossSelling.overviewSummary.kpi1Info`, 2 baris breakdown reuse
+  `kpi1Sub`/`kpi2Sub`) MENGGANTIKAN `title`/`subtitle`/`value`/`change`
+  biasa. `footerAction` — tombol "Lihat Daftar Pelanggan Cross-Sell" ke
+  `metric.link` (SAMA PERSIS tujuan klik kartu itu sendiri lewat
+  `ClickableChart`, BUKAN tujuan lain — koreksi user: "Kenapa tidak di
+  arahkan ke halaman tren cart?", draft pertama sempat ke `/report/growth`)
+  dengan `stopPropagation` (cegah klik tombol ikut memicu handler klik
+  kartu di luarnya, dobel-navigate ke tujuan yang sama).
+- `MetricChartSlot.tsx` — terima+terusin prop opsional
+  `crossSellingBreakdown` ke `renderMetricWidget`.
+- `crossSelling.json` (id+en) — `overviewSummary.kpi1Sub`/`kpi2Sub` ditulis
+  ulang sesuai teks mockup persis ("(Active Total)" sbg label parentheses,
+  "Rata-rata: {{avg}} kategori..." dgn nilai avg dibakar langsung ke
+  kalimat) + key baru `viewCrossSellCustomers` ("Lihat Daftar Pelanggan
+  Cross-Sell"). Key ini KHUSUS `overviewSummary` (Overview), TIDAK
+  menyentuh key root yang dipakai Growth (`kpi1Sub`/`kpi2Sub` tanpa
+  prefix), konsisten dgn keputusan §40.
+- `Dashboard/index.tsx` — Row 1 (5 KPI Eksekutif, `EXEC_KEYS`) DIHAPUS
+  total, blok 3 `KpiCard` Cross-Selling DIHAPUS total (`MetricStatCard`/
+  `StatCardSkeleton`/`KpiCard`/`Skeleton`/`useTheme`/`formatDateID` ikut
+  dihapus dari import, sudah tidak dipakai file ini). `useCrossSellingSummary`
+  TETAP di-fetch (data breakdown-nya masih dibutuhkan), hasilnya
+  (`csData`) dioper ke `MetricChartSlot` metric_key `cross_selling_ratio`
+  saja lewat prop `crossSellingBreakdown` (metric_key lain tidak
+  menerimanya, `undefined`).
+
+**Verifikasi**: `tsc -b` bersih di seluruh frontend, `eslint` bersih di
+semua file yang diubah. Browser: halaman sekarang mengalir filter →
+langsung grup chart Growth/Retention/Value tanpa kartu ringkasan sama
+sekali, kartu "Rasio Cross Selling" tampil persis mockup (value+badge,
+title+info tooltip, 2 baris breakdown, chart, tombol "View Cross-Sell
+Customer List"). Klik tombol dicek via `window.location` — mendarat tepat
+1x di `/growth?kpi=cross_selling_ratio` (link yang sama dgn klik kartu),
+tidak ada dobel-navigate. Tidak ada console error.
+
+## 43. Kartu chart Overview jadi "action card" — insight arah tren, bukan cuma angka pasif (2026-08-28)
+
+**Konteks**: susulan §42. User: "Card nya ada 10 dan cuma 1 yang kamu
+kerjakan?" — awalnya dikira soal tombol CTA (footerAction, TERNYATA
+redundan dgn klik kartu, DIHAPUS lagi, lihat di bawah). Diklarifikasi
+ulang: "Tujuan nya adalah merubah halaman overview mini cart menjadi
+action card, bukan data pasif, menampilkan insight informasi dari setiap
+mini cart nya" — scope sebenarnya 10 kartu, bukan cuma cross_selling_ratio.
+
+**Investigasi (sebelum eksekusi, bukan tebak)**: cek `DashboardThresholds`
+(backend) — cuma 3 dari 10 metric_key py target bisnis tetap
+(`repeat_order_target_pct`, `dormant_rate_alert_pct`,
+`reactivation_target_low/high_pct`), sudah insight-oriented lewat widget
+sendiri (RadialBarWidget "18% Below Target", LineAlertWidget "Red area =
+critical", BulletChartWidget "Below Target — Needs Improvement"). 7
+metric_key sisanya (cross_selling_ratio, avg_category, expansion_rate,
+avg_revenue, avg_gross_profit, dormant_value, high_margin_penetration)
+TIDAK py target apa pun di data model. Ditanya ke user basis insight utk
+7 ini — keputusan: **arah tren (`change_percent`/`trend` YoY yang sudah
+ada) saja**, bukan angka target baru.
+
+**Bug ditemukan+diperbaiki SENDIRI lewat verifikasi visual** (bukan cuma
+dilaporkan lolos): draft pertama teks insight pakai kata "Declining"/
+"Menurun" utk tone negatif — SALAH utk metric yang polaritasnya terbalik
+(dormant_value: naik = BURUK). Screenshot nyata: kartu Dormant Value naik
++2131.4% (badge hijau) tapi teks bilang "Declining compared to last
+period" (berbohong soal arah). Sama, ikon panah awalnya ikut `tone` (arah
+panah = baik/buruk) — dormant_value dapat panah TrendingDown padahal
+angkanya naik. Fix: `MetricInsight` sekarang py 2 field terpisah —
+`tone` (warna, dari polaritas higher-is-better) DAN `direction` (bentuk
+panah, dari `trend` asli, apa adanya) — tidak pernah disatukan lagi. Teks
+diganti "Membaik"/"Memburuk"/"Stabil" (Indonesia) dan "Improving"/
+"Worsening"/"Stable" (Inggris) — kata netral-arah, benar utk kedua
+polaritas. Diverifikasi ulang via query DOM: dormant_value sekarang py
+`TrendingUpIcon` (sesuai faktanya, naik) + warna merah (tone negatif) +
+teks "Worsening" (bukan "Declining").
+
+**Implementasi**:
+- `metricFormat.ts` — `HIGHER_IS_BETTER` (map per metric_key, `dormant_value:
+  false`, 6 lain `true`), `getTrendInsight(card, t)` return `MetricInsight
+  {label, tone, direction} | null` (null utk 3 metric target-based).
+- `components/charts/shared/MetricInsightLine.tsx` (BARU) — 1 komponen
+  kecil (ikon panah + teks berwarna), dipakai bareng 3 widget, bukan
+  disalin 3x.
+- `BarChartWidget`/`AreaChartWidget`/`DonutChartWidget` — prop baru
+  `insight?: MetricInsight`, dirender di bawah subtitle (di ATAS chart).
+  `AreaChartWidget` SEBELUMNYA belum py `headerContent` sama sekali —
+  tidak ditambah (di luar scope), cukup prop `insight` baru.
+- `renderMetricWidget.tsx` — `getTrendInsight(metric, t)` dihitung 1x di
+  awal, dioper ke 6 case (avg_category, expansion_rate, dormant_value,
+  avg_revenue, avg_gross_profit, high_margin_penetration) + ditambahkan ke
+  `headerContent` custom cross_selling_ratio (baris ke-3, setelah 2 baris
+  breakdown §42). 3 case target-based (repeat_order_rate/dormant_rate/
+  reactivation_rate) TIDAK disentuh (`getTrendInsight` return null utk
+  mereka, widget-nya sendiri sudah insight-oriented).
+- `dashboard.json` (id+en) — key baru `insight.improving`/
+  `insight.needsAttention`/`insight.stable`.
+- **Tombol footerAction (§42) DICABUT** — user: "tombol itu redundan
+  dengan klik card" (`ClickableChart` sudah navigate ke tujuan yang sama).
+  `footerAction` prop DIHAPUS dari `BarChartWidget` (bukan cuma tidak
+  dipakai), import `Button`/`ArrowForwardIcon`/`Link` dibersihkan,
+  key i18n `viewCrossSellCustomers` dihapus.
+
+**Verifikasi**: `tsc -b` bersih di seluruh frontend, `eslint` bersih di
+semua file. Browser: 7 kartu tanpa target tetap sekarang tampil baris
+insight ("↘ Worsening compared to last period, needs attention" /
+"→ Stable compared to last period" / dst), warna+ikon dicek presisi via
+query DOM (bukan tebak dari screenshot kecil) — dormant_value terkonfirmasi
+`TrendingUpIcon` (bukan Down), warna merah, teks "Worsening" (bukan
+"Declining"). Error 500 transient sempat muncul saat testing (DB lokal
+kelebihan beban dari sesi testing yang sangat panjang, dikonfirmasi via
+`pg_stat_activity` — tidak ada query macet, bukan bug kode) — pulih
+sendiri di reload berikutnya, dicek log backend (`/proc/<pid>/fd/1`)
+utk pastikan bukan exception dari kode yang diubah sesi ini.
+
+## 44. Penjelasan KPI Dipindah ke Tooltip Info
+
+Instruksi user setelah §43: "Untuk penjelasan setiap KPI nya pindahkan ke
+tooltip info saja. Agar lebih clean cart nya" — deskripsi tiap KPI
+(`metricSubtitle()`, sebelumnya tampil PERMANEN sbg caption di bawah
+judul tiap 10 kartu chart Overview) dipindah jadi tooltip ikon info di
+sebelah judul, bukan teks yang selalu terlihat.
+
+**Komponen baru**: `components/charts/shared/ChartCardTitle.tsx` —
+judul + ikon info opsional (`MuiTooltip`+`InfoOutlinedIcon`), dipusatkan
+di 1 tempat (Centralize UI) supaya tidak disalin manual di 6 widget chart
+berbeda. Prop `titleInfo?: string` ditambahkan ke `BarChartWidget`,
+`AreaChartWidget`, `DonutChartWidget`, `RadialBarWidget`,
+`LineAlertWidget`, `BulletChartWidget` — SEMUA pakai `ChartCardTitle` utk
+render title-nya. Prop `subtitle` (caption permanen) TETAP didukung di
+semua widget (tidak breaking utk caller lain yang belum pindah, mis.
+M1CrossSelling.tsx dkk yang punya subtitle sendiri) — `titleInfo` murni
+tambahan opsional, independen dari `subtitle`.
+
+`renderMetricWidget.tsx` (Overview-only, dikonfirmasi via grep — tidak
+dipakai Growth/Retention/Value) — SEMUA 10 metric_key ganti dari
+`subtitle={metricSubtitle(metric, t)}` (atau teks hardcode
+`dormantSubtitle`/`reactivationSubtitle`) jadi `titleInfo={...}` dgn
+teks yang SAMA (relokasi tampilan, bukan tulis ulang konten). Kartu
+`cross_selling_ratio` (headerContent custom, §42/§43) sekalian
+direfaktor pakai `ChartCardTitle` juga (dulu blok manual
+Box+Typography+MuiTooltip+InfoOutlinedIcon ditulis inline di
+`renderMetricWidget.tsx` sendiri) — `MuiTooltip`/`InfoOutlinedIcon` jadi
+tidak dipakai lagi di file itu, importnya dihapus.
+
+Yang TETAP tampil permanen (bukan "penjelasan", tapi data/insight):
+baris breakdown data unik Cross-Selling (349/1.218 dst, §42) dan baris
+insight tren (Membaik/Memburuk/Stabil, §43) — cuma teks deskripsi generik
+KPI yang pindah ke tooltip.
+
+Verifikasi: `tsc -b` + eslint bersih. Browser (Playwright, login
+`admin@mail.com`) — screenshot semua 10 kartu (Growth/Retention/Value),
+konfirmasi caption permanen sudah hilang, ikon info muncul di sebelah
+judul. Diukur objektif (bukan tebak dari screenshot, sesuai prinsip
+verifikasi sesi ini): `getBoundingClientRect()` kartu Customer
+Reactivation Rate (judul 2 baris di kolom sempit 4-kolom) — ikon
+terkonfirmasi PRESIS center-aligned vertikal thd blok judul (bukan bug
+posisi, cuma efek visual wrap 2 baris). Dicek juga `aria-label` ikon
+Avg. Revenue via DOM — isinya persis teks `metricSubtitle` yang benar
+("Average revenue per existing customer"), bukan kosong/undefined.
+
+## 45. Kejelasan Label YoY, Sumber Threshold, dan Gap Kosong Antar Kartu
+
+3 pertanyaan/koreksi user setelah §44, semua diverifikasi lewat kode +
+pengukuran DOM langsung (bukan tebakan):
+
+**1. "Informasimu tidak jelas kalau itu YoY, hanya bilang last periode
+kan?"** — teks insight (§43) "Membaik/Memburuk dibanding periode lalu"
+memang ambigu, kedengaran seperti MoM (bulan lalu) padahal datanya YoY
+(periode sama 1 tahun lalu, `dashboard.service.ts buildSummary()`, dgn
+`shiftYearsIso`). Fix: `dashboard.json` key `insight.improving/
+needsAttention/stable` diubah jadi "...dibanding periode yang sama tahun
+lalu..." (id) / "...compared to the same period last year..." (en) — di
+KEDUA bahasa, eksplisit menyebut "tahun lalu"/"last year".
+
+**2. "Threshold juga itu darimana?"** — ditemukan bug nyata: 3 widget
+target-based (`RadialBarWidget` repeat_order_rate, `LineAlertWidget`
+dormant_rate, `BulletChartWidget` reactivation_rate) HARDCODE angka
+`thresholdGreen={80}` / `threshold={10}` / `targetLow={15}
+targetHigh={20}` langsung di `renderMetricWidget.tsx`, sama sekali TIDAK
+terhubung ke `data.thresholds` yang backend SEBENARNYA sudah hitung dari
+tabel `business_configs` (`loadThresholds()`,
+features/config/threshold.ts) dan sudah diekspos di response
+`/dashboard` (`DashboardData.thresholds`, sudah py tipe frontend di
+`types/dashboard.ts`, cuma tidak pernah dioper ke `renderMetricWidget`).
+Dicek langsung ke DB (`SELECT key,value FROM business_configs WHERE
+key LIKE '%target%' OR ...`) — 4 baris config asli (repeat_order_target_pct
+dst) KEBETULAN sama dgn angka hardcode (80/10/15/20), jadi visual tidak
+berubah SEKARANG, tapi kalau admin ubah target di masa depan, Overview
+akan diam-diam tetap tampilkan angka lama. Fix: `renderMetricWidget`
+terima param baru `thresholds?: DashboardThresholds` (fallback ke default
+matching backend `DEFAULTS` cuma utk sesaat sebelum data datang), dioper
+dari `Dashboard/index.tsx` (`data?.thresholds`) via `MetricChartSlot`
+(prop baru diteruskan apa adanya). Teks label ambang yang JUGA hardcode
+ikut diperbaiki: `dashboard.charts.dormantThresholdLabel` ("Threshold
+10%" statis) DIHAPUS, LineAlertWidget fallback ke default dinamisnya
+sendiri (`common.thresholdLabel`, sudah terparameterisasi `{{threshold}}`
+dari awal); `dashboard.charts.dormantSubtitle`/`reactivationSubtitle`
+(teks tooltip info, §44) diubah dari angka hardcode ke placeholder
+`{{threshold}}`/`{{low}}`/`{{high}}`, diisi dari `thresholds` yang sama.
+
+**3. "UI/UX nya jelek sekali berantakan"** — diukur langsung via
+`getBoundingClientRect()` (bukan tebak dari screenshot): di row Growth,
+kartu "Cross Selling Ratio" (header 4 baris: judul, 2 baris breakdown,
+insight) jauh lebih tinggi dari "Avg. Product Category"/"Customer
+Expansion Rate" (header cuma judul+insight). Grid MUI menstretch SEMUA
+card di 1 row ke tinggi tertinggi (`alignItems: 'stretch'` default) —
+karena tinggi chart di dalam Card fixed (bukan flex-fill), akibatnya 2
+card yang lebih pendek dapat GAP KOSONG ~111-133px di antara chart dan
+tepi bawah card (diukur: chart Avg Category berakhir di y=498, tepi card
+di y=631 — beda 133px kosong). Fix: Grid container 3 section
+(Growth/Retention/Value) di `Dashboard/index.tsx` ditambah
+`sx={{ alignItems: 'flex-start' }}` — tiap card sekarang tinggi sesuai
+konten sendiri, tidak dipaksa sama. Diukur ulang setelah fix: gap normal
+17px (padding Card) di ketiga card, dari sebelumnya 17/133/111px yang
+timpang. Perbaikan ini SENGAJA cuma di Grid container Overview sendiri
+(bukan ubah struktur internal 6 widget chart bersama) — supaya tidak
+berisiko ke halaman lain (Growth/Retention/Value/M1-M10) yang pakai
+widget yang sama tapi TIDAK selalu di dalam grid yang di-stretch.
+
+Verifikasi: `tsc -b` + eslint bersih. Browser — reload, screenshot ulang
+row Growth (gap kosong hilang, insight bilang "last year" bukan "last
+period"), scroll ke Retention/Value (angka target/threshold visual tidak
+berubah krn kebetulan sama dgn default, TAPI sekarang genuinely dari DB,
+dikonfirmasi via query `business_configs` langsung).
+
+## 46. Rebuild Total Overview — 3 Kartu + 1 Chart per Section
+
+User menegur keras ("Tolol") hasil §39-45 (10 mini-chart-per-metric), lalu
+memberikan ticket lengkap "Prompt Perbaikan Total: Executive Dashboard
+Overview" — filosofi baru: Overview = executive summary murni, bukan
+halaman detail. Struktur BARU per section (Growth/Retention/Value):
+**maksimal 3 kartu ringkasan + 1 chart tren utama**, total 9 kartu + 3
+chart (dari sebelumnya 10 mini-chart individual).
+
+Sebelum eksekusi, masuk Plan Mode (scope besar, lintas banyak file) —
+3 investigasi Explore agent paralel (halaman Retention, halaman Value,
+ketersediaan komponen combo/stacked chart) mengonfirmasi klaim "duplikasi"
+di ticket itu NYATA ada di kode, tapi di 3 halaman Business
+(Growth/Retention/Value) yang TERPISAH dari Overview, bukan di Overview
+sendiri. Lalu 3 pertanyaan AskUserQuestion ke user sebelum ExitPlanMode:
+
+1. **Istilah** — ticket pakai "Kamus v13" lama (Active Total/Retained
+   Total/Existing Total/Non-Dormant). Ditemukan app SUDAH dimigrasi ke
+   istilah standar CRM baru 3 hari sebelumnya (task029.md §36.50, instruksi
+   eksplisit: "tampilan seluruhnya diganti yang standar ini") — ticket ini
+   kemungkinan ditulis sebelum migrasi itu. User pilih: **istilah baru**
+   (Active Transacting, Existing Active, Total Customer Base, Customer
+   Base (Addressable)).
+2. **M7 Expansion Rate & M9 Dormant Value** — tidak ada tempat di desain
+   3-kartu-ketat. User pilih: **hapus dari Overview**, tetap lengkap di
+   halaman Business Growth/Retention.
+3. **Cakupan** — bagian "Yang Harus Dihapus" ticket sebenarnya soal 3
+   halaman Business terpisah (2 set KpiCard M1CrossSelling.tsx, 4
+   kartu+chart ranking M9DormantValue.tsx, "Existing Active" 3x identik
+   M3/M4/M5), bukan Overview. User pilih: **Overview dulu saja**, halaman
+   Business jadi task terpisah menyusul.
+
+**Riset kunci (ditemukan lewat Plan Mode, dipakai sbg dasar reuse)**:
+`KpiCard`+`SectionLabel` (`pages/CrossSelling/HelperComponents.tsx`) sudah
+"standar layout" dipakai 10 file M1-M10. `KpiHeader` (pola "Periode lalu: X
+vs Periode ini: Y [chip]") sudah dipakai M1CrossSelling.tsx PERSIS pola yg
+diminta ticket. `ComboChartWidget` sudah support bar+bar2(stacked)+line, 2
+sumbu-Y, sudah dipakai M1 (bar=count, line=rate) dan M3Revenue.tsx (stacked
+bar reguler+HM + line) — PERSIS kebutuhan chart Growth & Value.
+`LineAlertWidget` variant='area' (threshold+fill merah/hijau) sudah dipakai
+M8DormantRate.tsx — PERSIS kebutuhan chart Retention.
+
+**Data sudah tersedia di backend, TANPA query baru** — `dashboard.service.ts`
+`getDashboard()` SUDAH fetch `cross.trend` (py `total_active`/
+`multi_product`) dan `customer.trend` (py `total_revenue_existing`/
+`hm_revenue`) via `getCrossSellingMetrics`/`getCustomerMetrics`, tapi
+sebelumnya SENGAJA cuma ambil `r.ratio`/`r.avg_revenue` saat membangun
+`monthly_trend`, buang field lain. Field baru ditambahkan ke
+`MonthlyTrendPoint` (mirror pola `tier1/2/3` yang sudah ada utk
+avg_gross_profit): `total_active` (cross_selling_ratio),
+`total_revenue_existing`+`hm_revenue_raw` (avg_revenue) — 2 titik map di
+`dashboard.service.ts` tinggal tambah field, tidak ada query tambahan.
+
+**`KpiCard` di-extend** — prop baru opsional `badge?: {label, color}`,
+dirender pakai `StatusChip` di baris sama dgn `value` (backward-compatible,
+10 caller lama tidak berubah). Dipakai semua 9 kartu Overview baru (YoY %
+utk value/rate biasa, status target utk 3 kartu Retention dari
+`data.thresholds` asli — bukan hardcode, task029.md §45, High Margin
+Penetration pakai poin persentase dieja PENUH bukan "pp", sesuai koreksi
+keras user 2026-08-19 yg sudah terdokumentasi di JSDoc KpiHeader.tsx).
+
+**Dashboard/index.tsx REWRITE TOTAL** — hapus sistem
+MetricChartSlot/renderMetricWidget, ganti komposisi manual 3 section
+(`SectionLabel` → `Grid` 3x `KpiCard` → 1 `ComboChartWidget`/
+`LineAlertWidget` full-width dgn `headerContent=<KpiHeader/>`).
+`useDashboard`/`useCrossSellingSummary`/`useAdvancedFilterBar`/
+`AdvancedFilterBar`/`AnnouncementBanner`/`PeriodStrip` TIDAK berubah.
+
+**6 file dihapus total** (kehilangan SEMUA importer, dicek via grep):
+`renderMetricWidget.tsx`, `MetricChartSlot.tsx`, `metricFormat.ts`,
+`ChartSkeleton.tsx`, `ClickableChart.tsx`, `MetricStatCard.tsx` (yang
+terakhir sudah orphan sejak §42, ketinggalan belum dihapus, ketemu saat
+investigasi ini). Susulan: sistem `insight`/`MetricInsightLine` (§43) jadi
+orphan TOTAL juga (satu-satunya "pabrik" `MetricInsight`, `getTrendInsight`,
+ada di `metricFormat.ts` yg baru dihapus) — dibersihkan sekalian: prop
+`insight` dicabut dari `BarChartWidget`/`AreaChartWidget`/`DonutChartWidget`,
+file `MetricInsightLine.tsx` dihapus. Prop `titleInfo`/`ChartCardTitle`
+(§44) TETAP (masih generik-reusable, tidak butuh "pabrik" apa pun, cuma
+terima string biasa).
+
+i18n: namespace baru `dashboard.overview.{growth,retention,value}.*` (id+en)
+utk label/sub/info 9 kartu + label chart, SEMUA pakai istilah CRM baru
+(Active Transacting, Existing Active, Total Customer Base, Dormant).
+
+Verifikasi: `tsc -b` bersih (frontend+backend), eslint bersih. Browser
+(Playwright, login admin) — screenshot 3 section, SEMUA sesuai spesifikasi
+ticket persis (KpiHeader "Agustus 2025: X vs Agustus 2026: Y [chip]", chart
+Growth combo bar abu+line biru, chart Retention threshold+fill merah/hijau,
+chart Value stacked bar 2 warna+line hijau, badge warna benar per status
+target). Regresi granularitas periode (§41) dicek eksplisit — ganti
+Monthly→Quarter, angka+label KpiHeader ikut berubah granularitas-aware
+("Quarter 3 2025 vs Quarter 3 2026"), TIDAK hardcode 'monthly' lagi.
+
+## 47. Priority Alert Section
+
+User tanya pendapat soal hasil §46 ("Bagaimana menurutmu?"), menyodorkan
+dokumen usulan pihak lain (5 ide: Executive Summary narasi, Health Score,
+Priority Alert, Action Items, forecast Q4). Dievaluasi jujur — ditemukan
+angka contoh di dokumen itu TIDAK cocok dgn data asli yang sudah
+diverifikasi sesi ini (mis. Avg Revenue "Rp 7.4jt (-47.8%)" di dokumen vs
+"Rp 5.8jt (-20.1%)" hasil screenshot nyata) — kemungkinan besar ilustrasi
+karangan, bukan hasil query. Flagged ke user: kalau dibangun literal spt
+contoh (teks statis), akan jadi data palsu yang bisa menyesatkan eksekutif.
+
+5 ide dinilai satu-satu: Priority Alert (reuse badge yang sudah ada, TANPA
+data/formula baru — LOW RISK) dan Executive Summary narasi (BISA tapi
+WAJIB template+data asli, bukan prosa bebas) masuk kategori layak. Health
+Score (butuh formula/bobot yang TIDAK ADA di data model manapun — mengarang
+sendiri berisiko menyesatkan) dan Action Items "cerdas" (aplikasi ini tidak
+py AI-generation, cuma bisa teks kalengan) TIDAK disarankan tanpa keputusan
+eksplisit user dulu. Forecast Q4 (butuh model proyeksi yg sama sekali belum
+ada) DITOLAK terang-terangan. Rentang chart kepanjangan (trailing 12 bucket
+sama rata utk semua granularitas — Kuartalan otomatis narik 3 tahun)
+dicatat sbg temuan valid tapi TERPISAH dari topik ini.
+
+Ditanya via AskUserQuestion (4 opsi, multiSelect) — user cuma pilih
+**Priority Alert section**.
+
+**Implementasi** — kumpulkan 8 kartu (SEMUA kecuali M7/M9 yang sudah tidak
+ada di Overview) yang badge-nya BUKAN 'success'/'default' (artinya lagi
+bermasalah: YoY turun utk metrik higherIsBetter, atau di luar target utk 3
+kartu Retention) — badge INI SUDAH DIHITUNG di §46 (`yoyBadge`/`ppBadge`/
+`repeatOrderBadge`/`dormantRateBadge`/`reactivationBadge`), TIDAK ada logic
+baru, murni kumpulkan+urutkan (error dulu baru warning). Dirender pakai
+`Alert`+`AlertTitle` (`@mui/material`, pola yang SAMA dgn
+`AnnouncementBanner.tsx`) di atas section Growth, isi tiap baris label+
+value+`StatusChip` (badge yang sama persis yg tampil di KpiCard-nya).
+
+i18n key `alertsTitle`/`alertDormantRate`/`alertRepeatOrder`/
+`alertReactivation`/`alertGpDecline`/`alertExpansionGrowth` (peninggalan
+lama, ORPHAN sejak sebelum sesi ini — ketemu saat investigasi, tidak
+match desain baru: alertExpansionGrowth utk M7 yang sudah dihapus dari
+Overview) DIHAPUS, diganti key baru `overview.alerts.title` (namespace
+sama dgn §46).
+
+Verifikasi: `tsc -b` + eslint bersih. Browser — screenshot Overview
+setelah reload, Priority Alert muncul "6 metrics need attention" (Cross-
+Selling Rate, Repeat Order Rate, Dormant Rate, Avg Revenue/Customer, Avg
+GP/Customer, Reactivation Rate — urut merah dulu baru oranye), Avg Category
+dan High Margin Penetration BENAR tidak muncul (keduanya sedang berstatus
+baik periode ini) — konsisten dgn badge yang sama persis muncul di kartu
+masing-masing di bawahnya.
+
+## 48. Priority Alert Jadi Chip Mendatar + Angka Polos + Grid Chart Kecil
+
+**Bagian 1 — chip mendatar.** User tanya "kalau dibuat grafikal apakah ada
+saran? agar lebih ringkas" soal Priority Alert (§47, saat itu masih baris
+per-metrik bertumpuk vertikal). Diusulkan 3 opsi via AskUserQuestion dgn
+preview ASCII (A: chip mendatar wrap, B: ringkasan angka saja tanpa nama
+metrik, C: strip dot per section) — user pilih **A**. Implementasi: ganti
+`Box flexDirection:'column'` (label+value+StatusChip per baris) jadi 1
+`Box flexWrap:'wrap'` isi `StatusChip` per alert, label gabung jadi 1 teks
+chip (`"${label} ${value}"`), TANPA teks status verbose (detail lengkap
+tetap ada di halaman di bawah) — 6 baris jadi 1-2 baris.
+
+**Bagian 2 — rombak total ke "angka polos + grid chart kecil".** User
+kirim screenshot referensi dashboard finance/investor (gaya QuickBooks):
+baris angka TANPA kotak sama sekali (cuma value+delta+label polos) diikuti
+grid BANYAK chart kecil bervariasi jenis di bawahnya, dikelompokkan per
+section. Ini beda signifikan dari struktur §46 (3 `KpiCard` berbingkai + 1
+chart besar gabungan per section) — dikonfirmasi 2 pertanyaan via
+AskUserQuestion sebelum eksekusi (bukan tebak):
+1. Gaya angka: **polos tanpa border** (dipilih) vs kartu App versi ringan.
+   Overview SENGAJA jadi py gaya visual sendiri di sini, beda dari
+   `KpiCard` yang dipakai 10+ halaman M1-M10 lain — bukan kesalahan
+   konsistensi, keputusan sadar.
+2. Jumlah chart per section: **beberapa chart kecil** (dipilih, 1 per
+   metrik, balik ke pola mirip §39-45 SEBELUM dihapus) vs tetap 1 chart
+   besar gabungan.
+
+**Implementasi**:
+- `StatItem` (baru, lokal di `Dashboard/index.tsx`, TIDAK disentralisasi
+  krn cuma dipakai di sini) — value (h5 bold) + badge (teks berwarna,
+  BUKAN `StatusChip` pill) di baris 1, label + ikon info tooltip (pola
+  sama `ChartCardTitle` tapi ukuran caption) di baris 2. Badge/threshold
+  logic (`yoyBadge`/`ppBadge`/3 badge Retention) TIDAK berubah dari §46 —
+  cuma cara render angkanya yang beda (`StatItem` vs `KpiCard`).
+- Grid chart kecil (9 total, 3 per section) — REUSE 6 widget yang SAMA
+  PERSIS dipakai M1-M10 (`BarChartWidget`/`AreaChartWidget`/
+  `DonutChartWidget`/`RadialBarWidget`/`LineAlertWidget`/
+  `BulletChartWidget`, TIDAK PERNAH dihapus — yang dihapus di §46 cuma
+  orkestrasi `renderMetricWidget.tsx`/`MetricChartSlot.tsx`), dipanggil
+  LANGSUNG dari `Dashboard/index.tsx` tanpa header value/change bawaan
+  (krn angkanya sudah di `StatItem` di atas) — cuma `title` kecil + chart,
+  height 170 (lebih kecil dari 250 sebelumnya, sesuai gaya "grid kecil"
+  referensi). `KpiHeader` DILEPAS dari Overview sepenuhnya (dulu dipakai
+  sbg headerContent chart besar §46 — sekarang tidak relevan lagi krn
+  charts kecil tidak py header current-vs-YoY sendiri, angka+badge YoY
+  sudah cukup terwakili di `StatItem`).
+- Mapping chart per metrik (persis pola §39-45 lama, BUKAN tebakan baru):
+  Growth = BarChartWidget (Cross-Selling Rate) + AreaChartWidget (Avg
+  Category) + BarChartWidget baru (Active Transacting, dari field
+  `total_active` yang sudah ada di `monthly_trend` sejak §46). Retention =
+  RadialBarWidget (Repeat Order) + LineAlertWidget threshold+fill (Dormant
+  Rate, SAMA PERSIS chart besar §46 cuma diperkecil) + BulletChartWidget
+  (Reactivation). Value = ComboChartWidget stacked bar+line (Avg Revenue,
+  SAMA PERSIS §46) + AreaChartWidget (Avg GP) + DonutChartWidget (High
+  Margin, bought/not-bought split).
+
+Verifikasi: `tsc -b` + eslint bersih. Browser — 500 transient muncul lagi
+saat testing (backend lokal genuinely kelebihan beban, dikonfirmasi
+`pg_stat_activity`: SATU load `/dashboard` normal memang memicu ~15-21
+query paralel krn `getDashboard()` fetch ganda current+YoY × banyak
+sub-query — bukan query macet/deadlock, cuma throughput DB lokal terbatas
+setelah sesi testing sangat panjang hari ini). Ditunggu sampai antrian
+reda (bukan retry berulang yang malah nambah beban), lalu screenshot semua
+3 section — 9 chart (variasi bar/area/radial/threshold-line/bullet/combo-
+stacked/donut) semua render benar, angka polos+badge di atas tiap grid
+match dgn Priority Alert chip di atas halaman.
+
+## 49. Angka Pindah ke Dalam Card (Sejajar Judul) + Card Clickable
+
+User (screenshot desain §48): "6 metrix itu buat menjadi card kecil kecil,
+untuk masing masing card, pindahkan angka angkanya ke dalam card di atas,
+sejajar judul. Tambahkan klik fungsi yang membuka halaman setiap cart nya,
+contoh growth cross selling ke card growth/card cross selling."
+
+**Perubahan 1 — angka pindah ke dalam card.** `StatItem` (baris angka
+polos TERPISAH di atas grid chart, §48) DIHAPUS. `ChartCardHeader` (baru)
+dipakai sbg `headerContent` SEMUA 9 widget: judul di kiri, angka+badge di
+kanan, 1 baris ("sejajar judul") — di DALAM Card yang sama dgn chart-nya,
+bukan lagi 2 blok terpisah.
+
+Konsekuensi teknis: 2 widget (`RadialBarWidget`, `BulletChartWidget`)
+BELUM punya slot `headerContent` sama sekali (baru ditambah §44 utk 4
+widget lain) — ditambahkan sekarang, pola SAMA PERSIS. `AreaChartWidget`
+malah belum py `headerContent` SAMA SEKALI (ketinggalan dari yang
+lain sejak dulu) — ditambahkan juga sekalian. `title` di
+`RadialBarWidget`/`BulletChartWidget`/`AreaChartWidget` yang tadinya
+WAJIB (`title: string`) diubah jadi opsional (`title?: string`, guard
+`{title && <ChartCardTitle.../>}`) — backward-compatible, caller lain
+(M1-M10) yang masih kirim `title` tidak berubah, cuma sekarang caller yang
+kirim `headerContent` saja (Overview) tidak perlu kirim `title` dobel.
+
+**Perubahan 2 — clickable ke halaman detail.** `ClickableChart.tsx`
+(dihapus di §46 sbg "kode mati" krn Overview waktu itu tidak clickable
+sama sekali) DIPULIHKAN persis isi aslinya (dicek via `git show
+HEAD:...`). Tiap 1 dari 9 card dibungkus `<ClickableChart link={metric.
+link}>` — `metric.link` field YANG SUDAH ADA dari backend sejak lama
+(`dashboard.service.ts` `buildCard`, per-metric_key: cross_selling_ratio/
+avg_category → `/growth?kpi=...`, repeat_order_rate/dormant_rate/
+reactivation_rate → `/retention`, avg_revenue/avg_gross_profit/
+high_margin_penetration → `/value`). Kartu "Active Transacting" (bukan
+metric_key asli, derivasi dari `csData`) pakai link `growthCard.link`
+(halaman Growth Cross Selling — sumber datanya sama).
+
+Verifikasi: `tsc -b` + eslint bersih (termasuk cek regresi caller lain
+`RadialBarWidget`/`BulletChartWidget`/`AreaChartWidget` yang title-nya jadi
+opsional — tsc project-wide bersih, tidak ada breakage). Browser — screenshot
+Growth/Retention/Value, semua 9 card konfirmasi judul+angka+badge 1 baris di
+dalam card yang sama. Klik langsung 1 card (Cross-Selling Rate) —
+`window.location` BENAR pindah ke `/growth?kpi=cross_selling_ratio`, persis
+contoh yang diminta user.
+
+## 50. Bug Judul Tidak Sejajar + Priority Alert Jadi Grid Card
+
+**Bug 1 — "kenapa ini tidak sejajar judul?"** (screenshot kartu High Margin
+Penetration): `ChartCardHeader` (§49) pakai `flexWrap:'wrap'` di Box LUAR
+(judul+angka jadi 1 unit) — badge "poin persentase" dieja PENUH (§43,
+larangan singkat "pp") jadi panjang, digabung judul "High Margin
+Penetration" (juga panjang) di kolom 1/3 lebar, total tidak muat 1 baris →
+SELURUH baris (bukan cuma judulnya) turun jadi 2 baris terpisah. Fix: Box
+LUAR `flexWrap:'nowrap'` (tidak pernah wrap), Box judul dapat
+`minWidth:0, flex:1` (boleh wrap SENDIRI ke baris ke-2/3 internal kalau
+kepanjangan), Box angka+badge dapat `flexShrink:0, whiteSpace:'nowrap'`
+(SELALU nempel di kanan, sejajar baris PERTAMA judul, tidak pernah ikut
+turun). Diverifikasi: kartu High Margin Penetration sekarang judul lipat
+3 baris sendiri, angka tetap sejajar baris pertama — sesuai desain.
+
+**Permintaan 2 — Priority Alert jadi grid card.** User kasih 2 screenshot
+(kartu chart yang sudah benar sejajar + Priority Alert yang masih chip
+StatusChip wrap 5+1) dan tanya "ini bisa dirubah menjadi card kecil
+sejajar 6 baris?" — kalimat "6 baris" ambigu (list vertikal 6 baris vs
+grid 6 kolom 1 baris), ditanya via AskUserQuestion dgn 2 preview ASCII,
+user pilih **grid 6 kolom sejajar 1 baris**. Implementasi: `Box flex-wrap`
+isi `StatusChip` (§48) DIGANTI `Grid` isi `Card` kecil (`size={{xs:6,
+sm:4, md:2}}` — 2/baris mobile, 3/baris tablet, 6/baris penuh desktop),
+tiap card: label (`noWrap`, ellipsis kalau kepanjangan) + value (bold) +
+badge (teks berwarna, REUSE `a.badge` yang sama, tidak ada data baru).
+
+Verifikasi: `tsc -b` + eslint bersih. Browser — screenshot Priority Alert
+(6 card sejajar 1 baris, label terpotong ellipsis kalau perlu — mis.
+"Cross-Selling Ra...", trade-off yang disadari demi muat 6 di 1 baris) dan
+kartu High Margin Penetration (judul lipat internal, angka tetap sejajar
+baris pertama, tidak ada lagi yang turun 2 baris terpisah).
+
+## 51. Grid Priority Alert: Lebar Kolom Dinamis + Tinggi Seragam
+
+User koreksi hasil §50: "Priority alert card ukuran tidak sama. Sejajar,
+sebaris yang aku maksut full screen mode dekstop bagi 6 kartu, bukan
+menyisakan ruang seperti itu. Buat lebih rapi. Mode mobile menyesuaikan
+lebar layar, bisa 3 sebaris jika cukup."
+
+2 bug ditemukan di implementasi §50:
+1. **Tinggi kartu beda-beda** — `Card` cuma `sx={{p:1.25}}`, TIDAK
+   `height:'100%'`, jadi masing-masing tinggi = tinggi kontennya sendiri
+   (badge teks panjang beda-beda per kartu, mis. "-5.3%" vs "Below target
+   80%" mungkin lipat 1 vs 2 baris) — padahal grid ROW-nya sendiri sudah
+   stretch sama tinggi (default MUI Grid), Card di dalamnya yang tidak
+   ikut mengisi.
+2. **Lebar kolom FIXED `md:2`** (selalu 6/12 span) — kalau alert < 6
+   (mis. cuma 4 bermasalah), tiap card TETAP cuma 2/12 lebar, sisa 4/12 di
+   kanan kosong tidak terisi — bukan "membagi rata" tapi "kolom tetap +
+   sisa kosong".
+
+Sempat mau diganti CSS Grid `auto-fit`/`minmax` mentah, tapi user koreksi
+langsung: "Mui punya grid col" — tetap pakai `Grid` MUI (yang memang sudah
+diimpor/dipakai di file ini), bukan CSS Grid manual.
+
+**Fix**: `size={{xs:6, sm:4, md: Math.ceil(12/Math.min(alerts.length,6))}}`
+— md dihitung DINAMIS dari `alerts.length` (bukan hardcode `2`): kalau
+alert persis 6 → `md:2` (6/baris, SAMA seperti sebelumnya, kebetulan match
+kondisi data hari ini); kalau alert < 6 (mis. 4) → `md:3` (4/baris, tiap
+card melebar mengisi PENUH baris, tidak ada sisa kosong). `Math.ceil` (BUKAN
+pembagian polos `12/N`) — span kolom MUI Grid harus BILANGAN BULAT (CSS
+`grid-column: span N`), `12/5` misalnya pecahan (2.4), invalid kalau
+dibiarkan mentah. `xs:6→sm:4` (2/baris mobile sempit → 3/baris begitu
+layar cukup lebar, bukan dipaksa tetap 2). `Card` dapat `height:'100%'`
+(fix tinggi tidak seragam) + badge `Typography` dapat `noWrap` juga
+(sebelumnya cuma label yang `noWrap`, badge teks panjang bisa lipat 2
+baris beda-beda per kartu).
+
+Verifikasi: `tsc -b` + eslint bersih. Browser, diukur OBJEKTIF via
+`getBoundingClientRect()` (bukan tebak dari screenshot) — 6 kartu desktop:
+width=144px TEPAT SAMA di semua 6, height=90px TEPAT SAMA di semua 6,
+posisi left/right berurutan rapat tanpa gap, kartu terakhir mentok ke tepi
+kanan container (tidak nyisa ruang). Resize viewport: 390px (mobile
+sempit) → 2/baris rapi, label utuh tidak terpotong; 700px (tablet) → 3/baris
+persis sesuai "bisa 3 sebaris jika cukup".
+
+## 52. Grid Priority Alert: Balik ke Breakpoint Tetap (Ikuti Contoh User)
+
+Susulan §51 — user kirim ulang (2x, sekali mid-turn sekali pesan
+terpisah) potongan kode persis:
+```tsx
+<Grid container spacing={2}>
+  {items.map((item) => (
+    <Grid key={item.id} size={{ xs: 12, sm: 6, md: 2 }}>
+      <YourComponent />
+    </Grid>
+  ))}
+</Grid>
+```
+Diikuti literal — `size={{xs:6, sm:4, md: Math.ceil(12/Math.min(alerts.
+length,6))}}` (formula dinamis §51, dibuat sendiri utk menghindari sisa
+ruang kosong kalau alert <6) DIGANTI balik ke breakpoint TETAP `{xs:12,
+sm:6, md:2}` persis contoh user — BUKAN mempertahankan formula sendiri.
+`height:'100%'` di `Card` (fix tinggi seragam §51) TETAP dipertahankan,
+itu bukan bagian yang dikoreksi.
+
+Konsekuensi yang disadari (bukan regresi tersembunyi): dengan breakpoint
+tetap, kalau suatu saat jumlah alert < 6, baris BISA nyisa ruang kosong
+kanan lagi (persis gejala yang dikomplain di §51) — trade-off sadar demi
+kode lebih sederhana sesuai keinginan eksplisit user, bukan diabaikan.
+
+Verifikasi: `tsc -b` + eslint bersih. Browser — screenshot kondisi hari
+ini (persis 6 alert) menghasilkan tampilan IDENTIK dgn §51 (kebetulan
+match, 6 alert ÷ md:2 = 6/baris penuh) — tidak ada regresi visual utk data
+saat ini.
+
+## 53. Priority Alert Menyisakan Ruang — Bukan Grid, tapi `.MuiAlert-message`
+
+User lapor "kenapa di browserku masih menyisakan ruang di kanan?" +
+screenshot browser lebar (>1900px). Diukur langsung via `getBoundingClientRect()`
+(bukan tebak) — ternyata BUKAN soal breakpoint Grid §51/§52 sama sekali:
+`.MuiAlert-message` (div bawaan MUI Alert yang membungkus AlertTitle+Grid)
+`display:flex` di root Alert, TAPI `.MuiAlert-message` bawaan MUI TIDAK
+`flex:1`/stretch ikut lebar sisa — cuma menyusut sesuai konten (906px di
+layar 1652px, sisa 746px kosong). Grid DI DALAMNYA sudah benar mengisi
+100% wadahnya sendiri, wadahnya yang sempit. Fix: `sx={{'& .MuiAlert-
+message':{width:'100%'}}}` di `<Alert>`. Diukur ulang: message 1586px,
+kartu terakhir mentok tepi kanan (1880=1880) — tidak ada ruang lagi.
+
+## 54. Format Status Badge: Simbol Perbandingan (Above/On/Below Target, Critical)
+
+User kirim tabel eksplisit: Above Target→"> Target 80%", On Target→"=
+Target 80%", Below Target→"< Target 80%", Critical→"Critical >10%".
+Diterapkan ke 3 badge Retention: **Repeat Order Rate** jadi 3-state
+(sebelumnya cuma 2: on-target digabung >= tanpa beda "tepat sama" vs
+"lebih") — `> Target`/`= Target`/`< Target`. **Dormant Rate** — "Kritis
+(>10%)" (tanda kurung) jadi "Kritis >10%" (tanpa kurung, simbol literal),
+kasus aman jadi "< Ambang 10%" (dulu cuma "Aman" polos). **Reactivation
+Rate** (target RANGE, bukan 1 titik) — below jadi "< Target 15%", in-range
+jadi "= Target 15–20%", above jadi "> Target 20%". Badge ini REUSED oleh
+Priority Alert (§47) — otomatis ikut berubah, tanpa ubah logic terpisah.
+
+## 55. Tooltip Chart: Label Tanggal & Nilai Belum Terformat
+
+User: "Format penulisan tanggal, bilangan belum memakai utility formater
+jadi format indo." Ditemukan 2 bug NYATA (diverifikasi langsung via hover
++ DOM, bukan tebak):
+
+1. **Label bulan tooltip mentah** ("2026-01", bukan "Jan 2026") — SEMUA
+   widget trend chart (`BarChartWidget`/`AreaChartWidget`/
+   `LineAlertWidget`/`ComboChartWidget`) TIDAK PERNAH mengoper
+   `labelFormatter` ke `<Tooltip>` recharts — padahal `xAxisFormatter`
+   (dipakai format tick sumbu-X) SUDAH ada di scope tiap widget, cuma
+   tidak diteruskan ke tooltip. Fix: `labelFormatter={xAxisFormatter ?
+   (label) => xAxisFormatter(String(label)) : undefined}` ditambah ke
+   ke-4 widget — REUSE prop yang SUDAH dioper caller, bukan API baru.
+2. **`AreaChartWidget` sama sekali tidak punya `tooltipFormatter`** —
+   beda dari `BarChartWidget`/`ComboChartWidget` yang sudah punya sejak
+   awal. Avg Category dan Avg GP/Customer (keduanya `AreaChartWidget`)
+   nilai tooltip tampil mentah (angka JS polos, tanpa "Rp"/pemisah ribuan/
+   "%"). Ditambahkan prop `tooltipFormatter` (pola sama persis
+   `BarChartWidget`), plus `LineAlertWidget` (Dormant Rate) yang JUGA
+   belum punya — ditambahkan juga.
+3. `Dashboard/index.tsx` — wire `tooltipFormatter` ke 4 kartu yang tadinya
+   kosong: Avg Category (`v.toFixed(2)`, cocok tampilan kartu "1.58"),
+   Active Transacting (`v.toLocaleString('id-ID')`), Avg GP
+   (`formatIDR(v)` — REUSE utility yang sudah ada, bukan tulis ulang),
+   Dormant Rate (`${v}%`).
+
+Verifikasi: `tsc -b` + eslint bersih (5 file: Dashboard/index.tsx +
+4 widget). Browser — hover langsung ke titik chart Avg GP/Customer via
+`page.mouse.move` (bukan asumsi), tooltip terkonfirmasi tampil "Feb 26"
+(bukan "2026-02") dan "Avg Gross Profit/Customer : Rp 933.155" (bukan
+angka mentah). Ditemukan JUGA (bukan bug — dicek ke DB langsung):
+`business_configs.repeat_order_target_pct` sekarang genuinely 20 (bukan
+80 lagi, berubah di luar sesi ini) — kartu Repeat Order Rate correctly
+menampilkan "Target ≥ 20%" mengikuti config asli, KONFIRMASI POSITIF
+wiring §45 bekerja (dulu akan tetap salah nampilin 80% kalau masih
+hardcode).

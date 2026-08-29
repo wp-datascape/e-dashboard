@@ -54,6 +54,13 @@
   "activeCustomerLabelFull": "Active Transacting",
   "activeCustomerInfo": "Number of customers who transacted this period, including new customers.",
   "activeCustomerSub": "Period {{start}} to {{end}}",
+  "overviewSummary": {
+    "kpi1Info": "Percentage of customers who transacted this period that bought more than 1 product category.",
+    "kpi1Sub": "{{multi}} of {{active}} customers (Active Total) who bought >1 category",
+    "kpi2Info": "Average number of distinct product categories bought by each customer who transacted this period.",
+    "kpi2Sub": "Average: {{avg}} unique categories per customer (total {{distinct}} categories sold)",
+    "activeCustomerInfo": "All customers who transacted this period, whether first-time buyers, returning customers, or customers who came back after being inactive."
+  },
   "m1FullLabel": "Cross Selling Ratio Trend (12 {{unit}})",
   "chart1Title": "Active vs Multi-Category Customers & Cross-Selling Ratio (12 Months)",
   "chart1Subtitle": "Grey bar = Active Transacting.\nBlue bar = Multi-Product (the share of Active Transacting who bought more than 1 category).\nLine = Cross-Sell Rate (Multi-Product divided by Active Transacting).\n\nFormula: Cross-Sell Rate = (Multi-Product Customers ÷ Total Active Transacting) × 100%.\nActive Transacting = at least 1 transaction in this period (including new customers).",

@@ -26,12 +26,6 @@
   "growthSectionSubtitle": "Cross-selling, category variety, and customer spending expansion",
   "healthSectionTitle": "Customer Health",
   "healthSectionSubtitle": "Repeat order, dormant rate, and reactivation",
-  "alertsTitle": "Key Alerts",
-  "alertDormantRate": "Dormant Rate {{value}}% — above the {{target}}% threshold",
-  "alertRepeatOrder": "Repeat Order Rate {{value}}% — below the {{target}}% target",
-  "alertReactivation": "Reactivation Rate {{value}}% — below the {{target}}% minimum target",
-  "alertGpDecline": "Average Gross Profit down {{value}}% YoY",
-  "alertExpansionGrowth": "Customer Expansion up {{value}}% YoY",
   "definitionsSubtitle": "How each customer segment is calculated",
   "noSectionAccess": "You don't have permission to view this section. Contact your administrator if you need access.",
   "charts": {
@@ -41,40 +35,17 @@
     "highMarginNotBought": "Did Not Buy",
     "highMarginCenterLabel": "High Margin",
     "expansionRateLabel": "Expansion Rate (%)",
-    "dormantSubtitle": "Red area = above the 10% threshold (critical condition)",
+    "dormantSubtitle": "Red area = above the {{threshold}}% threshold (critical condition)",
     "dormantRateLabel": "Dormant Rate (%)",
-    "dormantThresholdLabel": "Threshold 10%",
-    "reactivationSubtitle": "KPI Target: 15%–20% · Background color changes when achieved",
+    "reactivationSubtitle": "KPI Target: {{low}}%–{{high}}% · Background color changes when achieved",
     "avgRevenueLabel": "Avg Revenue/Customer",
     "avgGrossProfitLabel": "Avg Gross Profit/Customer",
     "dormantValueLabel": "Dormant Customer Value"
   },
-  "definitions": {
-    "title": "Key Definitions",
-    "activeCustomer": {
-      "term": "Active Customer",
-      "def": "Established customer with a transaction in this period"
-    },
-    "existingCustomer": {
-      "term": "Total Customer Base",
-      "def": "All customers except Acquisition — including those already Dormant"
-    },
-    "newCustomer": {
-      "term": "Acquisition",
-      "def": "Their first transaction just happened within this period"
-    },
-    "dormantCustomer": {
-      "term": "Dormant Customer",
-      "def": "No transaction past the threshold, which varies by business category"
-    },
-    "productCategory": {
-      "term": "Product Category",
-      "def": "Hardware + Consumable only — services are not counted"
-    },
-    "highMarginProduct": {
-      "term": "High Margin Product",
-      "def": "product_categories.is_high_margin = true"
-    }
+  "insight": {
+    "improving": "Improving compared to the same period last year",
+    "needsAttention": "Worsening compared to the same period last year, needs attention",
+    "stable": "Stable compared to the same period last year"
   },
   "kpiHeader": {
     "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
@@ -96,5 +67,57 @@
     "quarter": "quarters",
     "semester": "semesters",
     "annual": "years"
+  },
+  "overview": {
+    "alerts": {
+      "title": "{{count}} metrics need attention"
+    },
+    "growth": {
+      "crossSellLabel": "Cross-Selling Rate",
+      "crossSellSub": "{{multi}} of {{active}} customers (Active Transacting) bought >1 category",
+      "crossSellInfo": "Population: Active Transacting (customers who transacted this period).",
+      "avgCategoryLabel": "Avg Category",
+      "avgCategorySub": "Average {{avg}} unique categories per customer ({{distinct}} categories sold total)",
+      "avgCategoryInfo": "Formula: total unique categories sold / Active Transacting.",
+      "activeTransactingLabel": "Active Transacting",
+      "activeTransactingSub": "Customers who transacted this period",
+      "activeTransactingInfo": "Active Transacting = Acquisition + Active Customer + Reactivated.",
+      "chartTitle": "Cross Selling Ratio Trend",
+      "barLabel": "Active Transacting"
+    },
+    "retention": {
+      "repeatOrderLabel": "Repeat Order Rate",
+      "repeatOrderSub": "Existing customers with repeat transactions",
+      "repeatOrderInfo": "Population: Existing Active. Target: ≥{{target}}%.",
+      "dormantRateLabel": "Dormant Rate",
+      "dormantRateSub": "Existing customers who became dormant",
+      "dormantRateInfo": "Population: Total Customer Base. Critical threshold: {{threshold}}%.",
+      "reactivationLabel": "Reactivation Rate",
+      "reactivationSub": "Dormant customers who became active again",
+      "reactivationInfo": "Population: Dormant. Target: {{low}}–{{high}}%.",
+      "chartTitle": "Dormant Customer Rate",
+      "aboveTarget": "> Target {{target}}%",
+      "onTarget": "= Target {{target}}%",
+      "belowTarget": "< Target {{target}}%",
+      "critical": "Critical >{{threshold}}%",
+      "safe": "< Threshold {{threshold}}%",
+      "belowTargetRange": "< Target {{low}}%",
+      "inTargetRange": "= Target {{low}}–{{high}}%",
+      "aboveTargetRange": "> Target {{high}}%"
+    },
+    "value": {
+      "avgRevenueLabel": "Avg Revenue/Customer",
+      "avgRevenueSub": "Average revenue per existing customer",
+      "avgRevenueInfo": "Population: Existing Active.",
+      "avgGpLabel": "Avg GP/Customer",
+      "avgGpSub": "Average gross profit per existing customer",
+      "avgGpInfo": "Population: Existing Active.",
+      "highMarginLabel": "High Margin Penetration",
+      "highMarginSub": "Existing customers who bought high margin products",
+      "highMarginInfo": "Population: Existing Active.",
+      "chartTitle": "Average Revenue Per Existing Customer",
+      "regularRevenueLabel": "Regular Revenue",
+      "hmRevenueLabel": "High Margin Revenue"
+    }
   }
 }

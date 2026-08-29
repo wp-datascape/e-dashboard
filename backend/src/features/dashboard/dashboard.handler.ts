@@ -22,6 +22,7 @@ export async function handleGetDashboard(c: Context) {
     query.period_end,
     query.exclude_intercompany,
     query.period_start,
+    query.period_type,
   )
   return success(c, data)
 }

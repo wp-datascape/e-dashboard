@@ -3,6 +3,7 @@ import Typography from '@mui/material/Typography';
 import MuiTooltip from '@mui/material/Tooltip';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Card } from '@/components/ui';
+import { StatusChip } from '@/components/ui/StatusChip';
 
 // `icon` opsional (koreksi user 2026-08-21: "hapus prefix M1 langsung judul
 // saja di semuanya ganti simbol atau icon saja") — dulu judul section pakai
@@ -51,6 +52,7 @@ export function KpiCard({
   icon: Icon,
   highlighted = false,
   info,
+  badge,
 }: {
   label: string;
   value: string | number;
@@ -60,6 +62,12 @@ export function KpiCard({
    * `value`), tapi caller lama yang masih kirim `sub` TIDAK berubah. */
   sub?: string;
   color?: string;
+  /** Chip status/tren di sebelah `value` (2026-08-29, task029.md §46 —
+   * rebuild Overview 3-kartu+1-chart per section) — pola SAMA PERSIS
+   * `StatusChip` yang sudah dipakai BarChartWidget/AreaChartWidget dkk
+   * (value + chip di 1 baris). Opsional, default tanpa chip (perilaku
+   * lama, semua caller existing tidak berubah). */
+  badge?: { label: string; color: 'success' | 'error' | 'warning' | 'default' };
   /** Ikon kecil di depan label (2026-08-26) — pola SAMA PERSIS
    * `SectionLabel` (fontSize 14, color text.secondary, BUKAN badge
    * lingkaran berwarna) supaya konsisten dgn gaya ikon aplikasi
@@ -99,9 +107,12 @@ export function KpiCard({
           </MuiTooltip>
         )}
       </Box>
-      <Typography variant="h3" sx={{ fontWeight: 800, color, lineHeight: 1 }}>
-        {value}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="h3" sx={{ fontWeight: 800, color, lineHeight: 1 }}>
+          {value}
+        </Typography>
+        {badge && <StatusChip label={badge.label} color={badge.color} />}
+      </Box>
       {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
     </Card>
   );

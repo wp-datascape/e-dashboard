@@ -1,7 +1,7 @@
 // src/hooks/useMetrics.ts
 import { useQuery } from '@tanstack/react-query';
 import { metricsApi } from '@/api/metrics.api';
-import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
 import type { DrilldownPeriodParams } from '@/utils/analisisPeriod';
 
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
@@ -23,6 +23,27 @@ export function useCrossSelling(params?: {
   return useQuery<CrossSellingData>({
     queryKey: ['metrics', 'cross-selling', params],
     queryFn: () => metricsApi.getCrossSelling(params),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Versi ringan useCrossSelling — cuma kpi1/kpi2 (2026-08-28), dipakai section
+// "Ringkasan Cross-Selling" di Overview. Lihat komentar getCrossSellingSummary
+// (backend metrics.service.ts) utk alasan endpoint terpisah ini dibuat
+// (endpoint /cross-selling penuh jalankan 4 query paralel, 3 di antaranya
+// tidak dipakai Overview sama sekali).
+export function useCrossSellingSummary(params?: {
+  company_id?: number | 'all';
+  period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+}, options?: { enabled?: boolean }) {
+  return useQuery<CrossSellingSummaryData>({
+    queryKey: ['metrics', 'cross-selling-summary', params],
+    queryFn: () => metricsApi.getCrossSellingSummary(params),
     enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });

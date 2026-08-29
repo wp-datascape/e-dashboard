@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { SplitColorGradient } from '../shared/SplitColorGradient';
+import { ChartCardTitle } from '../shared/ChartCardTitle';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -26,6 +27,10 @@ export interface LineAlertWidgetProps {
    * sama sekali, TIDAK berubah utk caller existing M8/M10 yang masih kirim). */
   title?: string;
   subtitle?: string;
+  /** Penjelasan KPI sbg tooltip ikon info di sebelah judul, GANTI caption
+   * permanen `subtitle` (2026-08-28, task029.md §44) — lihat JSDoc prop
+   * `titleInfo` di BarChartWidget. `subtitle` TETAP didukung. */
+  titleInfo?: string;
   /** Header custom di DALAM Card widget (2026-08-24) — pola sama persis
    * `headerContent` ComboChartWidget/BarChartWidget. Kalau diisi,
    * MENGGANTIKAN render title/subtitle bawaan. */
@@ -39,6 +44,13 @@ export interface LineAlertWidgetProps {
   height?: number;
   /** Formatter tick sumbu X (mis. formatMonthLabel utk 'YYYY-MM' -> "Jan 26") */
   xAxisFormatter?: (v: string) => string;
+  /** Formatter NILAI di tooltip default recharts (2026-08-29, task029.md
+   * §55 — user lapor "format penulisan tanggal, bilangan belum memakai
+   * utility formater" — widget ini SEBELUMNYA sama sekali TIDAK punya cara
+   * format nilai tooltip, selalu tampil angka mentah tanpa satuan). Pola
+   * sama persis `tooltipFormatter` BarChartWidget. Diabaikan kalau
+   * `renderTooltip` diisi (caller urus sendiri). */
+  tooltipFormatter?: (value: number, name: string) => [string, string];
   /** 'area' = garis + area terisi gradasi di bawahnya. 'bar' = 2 bar
    * berdampingan (pencapaian vs target, 2026-08-24, instruksi user M6:
    * "Rubah line cart nya menjadi bar chart 2 bar untuk target dan
@@ -89,6 +101,7 @@ export interface LineAlertWidgetProps {
 export const LineAlertWidget = ({
   title,
   subtitle,
+  titleInfo,
   headerContent,
   data,
   lineKey,
@@ -98,6 +111,7 @@ export const LineAlertWidget = ({
   thresholdLabel,
   height = 220,
   xAxisFormatter,
+  tooltipFormatter,
   variant = 'line',
   targetBarKey,
   targetBarLabel,
@@ -134,9 +148,7 @@ export const LineAlertWidget = ({
         <Box sx={{ mb: 2 }}>{headerContent}</Box>
       ) : title && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-            {title}
-          </Typography>
+          <ChartCardTitle title={title} info={titleInfo} />
           {subtitle && (
             <Typography variant="caption" color="text.secondary">
               {subtitle}
@@ -202,6 +214,12 @@ export const LineAlertWidget = ({
                 borderRadius: 0,
                 fontSize: 12,
               }}
+              formatter={
+                tooltipFormatter
+                  ? (value: unknown, name: unknown) => tooltipFormatter(value as number, name as string)
+                  : undefined
+              }
+              labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
             />
           )}
           {/* Band background ReferenceArea (2026-08-25/26) DIHAPUS

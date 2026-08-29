@@ -26,12 +26,6 @@
   "growthSectionSubtitle": "Cross selling, ragam kategori, dan ekspansi belanja customer",
   "healthSectionTitle": "Customer Health",
   "healthSectionSubtitle": "Repeat order, tingkat dormant, dan reaktivasi",
-  "alertsTitle": "Key Alerts",
-  "alertDormantRate": "Dormant Rate {{value}}% — di atas ambang {{target}}%",
-  "alertRepeatOrder": "Repeat Order Rate {{value}}% — di bawah target {{target}}%",
-  "alertReactivation": "Reactivation Rate {{value}}% — di bawah target minimum {{target}}%",
-  "alertGpDecline": "Rata-rata Gross Profit turun {{value}}% YoY",
-  "alertExpansionGrowth": "Customer Expansion naik {{value}}% YoY",
   "definitionsSubtitle": "Bagaimana tiap segmen customer dihitung",
   "noSectionAccess": "Anda tidak punya izin untuk melihat bagian ini. Hubungi administrator kalau butuh akses.",
   "charts": {
@@ -41,40 +35,17 @@
     "highMarginNotBought": "Tidak Membeli",
     "highMarginCenterLabel": "High Margin",
     "expansionRateLabel": "Expansion Rate (%)",
-    "dormantSubtitle": "Area merah = di atas ambang batas 10% (kondisi kritis)",
+    "dormantSubtitle": "Area merah = di atas ambang batas {{threshold}}% (kondisi kritis)",
     "dormantRateLabel": "Dormant Rate (%)",
-    "dormantThresholdLabel": "Ambang 10%",
-    "reactivationSubtitle": "Target KPI: 15%–20% · Latar berubah warna saat ketercapaian",
+    "reactivationSubtitle": "Target KPI: {{low}}%–{{high}}% · Latar berubah warna saat ketercapaian",
     "avgRevenueLabel": "Avg Revenue/Customer",
     "avgGrossProfitLabel": "Avg Gross Profit/Customer",
     "dormantValueLabel": "Dormant Customer Value"
   },
-  "definitions": {
-    "title": "Definisi Kunci",
-    "activeCustomer": {
-      "term": "Active Customer",
-      "def": "Customer establish yang punya transaksi dalam periode ini"
-    },
-    "existingCustomer": {
-      "term": "Total Customer Base",
-      "def": "Semua customer kecuali Acquisition — termasuk yang sudah Dormant"
-    },
-    "newCustomer": {
-      "term": "Acquisition",
-      "def": "Transaksi pertamanya baru terjadi di dalam periode ini"
-    },
-    "dormantCustomer": {
-      "term": "Dormant Customer",
-      "def": "Tidak transaksi melewati ambang, beda per kategori bisnis customer"
-    },
-    "productCategory": {
-      "term": "Kategori Produk",
-      "def": "Hardware + Consumable saja — jasa/service tidak dihitung"
-    },
-    "highMarginProduct": {
-      "term": "High Margin Product",
-      "def": "product_categories.is_high_margin = true"
-    }
+  "insight": {
+    "improving": "Membaik dibanding periode yang sama tahun lalu",
+    "needsAttention": "Memburuk dibanding periode yang sama tahun lalu, perlu perhatian",
+    "stable": "Stabil dibanding periode yang sama tahun lalu"
   },
   "kpiHeader": {
     "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
@@ -96,5 +67,57 @@
     "quarter": "kuartal",
     "semester": "semester",
     "annual": "tahun"
+  },
+  "overview": {
+    "alerts": {
+      "title": "{{count}} metrik memerlukan perhatian"
+    },
+    "growth": {
+      "crossSellLabel": "Cross-Selling Rate",
+      "crossSellSub": "{{multi}} dari {{active}} pelanggan (Active Transacting) beli >1 kategori",
+      "crossSellInfo": "Populasi: Active Transacting (pelanggan yang bertransaksi periode ini).",
+      "avgCategoryLabel": "Rata-rata Kategori",
+      "avgCategorySub": "Rata-rata {{avg}} kategori unik per pelanggan (total {{distinct}} kategori terjual)",
+      "avgCategoryInfo": "Formula: total kategori unik terjual / Active Transacting.",
+      "activeTransactingLabel": "Active Transacting",
+      "activeTransactingSub": "Pelanggan yang bertransaksi periode ini",
+      "activeTransactingInfo": "Active Transacting = Acquisition + Active Customer + Reactivated.",
+      "chartTitle": "Tren Rasio Cross Selling",
+      "barLabel": "Active Transacting"
+    },
+    "retention": {
+      "repeatOrderLabel": "Repeat Order Rate",
+      "repeatOrderSub": "Pelanggan existing dengan transaksi berulang",
+      "repeatOrderInfo": "Populasi: Existing Active. Target: ≥{{target}}%.",
+      "dormantRateLabel": "Dormant Rate",
+      "dormantRateSub": "Pelanggan existing yang menjadi dormant",
+      "dormantRateInfo": "Populasi: Total Customer Base. Ambang kritis: {{threshold}}%.",
+      "reactivationLabel": "Reactivation Rate",
+      "reactivationSub": "Pelanggan dormant yang kembali aktif",
+      "reactivationInfo": "Populasi: Dormant. Target: {{low}}–{{high}}%.",
+      "chartTitle": "Dormant Customer Rate",
+      "aboveTarget": "> Target {{target}}%",
+      "onTarget": "= Target {{target}}%",
+      "belowTarget": "< Target {{target}}%",
+      "critical": "Kritis >{{threshold}}%",
+      "safe": "< Ambang {{threshold}}%",
+      "belowTargetRange": "< Target {{low}}%",
+      "inTargetRange": "= Target {{low}}–{{high}}%",
+      "aboveTargetRange": "> Target {{high}}%"
+    },
+    "value": {
+      "avgRevenueLabel": "Avg Revenue/Customer",
+      "avgRevenueSub": "Rata-rata revenue per pelanggan existing",
+      "avgRevenueInfo": "Populasi: Existing Active.",
+      "avgGpLabel": "Avg GP/Customer",
+      "avgGpSub": "Rata-rata laba kotor per pelanggan existing",
+      "avgGpInfo": "Populasi: Existing Active.",
+      "highMarginLabel": "High Margin Penetration",
+      "highMarginSub": "Pelanggan existing yang beli produk high margin",
+      "highMarginInfo": "Populasi: Existing Active.",
+      "chartTitle": "Average Revenue Per Existing Customer",
+      "regularRevenueLabel": "Revenue Reguler",
+      "hmRevenueLabel": "Revenue High Margin"
+    }
   }
 }

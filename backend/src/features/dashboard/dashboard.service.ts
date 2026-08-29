@@ -5,6 +5,34 @@ import { loadThresholds } from '@/features/config/threshold'
 import { fetchDormantValueTrend } from './dashboard.repository'
 import type { ChartType, DashboardData, MetricCard, MetricSummary, MonthlyTrendPoint } from './dashboard.types'
 import type { DashboardQuery } from './dashboard.schema'
+// Reuse resolve-tanggal-periode Monthly/Quarterly/Semester/Annual (2026-08-28,
+// task029.md §41) — Overview sebelumnya hardcode 'monthly', sekarang pakai
+// modul yang sama persis dgn getCrossSellingMetrics/getCustomerMetrics/
+// getDormantCustomerMetrics (metrics.service.ts) supaya bucket M9 (dihitung
+// manual di sini, lihat resolveTrailingBuckets di bawah) SELALU align dgn
+// bucket yang 3 fungsi itu hitung sendiri secara internal (periodType+filterDate
+// yang sama -> periodKey/buckets yang identik, tidak perlu di-share literal).
+import { getCurrentPeriodKey, getPeriodRange, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart } from '@/features/analisis/period.util'
+import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
+
+type PeriodGranularity = 'monthly' | 'quarter' | 'semester' | 'annual'
+
+// Bucket 12 titik trailing (dgn elapsed-clamp titik terakhir kalau periode
+// masih berjalan) dari 1 tanggal `periodEnd` + `periodType` — dipakai KHUSUS
+// utk fetchDormantValueTrend (M9), yang butuh array bucket eksplisit (beda
+// dari 3 fungsi metrics.service.ts yang menghitung buckets-nya sendiri
+// secara internal, cukup dikasih period_end/period_type mentah).
+function resolveTrailingBuckets(periodEnd: string, periodType: PeriodGranularity): TrailingPeriodBucket[] {
+  const [py, pm, pd] = periodEnd.split('-').map(Number)
+  const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+  const calendarRange = getPeriodRange(periodType, periodKey)
+  const buckets = buildTrailingPeriods(periodType, periodKey, 12)
+  const resolved = resolveTrendPeriod({
+    periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
+    fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+  })
+  return resolved.buckets
+}
 
 function todayDate(): string {
   const now = new Date()
@@ -90,6 +118,7 @@ export async function getDashboard(
   periodEnd?: string,
   excludeIntercompany?: boolean,
   periodStart?: string,
+  periodType: PeriodGranularity = 'monthly',
 ): Promise<DashboardData> {
   try {
     const filterDate = periodEnd ?? todayDate()
@@ -107,27 +136,35 @@ export async function getDashboard(
     // tanggal) - BUKAN override activeMonths, prinsip §8e tidak berubah.
     const [cross, customer, dormant, thresholds, segParams,
            crossYoy, customerYoy, dormantYoy, segParamsYoy] = await Promise.all([
-      // period_type: 'monthly' eksplisit — Overview selalu bulanan (task029.md
-      // §30 granularitas cuma dipakai halaman Growth/Retention/Value, bukan
-      // Overview), disamakan dgn behavior sebelum param ini ada.
+      // period_type: periodType (2026-08-28, task029.md §41 — sebelumnya
+      // hardcode 'monthly', Overview sekarang terima granularitas yang sama
+      // dgn Growth/Retention/Value, default tetap 'monthly' kalau caller
+      // tidak kirim apa pun jadi behavior lama tidak berubah).
       // only_pareto: false eksplisit (task029.md §35, 2026-08-25) — Dashboard
       // Overview tidak punya UI filter Pareto sama sekali, field ini WAJIB
       // diisi (bukan optional lagi setelah melewati transform Zod), hardcode
       // false = behavior lama (tidak ada filter Pareto sebelum field ini ada).
-      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
-      getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCrossSellingMetrics({ company_id: companyId, period_end: filterDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getDormantCustomerMetrics({ company_id: companyId, period_end: filterDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
       loadThresholds(),
       resolveSegmentParams(companyId, filterDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
-      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
-      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
-      getDormantCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: 'monthly', apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCrossSellingMetrics({ company_id: companyId, period_end: comparisonDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
+      getDormantCustomerMetrics({ company_id: companyId, period_end: comparisonDate, period_type: periodType, apply_date_cutoff: false, skip_elapsed_clamp: false, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false }, scope),
       resolveSegmentParams(companyId, comparisonDate, division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, branchId, excludeIC),
     ])
 
+    // Bucket M9 (2026-08-28, §41) — dihitung eksplisit di sini (beda dari
+    // cross/customer/dormant yang hitung sendiri secara internal), karena
+    // fetchDormantValueTrend butuh array bucket sbg parameter langsung (lihat
+    // JSDoc fungsi itu, dashboard.repository.ts).
+    const buckets = resolveTrailingBuckets(filterDate, periodType)
+    const comparisonBuckets = resolveTrailingBuckets(comparisonDate, periodType)
+
     const [dormantValueTrend, dormantValueTrendYoy] = await Promise.all([
-      fetchDormantValueTrend(segParams),
-      fetchDormantValueTrend(segParamsYoy),
+      fetchDormantValueTrend(segParams, buckets),
+      fetchDormantValueTrend(segParamsYoy, comparisonBuckets),
     ])
 
     // Nilai headline = rata-rata field bulanan dlm rentang [periodStart,
@@ -188,7 +225,7 @@ export async function getDashboard(
         // bar (koreksi user 2026-08-09: "chart di dashboard jenisnya sama
         // kan dengan chart di halaman masing-masing KPI").
         'percent', 'line',
-        cross.trend.map((r) => ({ month: r.month, value: r.ratio })),
+        cross.trend.map((r) => ({ month: r.month, value: r.ratio, total_active: r.total_active })),
         current.cross_selling_ratio,
         yoy.cross_selling_ratio,
         // Angka exact dari cross.kpi1 (SAMA persis dgn yang dipakai halaman
@@ -216,7 +253,7 @@ export async function getDashboard(
         'avg_revenue', 'Rata-rata Revenue',
         'Revenue per existing customer di periode ini', '/value',
         'currency', 'bar',
-        customer.trend.map((r) => ({ month: r.month, value: r.avg_revenue })),
+        customer.trend.map((r) => ({ month: r.month, value: r.avg_revenue, total_revenue_existing: r.total_revenue_existing, hm_revenue_raw: r.hm_revenue })),
         current.avg_revenue,
         yoy.avg_revenue,
       ),

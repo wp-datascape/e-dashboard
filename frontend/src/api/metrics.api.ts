@@ -1,7 +1,7 @@
 // src/api/metrics.api.ts
 import { api } from './axios';
 import type { ApiResponse } from '@/types/api';
-import type { CrossSellingData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
 
 export const metricsApi = {
   getCrossSelling: async (params?: {
@@ -28,6 +28,26 @@ export const metricsApi = {
     only_pareto?: boolean;
   }): Promise<CrossSellingData> => {
     const res = await api.get<ApiResponse<CrossSellingData>>('/metrics/cross-selling', { params });
+    return res.data.data;
+  },
+
+  // Versi ringan getCrossSelling — cuma kpi1/kpi2 (2026-08-28), dipakai
+  // section "Ringkasan Cross-Selling" di Overview supaya tidak ikut fetch
+  // trend/detail/heatmap yang tidak dipakai di sana. Lihat komentar
+  // getCrossSellingSummary (backend metrics.service.ts).
+  getCrossSellingSummary: async (params?: {
+    company_id?: number | 'all';
+    period_end?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    cutoff_day?: number;
+    skip_elapsed_clamp?: boolean;
+    division?: number;
+    branch_id?: number;
+    exclude_intercompany?: boolean;
+    only_pareto?: boolean;
+  }): Promise<CrossSellingSummaryData> => {
+    const res = await api.get<ApiResponse<CrossSellingSummaryData>>('/metrics/cross-selling/summary', { params });
     return res.data.data;
   },
 

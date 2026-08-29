@@ -488,6 +488,7 @@ export const ComboChartWidget = ({
                 fontSize: 12,
               }}
               formatter={tooltipFormatter}
+              labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
             />
           )}
           <Legend wrapperStyle={{ fontSize: legendFontSize }} iconSize={legendIconSize} />
