@@ -38,6 +38,16 @@ export interface InvoiceParams {
   per_page?: number
 }
 
+export interface InvoicesSummary {
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+}
+
+// Filter kartu ringkasan (2026-08-29) — SAMA PERSIS InvoiceParams minus
+// sort/pagination (aggregate 1 baris, bukan list).
+export type InvoicesSummaryParams = Omit<InvoiceParams, 'sort_by' | 'sort_dir' | 'page' | 'per_page'>
+
 export interface InvoiceDetail {
   id: number
   invoice_number: string

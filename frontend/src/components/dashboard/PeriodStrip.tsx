@@ -4,15 +4,19 @@ import { StatusChip } from '@/components/ui/StatusChip'
 
 interface PeriodStripProps {
   period: string
-  activeWindow: number
 }
 
-export function PeriodStrip({ period, activeWindow }: PeriodStripProps) {
+// Sebelumnya juga menampilkan chip "Active Window" (activeMonths dari
+// business_configs) di sebelah chip Period ini — dihapus (2026-08-29, user
+// tanya baliknya membingungkan: dikira ikut granularitas filter, padahal
+// ambang tetap kohort "Existing" yang SENGAJA dikunci, lihat task026 §8e).
+// Bukan info yang perlu dilihat user tiap saat, chip-nya dibuang daripada
+// dipertahankan setengah-benar.
+export function PeriodStrip({ period }: PeriodStripProps) {
   const { t } = useTranslation()
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
       <StatusChip label={t('dashboard.periodStripLabel', { period })} color="default" />
-      <StatusChip label={t('dashboard.activeWindowStripLabel', { months: activeWindow })} color="default" />
     </Box>
   )
 }

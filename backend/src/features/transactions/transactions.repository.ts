@@ -8,21 +8,30 @@ import {
   loadDivisionFallbackIds,
   flattenFallbackByBranch,
 } from '@/utils/scope'
-import type { InvoicesQuery } from './transactions.schema'
+import type { InvoicesQuery, InvoicesSummaryQuery } from './transactions.schema'
 
-export async function findInvoices(
-  params: InvoicesQuery,
+// Filter dasar (company/branch/division/exclude-intercompany/search/tanggal) —
+// DIPAKAI BERSAMA findInvoices (list) dan findInvoicesSummary (kartu ringkasan
+// Revenue/Laba Kotor/Margin, 2026-08-29), supaya kartu ringkasan SELALU sinkron
+// dengan filter yang lagi aktif di tabel, tidak ada jalur filter kedua yang bisa
+// divergen dari yang pertama.
+type InvoiceFilterParams = Pick<
+  InvoicesQuery,
+  'company_id' | 'branch_id' | 'business_unit' | 'exclude_intercompany' | 'customer_search' | 'date_from' | 'date_to'
+>
+
+async function buildInvoiceWhereClause(
+  params: InvoiceFilterParams,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, number[]>,
 ) {
-  const { company_id, branch_id, business_unit, exclude_intercompany, customer_search, date_from, date_to, sort_by, sort_dir, page, per_page } = params
-  const offset = (page - 1) * per_page
+  const { company_id, branch_id, business_unit, exclude_intercompany, customer_search, date_from, date_to } = params
 
   const conditions = [isNull(invoices.deleted_at), eq(customers.is_placeholder, false)]
   if (company_id !== 'all') conditions.push(eq(invoices.company_id, company_id))
   else if (scopeIds) {
-    if (scopeIds.length === 0) return { data: [], total: 0 }
+    if (scopeIds.length === 0) return { where: undefined, isEmptyScope: true as const }
     conditions.push(inArray(invoices.company_id, scopeIds))
   }
   if (customer_search) {
@@ -69,6 +78,20 @@ export async function findInvoices(
     (c): c is NonNullable<typeof c> => c !== undefined,
   )
   const whereWithDivision = scopeConditions.length ? and(whereClause, ...scopeConditions) : whereClause
+  return { where: whereWithDivision, isEmptyScope: false as const }
+}
+
+export async function findInvoices(
+  params: InvoicesQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  const { sort_by, sort_dir, page, per_page } = params
+  const offset = (page - 1) * per_page
+
+  const { where: whereWithDivision, isEmptyScope } = await buildInvoiceWhereClause(params, scopeIds, branchScope, divisionScope)
+  if (isEmptyScope) return { data: [], total: 0 }
 
   const isAsc = sort_dir === 'asc'
   const orderByExpr = (() => {
@@ -154,6 +177,44 @@ export async function findInvoices(
       }
     }),
     total: Number(total),
+  }
+}
+
+// Kartu ringkasan Revenue/Laba Kotor/Margin (2026-08-29) — 1 baris agregat,
+// filter SAMA PERSIS findInvoices (lewat buildInvoiceWhereClause), TANPA join
+// invoice_items (tidak butuh category_count di sini) supaya SUM tidak
+// terlipatgandakan oleh baris item per invoice.
+export async function findInvoicesSummary(
+  params: InvoicesSummaryQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  const { where: whereWithDivision, isEmptyScope } = await buildInvoiceWhereClause(params, scopeIds, branchScope, divisionScope)
+  if (isEmptyScope) return { total_revenue: 0, total_gp: 0, gp_margin_percent: 0 }
+
+  const [row] = await db
+    .select({
+      total_revenue: sql<number>`COALESCE(SUM(${invoices.total_revenue}), 0)`,
+      total_gp:      sql<number>`COALESCE(SUM(${invoices.total_gp}), 0)`,
+    })
+    .from(invoices)
+    .innerJoin(customers, eq(invoices.customer_id, customers.id))
+    .leftJoin(
+      channel_divisions,
+      and(
+        eq(channel_divisions.channel_name, invoices.channel_name),
+        eq(channel_divisions.company_id, invoices.company_id),
+      ),
+    )
+    .where(whereWithDivision)
+
+  const totalRevenue = Number(row?.total_revenue ?? 0)
+  const totalGp = Number(row?.total_gp ?? 0)
+  return {
+    total_revenue:     totalRevenue,
+    total_gp:          totalGp,
+    gp_margin_percent: totalRevenue > 0 ? Number(((totalGp / totalRevenue) * 100).toFixed(1)) : 0,
   }
 }
 

@@ -2,9 +2,12 @@ import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
+import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import PercentIcon from '@mui/icons-material/Percent'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
-import { useInvoices } from '@/hooks/useTransactions'
+import { useInvoices, useInvoicesSummary } from '@/hooks/useTransactions'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
@@ -14,6 +17,7 @@ import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
 import { InvoiceDetailDialog } from './components/InvoiceDetailDialog'
+import { ReportSummaryCards } from '../Report/ReportSummaryCards'
 import { formatRupiah } from '@/utils/format'
 import { currentYearMonth, resolvePeriodEnd, windowStartDate } from '@/utils/date'
 
@@ -59,6 +63,19 @@ export default function Transactions() {
   const { data, isLoading, error } = useInvoices(queryParams)
   const invoices = data?.data ?? []
 
+  // Kartu ringkasan Revenue/Laba Kotor/Margin (2026-08-29, instruksi user:
+  // "Tambahkan card summary di menu transaksi") — filter SAMA PERSIS
+  // queryParams minus sort/pagination, jadi kartu selalu sinkron dgn tabel.
+  const { data: summary, isLoading: summaryLoading } = useInvoicesSummary({
+    company_id: companyId,
+    branch_id: branchId === 'all' ? undefined : branchId,
+    customer_search: customerSearch || undefined,
+    business_unit: buFilter || undefined,
+    exclude_intercompany: excludeIntercompany,
+    date_from: windowStartDate(periodMonth, activeWindow),
+    date_to: resolvePeriodEnd(periodMonth),
+  })
+
   const handleRowClick = useCallback((row: InvoiceRow) => {
     setSelectedInvoiceId(row.id)
   }, [])
@@ -96,6 +113,15 @@ export default function Transactions() {
 
         <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
       </Box>
+
+      <ReportSummaryCards items={[
+        { label: t('transactions.totalRevenue'), value: summaryLoading ? '—' : formatRupiah(summary?.total_revenue ?? 0),
+          icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true },
+        { label: t('transactions.totalGP'), value: summaryLoading ? '—' : formatRupiah(summary?.total_gp ?? 0),
+          icon: TrendingUpIcon, iconColor: 'success' },
+        { label: t('transactions.gpMargin'), value: summaryLoading ? '—' : `${(summary?.gp_margin_percent ?? 0).toFixed(1)}%`,
+          icon: PercentIcon, iconColor: 'warning' },
+      ]} />
 
       <ResponsiveListView
         rows={invoices}

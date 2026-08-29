@@ -15,7 +15,6 @@
   "vs": "vs last month",
   "overviewTitle": "Overview",
   "periodStripLabel": "Period: {{period}}",
-  "activeWindowStripLabel": "Active Window: {{months}} months",
   "execSummaryTitle": "Executive Summary",
   "execSummarySubtitle": "The most important business KPIs this period",
   "existingCustomersTitle": "Total Customer Base",

@@ -209,7 +209,7 @@ export default function ReportRevenue() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <AdvancedFilterBar
-        title={<>{t('nav.groups.report')} · {t('nav.groups.value')}</>}
+        title={<>{t('nav.groups.report')} · {t('nav.groups.revenue')}</>}
         filter={filterBar}
         hasAccess={canExpansion}
         loading={isLoading}
@@ -242,7 +242,7 @@ export default function ReportRevenue() {
                 { label: t('customerMetrics.m3.summaryExisting'), value: (revenueData?.total_existing ?? 0).toLocaleString('id-ID'),
                   icon: PeopleOutlineIcon, info: t('customerMetrics.m3.summaryExistingInfo') },
                 { label: t('customerMetrics.m3.summaryTotalRevenue'), value: formatRupiah(revenueData?.total_revenue ?? 0),
-                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true },
+                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m3.summaryTotalRevenueInfo') },
                 { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(revenueData?.hm_revenue ?? 0),
                   icon: WorkspacePremiumIcon, iconColor: 'success' },
               ]} />
@@ -279,7 +279,7 @@ export default function ReportRevenue() {
                 { label: t('customerMetrics.m4.summaryExisting'), value: (gpData?.total_existing ?? 0).toLocaleString('id-ID'),
                   icon: PeopleOutlineIcon, info: t('customerMetrics.m4.summaryExistingInfo') },
                 { label: t('customerMetrics.m4.summaryTotalGp'), value: formatRupiah(gpData?.total_gp ?? 0),
-                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true },
+                  icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m4.summaryTotalGpInfo') },
               ]} />
               <ReportTabCard
                 searchValue={gpSearch}
