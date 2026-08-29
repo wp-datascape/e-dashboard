@@ -15,7 +15,6 @@ import {
   Tooltip,
   Legend,
   Cell,
-  LabelList,
   ReferenceLine,
 } from 'recharts';
 import type { TooltipContentProps, MouseHandlerDataParam, YAxisTickContentProps } from 'recharts';
@@ -532,28 +531,19 @@ export const ComboChartWidget = ({
                 radius={0}
                 stackId={stacked ? 'stack' : undefined}
               >
+                {/* Warna bar SUDAH cukup jadi penanda konsentrasi tinggi
+                    (2026-08-29 — user tanya "apa arti tanda seri di atas
+                    cart" lalu minta dihapus: label emoji DI ATAS bar
+                    dulu ada di sini, REDUNDAN dgn Cell fill di bawah yang
+                    SUDAH mengganti warna bar jadi `warnColor` — 2 sinyal
+                    utk 1 kondisi yang sama. Emoji juga melanggar aturan
+                    proyek "no emoji". Dihapus, warna bar saja cukup). */}
                 {concentrationKey && (data as Record<string, number>[]).map((entry, i) => (
                   <Cell
                     key={i}
                     fill={(entry[concentrationKey] ?? 0) > concentrationThreshold ? warnColor : barColor}
                   />
                 ))}
-                {concentrationKey && (
-                  <LabelList
-                    dataKey={concentrationKey}
-                    content={(props) => {
-                      const val = Number(props.value ?? 0);
-                      if (val <= concentrationThreshold) return null;
-                      const cx = Number(props.x ?? 0) + Number(props.width ?? 0) / 2;
-                      const cy = Number(props.y ?? 0) - 6;
-                      return (
-                        <text x={cx} y={cy} textAnchor="middle" fontSize={11} fill={theme.palette.warning.dark}>
-                          ⚠
-                        </text>
-                      );
-                    }}
-                  />
-                )}
               </Bar>
 
               {bar2Key && (

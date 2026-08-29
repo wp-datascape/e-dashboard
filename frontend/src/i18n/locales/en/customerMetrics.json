@@ -3,7 +3,7 @@
   "pageSubtitle": "Metrics 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion",
   "m3": {
     "sectionLabel": "Average Revenue per Existing Customer",
-    "tooltipInfo": "Measures average revenue from repeat customers who keep transacting (Existing Active) in this period — reflecting the economic value of retained customers and the effectiveness of retention and account-growth strategy.\n\nIf the Avg line is far above Median, a few large customers are pushing the average up, not even growth across the board. The orange bar marked ⚠ flags a month where 1 customer contributed more than 25% of total revenue. \"High Margin Revenue\" measures the revenue share from High Margin products that month.\n\nFormula: Avg Revenue = Total Existing Active Revenue ÷ Number of Existing Active.\nExisting Active = already had transaction history before this period, and still transacted during this period.",
+    "tooltipInfo": "Measures average revenue from repeat customers who keep transacting (Existing Active) in this period — reflecting the economic value of retained customers and the effectiveness of retention and account-growth strategy.\n\nIf the Avg line is far above Median, a few large customers are pushing the average up, not even growth across the board. The orange bar flags a month where 1 customer contributed more than 25% of total revenue. \"High Margin Revenue\" measures the revenue share from High Margin products that month.\n\nFormula: Avg Revenue = Total Existing Active Revenue ÷ Number of Existing Active.\nExisting Active = already had transaction history before this period, and still transacted during this period.",
     "barLabel": "Regular Revenue",
     "bar2LabelHm": "High Margin Revenue",
     "colRevenue": "Revenue",
@@ -42,7 +42,7 @@
   },
   "m4": {
     "sectionLabel": "Average Gross Profit per Existing Customer",
-    "tooltipInfo": "Measures average gross profit from repeat customers who keep transacting (Existing Active) in this period — the profitability of old customers based on margin contribution, not just revenue.\n\nEach period is split into 3 tiers (Top/Mid/Bottom) based on that period's median individual GP — the customer mix per tier can shift over time. The orange bar marked ⚠ flags a period where 1 customer contributed more than 25% of total gross profit.\n\nFormula: Avg Gross Profit = Total Gross Profit (Revenue − COGS) from Existing Active ÷ Number of Existing Active.\nExisting Active = already had transaction history before this period, and still transacted during this period.",
+    "tooltipInfo": "Measures average gross profit from repeat customers who keep transacting (Existing Active) in this period — the profitability of old customers based on margin contribution, not just revenue.\n\nEach period is split into 3 tiers (Top/Mid/Bottom) based on that period's median individual GP — the customer mix per tier can shift over time. The bar with an orange outline flags a period where 1 customer contributed more than 25% of total gross profit.\n\nFormula: Avg Gross Profit = Total Gross Profit (Revenue − COGS) from Existing Active ÷ Number of Existing Active.\nExisting Active = already had transaction history before this period, and still transacted during this period.",
     "tierTop": "Top (GP > median)",
     "tierMid": "Mid (50%–100% median)",
     "tierBottom": "Bottom (< 50% median)",
