@@ -452,6 +452,19 @@ export interface CrossSellingHeatmapRow {
   total_revenue: number
 }
 
+// Versi ringan CrossSellingMetricsData — cuma kpi1/kpi2, TANPA trend/detail/
+// heatmap (2026-08-28). Dipakai halaman Overview (section "Ringkasan
+// Cross-Selling") yang cuma butuh 2 angka ringkasan, supaya TIDAK ikut
+// menjalankan 3 query lain yang mahal (trend 12 titik, detail semua
+// customer, heatmap top-30) yang sama sekali tidak dipakai di sana — lihat
+// getCrossSellingSummary (metrics.service.ts), reuse fetchCrossSellingKPI
+// yang sama dgn getCrossSellingMetrics, bukan query baru.
+export interface CrossSellingSummaryData {
+  period: { start: string; end: string; active_months: number; type: string; key: string }
+  kpi1: { multi_cat_count: number; active_count: number; rate: number }
+  kpi2: { avg_categories: number; total_distinct_cats: number }
+}
+
 export interface CrossSellingMetricsData {
   // type/key (task029.md §30, 2026-08-20) — granularitas & period_key yang
   // BENAR-BENAR dipakai (bukan cuma echo param request), berguna FE cross-check

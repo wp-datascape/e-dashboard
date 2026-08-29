@@ -4,6 +4,7 @@ import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { ChartCardTitle } from '../shared/ChartCardTitle';
 import {
   ResponsiveContainer,
   BarChart,
@@ -34,6 +35,12 @@ export interface BarChartWidgetProps {
   value?: string | number;
   change?: number;
   subtitle?: string;
+  /** Penjelasan KPI sbg tooltip ikon info di sebelah judul, GANTI caption
+   * permanen `subtitle` (2026-08-28, task029.md §44 — "penjelasan setiap
+   * KPI nya pindahkan ke tooltip info saja, agar lebih clean cart nya").
+   * `subtitle` TETAP didukung (caller lama yang belum pindah tidak
+   * berubah) — cukup pakai salah satu, keduanya independen. */
+  titleInfo?: string;
   /** Header custom (2026-08-24, koreksi user: "masukkan header cart ke
    * dalam box cart" — SectionLabel M7 dulu render sbg Box terpisah DI
    * LUAR widget chart, sekarang dikirim lewat prop ini, dirender DI DALAM
@@ -105,6 +112,7 @@ export const BarChartWidget = ({
   value,
   change,
   subtitle,
+  titleInfo,
   headerContent,
   caption,
   data,
@@ -168,11 +176,7 @@ export const BarChartWidget = ({
               )}
             </Box>
           )}
-          {title && (
-            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-              {title}
-            </Typography>
-          )}
+          {title && <ChartCardTitle title={title} info={titleInfo} />}
           {subtitle && (
             <Typography variant="caption" color="text.secondary">
               {subtitle}
@@ -273,6 +277,7 @@ export const BarChartWidget = ({
                       tooltipFormatter(value as number, name as string)
                   : undefined
               }
+              labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
             />
           )}
           {/* fontSize mobile-aware (2026-08-23) — samakan pola

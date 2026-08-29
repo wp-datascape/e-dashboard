@@ -9,6 +9,21 @@ export interface MonthlyTrendPoint {
   tier1?: number
   tier2?: number
   tier3?: number
+  // Rebuild Overview jadi 3-kartu+1-chart per section (2026-08-29, task029.md
+  // §46) — chart Growth (combo bar+line) butuh count "Active Transacting"
+  // per bulan, bukan cuma `ratio`. HANYA diisi utk metric_key
+  // 'cross_selling_ratio', dari `cross.trend[].total_active`
+  // (m1.repository.ts `fetchCrossSellingTrend`, SUDAH difetch dashboard.
+  // service.ts, sebelumnya dibuang saat map ke monthly_trend).
+  total_active?: number
+  // Chart Value (stacked bar Revenue Reguler + High Margin, line Avg
+  // Revenue/Customer) — HANYA diisi utk metric_key 'avg_revenue', dari
+  // `customer.trend[].total_revenue_existing`/`hm_revenue`
+  // (CustomerMetricsTrendPoint, SUDAH difetch, sebelumnya dibuang).
+  // `hm_revenue_raw` (bukan `hm_revenue`) supaya tidak bentrok makna dgn
+  // field `detail.dormantCount` dkk yang sudah ada di card lain.
+  total_revenue_existing?: number
+  hm_revenue_raw?: number
 }
 
 // Jenis mini-chart di StatCard Overview - dipetakan per SIFAT metrik

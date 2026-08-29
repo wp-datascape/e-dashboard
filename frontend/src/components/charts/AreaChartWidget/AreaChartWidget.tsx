@@ -4,6 +4,7 @@ import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { SplitColorGradient } from '../shared/SplitColorGradient';
+import { ChartCardTitle } from '../shared/ChartCardTitle';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -31,10 +32,21 @@ export interface AreaSeries {
 }
 
 export interface AreaChartWidgetProps {
-  title: string;
+  /** Opsional (2026-08-29, task029.md §49 — sebelumnya wajib, digantikan
+   * `headerContent` di caller yang butuh header custom, pola sama widget
+   * lain). Caller lama yang masih kirim `title` TIDAK berubah. */
+  title?: string;
   value?: string | number;
   change?: number;
   subtitle?: string;
+  /** Penjelasan KPI sbg tooltip ikon info di sebelah judul, GANTI caption
+   * permanen `subtitle` (2026-08-28, task029.md §44) — lihat JSDoc prop
+   * `titleInfo` di BarChartWidget. `subtitle` TETAP didukung. */
+  titleInfo?: string;
+  /** Header custom di DALAM Card widget (2026-08-29, task029.md §49) — pola
+   * sama persis `headerContent` widget lain. Kalau diisi, MENGGANTIKAN
+   * render value/title/subtitle bawaan. */
+  headerContent?: React.ReactNode;
   data: object[];
   series: AreaSeries[];
   xKey?: string;
@@ -45,6 +57,13 @@ export interface AreaChartWidgetProps {
   xAxisFormatter?: (v: string) => string;
   /** Formatter tick sumbu Y (mis. formatIDR utk nilai Rupiah) */
   yAxisFormatter?: (v: number) => string;
+  /** Formatter NILAI di tooltip default recharts (2026-08-29, task029.md
+   * §55 — user lapor "format penulisan tanggal, bilangan belum memakai
+   * utility formater" — widget ini SEBELUMNYA sama sekali TIDAK punya cara
+   * format nilai tooltip, selalu tampil angka mentah tanpa satuan, beda
+   * dari BarChartWidget/ComboChartWidget yang sudah py `tooltipFormatter`).
+   * Pola sama persis `tooltipFormatter` BarChartWidget. */
+  tooltipFormatter?: (value: number, name: string) => [string, string];
 }
 
 export const AreaChartWidget = ({
@@ -52,6 +71,8 @@ export const AreaChartWidget = ({
   value,
   change,
   subtitle,
+  titleInfo,
+  headerContent,
   data,
   series,
   xKey = 'name',
@@ -59,6 +80,7 @@ export const AreaChartWidget = ({
   onAreaClick,
   xAxisFormatter,
   yAxisFormatter,
+  tooltipFormatter,
 }: AreaChartWidgetProps) => {
   const theme = useTheme();
   const isPositive = (change ?? 0) >= 0;
@@ -88,26 +110,28 @@ export const AreaChartWidget = ({
     <Card sx={{ p: 2, height: '100%' }}>
       {/* Header */}
       <Box sx={{ mb: 2 }}>
-        {value !== undefined && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1 }}>
-              {value}
-            </Typography>
-            {change !== undefined && (
-              <StatusChip
-                label={`${isPositive ? '+' : ''}${change}%`}
-                color={isPositive ? 'success' : 'error'}
-              />
+        {headerContent ?? (
+          <>
+            {value !== undefined && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                  {value}
+                </Typography>
+                {change !== undefined && (
+                  <StatusChip
+                    label={`${isPositive ? '+' : ''}${change}%`}
+                    color={isPositive ? 'success' : 'error'}
+                  />
+                )}
+              </Box>
             )}
-          </Box>
-        )}
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {subtitle}
-          </Typography>
+            {title && <ChartCardTitle title={title} info={titleInfo} />}
+            {subtitle && (
+              <Typography variant="caption" color="text.secondary">
+                {subtitle}
+              </Typography>
+            )}
+          </>
         )}
       </Box>
 
@@ -154,6 +178,12 @@ export const AreaChartWidget = ({
               borderRadius: 0,
               fontSize: 12,
             }}
+            formatter={
+              tooltipFormatter
+                ? (value: unknown, name: unknown) => tooltipFormatter(value as number, name as string)
+                : undefined
+            }
+            labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
           />
           {series.length > 1 && (
             <Legend wrapperStyle={{ fontSize: 12 }} />

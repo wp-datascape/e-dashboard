@@ -8,6 +8,14 @@ export interface MonthlyTrendPoint {
   tier1?: number;
   tier2?: number;
   tier3?: number;
+  // Rebuild Overview 3-kartu+1-chart (2026-08-29, task029.md §46) — lihat
+  // JSDoc backend dashboard.types.ts. `total_active`: cuma diisi utk
+  // cross_selling_ratio (count Active Transacting per bulan, chart combo
+  // Growth). `total_revenue_existing`/`hm_revenue_raw`: cuma diisi utk
+  // avg_revenue (stacked bar Reguler+High Margin, chart combo Value).
+  total_active?: number;
+  total_revenue_existing?: number;
+  hm_revenue_raw?: number;
 }
 
 export type ChartType = 'bar' | 'area' | 'line' | 'stacked-bar';

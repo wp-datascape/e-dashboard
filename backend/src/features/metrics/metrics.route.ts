@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCrossSellingSummary, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -10,6 +10,12 @@ export const metricsRoutes = new Hono()
 // db/seed.ts). Sebelum ini, TIDAK ADA role non-superadmin yang bisa lolos endpoint
 // manapun di sini karena 'metrics:view' tidak pernah bisa di-assign lewat RBAC UI.
 metricsRoutes.get('/cross-selling',         requirePermission('cross.selling:view'), handleGetCrossSelling)
+// Versi ringan /cross-selling (2026-08-28) — cuma kpi1/kpi2, dipakai section
+// "Ringkasan Cross-Selling" di Overview. Permission SAMA dgn endpoint penuh
+// (data domain sama, cuma beda seberapa banyak yang di-query) — user yang
+// tidak bisa lihat Cross Selling di Growth juga tidak seharusnya lihat
+// breakdown-nya di Overview.
+metricsRoutes.get('/cross-selling/summary', requirePermission('cross.selling:view'), handleGetCrossSellingSummary)
 // customer-metrics TETAP expansion:view (shared trend/chart data utk KPI3-7
 // sekaligus, tidak dipecah — task025 §12). Breakdown per-KPI di bawah SUDAH
 // dipecah ke permission spesifik masing-masing (rename dari expansion:view).

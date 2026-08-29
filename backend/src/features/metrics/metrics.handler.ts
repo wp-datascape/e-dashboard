@@ -3,7 +3,7 @@ import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
 import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { getCrossSellingMetrics, getCrossSellingSummary, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -26,6 +26,16 @@ export async function handleGetCrossSelling(c: Context) {
   const query = validateQuery(c, crossSellingQuerySchema)
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getCrossSellingMetrics(query, scope)
+  return success(c, data)
+}
+
+// Versi ringan /cross-selling — cuma kpi1/kpi2, TANPA trend/detail/heatmap
+// (2026-08-28). Dipakai halaman Overview, lihat komentar getCrossSellingSummary
+// (metrics.service.ts) utk alasan endpoint terpisah ini dibuat.
+export async function handleGetCrossSellingSummary(c: Context) {
+  const query = validateQuery(c, crossSellingQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getCrossSellingSummary(query, scope)
   return success(c, data)
 }
 

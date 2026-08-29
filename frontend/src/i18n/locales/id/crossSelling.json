@@ -54,6 +54,13 @@
   "activeCustomerLabelFull": "Active Transacting",
   "activeCustomerInfo": "Jumlah pelanggan yang bertransaksi pada periode ini, termasuk pelanggan baru.",
   "activeCustomerSub": "Periode {{start}} s/d {{end}}",
+  "overviewSummary": {
+    "kpi1Info": "Persentase pelanggan yang bertransaksi periode ini yang membeli lebih dari 1 kategori produk.",
+    "kpi1Sub": "{{multi}} dari {{active}} pelanggan (Active Total) yang membeli >1 kategori produk",
+    "kpi2Info": "Rata-rata jumlah kategori produk berbeda yang dibeli tiap pelanggan yang bertransaksi periode ini.",
+    "kpi2Sub": "Rata-rata: {{avg}} kategori unik per pelanggan (total {{distinct}} kategori terjual)",
+    "activeCustomerInfo": "Semua pelanggan yang bertransaksi periode ini, baik yang baru pertama kali, pelanggan lama yang kembali membeli, maupun yang aktif lagi setelah sempat berhenti."
+  },
   "m1FullLabel": "Tren Rasio Cross Selling (12 {{unit}})",
   "chart1Title": "Active Transacting vs Multi-Kategori & Cross-Selling Ratio (12 Bulan)",
   "chart1Subtitle": "Bar abu-abu = Active Transacting.\nBar biru = Multi-Produk (bagian dari Active Transacting yang beli lebih dari 1 kategori).\nGaris = Cross-Sell Rate (Multi-Produk dibagi Active Transacting).\n\nRumus: Cross-Sell Rate = (Pelanggan Multi-Produk ÷ Total Active Transacting) × 100%.\nActive Transacting = minimal 1 transaksi dalam periode ini (termasuk pelanggan baru).",

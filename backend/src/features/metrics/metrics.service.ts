@@ -18,7 +18,7 @@ import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
 import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData } from './metrics.types'
+import type { CrossSellingMetricsData, CrossSellingSummaryData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData } from './metrics.types'
 
 // "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
 // sama sekali (bukan cuma angkanya, chip-nya juga) — beda dari data transaksi
@@ -179,6 +179,62 @@ export async function getCrossSellingMetrics(params: CrossSellingQuery, scope: M
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data cross-selling metrics', 500)
+  }
+}
+
+// Versi ringan getCrossSellingMetrics — cuma kpi1/kpi2 (2026-08-28). Dipakai
+// halaman Overview (section "Ringkasan Cross-Selling"), yang butuh angka
+// yang SAMA PERSIS dgn halaman Growth tapi TIDAK butuh trend/detail/heatmap
+// sama sekali. Awalnya Overview reuse langsung getCrossSellingMetrics/route
+// /metrics/cross-selling yang sudah ada — user koreksi: itu jalankan 4 query
+// paralel (fetchCrossSellingKPI + fetchCrossSellingTrend + fetchCrossSelling
+// Detail + fetchCrossSellingHeatmap), 3 di antaranya kebuang percuma krn
+// Overview cuma pakai hasil query pertama. Resolusi periode (periodKey,
+// calendarRange, resolveTrendPeriod, segParams) REUSE PERSIS logic yang
+// sama dgn getCrossSellingMetrics di atas (termasuk buildTrailingPeriods
+// yang tetap dipanggil krn resolveTrendPeriod butuh param `buckets` utk
+// clamp elapsed-end — itu murni komputasi tanggal, BUKAN query DB, jadi
+// tetap murah), cuma bagian fetch DB-nya yang dipangkas jadi 1 query saja.
+export async function getCrossSellingSummary(params: CrossSellingQuery, scope: MetricsScope = {}): Promise<CrossSellingSummaryData> {
+  try {
+    const periodEnd = params.period_end ?? todayDate()
+    const periodType = params.period_type ?? 'monthly'
+
+    const [py, pm, pd] = periodEnd.split('-').map(Number)
+    const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+    const calendarRange = getPeriodRange(periodType, periodKey)
+    const calendarEnd = calendarRange.end
+    const periodStartDate = calendarRange.start
+
+    const buckets = buildTrailingPeriods(periodType, periodKey, 12)
+    const resolved = resolveTrendPeriod({
+      periodKey, calendarEnd, calendarStart: periodStartDate, periodType, buckets,
+      applyDateCutoff: params.apply_date_cutoff,
+      cutoffDay: params.cutoff_day,
+      fallbackDay: daysSincePeriodStart(periodStartDate, periodEnd),
+      skipElapsedClamp: params.skip_elapsed_clamp,
+    })
+    const periodEndDate = resolved.periodEndDate
+
+    const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+
+    const kpiRaw = await fetchCrossSellingKPI(segParams, periodStartDate, periodEndDate)
+
+    return {
+      period: { start: periodStartDate, end: periodEndDate, active_months: segParams.activeMonths, type: periodType, key: periodKey },
+      kpi1: {
+        multi_cat_count: kpiRaw.multi_cat_count,
+        active_count:    kpiRaw.active_count,
+        rate:            kpiRaw.multi_cat_rate,
+      },
+      kpi2: {
+        avg_categories:      kpiRaw.avg_categories,
+        total_distinct_cats: kpiRaw.total_distinct_cats,
+      },
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data ringkasan cross-selling', 500)
   }
 }
 
@@ -596,7 +652,14 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
       fetchDormantValueRanking(comparisonSegParams, null, comparisonBuckets.at(-1)!.start),
       fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket, liveBucket.start, !!params.apply_date_cutoff),
-      fetchDormantValueTrend(segParams),
+      // buckets param (2026-08-28, task029.md §41 — fetchDormantValueTrend
+      // di-rewrite terima buckets eksplisit, dulu 1 SegmentParams saja).
+      // `resolvedBuckets` SAMA yang dipakai fetchDormantTrend di atas —
+      // field `value_trend` hasil ini TIDAK dipakai frontend saat ini
+      // (DormantData FE belum deklarasikan field ini), tetap dihitung demi
+      // kapabilitas backend (pola sama `comparisonTrend`/`comparison_value`
+      // di atas, lihat komentar di situ).
+      fetchDormantValueTrend(segParams, resolvedBuckets),
     ])
     // valueRanking/comparisonValueRanking (2026-08-26, lihat komentar di
     // atas) — top 20 UTK TAMPILAN (chart/ranking table), sudah ORDER BY
