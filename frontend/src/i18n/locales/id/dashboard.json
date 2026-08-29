@@ -15,7 +15,6 @@
   "vs": "vs bulan lalu",
   "overviewTitle": "Overview",
   "periodStripLabel": "Periode: {{period}}",
-  "activeWindowStripLabel": "Window Aktif: {{months}} bulan",
   "execSummaryTitle": "Ringkasan Eksekutif",
   "execSummarySubtitle": "KPI bisnis paling penting periode ini",
   "existingCustomersTitle": "Total Customer Base",

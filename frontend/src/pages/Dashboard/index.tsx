@@ -227,7 +227,7 @@ export default function Dashboard() {
       <AdvancedFilterBar
         title={t('dashboard.overviewTitle')}
         titleAdornment={!isLoading && data ? (
-          <PeriodStrip period={data.period_month} activeWindow={data.active_window} />
+          <PeriodStrip period={data.period_month} />
         ) : undefined}
         filter={filterBar}
         hasAccess
