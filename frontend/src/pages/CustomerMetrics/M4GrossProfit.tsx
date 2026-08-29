@@ -144,6 +144,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
                 value={fmtRp(totalGp)}
                 sub={periodPhrase}
                 color={theme.palette.primary.main}
+                info={t('customerMetrics.m4.summaryTotalGpInfo')}
               />
             )}
           </Grid>

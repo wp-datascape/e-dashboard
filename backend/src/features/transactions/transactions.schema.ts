@@ -23,6 +23,17 @@ export const invoicesQuerySchema = z.object({
 })
 export type InvoicesQuery = z.infer<typeof invoicesQuerySchema>
 
+// Kartu ringkasan Revenue/Laba Kotor/Margin di menu Transaksi (2026-08-29)
+// — filter SAMA PERSIS invoicesQuerySchema, tanpa sort/pagination (aggregate
+// 1 baris, bukan list).
+export const invoicesSummaryQuerySchema = invoicesQuerySchema.omit({
+  sort_by: true,
+  sort_dir: true,
+  page: true,
+  per_page: true,
+})
+export type InvoicesSummaryQuery = z.infer<typeof invoicesSummaryQuerySchema>
+
 export const invoiceIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })

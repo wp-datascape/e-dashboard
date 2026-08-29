@@ -181,6 +181,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
               value={fmtRp(last?.total_revenue_existing ?? 0)}
               sub={periodPhrase}
               color={theme.palette.primary.main}
+              info={t('customerMetrics.m3.summaryTotalRevenueInfo')}
             />
           )}
         </Grid>
