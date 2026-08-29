@@ -16,6 +16,7 @@ import {
   Legend,
   LabelList,
   ReferenceLine,
+  Cell,
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 
@@ -64,7 +65,7 @@ export interface BarChartWidgetProps {
   renderTooltip?: (props: TooltipContentProps<number, string>) => React.ReactElement | null;
   /** Field di data yang menentukan apakah bulan ini concentrated (misal top_gp_pct) */
   concentrationKey?: string;
-  /** Threshold untuk badge ⚠ (default 25) */
+  /** Threshold untuk badge peringatan konsentrasi (default 25) */
   concentrationThreshold?: number;
   /** Formatter Y-axis (misal fmtRp) */
   yAxisFormatter?: (v: number) => string;
@@ -346,22 +347,31 @@ export const BarChartWidget = ({
                   }}
                 />
               )}
-              {concentrationKey && idx === series.length - 1 && (
-                <LabelList
-                  dataKey={concentrationKey}
-                  content={(props) => {
-                    const val = Number(props.value ?? 0);
-                    if (val <= concentrationThreshold) return null;
-                    const cx = Number(props.x ?? 0) + Number(props.width ?? 0) / 2;
-                    const cy = Number(props.y ?? 0) - 6;
-                    return (
-                      <text x={cx} y={cy} textAnchor="middle" fontSize={11} fill={theme.palette.warning.dark}>
-                        ⚠
-                      </text>
-                    );
-                  }}
-                />
-              )}
+              {/* Penanda konsentrasi tinggi (2026-08-29 — user tanya "apa
+                  arti tanda seri di atas cart" lalu minta dihapus: dulu
+                  glyph emoji mentah, melanggar aturan proyek "no
+                  emoji". Percobaan pertama diganti ikon MUI di atas bar,
+                  TAPI user tanya balik "kenapa M4 tidak dibuat beda warna
+                  juga spt kondisi yang sama" — samakan pola dgn
+                  ComboChartWidget). Bar di sini STACKED multi-series (M4
+                  tier1/2/3) — GANTI FILL jadi 1 warna solid spt
+                  ComboChartWidget akan MENGHILANGKAN info 3 tier utk
+                  periode itu, jadi bukan `fill` yang diubah, tapi
+                  `stroke` (garis tepi) — warna isi tiap tier TETAP
+                  beda-beda, cuma seluruh stack dpt garis tepi oranye
+                  sbg sinyal, konsisten arah visual dgn ComboChartWidget
+                  tanpa kehilangan breakdown tier. */}
+              {concentrationKey && (data as Record<string, number>[]).map((entry, i) => {
+                const flagged = (entry[concentrationKey] ?? 0) > concentrationThreshold;
+                return (
+                  <Cell
+                    key={i}
+                    fill={s.color}
+                    stroke={flagged ? theme.palette.warning.dark : 'none'}
+                    strokeWidth={flagged ? 2 : 0}
+                  />
+                );
+              })}
             </Bar>
           ))}
         </BarChart>

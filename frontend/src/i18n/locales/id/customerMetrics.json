@@ -3,7 +3,7 @@
   "pageSubtitle": "Metrik 3–7 — Revenue, Gross Profit, High Margin Penetration, Repeat Order Rate, Customer Expansion",
   "m3": {
     "sectionLabel": "Average Revenue per Existing Customer",
-    "tooltipInfo": "Mengukur rata-rata pendapatan dari pelanggan lama yang tetap bertransaksi (Existing Active) dalam periode ini — mencerminkan nilai ekonomi customer yang dipertahankan dan efektivitas strategi retensi serta pengembangan akun.\n\nKalau garis Avg jauh di atas Median, beberapa customer besar yang mendorong rata-rata naik, bukan pertumbuhan merata. Bar oranye bertanda ⚠ menandakan bulan di mana 1 customer menyumbang lebih dari 25% total revenue. \"Revenue High Margin\" mengukur porsi revenue dari produk High Margin di bulan itu.\n\nRumus: Avg Revenue = Total Revenue Existing Active ÷ Jumlah Existing Active.\nExisting Active = customer yang sudah punya riwayat transaksi sebelum periode ini, dan tetap bertransaksi pada periode ini.",
+    "tooltipInfo": "Mengukur rata-rata pendapatan dari pelanggan lama yang tetap bertransaksi (Existing Active) dalam periode ini — mencerminkan nilai ekonomi customer yang dipertahankan dan efektivitas strategi retensi serta pengembangan akun.\n\nKalau garis Avg jauh di atas Median, beberapa customer besar yang mendorong rata-rata naik, bukan pertumbuhan merata. Bar oranye menandakan bulan di mana 1 customer menyumbang lebih dari 25% total revenue. \"Revenue High Margin\" mengukur porsi revenue dari produk High Margin di bulan itu.\n\nRumus: Avg Revenue = Total Revenue Existing Active ÷ Jumlah Existing Active.\nExisting Active = customer yang sudah punya riwayat transaksi sebelum periode ini, dan tetap bertransaksi pada periode ini.",
     "barLabel": "Revenue Reguler",
     "bar2LabelHm": "Revenue High Margin",
     "colRevenue": "Revenue",
@@ -42,7 +42,7 @@
   },
   "m4": {
     "sectionLabel": "Average Gross Profit per Existing Customer",
-    "tooltipInfo": "Mengukur rata-rata laba kotor dari pelanggan lama yang tetap bertransaksi (Existing Active) dalam periode ini — profitabilitas customer lama dari kontribusi margin, bukan cuma dari sisi omzet.\n\nTiap periode dibagi 3 tier (Atas/Tengah/Bawah) berdasarkan median GP individu periode itu — komposisi customer per tier bisa berubah dari waktu ke waktu. Bar oranye bertanda ⚠ menandakan periode di mana 1 customer menyumbang lebih dari 25% total gross profit.\n\nRumus: Avg Gross Profit = Total Gross Profit (Revenue − HPP) Existing Active ÷ Jumlah Existing Active.\nExisting Active = customer yang sudah punya riwayat transaksi sebelum periode ini, dan tetap bertransaksi pada periode ini.",
+    "tooltipInfo": "Mengukur rata-rata laba kotor dari pelanggan lama yang tetap bertransaksi (Existing Active) dalam periode ini — profitabilitas customer lama dari kontribusi margin, bukan cuma dari sisi omzet.\n\nTiap periode dibagi 3 tier (Atas/Tengah/Bawah) berdasarkan median GP individu periode itu — komposisi customer per tier bisa berubah dari waktu ke waktu. Bar dengan garis tepi oranye menandakan periode di mana 1 customer menyumbang lebih dari 25% total gross profit.\n\nRumus: Avg Gross Profit = Total Gross Profit (Revenue − HPP) Existing Active ÷ Jumlah Existing Active.\nExisting Active = customer yang sudah punya riwayat transaksi sebelum periode ini, dan tetap bertransaksi pada periode ini.",
     "tierTop": "Atas (GP > median)",
     "tierMid": "Tengah (50%–100% median)",
     "tierBottom": "Bawah (< 50% median)",
