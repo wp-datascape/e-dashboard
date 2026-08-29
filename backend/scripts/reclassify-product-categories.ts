@@ -27,7 +27,7 @@
 
 import { db } from '@/config/db'
 import { product_categories } from '@/db/schema'
-import { classifyItemType, loadClassificationRules, type DbRule } from '@/utils/classifier'
+import { classifyItemType } from '@/utils/classifier'
 import { sql, eq } from 'drizzle-orm'
 
 const APPLY = process.argv.includes('--apply')
@@ -62,21 +62,12 @@ async function main() {
 
   const changes: { id: number; company_id: number; name: string; from: string; to: string; matchedRule?: string }[] = []
 
-  // Rule di-load SEKALI per company (bukan per kategori) — kategori diurutkan
-  // per company_id (ORDER BY di query di atas), jadi cache sederhana ini cukup.
-  const rulesByCompany = new Map<number, DbRule[]>()
-
   for (const cat of categories) {
-    let rules = rulesByCompany.get(cat.company_id)
-    if (!rules) {
-      rules = await loadClassificationRules(cat.company_id)
-      rulesByCompany.set(cat.company_id, rules)
-    }
-    const result = classifyItemType({
+    const result = await classifyItemType({
       itemName: cat.name,
       categoryName: cat.name,
       unitPrice: Number(cat.avg_unit_price),
-      rules,
+      companyId: cat.company_id,
     })
     if (result.itemType !== cat.current_item_type) {
       changes.push({

@@ -13,7 +13,6 @@ import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import { useActivityLogs } from '@/hooks/useActivityLogs'
 import type { ActivityLog, ActivityLogFilters } from '@/types/activityLog'
-import { formatDateTimeID } from '@/utils/date'
 import { ViewActivityLogDialog } from './components/ViewActivityLogDialog'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -32,8 +31,15 @@ const getMethodColor = (method: string): StatusChipColor => {
   return map[method] ?? 'default'
 }
 
-// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
-const fmtDate = formatDateTimeID
+const fmtDate = (iso: string): string => {
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 // ─── Column Definitions ────────────────────────────────────────────────────────
 

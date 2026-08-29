@@ -1,1 +1,0 @@
-CREATE INDEX "idx_invoices_invoice_date" ON "invoices" USING btree ("invoice_date") WHERE deleted_at is null;

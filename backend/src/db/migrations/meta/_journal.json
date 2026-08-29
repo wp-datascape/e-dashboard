@@ -162,13 +162,6 @@
       "when": 1787244005880,
       "tag": "0022_shiny_vector",
       "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1787360599244,
-      "tag": "0023_slow_vermin",
-      "breakpoints": true
     }
   ]
 }

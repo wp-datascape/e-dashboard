@@ -9,7 +9,6 @@ import { StatusChip } from '@/components/ui/StatusChip'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { LoginLog } from '@/types/loginLog'
 import { getApiErrorMessage } from '@/utils/apiError'
-import { formatDateTimeID } from '@/utils/date'
 
 interface Props {
   open: boolean
@@ -29,8 +28,10 @@ const getEventColor = (event: string): StatusChipColor => {
   return map[event] ?? 'default'
 }
 
-// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
-const fmtDate = formatDateTimeID
+const fmtDate = (iso: string): string =>
+  new Date(iso).toLocaleDateString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
 
 function Field({ label, value }: { label: string; value: string }) {
   return (

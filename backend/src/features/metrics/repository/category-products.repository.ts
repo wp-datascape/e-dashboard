@@ -1,7 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildCompanyConditionRaw } from '@/utils/scope'
-import { resolveInvoiceScopeConditions } from '../segment.helper'
+import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
 import type { AssignToDivision } from './high-margin-penetration.repository'
 
 export interface CategoryProductsRepoParams {
@@ -61,7 +60,10 @@ export interface CategoryProductsResult {
 // periode ini), scalar subquery yang nempel di baris tidak akan pernah jalan -
 // summary tetap harus balikin 0, bukan hilang/undefined.
 function categoryProductsCte(p: CategoryProductsRepoParams) {
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
+  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
+  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
+  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
+  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
   const companyCondHmp = buildCompanyConditionRaw('hmp.company_id', p.cid, p.companyScopeIds)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null

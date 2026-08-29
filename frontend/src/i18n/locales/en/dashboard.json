@@ -13,21 +13,9 @@
     "stable": "Stable"
   },
   "vs": "vs last month",
-  "overviewTitle": "Overview",
+  "overviewTitle": "Overview Metrics",
   "periodStripLabel": "Period: {{period}}",
   "activeWindowStripLabel": "Active Window: {{months}} months",
-  "execSummaryTitle": "Executive Summary",
-  "execSummarySubtitle": "The most important business KPIs this period",
-  "existingCustomersTitle": "Total Customer Base",
-  "existingCustomersDesc": "All customers except Acquisition (including those already Dormant)",
-  "dormantCustomersTitle": "Dormant Customers",
-  "dormantCustomersDesc": "No transaction past the threshold, which varies by business category",
-  "growthSectionTitle": "Customer Growth",
-  "growthSectionSubtitle": "Cross-selling, category variety, and customer spending expansion",
-  "healthSectionTitle": "Customer Health",
-  "healthSectionSubtitle": "Repeat order, dormant rate, and reactivation",
-  "definitionsSubtitle": "How each customer segment is calculated",
-  "noSectionAccess": "You don't have permission to view this section. Contact your administrator if you need access.",
   "charts": {
     "crossSellingRatioLabel": "Cross Selling Ratio (%)",
     "avgCategoryLabel": "Avg Category",
@@ -35,89 +23,36 @@
     "highMarginNotBought": "Did Not Buy",
     "highMarginCenterLabel": "High Margin",
     "expansionRateLabel": "Expansion Rate (%)",
-    "dormantSubtitle": "Red area = above the {{threshold}}% threshold (critical condition)",
+    "dormantSubtitle": "Red area = above the 10% threshold (critical condition)",
     "dormantRateLabel": "Dormant Rate (%)",
-    "reactivationSubtitle": "KPI Target: {{low}}%–{{high}}% · Background color changes when achieved",
-    "avgRevenueLabel": "Avg Revenue/Customer",
-    "avgGrossProfitLabel": "Avg Gross Profit/Customer",
-    "dormantValueLabel": "Dormant Customer Value"
+    "dormantThresholdLabel": "Threshold 10%",
+    "reactivationSubtitle": "KPI Target: 15%–20% · Background color changes when achieved"
   },
-  "insight": {
-    "improving": "Improving compared to the same period last year",
-    "needsAttention": "Worsening compared to the same period last year, needs attention",
-    "stable": "Stable compared to the same period last year"
-  },
-  "kpiHeader": {
-    "sectionLabel": "{{metric}} {{currentPeriod}} vs {{period}}",
-    "periodVs": "{{currentPeriod}} vs {{period}}",
-    "vs": "vs",
-    "change": "Change",
-    "ppValue": "{{value}} percentage points"
-  },
-  "trendSummary": {
-    "sectionLabel": "{{metric}} — summary across the last {{count}} {{unit}} shown in the chart",
-    "periodSubtitle": "Summary across the last {{count}} {{unit}} shown in the chart",
-    "inlineTitle": "Trend Summary",
-    "average": "Average",
-    "highest": "Highest",
-    "lowest": "Lowest"
-  },
-  "periodUnit": {
-    "monthly": "months",
-    "quarter": "quarters",
-    "semester": "semesters",
-    "annual": "years"
-  },
-  "overview": {
-    "alerts": {
-      "title": "{{count}} metrics need attention"
+  "definitions": {
+    "title": "Key Definitions",
+    "activeCustomer": {
+      "term": "Active Customer",
+      "def": "last_transaction_date ≥ period start − {{months}} months"
     },
-    "growth": {
-      "crossSellLabel": "Cross-Selling Rate",
-      "crossSellSub": "{{multi}} of {{active}} customers (Active Transacting) bought >1 category",
-      "crossSellInfo": "Population: Active Transacting (customers who transacted this period).",
-      "avgCategoryLabel": "Avg Category",
-      "avgCategorySub": "Average {{avg}} unique categories per customer ({{distinct}} categories sold total)",
-      "avgCategoryInfo": "Formula: total unique categories sold / Active Transacting.",
-      "activeTransactingLabel": "Active Transacting",
-      "activeTransactingSub": "Customers who transacted this period",
-      "activeTransactingInfo": "Active Transacting = Acquisition + Active Customer + Reactivated.",
-      "chartTitle": "Cross Selling Ratio Trend",
-      "barLabel": "Active Transacting"
+    "existingCustomer": {
+      "term": "Existing Customer",
+      "def": "first_transaction_date < period start"
     },
-    "retention": {
-      "repeatOrderLabel": "Repeat Order Rate",
-      "repeatOrderSub": "Existing customers with repeat transactions",
-      "repeatOrderInfo": "Population: Existing Active. Target: ≥{{target}}%.",
-      "dormantRateLabel": "Dormant Rate",
-      "dormantRateSub": "Existing customers who became dormant",
-      "dormantRateInfo": "Population: Total Customer Base. Critical threshold: {{threshold}}%.",
-      "reactivationLabel": "Reactivation Rate",
-      "reactivationSub": "Dormant customers who became active again",
-      "reactivationInfo": "Population: Dormant. Target: {{low}}–{{high}}%.",
-      "chartTitle": "Dormant Customer Rate",
-      "aboveTarget": "> Target {{target}}%",
-      "onTarget": "= Target {{target}}%",
-      "belowTarget": "< Target {{target}}%",
-      "critical": "Critical >{{threshold}}%",
-      "safe": "< Threshold {{threshold}}%",
-      "belowTargetRange": "< Target {{low}}%",
-      "inTargetRange": "= Target {{low}}–{{high}}%",
-      "aboveTargetRange": "> Target {{high}}%"
+    "newCustomer": {
+      "term": "New Customer",
+      "def": "first_transaction_date within this period"
     },
-    "value": {
-      "avgRevenueLabel": "Avg Revenue/Customer",
-      "avgRevenueSub": "Average revenue per existing customer",
-      "avgRevenueInfo": "Population: Existing Active.",
-      "avgGpLabel": "Avg GP/Customer",
-      "avgGpSub": "Average gross profit per existing customer",
-      "avgGpInfo": "Population: Existing Active.",
-      "highMarginLabel": "High Margin Penetration",
-      "highMarginSub": "Existing customers who bought high margin products",
-      "highMarginInfo": "Population: Existing Active.",
-      "chartTitle": "Average Revenue Per Existing Customer",
-      "regularRevenueLabel": "Regular Revenue",
-      "hmRevenueLabel": "High Margin Revenue"
+    "dormantCustomer": {
+      "term": "Dormant Customer",
+      "def": "last_transaction_date < period start − 3 months (default)"
+    },
+    "productCategory": {
+      "term": "Product Category",
+      "def": "Hardware + Consumable only — services are not counted"
+    },
+    "highMarginProduct": {
+      "term": "High Margin Product",
+      "def": "product_categories.is_high_margin = true"
     }
   }
 }

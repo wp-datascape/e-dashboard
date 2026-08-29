@@ -4,7 +4,6 @@ import { DEFAULT_PARETO_DROP_PERCENT } from '../settings/pareto-thresholds.servi
 import {
   findAnalisisCustomers,
   aggregateInvoicesByCustomer,
-  aggregateAnalisisSummary,
   type CustomerPeriodAggregate,
 } from './analisis.repository'
 import {
@@ -49,19 +48,9 @@ export interface AnalisisRow {
   comparison: MetricComparison
 }
 
-export interface AnalisisSummaryResult {
-  current: { revenue: number; margin: number }
-  comparison: { revenue: number; margin: number }
-  revenue_change_value: number
-  margin_change_value: number
-  revenue_change_pct: number | null
-  margin_change_pct: number | null
-}
-
 export interface AnalisisResult {
   rows: AnalisisRow[]
   total: number
-  summary: AnalisisSummaryResult
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -160,15 +149,7 @@ export async function generateAnalisis(
     query.branch_id,
     query.division,
   )
-  const zeroSummary: AnalisisSummaryResult = {
-    current: { revenue: 0, margin: 0 },
-    comparison: { revenue: 0, margin: 0 },
-    revenue_change_value: 0,
-    margin_change_value: 0,
-    revenue_change_pct: null,
-    margin_change_pct: null,
-  }
-  if (customerRows.length === 0) return { rows: [], total, summary: zeroSummary }
+  if (customerRows.length === 0) return { rows: [], total }
 
   const customerIds = customerRows.map(c => c.customer_id)
   const companyIds = [...new Set(customerRows.map(c => c.company_id))]
@@ -205,22 +186,9 @@ export async function generateAnalisis(
     }
   }
 
-  const [comparisonAggMap, thresholdRows, summaryTotals] = await Promise.all([
+  const [comparisonAggMap, thresholdRows] = await Promise.all([
     aggregateInvoicesByCustomer(customerIds, comparisonRange),
     findParetoThresholds(companyIds),
-    aggregateAnalisisSummary(
-      scopeIds,
-      query.search,
-      query.only_pareto,
-      query.exclude_intercompany,
-      currentRange,
-      comparisonRange,
-      query.customer_id,
-      branchScope,
-      divisionScope,
-      query.branch_id,
-      query.division,
-    ),
   ])
 
   // Threshold per company — fallback ke default kalau company belum set custom
@@ -253,14 +221,5 @@ export async function generateAnalisis(
     }
   })
 
-  const summary: AnalisisSummaryResult = {
-    current: summaryTotals.current,
-    comparison: summaryTotals.comparison,
-    revenue_change_value: summaryTotals.current.revenue - summaryTotals.comparison.revenue,
-    margin_change_value: summaryTotals.current.margin - summaryTotals.comparison.margin,
-    revenue_change_pct: pctChange(summaryTotals.current.revenue, summaryTotals.comparison.revenue),
-    margin_change_pct: pctChange(summaryTotals.current.margin, summaryTotals.comparison.margin),
-  }
-
-  return { rows, total, summary }
+  return { rows, total }
 }

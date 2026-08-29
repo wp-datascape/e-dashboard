@@ -14,7 +14,7 @@ import type { InvoiceRow, InvoiceParams } from '@/types/transactions'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { BuChip } from './components/BuChip'
 import { InvoiceDetailDialog } from './components/InvoiceDetailDialog'
-import { formatRupiah } from '@/utils/format'
+import { formatIDR } from '@/utils/format'
 import { currentYearMonth, resolvePeriodEnd, windowStartDate } from '@/utils/date'
 
 export default function Transactions() {
@@ -69,8 +69,8 @@ export default function Transactions() {
     { field: 'company', headerName: t('customers.detail.company'), width: 140, valueGetter: (_v: unknown, row: InvoiceRow) => row.company.name },
     { field: 'customer', headerName: t('customers.name'), flex: 1, minWidth: 180, valueGetter: (_v: unknown, row: InvoiceRow) => row.customer.name },
     { field: 'business_unit', headerName: t('customers.detail.businessUnit'), width: 120, renderCell: ({ row }) => <BuChip bu={row.customer.business_unit} /> },
-    { field: 'total_revenue', headerName: t('transactions.totalRevenue'), width: 140, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatRupiah(v as number) },
-    { field: 'total_gp', headerName: t('transactions.totalGP'), width: 130, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatRupiah(v as number) },
+    { field: 'total_revenue', headerName: t('transactions.totalRevenue'), width: 140, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatIDR(v as number) },
+    { field: 'total_gp', headerName: t('transactions.totalGP'), width: 130, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatIDR(v as number) },
     { field: 'gp_margin_percent', headerName: t('transactions.gpMargin'), width: 100, type: 'number', valueFormatter: (v: unknown) => `${(v as number).toFixed(1)}%` },
     { field: 'category_count', headerName: t('transactions.categoryCount'), width: 100, type: 'number' },
     { field: 'import_source', headerName: t('transactions.importSource'), width: 100, renderCell: ({ row }) => row.import_source ?? '—' },

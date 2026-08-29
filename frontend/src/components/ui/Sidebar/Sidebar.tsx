@@ -14,9 +14,10 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { NAV_ITEMS, type NavItem, isPathActive, isNavItemVisible } from '@/config/menu';
+import { NAV_ITEMS, type NavItem } from '@/config/menu';
 import { useAuth } from '@/context/auth.context';
 
 export const SIDEBAR_WIDTH = 220;
@@ -54,7 +55,8 @@ function NavButton({
 }) {
   const { t } = useTranslation()
   const location = useLocation()
-  const active = isPathActive(item.path, location.pathname)
+  const active = location.pathname === item.path ||
+    (item.path !== '/dashboard' && location.pathname.startsWith(item.path))
 
   return (
     <Tooltip title={collapsed ? t(item.labelKey) : ''} placement="right" arrow>
@@ -64,39 +66,16 @@ function NavButton({
         sx={{
           ...NAV_ITEM_SX,
           justifyContent: collapsed ? 'center' : 'flex-start',
-          // pl:6 (bukan pl:4) - setelah chevron kiri ditambah di NavGroup,
-          // ikon parent sendiri mulai bergeser ke ~40px (16px padding +
-          // chevron+margin), jadi indentasi anak yang lama (32px) malah
-          // JATUH SEBELUM ikon parent-nya - hirarki tidak kelihatan
-          // (koreksi user, screenshot). 48px sekarang jatuh setelah ikon
-          // parent, submenu jelas menjorok ke kanan.
-          pl: indented && !collapsed ? 6 : 2,
+          pl: indented && !collapsed ? 4 : 2,
           '&.Mui-selected': {
             ...NAV_ITEM_SX['&.Mui-selected'],
-            pl: collapsed ? 2 : (indented ? '45px' : '13px'),
+            pl: collapsed ? 2 : (indented ? '29px' : '13px'),
           },
         }}
       >
-        {/* Item top-level TANPA anak (Overview, Info & Panduan, Bantuan)
-            butuh ruang kosong seukuran chevron NavGroup (ikon 20px + mr
-            4px = 24px) SEBELUM ikonnya sendiri - kalau tidak, ikonnya
-            nempel ke kiri sementara item top-level yang PUNYA anak
-            (Business, Laporan, dst) ikonnya sudah didorong ke kanan oleh
-            chevron, jadi semua ikon top-level tidak sejajar satu baris
-            (koreksi user, screenshot). Submenu (indented) TIDAK butuh ini -
-            dia punya area/indentasi sendiri, tidak perlu sejajar dgn
-            top-level. */}
-        {!indented && !collapsed && <Box sx={{ width: '24px', flexShrink: 0 }} />}
-        {/* Item submenu (indented) SENGAJA tanpa ikon (instruksi user) -
-            submenu murni teks, biar tidak ramai berdampingan dengan ikon
-            besar milik parent-nya, dan hirarki lebih ditekankan lewat
-            indentasi + bgcolor area submenu (lihat NavGroup) daripada
-            ikon berulang. */}
-        {!indented && (
-          <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
-            {item.icon}
-          </ListItemIcon>
-        )}
+        <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: active ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
+          {item.icon}
+        </ListItemIcon>
         {/* Selalu di-render (bukan collapsed && <ListItemText/>) — sebelumnya teks
             unmount/mount INSTAN pas collapsed berubah, jadi kedip tiba-tiba di tengah
             animasi lebar drawer yang smooth. Sekarang fade opacity sinkron durasi/easing
@@ -130,21 +109,11 @@ function NavGroup({
   collapsed,
   onNav,
   canSee,
-  expanded,
-  onToggle,
 }: {
   item: NavItem
   collapsed: boolean
   onNav: (path: string) => void
   canSee: (permissionKey?: string) => boolean
-  /** Accordion eksklusif (2026-08-22, instruksi user: "saat sub menu
-   * terbuka, sub menu lain tertutup otomatis menghindari scroll") — state
-   * "grup mana yang lagi terbuka" DIANGKAT ke Sidebar (1 sumber utk SEMUA
-   * NavGroup), bukan lagi `useState` lokal per grup (dulu tiap grup bisa
-   * expanded bersamaan, sidebar jadi sangat panjang kalau user buka
-   * Business+Data+Settings sekaligus). */
-  expanded: boolean
-  onToggle: () => void
 }) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -152,7 +121,10 @@ function NavGroup({
   // Hooks WAJIB dipanggil sebelum early return manapun (Rules of Hooks) — makanya
   // visibleChildren/anyChildActive dihitung duluan di sini, bukan setelah cek canSee.
   const visibleChildren = (item.children ?? []).filter((c) => canSee(c.permissionKey))
-  const anyChildActive = visibleChildren.some((c) => isPathActive(c.path, location.pathname))
+  const anyChildActive = visibleChildren.some(
+    (c) => location.pathname === c.path || location.pathname.startsWith(c.path)
+  )
+  const [expanded, setExpanded] = useState(anyChildActive)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   // Jika parent punya permissionKey dan user tidak punya → sembunyikan seluruh grup
@@ -182,7 +154,7 @@ function NavGroup({
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
           {visibleChildren.map((child) => {
-            const active = isPathActive(child.path, location.pathname)
+            const active = location.pathname === child.path || location.pathname.startsWith(child.path)
             return (
               <MenuItem
                 key={child.key}
@@ -207,25 +179,10 @@ function NavGroup({
   return (
     <>
       <ListItemButton
-        onClick={onToggle}
+        onClick={() => setExpanded((p) => !p)}
         selected={anyChildActive && !expanded}
         sx={{ ...NAV_ITEM_SX, justifyContent: 'flex-start' }}
       >
-        {/* Chevron indikator expand/collapse DI KIRI, sebelum ikon menu
-            (2026-08-27, instruksi user: "ganti tanda +/- jadi chevron di
-            sebelah kiri bukan kanan" — membalikkan keputusan 2026-08-22
-            yang sebelumnya ganti chevron ke +/-). 1 ikon diputar 90° saat
-            terbuka (mengarah ke bawah), bukan ganti-ganti 2 ikon berbeda —
-            transisinya jadi animasi rotate yang mulus. */}
-        <ChevronRightIcon
-          fontSize="small"
-          sx={{
-            color: 'text.secondary',
-            mr: 0.5,
-            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: (theme) => theme.transitions.create('transform', { duration: theme.transitions.duration.shorter }),
-          }}
-        />
         <ListItemIcon sx={{ minWidth: 0, mr: 1.5, color: anyChildActive ? 'primary.main' : 'text.secondary', justifyContent: 'center' }}>
           {item.icon}
         </ListItemIcon>
@@ -239,41 +196,10 @@ function NavGroup({
             },
           }}
         />
+        {expanded ? <ExpandLessIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <ExpandMoreIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
       </ListItemButton>
       <Collapse in={expanded} timeout="auto" unmountOnExit>
-        {/* bgcolor sedikit lebih gelap dari background sidebar (instruksi
-            user: "penanda area inside") - menandai area submenu ini
-            "di dalam" grup parent-nya, bukan cuma mengandalkan indentasi
-            teks. action.hover dipakai konsisten dgn pola "kotak subtle"
-            lain di app ini (mis. code block MarkdownContent). */}
-        {/* Garis vertikal lurus dari ujung chevron parent (instruksi user)
-            - posisi left:25px dihitung dari titik tengah ChevronRightIcon
-            di ListItemButton parent (px:2=16px padding + lebar ikon
-            "small"=20px, tengahnya jatuh di ~26px). '::before' dipakai,
-            bukan elemen terpisah, supaya tidak nambah node DOM per grup. */}
-        <List
-          dense
-          disablePadding
-          sx={{
-            position: 'relative',
-            bgcolor: 'action.hover',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              left: '25px',
-              top: 0,
-              bottom: 0,
-              width: '1px',
-              // 'divider' kontrasnya kurang di mode gelap terhadap bgcolor
-              // action.hover di atas (dilaporkan user, tidak terlihat) -
-              // text.disabled dipilih karena nilainya eksplisit beda di
-              // light/dark (theme/index.ts: #94A3B8 vs #475569), jadi
-              // kontrasnya terjamin di kedua tema, bukan cuma "kebetulan
-              // kelihatan" di salah satu mode saja.
-              bgcolor: 'text.disabled',
-            },
-          }}
-        >
+        <List dense disablePadding>
           {visibleChildren.map((child) => (
             <NavButton key={child.key} item={child} collapsed={false} indented onNav={onNav} />
           ))}
@@ -281,6 +207,13 @@ function NavGroup({
       </Collapse>
     </>
   )
+}
+
+/** Cek apakah satu item akan ter-render (visible) berdasarkan permission */
+function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
+  if (!canSee(item.permissionKey)) return false
+  if (!item.children) return true
+  return item.children.some((c) => canSee(c.permissionKey))
 }
 
 /** Kelompokkan NAV_ITEMS menjadi sections berdasarkan groupLabel boundary */
@@ -299,7 +232,6 @@ function buildNavSections(items: NavItem[]): NavSection[] {
 
 export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) => {
   const navigate = useNavigate()
-  const location = useLocation()
   const { t } = useTranslation()
   const { permissions } = useAuth()
   const collapsed = !open
@@ -309,20 +241,6 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
     if (!permissionKey) return true
     return permissions.includes(permissionKey)
   }
-
-  // Accordion eksklusif antar grup collapsible (Business/Report/Data/
-  // Settings/dst, 2026-08-22, instruksi user: "saat sub menu terbuka, sub
-  // menu lain tertutup otomatis menghindari scroll") — 1 state di sini,
-  // dioper ke tiap <NavGroup> sbg expanded/onToggle (bukan lagi useState
-  // lokal per grup). Default: grup yang MEMUAT path aktif saat mount
-  // (mis. buka /report/growth -> grup "Report" otomatis terbuka), null
-  // kalau tidak ada yang match (semua grup tertutup).
-  const [expandedKey, setExpandedKey] = useState<string | null>(() => {
-    const activeGroup = NAV_ITEMS.find((i) =>
-      i.children?.some((c) => isPathActive(c.path, location.pathname))
-    )
-    return activeGroup?.key ?? null
-  })
 
   const handleNav = (path: string) => {
     navigate(path)
@@ -398,17 +316,7 @@ export const Sidebar = ({ open, onClose, variant = 'permanent' }: SidebarProps) 
               {section.items.map((item) => {
                 if (!isNavItemVisible(item, canSee)) return null
                 return item.children
-                  ? (
-                    <NavGroup
-                      key={item.key}
-                      item={item}
-                      collapsed={collapsed}
-                      onNav={handleNav}
-                      canSee={canSee}
-                      expanded={expandedKey === item.key}
-                      onToggle={() => setExpandedKey((k) => (k === item.key ? null : item.key))}
-                    />
-                  )
+                  ? <NavGroup key={item.key} item={item} collapsed={collapsed} onNav={handleNav} canSee={canSee} />
                   : <NavButton key={item.key} item={item} collapsed={collapsed} onNav={handleNav} />
               })}
             </span>

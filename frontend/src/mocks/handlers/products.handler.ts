@@ -154,51 +154,51 @@ const mockUpsellTargets: UpsellTargetRow[] = [
     id: 1,
     customer_code: 'CUST-003',
     customer_name: 'PT Solusi Digital',
-    division_label: 'E-Commerce',
+    business_unit: 'e_commerce',
     last_invoice_date: '2023-09-12',
     avg_monthly_revenue: 3_200_000,
     categories_bought: [{ id: 3, name: 'Ribbon' }, { id: 5, name: 'Label' }],
-    missing_high_margin_categories: [{ id: 1, name: 'Scanner', affinity_pct: 42.5 }, { id: 2, name: 'Printer', affinity_pct: 35.0 }, { id: 6, name: 'POS Terminal', affinity_pct: 0 }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 2,
     customer_code: 'CUST-006',
     customer_name: 'CV Mitra Usaha',
-    division_label: null,
+    business_unit: null,
     last_invoice_date: '2024-01-10',
     avg_monthly_revenue: 6_000_000,
     categories_bought: [{ id: 4, name: 'Toner' }, { id: 3, name: 'Ribbon' }],
-    missing_high_margin_categories: [{ id: 1, name: 'Scanner', affinity_pct: 0 }, { id: 2, name: 'Printer', affinity_pct: 0 }, { id: 6, name: 'POS Terminal', affinity_pct: 0 }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 3,
     customer_code: 'CUST-007',
     customer_name: 'PT Karya Utama',
-    division_label: 'Distribution',
+    business_unit: 'distribution',
     last_invoice_date: '2024-01-08',
     avg_monthly_revenue: 12_000_000,
     categories_bought: [{ id: 3, name: 'Ribbon' }, { id: 4, name: 'Toner' }, { id: 7, name: 'Barcode Reader' }],
-    missing_high_margin_categories: [{ id: 1, name: 'Scanner', affinity_pct: 48.7 }, { id: 6, name: 'POS Terminal', affinity_pct: 32.0 }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 4,
     customer_code: 'CUST-012',
     customer_name: 'CV Jaya Makmur',
-    division_label: 'Distribution',
+    business_unit: 'distribution',
     last_invoice_date: '2024-01-05',
     avg_monthly_revenue: 9_500_000,
     categories_bought: [{ id: 5, name: 'Label' }, { id: 7, name: 'Barcode Reader' }],
-    missing_high_margin_categories: [{ id: 2, name: 'Printer', affinity_pct: 48.7 }, { id: 1, name: 'Scanner', affinity_pct: 32.0 }, { id: 6, name: 'POS Terminal', affinity_pct: 0 }],
+    missing_high_margin_categories: [{ id: 2, name: 'Printer' }, { id: 1, name: 'Scanner' }, { id: 6, name: 'POS Terminal' }],
   },
   {
     id: 5,
     customer_code: 'CUST-015',
     customer_name: 'PT Berkah Sejati',
-    division_label: 'Project',
+    business_unit: 'project',
     last_invoice_date: '2023-12-20',
     avg_monthly_revenue: 25_000_000,
     categories_bought: [{ id: 3, name: 'Ribbon' }],
-    missing_high_margin_categories: [{ id: 1, name: 'Scanner', affinity_pct: 0 }, { id: 2, name: 'Printer', affinity_pct: 0 }, { id: 6, name: 'POS Terminal', affinity_pct: 0 }],
+    missing_high_margin_categories: [{ id: 1, name: 'Scanner' }, { id: 2, name: 'Printer' }, { id: 6, name: 'POS Terminal' }],
   },
 ]
 
@@ -279,9 +279,9 @@ export const upsellTargetHandlers = [
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') ?? '1')
     const perPage = parseInt(url.searchParams.get('per_page') ?? '50')
-    const divisionFilter = url.searchParams.get('division')
+    const buFilter = url.searchParams.get('business_unit')
     let rows = [...mockUpsellTargets]
-    if (divisionFilter) rows = rows.filter((r) => r.division_label === divisionFilter)
+    if (buFilter) rows = rows.filter((r) => r.business_unit === buFilter)
     const total = rows.length
     const data = rows.slice((page - 1) * perPage, page * perPage)
     return HttpResponse.json<PaginatedResponse<UpsellTargetRow>>({

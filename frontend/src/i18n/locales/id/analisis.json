@@ -5,6 +5,7 @@
   "allCompanies": "Semua Entitas",
   "customer": "Customer",
   "paretoBadge": "Pareto",
+  "onlyPareto": "Customer Pareto",
   "searchPlaceholder": "Cari customer...",
   "changeValue": "Perubahan Nilai",
   "changePercent": "Perubahan (%)",

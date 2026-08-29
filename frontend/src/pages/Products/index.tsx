@@ -18,7 +18,7 @@ import { RangeFilter } from '@/components/filters/RangeFilter'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { formatRupiah } from '@/utils/format'
+import { formatIDR } from '@/utils/format'
 
 function todayMonth(): string {
   const now = new Date()
@@ -112,7 +112,7 @@ export default function Products() {
       width: 160,
       type: 'number',
       sortable: true,
-      valueFormatter: (value) => formatRupiah(value as number),
+      valueFormatter: (value) => formatIDR(value as number),
     },
     {
       field: 'total_gp',
@@ -120,7 +120,7 @@ export default function Products() {
       width: 150,
       type: 'number',
       sortable: true,
-      valueFormatter: (value) => formatRupiah(value as number),
+      valueFormatter: (value) => formatIDR(value as number),
     },
     {
       field: 'gp_margin_percent',

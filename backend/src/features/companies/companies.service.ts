@@ -37,13 +37,9 @@ export async function createCompanyService(dto: CreateCompanyDto, ctx: Context) 
     // (unit/consumable/sparepart/service), tidak kosong pas pertama kali dipakai.
     await seedDefaultItemTypes(company!.id)
 
-    // Division per company (task012 v2) - company baru langsung punya 1 divisi
-    // minimal "Lainnya" (company-wide, branch_id NULL) supaya tidak pernah nol
-    // divisi (dibutuhkan fallback COALESCE di semua scope/metrics query). Struktur
-    // divisi riil selebihnya dibuat manual lewat Settings > Division Management
-    // sesuai kebutuhan bisnis company itu - BUKAN 7 divisi generik lagi (koreksi
-    // 2026-08-27, lihat docs-v2/task/task029.md - 7-divisi itu kebutuhan spesifik
-    // MKO, bukan template lintas-company).
+    // Division per company (task012 v2) - company baru langsung punya 7 default
+    // (distribution/project/e_commerce/intercompany/freelancer/support/other),
+    // company-wide (branch_id NULL).
     await seedDefaultDivisions(company!.id)
 
     await logAudit(ctx, {

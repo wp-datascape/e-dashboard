@@ -222,7 +222,6 @@ export function buildExcludeIntercompanyCondition(
 ): SQL | undefined {
   if (!excludeIntercompany) return undefined
   if (!intercompanyIdByCompany || intercompanyIdByCompany.size === 0) return undefined
-  const companiesWithIntercompany = [...intercompanyIdByCompany.keys()]
   const clauses = [...intercompanyIdByCompany.entries()].map(([companyId, intercompanyId]) =>
     // IS DISTINCT FROM (bukan ne/<>) - divisionCol bisa NULL saat channel_name tidak
     // match rule mapping apa pun (LEFT JOIN channel_divisions kosong). `<>` dengan NULL
@@ -230,19 +229,10 @@ export function buildExcludeIntercompanyCondition(
     // padahal jelas bukan intercompany - kontradiksi komentar function ini sendiri.
     and(eq(companyCol, companyId), sql`${divisionCol} IS DISTINCT FROM ${intercompanyId}`),
   )
-  // BUG (ditemukan 2026-08-27 via laporan user — toggle "Kecualikan Intercompany"
-  // di halaman Customer bikin KNT nol data total, bukan cuma nge-exclude baris
-  // intercompany-nya) — komentar lama di sini bilang company TANPA row 'intercompany'
-  // "tidak ada apa pun yang di-exclude", TAPI kode SEBELUMNYA cuma `or(...clauses)`
-  // tanpa klausa fallback utk company itu — company_id yang tidak match SATU PUN
-  // klausa OR (krn cuma MKO yang py division 'intercompany', KNT/SKI tidak) otomatis
-  // GAGAL kondisi ini, row-nya ke-exclude SELURUHNYA, bukan "tidak ada yang
-  // di-exclude" seperti niat komentarnya. Fix: tambah klausa pass-through eksplisit
-  // company_id NOT IN (daftar company yang PUNYA division intercompany terdaftar).
-  return or(
-    sql`${companyCol} NOT IN (${sql.join(companiesWithIntercompany.map((id) => sql`${id}`), sql`, `)})`,
-    ...clauses,
-  )
+  // Company yang TIDAK punya row 'intercompany' sama sekali (harusnya tidak terjadi,
+  // 'other'/division default selalu di-seed, tapi defensif) — tidak ada apa pun yang
+  // di-exclude untuk company itu, biar tidak keliru exclude semua data.
+  return or(...clauses)
 }
 
 /**
@@ -262,47 +252,9 @@ export function buildExcludeIntercompanyRaw(
 ): SQL {
   if (!excludeIntercompany) return sql`true`
   if (!intercompanyIdByCompany || intercompanyIdByCompany.size === 0) return sql`true`
-  const companiesWithIntercompany = [...intercompanyIdByCompany.keys()]
   const clauses = [...intercompanyIdByCompany.entries()].map(
     ([companyId, intercompanyId]) =>
       sql`(${sql.raw(companyExpr)} = ${companyId} AND ${sql.raw(divisionExpr)} IS DISTINCT FROM ${intercompanyId})`,
   )
-  // Fix bug sama seperti buildExcludeIntercompanyCondition() di atas — company
-  // yang tidak punya division 'intercompany' terdaftar (mis. KNT/SKI, cuma MKO
-  // yang punya) butuh klausa pass-through eksplisit, bukan cuma dibiarkan tidak
-  // match klausa OR mana pun (yang berarti row-nya ke-exclude total, bukan "tidak
-  // ada yang di-exclude").
-  return sql`(${sql.raw(companyExpr)} NOT IN (${sql.join(companiesWithIntercompany.map((id) => sql`${id}`), sql`, `)}) OR ${sql.join(clauses, sql` OR `)})`
-}
-
-/**
- * Toggle laporan "Customer Pareto" (task029.md §35, 2026-08-25) — persempit
- * hasil ke customer yang ditandai Pareto (flag MANUAL admin, tabel
- * `pareto_customers`, task016 — BUKAN 80/20 dihitung ulang tiap query).
- * Mirror PERSIS pola buildExcludeIntercompanyRaw() di atas (return `true`
- * kalau toggle mati, langsung di-embed `AND (${cond})` tanpa cek undefined).
- *
- * customerExpr/companyExpr HARUS string literal trusted (nama kolom/alias
- * tetap dari kode, BUKAN dari input user) — sama seperti *Raw lain di file
- * ini.
- *
- * filterDate = titik evaluasi status Pareto (SegmentParams.filterDate,
- * BUKAN CURRENT_DATE mentah spt fitur Analisis/task016) — konsisten dgn
- * toggle lain di filter bar KPI (statis/uniform di semua titik trend,
- * bukan per-bucket berubah).
- */
-export function buildOnlyParetoRaw(
-  customerExpr: string,
-  companyExpr: string,
-  filterDate: string,
-  onlyPareto: boolean | undefined,
-): SQL {
-  if (!onlyPareto) return sql`true`
-  return sql`EXISTS (
-    SELECT 1 FROM pareto_customers pc
-    WHERE pc.customer_id = ${sql.raw(customerExpr)}
-      AND pc.company_id = ${sql.raw(companyExpr)}
-      AND pc.effective_from <= ${filterDate}::date
-      AND (pc.effective_until IS NULL OR pc.effective_until >= ${filterDate}::date)
-  )`
+  return sql`(${sql.join(clauses, sql` OR `)})`
 }

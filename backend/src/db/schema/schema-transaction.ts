@@ -325,20 +325,6 @@ export const invoices = pgTable('invoices', {
   idxCompanyInvoiceDate: index('idx_invoices_company_invoice_date')
     .on(table.company_id, table.invoice_date)
     .where(sql`deleted_at is null`),
-  // Bug (2026-08-22, user lapor error/timeout klik-klik dashboard di dev) —
-  // fetchUpsellTargets (High Margin > Peluang Upsell) scope "Semua Entitas"
-  // timeout 20s (statement_timeout). 2 index di atas SAMA-SAMA butuh predikat
-  // company_id/customer_id di kolom TERDEPAN (leading) — begitu scope company
-  // = "all" (companyScopeIds bypass -> kondisi jadi `true`, tanpa filter
-  // company_id/customer_id sama sekali), KEDUANYA tidak kepakai buat filter
-  // rentang invoice_date murni (2 CTE fetchUpsellTargets JOIN invoices x
-  // invoice_items x customers full lintas company, cuma difilter tanggal 6
-  // bulan) — planner jatuh ke Seq Scan 246rb baris x 2 CTE. Index invoice_date
-  // MURNI (tanpa company/customer di depan) menutup celah ini, dipakai kapan
-  // pun ada query rentang tanggal tanpa predikat company/customer eksplisit.
-  idxInvoiceDate: index('idx_invoices_invoice_date')
-    .on(table.invoice_date)
-    .where(sql`deleted_at is null`),
 }))
 
 export type Invoice = typeof invoices.$inferSelect

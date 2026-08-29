@@ -24,7 +24,6 @@ import {
 import { useCompanies } from '@/hooks/useCompanies';
 import { useRoles } from '@/hooks/useRoles';
 import type { User, CreateUserPayload, UpdateUserPayload } from '@/types/users';
-import { formatDateID } from '@/utils/date';
 
 import { useCan } from '@/hooks/useCan';
 import { ViewUserDialog } from './components/ViewUserDialog';
@@ -56,9 +55,14 @@ const isSystemUser = (user: User): boolean =>
 const isLocked = (user: User): boolean =>
   !!user.locked_until && new Date(user.locked_until).getTime() > Date.now();
 
-// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
-const fmtDate = (iso: string | null, fallback: string): string =>
-  iso ? formatDateID(iso) : fallback;
+const fmtDate = (iso: string | null, fallback: string): string => {
+  if (!iso) return fallback;
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

@@ -3,22 +3,10 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
-import { ChartCardTitle } from '../shared/ChartCardTitle';
 
 export interface BulletChartWidgetProps {
-  /** Opsional (2026-08-29, task029.md §49 — sebelumnya wajib, digantikan
-   * `headerContent` di caller yang butuh header custom). Caller lama yang
-   * masih kirim `title` TIDAK berubah. */
-  title?: string;
+  title: string;
   subtitle?: string;
-  /** Penjelasan KPI sbg tooltip ikon info di sebelah judul, GANTI caption
-   * permanen `subtitle` (2026-08-28, task029.md §44) — lihat JSDoc prop
-   * `titleInfo` di BarChartWidget. `subtitle` TETAP didukung. */
-  titleInfo?: string;
-  /** Header custom di DALAM Card widget (2026-08-29, task029.md §49) — pola
-   * sama persis `headerContent` widget lain. Kalau diisi, MENGGANTIKAN
-   * render title/subtitle bawaan. */
-  headerContent?: React.ReactNode;
   value: number; // actual realization value (%)
   targetLow: number; // lower bound of target band (e.g. 15)
   targetHigh: number; // upper bound of target band (e.g. 20)
@@ -29,8 +17,6 @@ export interface BulletChartWidgetProps {
 export const BulletChartWidget = ({
   title,
   subtitle,
-  titleInfo,
-  headerContent,
   value,
   targetLow,
   targetHigh,
@@ -60,15 +46,13 @@ export const BulletChartWidget = ({
   return (
     <Card sx={{ p: 2, height: '100%' }}>
       <Box sx={{ mb: 2 }}>
-        {headerContent ?? (
-          <>
-            {title && <ChartCardTitle title={title} info={titleInfo} />}
-            {subtitle && (
-              <Typography variant="caption" color="text.secondary">
-                {subtitle}
-              </Typography>
-            )}
-          </>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+          {title}
+        </Typography>
+        {subtitle && (
+          <Typography variant="caption" color="text.secondary">
+            {subtitle}
+          </Typography>
         )}
       </Box>
 

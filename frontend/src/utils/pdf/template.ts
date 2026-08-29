@@ -3,7 +3,6 @@
  * Import helper ini di setiap file export spesifik, jangan isi logika bisnis di sini.
  */
 import jsPDF from 'jspdf';
-import { formatDateTimeID } from '@/utils/date';
 
 export const PDF_MARGIN  = 14;        // mm, kiri & kanan
 export const PDF_PAGE_W  = 210;       // A4 portrait
@@ -90,8 +89,7 @@ export function drawFooter(doc: jsPDF, pageNum: number, generatedAt: string): vo
   doc.setTextColor(0, 0, 0);
 }
 
-// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
 /** Format tanggal-waktu lokal untuk footer. */
 export function nowLocale(): string {
-  return formatDateTimeID(new Date());
+  return new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
 }

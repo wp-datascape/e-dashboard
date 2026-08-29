@@ -7,14 +7,6 @@ export type DatePickerProps = Omit<TextFieldProps, 'type' | 'slotProps'> & {
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
   /** @default 'date' */
   type?: 'date' | 'month'
-  /** Native `max` attribute — batas atas yang BISA dipilih lewat picker
-   * kalender bawaan browser (bukan cuma validasi JS setelah dipilih).
-   * Format ikut `type`: 'YYYY-MM-DD' utk type="date", 'YYYY-MM' utk
-   * type="month". Dipakai a.l. mencegah pilih periode masa depan pada
-   * filter tanggal pelaporan (`utils/date.ts` `todayIsoDate`/`currentYearMonth`). */
-  max?: string
-  /** Native `min` attribute, format sama seperti `max`. */
-  min?: string
 }
 
 /**
@@ -36,13 +28,13 @@ export type DatePickerProps = Omit<TextFieldProps, 'type' | 'slotProps'> & {
  *     size="small"
  *   />
  */
-export function DatePicker({ sx, type = 'date', max, min, ...rest }: DatePickerProps) {
+export function DatePicker({ sx, type = 'date', ...rest }: DatePickerProps) {
   const { isDark } = useThemeMode()
 
   return (
     <TextField
       type={type}
-      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max, min } }}
+      slotProps={{ inputLabel: { shrink: true } }}
       sx={[
         {
           '& input::-webkit-calendar-picker-indicator': {

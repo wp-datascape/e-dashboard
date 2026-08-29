@@ -10,9 +10,6 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import IconButton from '@mui/material/IconButton';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -296,41 +293,6 @@ export function ResponsiveListView({
     onToggle: () => setExpandedId((cur) => (cur === rowId ? null : rowId)),
   });
 
-  // Bug KRITIS (2026-08-22, user: crash mobile "A problem repeatedly
-  // occurred" — Safari kehabisan memori) — cabang mobile di bawah dulu
-  // me-render SEMUA `rows` sekaligus jadi Accordion (beda dari cabang
-  // desktop yang lewat MUI DataGrid, otomatis dipaginasi via `pageSize`).
-  // Untuk tabel besar (mis. breakdown Expansion, ribuan baris client-side)
-  // ini merender ribuan komponen Accordion+Chip sekaligus — cukup untuk
-  // meng-crash tab mobile berulang kali. Paginasi CLIENT ditambahkan di
-  // sini, mirror `pageSize` yang SUDAH diterima komponen ini tapi
-  // sebelumnya diam-diam diabaikan di jalur mobile. Server-mode (`rows`
-  // sudah 1 halaman dari API) SENGAJA dilewati — datanya sudah kecil,
-  // paginasi ganda di sini malah salah (motong ulang hasil yang sudah
-  // dipotong server).
-  const isServerPaginated = paginationMode === 'server';
-  const [mobilePage, setMobilePage] = useState(0);
-  const mobileTotalPages = isServerPaginated ? 1 : Math.max(1, Math.ceil(rows.length / pageSize));
-  // Reset ke halaman 1 begitu data berubah (search/sort/filter baru bisa
-  // bikin halaman sekarang jadi kosong/di luar jangkauan) — bukan cuma
-  // begitu rows.length berubah, karena isi rows bisa berubah TOTAL
-  // (mis. ganti sort) walau panjangnya kebetulan sama.
-  //
-  // Adjust saat render, BUKAN useEffect (2026-08-24, fix lint
-  // react-hooks/set-state-in-effect) — pola resmi React "Adjusting state
-  // when a prop changes" (react.dev): simpan referensi `rows` sebelumnya,
-  // bandingkan tiap render, setState kalau berubah. React re-render ulang
-  // sebelum paint ke layar (bukan commit terpisah spt effect), jadi tidak
-  // ada flash halaman lama.
-  const [prevRows, setPrevRows] = useState(rows);
-  if (rows !== prevRows) {
-    setPrevRows(rows);
-    setMobilePage(0);
-  }
-  const visibleRows = isServerPaginated
-    ? rows
-    : rows.slice(mobilePage * pageSize, (mobilePage + 1) * pageSize);
-
   const effectiveMobileFields =
     mobileFields ?? columns.filter((c) => c.headerName).map((c) => c.field);
 
@@ -377,7 +339,7 @@ export function ResponsiveListView({
             {t('common.titleWithItemCount', { title, count: rows.length })}
           </Typography>
         )}
-        {visibleRows.map((row, idx) => {
+        {rows.map((row, idx) => {
           const rowId = String((row as Record<string, unknown>).id ?? idx);
           return renderCard ? (
             renderCard(row as Record<string, unknown>, idx, makeExpandState(rowId))
@@ -392,27 +354,6 @@ export function ResponsiveListView({
             />
           );
         })}
-        {!isServerPaginated && mobileTotalPages > 1 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 1 }}>
-            <IconButton
-              size="small"
-              disabled={mobilePage === 0}
-              onClick={() => setMobilePage((p) => Math.max(0, p - 1))}
-            >
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary">
-              {t('common.pageOf', { page: mobilePage + 1, total: mobileTotalPages })}
-            </Typography>
-            <IconButton
-              size="small"
-              disabled={mobilePage >= mobileTotalPages - 1}
-              onClick={() => setMobilePage((p) => Math.min(mobileTotalPages - 1, p + 1))}
-            >
-              <ChevronRightIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        )}
       </Box>
     );
   }

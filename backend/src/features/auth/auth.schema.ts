@@ -16,10 +16,6 @@ export const updatePreferencesSchema = z.object({
   theme_mode: z.enum(['light', 'dark']).optional(),
   color_palette: z.enum(COLOR_PALETTES).optional(),
   language: z.string().min(2).max(10).optional(),
-  // Array PENUH (bukan 1 kunci "append") - caller (useDismissBanner) kirim
-  // daftar lengkap hasil gabung kunci lama + kunci baru, sesuai cara
-  // updateUserPreferences() merge (replace per-field, bukan deep-merge array).
-  dismissed_banners: z.array(z.string()).optional(),
 })
 
 export type UpdatePreferencesDto = z.infer<typeof updatePreferencesSchema>

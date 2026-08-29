@@ -3,7 +3,7 @@ import Stack from '@mui/material/Stack'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import { StatusChip } from '@/components/ui'
-import { formatRupiah, formatRupiahSigned } from '@/utils/format'
+import { formatIDR, formatIDRSigned } from '@/utils/format'
 import { formatGrowthPct, trendColor } from '@/utils/analisisComparison'
 import type { StatusChipColor } from '@/components/ui/StatusChip'
 import type { AnalisisMetricComparison } from '@/types/analisis'
@@ -131,14 +131,14 @@ export function ComparisonSections({
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {comparisonSectionLabel}
         </Typography>
-        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatRupiah(comparison.revenue)} marginText={formatRupiah(comparison.margin)} />
+        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatIDR(comparison.revenue)} marginText={formatIDR(comparison.margin)} />
       </Box>
 
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {periodSectionLabel}
         </Typography>
-        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatRupiah(current.revenue)} marginText={formatRupiah(current.margin)} showLabels={false} />
+        <MetricPair revenueLabel={revenueLabel} marginLabel={marginLabel} revenueText={formatIDR(current.revenue)} marginText={formatIDR(current.margin)} showLabels={false} />
       </Box>
 
       <Box>
@@ -148,8 +148,8 @@ export function ComparisonSections({
         <MetricPair
           revenueLabel={revenueLabel}
           marginLabel={marginLabel}
-          revenueText={formatRupiahSigned(comparison.revenue_change_value)}
-          marginText={formatRupiahSigned(comparison.margin_change_value)}
+          revenueText={formatIDRSigned(comparison.revenue_change_value)}
+          marginText={formatIDRSigned(comparison.margin_change_value)}
           revenueColor={trendColor(comparison.revenue_change_pct, comparison.revenue_alert)}
           marginColor={trendColor(comparison.margin_change_pct, comparison.margin_alert)}
           showLabels={false}

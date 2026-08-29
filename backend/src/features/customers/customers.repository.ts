@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions } from '@/db/schema'
 import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { loadThresholds, resolveDormantCategory, getDormantCategoryMap, buildDormantCaseSql } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantMonths, resolveDormantCategory } from '@/features/config/threshold'
 import {
   buildBranchCondition,
   buildDivisionCondition,
@@ -27,19 +27,7 @@ export async function findCustomers(
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
-  // Threshold dormant PER-CUSTOMER (task027 fix, 2026-08-21) — dulu 1 angka
-  // dominan company-wide (resolveDormantMonths) dipakai ke SEMUA baris,
-  // sekarang per baris sesuai kategori bisnis divisi customer itu sendiri
-  // (pola sama m8m10.repository.ts). channel_divisions.division_id yang
-  // dipakai di sini SUDAH di-JOIN di query total/rows di bawah lewat
-  // latestSalespersonSq (divisi dari invoice TERBARU customer) — reuse,
-  // bukan JOIN baru.
-  const dormantCategoryMap = await getDormantCategoryMap(cid !== 0 ? cid : undefined)
-  const dormantThresholdExpr = buildDormantCaseSql(
-    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
-    dormant,
-    dormantCategoryMap,
-  )
+  const dormantMonths = await resolveDormantMonths(cid, dormant, scopeIds)
 
   // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
   // dari urutan lama yang baru dihitung dekat akhir function.
@@ -104,31 +92,12 @@ export async function findCustomers(
   const outerDivisionCond = buildDivisionCondition(invoices.branch_id, cdInv.division_id, divisionScope, otherIdByBranchEarly)
   const outerScopeGuard = sql`(${outerBranchCond ?? sql`true`}) AND (${outerDivisionCond ?? sql`true`})`
 
-  // Subquery: total_invoices/category_count per customer, agregasi SEKALI (GROUP BY)
-  // — BUKAN lagi JOIN invoices+invoice_items mentah langsung ke query customer di
-  // bawah. Fix bug performa (2026-08-27, ditemukan lewat audit production): JOIN
-  // invoices mentah bareng latestSalespersonSq (subquery DISTINCT ON) di query yang
-  // SAMA bikin planner Postgres pilih Nested Loop nyaris cross-product begitu ada
-  // kondisi scope branch/division (user non-superadmin) — /customers timeout 20
-  // detik (statement_timeout) utk SEMUA company, termasuk yang datanya kecil.
-  // Superadmin (bypass, tanpa kondisi scope) tidak kena krn planner kebetulan pilih
-  // strategi lain, tapi struktur query-nya tetap rapuh. Pola subquery ini SAMA
-  // PERSIS liveDatesSq di atas (agregasi per customer dulu, baru LEFT JOIN 1x hasil
-  // yang sudah 1-baris-per-customer) — sudah terbukti aman di kedua kasus scope.
-  const invAggSq = db
-    .select({
-      customer_id: invoices.customer_id,
-      inv_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)`.as('inv_count'),
-      cat_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)`.as('cat_count'),
-    })
-    .from(invoices)
-    .leftJoin(invoice_items, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
-    .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
-    .groupBy(invoices.customer_id)
-    .as('inv_agg')
-
-  const invCountExpr = invAggSq.inv_count
-  const catCountExpr = invAggSq.cat_count
+  const invCountExpr = sql<number>`
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)
+  `
+  const catCountExpr = sql<number>`
+    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)
+  `
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
@@ -146,7 +115,7 @@ export async function findCustomers(
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
   const statusCond = status
-    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
+    ? sqlStatusWhere(status, refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
     : undefined
   if (statusCond) conditions.push(statusCond)
 
@@ -173,7 +142,7 @@ export async function findCustomers(
     }
   })()
 
-  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
+  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -255,6 +224,11 @@ export async function findCustomers(
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(companies, eq(customers.company_id, companies.id))
+      .leftJoin(invoices, eq(invoices.customer_id, customers.id))
+      .leftJoin(
+        invoice_items,
+        and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
+      )
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
       .leftJoin(
         channel_divisions,
@@ -264,12 +238,12 @@ export async function findCustomers(
         ),
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
-      // invAggSq — sudah 1 baris per customer (agregasi COUNT DISTINCT di dalam
-      // subquery-nya sendiri, lihat komentar di definisinya di atas), BUKAN lagi
-      // JOIN invoices/invoice_items/cdInv mentah di sini.
-      .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
+      // cdInv — lihat komentar di definisi outerScopeGuard di atas, JOIN kedua
+      // channel_divisions via channel invoice yang SEDANG dihitung (bukan channel
+      // invoice terbaru customer), khusus dipakai invCountExpr/catCountExpr.
+      .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),

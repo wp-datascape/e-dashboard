@@ -8,15 +8,6 @@ export const UnderMaintenance = lazy(() => import('../pages/UnderMaintenance/ind
 
 // ─── Lazy Protected Pages ────────────────────────────────────────────────────
 export const Dashboard = lazy(() => import('../pages/Dashboard/index'))
-export const Growth = lazy(() => import('../pages/Growth/index'))
-export const Retention = lazy(() => import('../pages/Retention/index'))
-export const Value = lazy(() => import('../pages/Value/index'))
-// Laporan (task029.md §30.19, 2026-08-22) — tabel breakdown Growth/Retention/
-// Revenue, dipisah dari halaman chart (koreksi user: "terlalu kotor jika
-// chart digabung dengan tabel").
-export const ReportGrowth = lazy(() => import('../pages/Report/Growth/index'))
-export const ReportRetention = lazy(() => import('../pages/Report/Retention/index'))
-export const ReportRevenue = lazy(() => import('../pages/Report/Revenue/index'))
 export const Customers = lazy(() => import('../pages/Customers/index'))
 export const CrossSelling = lazy(() => import('../pages/CrossSelling/index'))
 export const CustomerMetrics = lazy(() => import('../pages/CustomerMetrics/index'))
@@ -47,5 +38,3 @@ export const AppSettings = lazy(() => import('../pages/Settings/AppSettings/inde
 export const IntegrationPage = lazy(() => import('../pages/Config/Integration/index'))
 export const FeaturesPage = lazy(() => import('../pages/Config/Features/index'))
 export const AbTesting = lazy(() => import('../pages/AbTesting/index'))
-export const HelpPage = lazy(() => import('../pages/Help/index'))
-export const WhatsNewPage = lazy(() => import('../pages/WhatsNew/index'))

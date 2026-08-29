@@ -1,136 +1,17 @@
-name: CI/CD
+name: CD
 
-# Digabung dari ci.yml+cd.yml terpisah (2026-08-27, task029.md §38 —
-# instruksi user: "Perbaikan jika tidak lolos CI, jangan lanjut CD") —
-# SEBELUMNYA 2 workflow file terpisah, sama-sama trigger `on: push`, jalan
-# PARALEL tanpa saling tahu — CD (deploy-dev/deploy-prod) tetap jalan dan
-# BERHASIL deploy walau CI (typecheck/audit/test/build) di file lain GAGAL
-# (dibuktikan langsung: run #33030096734 CI gagal "Dependency audit", run
-# #33030096728 CD di commit SAMA tetap sukses deploy dev). Sekarang 1 file,
-# job deploy-prod/deploy-dev pakai `needs: [backend, frontend]` — perilaku
-# DEFAULT GitHub Actions utk job dgn `needs` adalah SKIP kalau salah satu
-# dependency-nya gagal/dibatalkan, jadi otomatis "tidak lolos CI = tidak
-# lanjut CD" tanpa perlu expression IF manual tambahan.
-#
-# Trigger disatukan (union dari trigger LAMA masing-masing file) — push ke
-# main SEKARANG JUGA lewat job backend/frontend dulu (sebelumnya ci.yml
-# TIDAK trigger di push:main sama sekali, cuma pull_request:main — deploy
-# produksi jalan tanpa verifikasi CI ulang di commit hasil merge). pull_request
-# ke main TETAP cuma jalankan backend/frontend (deploy-prod/deploy-dev
-# TIDAK match `github.ref` PR — refnya `refs/pull/N/merge`, bukan
-# `refs/heads/main`/`refs/heads/dev` — sama seperti perilaku file cd.yml
-# lama, tidak berubah).
+# Build+push image ke GHCR jalan di GitHub Actions runner (BUKAN di VPS) — VPS cuma
+# `docker compose pull` + restart. Alasan: VPS ini sekaligus menjalankan mail server +
+# database produksi + panel, build (typecheck+bundle+obfuscate) sebaiknya tidak membebani
+# server yang sama. Detail keputusan: docs-v2/task/task019.md.
+
 on:
   push:
     branches: [main, dev]
-  pull_request:
-    branches: [main]
 
 jobs:
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    # Env di level job (bukan per-step) - berlaku otomatis ke SEMUA step di job ini,
-    # supaya tidak ada step yang lupa dikasih (kejadian nyata: step Seed sempat lupa
-    # ditambah JWT_SECRET/CSRF_SECRET/CREDENTIALS_ENCRYPTION_KEY, migrate/seed.ts
-    # ternyata import config/env.ts yang mewajibkan semuanya, bukan cuma DATABASE_URL).
-    env:
-      DATABASE_URL: postgresql://dashboard:dashboard123@localhost:5432/e_dashboard
-      JWT_SECRET: ci-test-jwt-secret-minimal-32-karakter!!
-      CSRF_SECRET: ci-test-csrf-secret-minimal-32-karakter!
-      CREDENTIALS_ENCRYPTION_KEY: ci-test-encryption-key-32-karakter!!
-
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: dashboard
-          POSTGRES_PASSWORD: dashboard123
-          POSTGRES_DB: e_dashboard
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout kode
-        uses: actions/checkout@v7
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependency
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bunx tsc --noEmit
-
-      - name: Dependency audit
-        run: bun audit --audit-level=high
-
-      - name: Migrate database
-        run: bun run db:migrate
-
-      - name: Seed database
-        run: bun run db:seed
-
-      - name: Test
-        run: bun test
-
-      - name: Build
-        run: bun run build
-
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - name: Checkout kode
-        uses: actions/checkout@v7
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependency
-        run: bun install --frozen-lockfile
-
-      - name: Lint
-        run: bun run lint
-
-      - name: Dependency audit
-        # GHSA-qwww-vcr4-c8h2 (react-router "RSC Mode CSRF Bypass") di-ignore sengaja:
-        # cuma affects RSC/framework mode + server actions, yang TIDAK dipakai app ini
-        # (murni SPA client-side via BrowserRouter biasa). Fix resmi butuh react-router
-        # core v8, tapi react-router-dom (package yang project ini pakai) pin exact ke
-        # versi 7.x core-nya sendiri dan belum rilis dukungan v8 — override paksa ke v8
-        # sudah dicoba & terbukti berisiko (react-router-dom belum publish versi yang
-        # kompatibel dengan core v8). Hapus --ignore ini begitu react-router-dom rilis
-        # versi yang mendukung core v8.
-        run: bun audit --audit-level=high --ignore=GHSA-qwww-vcr4-c8h2
-
-      - name: Build (sudah termasuk typecheck)
-        run: bun run build
-
-  # Build+push image ke GHCR jalan di GitHub Actions runner (BUKAN di VPS) — VPS cuma
-  # `docker compose pull` + restart. Alasan: VPS ini sekaligus menjalankan mail server +
-  # database produksi + panel, build (typecheck+bundle+obfuscate) sebaiknya tidak membebani
-  # server yang sama. Detail keputusan: docs-v2/task/task019.md.
   deploy-prod:
     name: Deploy Production
-    needs: [backend, frontend]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
@@ -219,7 +100,6 @@ jobs:
 
   deploy-dev:
     name: Deploy Dev
-    needs: [backend, frontend]
     if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     environment: development

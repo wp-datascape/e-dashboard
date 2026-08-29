@@ -13,7 +13,6 @@ import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget'
-import { formatMonthLabel } from '@/utils/date'
 
 function todayMonth(): string {
   const now = new Date()
@@ -141,7 +140,6 @@ export default function ProductsTrend() {
           series={[{ key: 'avg_category', label: t('productsTrend.seriesLabel'), color: theme.palette.primary.main }]}
           xKey="month"
           height={320}
-          xAxisFormatter={formatMonthLabel}
         />
       </Paper>
     </Box>
