@@ -47,5 +47,16 @@ export const corsMiddleware = cors({
   credentials: true,
   allowHeaders: ['Content-Type', 'X-CSRF-Token'],
   allowMethods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
+  // exposeHeaders (2026-08-30) — TANPA ini, browser cross-origin (dev:
+  // frontend 5173 vs backend 3000) TIDAK KASIH JS akses baca header respons
+  // manapun kecuali daftar "simple header" bawaan (Content-Type dkk),
+  // Content-Disposition BUKAN salah satunya. Ditemukan lewat percobaan
+  // nyata: endpoint GET /invoices/export sudah kirim header ini benar
+  // (dicek curl -D langsung, ada), tapi frontend baca `res.headers['content-
+  // disposition']` selalu kosong — nama file export selalu jatuh ke
+  // fallback "transaksi.xlsx", bukan nama dinamis server. Dicek ke docs
+  // resmi Hono (`cors()` exposeHeaders → header "Access-Control-Expose-
+  // Headers"), bukan tebakan.
+  exposeHeaders: ['Content-Disposition'],
   maxAge: 600,
 })

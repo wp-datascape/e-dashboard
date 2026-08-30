@@ -1,5 +1,5 @@
 import { AppError, ErrorCode } from '@/utils/error'
-import { findInvoices, findInvoicesSummary, findInvoiceDetail } from './transactions.repository'
+import { findInvoices, findInvoicesSummary, findInvoicesForExport, findInvoiceDetail } from './transactions.repository'
 import type { InvoicesQuery, InvoicesSummaryQuery } from './transactions.schema'
 
 export async function getInvoices(
@@ -27,6 +27,20 @@ export async function getInvoicesSummary(
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil ringkasan transaksi', 500)
+  }
+}
+
+export async function getInvoicesExport(
+  params: InvoicesSummaryQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  try {
+    return await findInvoicesForExport(params, scopeIds, branchScope, divisionScope)
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal export data transaksi', 500)
   }
 }
 

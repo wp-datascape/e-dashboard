@@ -1,7 +1,4 @@
 import { useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
 import { useTranslation } from 'react-i18next';
 import type { GridColDef } from '@mui/x-data-grid';
 
@@ -26,9 +23,16 @@ interface Props {
   data: CrossSellingData | undefined;
   yoyData: CrossSellingData | undefined;
   isLoading: boolean;
+  /** Info periode+granularitas di header tabel (2026-08-29, instruksi user:
+   * "kenapa layout tabelnya beda [dari tabel lain]" — komponen ini dulu
+   * bikin sendiri Box+TextField search/sort, TIDAK memakai search/sort
+   * bawaan ResponsiveListView spt tabel Laporan lain. Disamakan di sini,
+   * lihat JSDoc `ResponsiveListViewProps.search`). Opsional — caller lama
+   * (kalau ada) yang belum kirim ini tetap jalan, cuma tanpa info periode. */
+  periodLabel?: string;
 }
 
-export function BreakdownTable({ data, yoyData, isLoading }: Props) {
+export function BreakdownTable({ data, yoyData, isLoading, periodLabel }: Props) {
   const { t } = useTranslation();
 
   const breakdownColumns: GridColDef[] = useMemo(() => [
@@ -92,40 +96,27 @@ export function BreakdownTable({ data, yoyData, isLoading }: Props) {
   }, [data?.detail, yoyByCustomer, search, sort]);
 
   return (
-    <Box>
-      {/* Table Filter (§28.7/§28.9) — Search + Sort, di atas table */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
-        <TextField
-          size="small"
-          placeholder={t('crossSelling.tableSearchPlaceholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{ width: { xs: '100%', sm: 240 } }}
-        />
-        <TextField
-          select
-          size="small"
-          label={t('crossSelling.tableSortLabel')}
-          value={sort}
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-          sx={{ width: { xs: '100%', sm: 200 } }}
-        >
-          <MenuItem value="name">{t('crossSelling.tableSortName')}</MenuItem>
-          <MenuItem value="category_desc">{t('crossSelling.tableSortCategoryDesc')}</MenuItem>
-          <MenuItem value="revenue_desc">{t('crossSelling.tableSortRevenueDesc')}</MenuItem>
-        </TextField>
-      </Box>
-
-      <ResponsiveListView
-        rows={rows.map((r) => ({ ...r, id: r.customer_id }))}
-        columns={breakdownColumns}
-        loading={isLoading}
-        height={480}
-        pageSize={25}
-        pageSizeOptions={[25, 50, 100]}
-        emptyMessage={t('crossSelling.m2EmptyMessage')}
-        mobileFields={['customer_name', 'category_count', 'total_revenue', 'cross_sell_status']}
-      />
-    </Box>
+    <ResponsiveListView
+      rows={rows.map((r) => ({ ...r, id: r.customer_id }))}
+      columns={breakdownColumns}
+      loading={isLoading}
+      height={480}
+      pageSize={25}
+      pageSizeOptions={[25, 50, 100]}
+      emptyMessage={t('crossSelling.m2EmptyMessage')}
+      mobileFields={['customer_name', 'category_count', 'total_revenue', 'cross_sell_status']}
+      search={{ value: search, onChange: setSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+      periodLabel={periodLabel}
+      sort={{
+        value: sort,
+        onChange: (v) => setSort(v as typeof sort),
+        label: t('crossSelling.tableSortLabel'),
+        options: [
+          { value: 'name', label: t('crossSelling.tableSortName') },
+          { value: 'category_desc', label: t('crossSelling.tableSortCategoryDesc') },
+          { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
+        ],
+      }}
+    />
   );
 }
