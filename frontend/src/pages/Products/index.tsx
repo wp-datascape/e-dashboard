@@ -6,6 +6,10 @@ import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
+import Button from '@mui/material/Button'
+import Collapse from '@mui/material/Collapse'
+import AddIcon from '@mui/icons-material/Add'
+import RemoveIcon from '@mui/icons-material/Remove'
 import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +19,7 @@ import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { RangeFilter } from '@/components/filters/RangeFilter'
+import { FILTER_FIELD_WIDTH } from '@/components/filters/filterFieldWidth'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
@@ -40,6 +45,16 @@ export default function Products() {
   const [search,          setSearch]          = useState('')
   const [itemType,        setItemType]        = useState<string>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
+  // advancedOpen (2026-08-30, instruksi user: "rapikan filter" — sebelumnya
+  // 8 kontrol filter ditumpuk 1 baris wrap, tidak konsisten dgn pola halaman
+  // lain di app ini (Transactions/Growth/Retention/Revenue: Entity+Periode
+  // selalu tampil, sisanya di balik "Filter Lanjutan")). BUKAN reuse
+  // `AdvancedFilterBar`/`useAdvancedFilterBar` sharednya - itu field set-nya
+  // FIXED (Period+applyDateCutoff+Pareto, tidak ada Item Type/Kategori/
+  // Jendela Aktif/High Margin di halaman ini), jadi toggle+Collapse lokal
+  // saja - filter TETAP apply langsung tiap ganti value (bukan staged
+  // Terapkan/Reset spt AdvancedFilterBar, itu diluar scope "rapikan").
+  const [advancedOpen,    setAdvancedOpen]    = useState(false)
   const [highMarginOnly,  setHighMarginOnly]  = useState(false)
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -153,15 +168,22 @@ export default function Products() {
   ]
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header + Filter */}
+    // display:flex/gap:3 (BUKAN `p:3` seperti sebelumnya) — pola SAMA PERSIS
+    // Transactions/Growth/Retention (lihat AdvancedFilterBar-based pages):
+    // `<main>` (DashboardLayout.tsx) SUDAH kasih padding p:3 ke SEMUA halaman,
+    // `p:3` di sini dobel jadi 48px (laporan user: "jarak judul halaman lebih
+    // jauh dibanding transaksi" - dikonfirmasi lewat screenshot perbandingan).
+    // gap:3 di flex column ini yang gantikan SEMUA margin manual (mb/mt) antar
+    // section - konsisten dgn jarak antar section di halaman lain.
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Judul + quick bar (Entity+Periode selalu tampil, pola sama AdvancedFilterBar
+          dipakai halaman lain) */}
       <Box sx={{
         display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: { xs: 'stretch', sm: 'flex-start' },
         justifyContent: 'space-between',
         gap: 2,
-        mb: 3,
       }}>
         <Box>
           <Typography variant="pageTitle" sx={{ mb: 0.5 }}>
@@ -173,74 +195,98 @@ export default function Products() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, alignItems: 'center' }}>
-          <TextField
-            size="small" label={t('products.searchProductLabel')}
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPaginationModel((p) => ({ ...p, page: 0 })) }}
-            sx={{ minWidth: { xs: '100%', sm: 180 } }}
-          />
-
-          <TextField
-            select size="small" label={t('products.filterItemTypeLabel')}
-            value={itemType}
-            onChange={(e) => {
-              // Kategori tergantung Item Type (cascading) - reset supaya tidak nyangkut
-              // kategori dari item type sebelumnya yang mungkin sudah tidak relevan.
-              setItemType(e.target.value as typeof itemType)
-              setCategoryId('all')
-              setPaginationModel((p) => ({ ...p, page: 0 }))
-            }}
-            sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          >
-            <MenuItem value="all">{t('products.allItemTypes')}</MenuItem>
-            {itemTypeOptions.map((opt) => (
-              <MenuItem key={opt.key} value={opt.key}>{opt.label}</MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select size="small" label={t('products.filterCategoryLabel')}
-            value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value === 'all' ? 'all' : Number(e.target.value))
-              setPaginationModel((p) => ({ ...p, page: 0 }))
-            }}
-            sx={{ minWidth: { xs: '100%', sm: 180 } }}
-          >
-            <MenuItem value="all">{t('products.allCategories')}</MenuItem>
-            {categoryOptions.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
-
-          <ScopeFilterFields filter={scopeFilter} />
+          <ScopeFilterFields filter={scopeFilter} fields={['entity']} />
 
           <MonthYearPicker
             size="small" label={t('common.filters.period')}
             value={periodMonth}
             onChange={setPeriodMonth}
-            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            // minWidth (bukan width tetap) — format tampilan "MMMM YYYY" (mis.
+            // "Agustus 2026", nama bulan penuh) butuh ruang lebih dari
+            // FILTER_FIELD_WIDTH (160px, dipatok utk field DatePicker biasa yang
+            // formatnya lebih pendek) - width tetap bikin teksnya kepotong,
+            // minWidth biarkan melebar secukupnya (laporan user: "tampilan
+            // periode terputus, tidak terbaca total").
+            sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: FILTER_FIELD_WIDTH } }}
           />
 
-          <RangeFilter value={activeWindow} onChange={setActiveWindow} sx={{ minWidth: { xs: '100%', sm: 130 } }} />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={highMarginOnly}
-                onChange={(e) => { setHighMarginOnly(e.target.checked); setPaginationModel((p) => ({ ...p, page: 0 })) }}
-                size="small"
-              />
-            }
-            label={t('products.highMarginBadge')}
-            sx={{ ml: 0, whiteSpace: 'nowrap' }}
-          />
-
-          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
+          <Button
+            size="small"
+            color="inherit"
+            startIcon={advancedOpen ? <RemoveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
+            onClick={() => setAdvancedOpen((v) => !v)}
+            sx={{ textTransform: 'none' }}
+          >
+            {t('common.filters.advancedFilters')}
+          </Button>
         </Box>
       </Box>
 
-      {/* DataGrid */}
+      {/* Filter Lanjutan (2026-08-30, instruksi user: "rapikan filter") — Cabang/
+          Divisi/Item Type/Kategori/Jendela Aktif/High Margin/Exclude Intercompany,
+          TETAP apply langsung tiap ganti value (bukan staged Terapkan/Reset). */}
+      <Collapse in={advancedOpen}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, border: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+            <ScopeFilterFields filter={scopeFilter} fields={['branch', 'division']} />
+
+            <TextField
+              select size="small" label={t('products.filterItemTypeLabel')}
+              value={itemType}
+              onChange={(e) => {
+                // Kategori tergantung Item Type (cascading) - reset supaya tidak nyangkut
+                // kategori dari item type sebelumnya yang mungkin sudah tidak relevan.
+                setItemType(e.target.value as typeof itemType)
+                setCategoryId('all')
+                setPaginationModel((p) => ({ ...p, page: 0 }))
+              }}
+              sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }}
+            >
+              <MenuItem value="all">{t('products.allItemTypes')}</MenuItem>
+              {itemTypeOptions.map((opt) => (
+                <MenuItem key={opt.key} value={opt.key}>{opt.label}</MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select size="small" label={t('products.filterCategoryLabel')}
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                setPaginationModel((p) => ({ ...p, page: 0 }))
+              }}
+              sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }}
+            >
+              <MenuItem value="all">{t('products.allCategories')}</MenuItem>
+              {categoryOptions.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+
+            <RangeFilter value={activeWindow} onChange={setActiveWindow} sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }} />
+          </Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={highMarginOnly}
+                  onChange={(e) => { setHighMarginOnly(e.target.checked); setPaginationModel((p) => ({ ...p, page: 0 })) }}
+                  size="small"
+                />
+              }
+              label={t('products.highMarginBadge')}
+              sx={{ ml: 0, whiteSpace: 'nowrap' }}
+            />
+
+            <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
+          </Box>
+        </Box>
+      </Collapse>
+
+      {/* DataGrid — search dipindah ke header tabel (2026-08-30, instruksi
+          user: "search bar di header tabel"), pola sama Transactions/Growth/
+          Retention, bukan TextField berdiri sendiri di luar tabel lagi. */}
       <ResponsiveListView
         rows={data?.data ?? []}
         columns={columns}
@@ -255,6 +301,11 @@ export default function Products() {
         onSortModelChange={setSortModel}
         pageSizeOptions={[25, 50, 100]}
         height={600}
+        search={{
+          value: search,
+          onChange: (v) => { setSearch(v); setPaginationModel((p) => ({ ...p, page: 0 })) },
+          placeholder: t('products.searchProductLabel'),
+        }}
       />
     </Box>
   )
