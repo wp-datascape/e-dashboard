@@ -92,7 +92,7 @@ export default function Transactions() {
     date_to: periodEndEffective,
     page: paginationModel.page + 1,
     per_page: paginationModel.pageSize,
-    sort_by: sortModel[0]?.field as 'invoice_date' | 'total_revenue' | 'total_gp' | undefined,
+    sort_by: sortModel[0]?.field as InvoiceParams['sort_by'],
     sort_dir: sortModel[0]?.sort as 'asc' | 'desc' | undefined,
   }
 
@@ -135,14 +135,19 @@ export default function Transactions() {
     }
   }
 
+  // Semua kolom sortable (2026-08-31, laporan user: klik sort "Kategori" ->
+  // error "sort_by: Invalid option" toast merah) — akar masalahnya BUKAN di
+  // frontend, backend (transactions.repository.ts findInvoices) sekarang
+  // sudah punya implementasi ORDER BY utk semua kolom ini (bukan cuma
+  // invoice_date/total_revenue/total_gp spt sebelumnya).
   const columns: GridColDef[] = [
     { field: 'invoice_number', headerName: t('transactions.invoiceNumber'), width: 160 },
     { field: 'invoice_date', headerName: t('transactions.invoiceDate'), width: 120 },
     { field: 'company', headerName: t('customers.detail.company'), width: 140, valueGetter: (_v: unknown, row: InvoiceRow) => row.company.name },
     { field: 'customer', headerName: t('customers.name'), flex: 1, minWidth: 180, valueGetter: (_v: unknown, row: InvoiceRow) => row.customer.name },
     { field: 'business_unit', headerName: t('customers.detail.businessUnit'), width: 120, renderCell: ({ row }) => <BuChip bu={row.customer.business_unit} /> },
-    { field: 'total_revenue', headerName: t('transactions.totalRevenue'), width: 140, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatRupiah(v as number) },
-    { field: 'total_gp', headerName: t('transactions.totalGP'), width: 130, type: 'number', sortable: true, valueFormatter: (v: unknown) => formatRupiah(v as number) },
+    { field: 'total_revenue', headerName: t('transactions.totalRevenue'), width: 140, type: 'number', valueFormatter: (v: unknown) => formatRupiah(v as number) },
+    { field: 'total_gp', headerName: t('transactions.totalGP'), width: 130, type: 'number', valueFormatter: (v: unknown) => formatRupiah(v as number) },
     { field: 'gp_margin_percent', headerName: t('transactions.gpMargin'), width: 100, type: 'number', valueFormatter: (v: unknown) => `${(v as number).toFixed(1)}%` },
     { field: 'category_count', headerName: t('transactions.categoryCount'), width: 100, type: 'number' },
     { field: 'import_source', headerName: t('transactions.importSource'), width: 100, renderCell: ({ row }) => row.import_source ?? '—' },

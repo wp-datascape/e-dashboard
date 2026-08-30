@@ -33,6 +33,8 @@ export interface InvoiceParams {
   date_to?: string
   customer_search?: string
   sort_by?: 'invoice_date' | 'total_revenue' | 'total_gp'
+    | 'invoice_number' | 'company' | 'customer' | 'business_unit'
+    | 'gp_margin_percent' | 'category_count' | 'import_source'
   sort_dir?: 'asc' | 'desc'
   page?: number
   per_page?: number

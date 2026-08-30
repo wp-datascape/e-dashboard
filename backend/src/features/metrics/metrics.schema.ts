@@ -458,6 +458,21 @@ export const hmCustomersQuerySchema = z.object({
 })
 export type HmCustomersQuery = z.infer<typeof hmCustomersQuerySchema>
 
+// period_start (2026-08-31, laporan user: "makanya aku menyuruh pakai filter
+// global itu karena hal seperti ini" — susulan bug window Annual: activeWindow
+// hasil DERIVASI dari period_type di frontend, Aug 2026 Annual jadi "trailing
+// 12 bulan mundur" (Sep 2025-Agu 2026), BUKAN "1 Jan-hari ini" spt M5/Revenue/
+// GP yg dipakai HALAMAN YANG SAMA. Akar masalahnya: kontrak lama
+// (period_month+active_window, "N bulan trailing") secara STRUKTURAL tidak
+// bisa merepresentasikan period_start eksak filter global, tak peduli seberapa
+// pintar activeWindow "diturunkan" di frontend — pola SAMA PERSIS yg sudah ada
+// customerProductsQuerySchema (period_start/period_end eksplisit, kalau diisi
+// dipakai LANGSUNG, skip perhitungan period_month+active_window - lihat
+// komentar di situ). Opsional & backward-compatible: ProductsHighMargin/
+// index.tsx (halaman standalone, py RangeFilter sendiri, BUKAN filter global)
+// TETAP jalan tanpa mengisi ini sama sekali.
+const periodStartField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'period_start harus format YYYY-MM-DD').optional()
+
 export const hmDetailQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
@@ -472,6 +487,18 @@ export const hmDetailQuerySchema = z.object({
     .optional()
     .default(currentMonth),
   active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  period_start: periodStartField,
+  // only_pareto (2026-08-31, laporan user: "cek dan perbaiki filter lain di
+  // halaman sama" — susulan bug period_start) — DITEMUKAN belum pernah
+  // diteruskan sama sekali ke fetchHmProductDetail/fetchUpsellTargets
+  // (`resolveInvoiceScopeConditions` sengaja bikin onlyParetoCond OPSIONAL
+  // no-op utk caller lama, lihat komentar InvoiceScopeParams.filterDate di
+  // segment.helper.ts - "ProductsHighMargin/Product Workbench TIDAK punya UI
+  // filter Pareto", BENAR saat itu, TAPI Report/Revenue skrg reuse komponen
+  // ini DENGAN toggle Pareto di filter globalnya, celah sama persis dgn
+  // period_start). Diverifikasi lewat API: only_pareto=true vs false hasil
+  // SAMA PERSIS sebelum fix ini.
+  only_pareto: onlyParetoField,
   page:     z.coerce.number().int().positive().optional().default(1),
   per_page: z.coerce.number().int().min(1).max(100).optional().default(50),
 })
@@ -490,6 +517,9 @@ export const upsellTargetQuerySchema = z.object({
     .optional()
     .default(currentMonth),
   active_window: z.coerce.number().int().min(1).max(24).optional().default(6),
+  period_start: periodStartField,
+  // only_pareto — lihat komentar hmDetailQuerySchema.only_pareto di atas, pola sama.
+  only_pareto: onlyParetoField,
   // division (2026-08-26, task031.md §3 — GANTI dari 'business_unit'
   // string legacy ke FK numeric, pola SAMA filter Divisi query lain).
   division: z.coerce.number().int().positive().optional(),

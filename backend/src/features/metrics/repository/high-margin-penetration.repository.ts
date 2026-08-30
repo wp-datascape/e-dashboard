@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildCompanyConditionRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw, buildBranchConditionRaw } from '@/utils/scope'
 import { resolveInvoiceScopeConditions } from '../segment.helper'
 
 // ─── Params ───────────────────────────────────────────────────────────────────
@@ -10,10 +10,25 @@ export interface HmDetailRepoParams {
   companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
+  // periodStart (2026-08-31, laporan user: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini" — lihat komentar
+  // periodStartField di metrics.schema.ts) — kalau diisi, dipakai LANGSUNG
+  // sbg batas awal window (skip perhitungan periodEnd-activeWindow bulan,
+  // yg cuma APROKSIMASI). Opsional - caller lama (ProductsHighMargin/
+  // index.tsx, RangeFilter sendiri) yg tidak isi ini TETAP jalan seperti biasa.
+  periodStart?: string | null
   page: number
   perPage: number
   division?: number | null   // filter laporan - mirror business_unit di metrics lain
   excludeIntercompany?: boolean
+  // onlyPareto/filterDate (2026-08-31, laporan user: "cek dan perbaiki filter
+  // lain di halaman sama" — lihat komentar hmDetailQuerySchema.only_pareto
+  // di metrics.schema.ts) — DITEMUKAN sebelumnya sengaja no-op (lihat
+  // InvoiceScopeParams.filterDate di segment.helper.ts), benar SAAT itu utk
+  // ProductsHighMargin (tidak py UI Pareto), TAPI Report/Revenue reuse
+  // komponen ini DENGAN toggle Pareto - celah sama persis dgn periodStart.
+  onlyPareto?: boolean
+  filterDate?: string
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, number[]>
@@ -26,6 +41,11 @@ export interface UpsellTargetRepoParams {
   companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
+  // periodStart — lihat komentar HmDetailRepoParams.periodStart di atas, pola sama.
+  periodStart?: string | null
+  // onlyPareto/filterDate — lihat komentar HmDetailRepoParams di atas, pola sama.
+  onlyPareto?: boolean
+  filterDate?: string
   // divisionId (2026-08-26, task031.md §3 — GANTI dari `businessUnit: string`
   // legacy free-text ke FK numeric, sama pola filter Divisi KPI lain).
   divisionId: number | null
@@ -73,6 +93,24 @@ export interface HmProductDbRow {
   category_name: string
   customer_count: number
   total_active_customers: number
+  // total_hm_buyers (2026-08-31, instruksi user: "tambahkan summary total
+  // pembeli high margin di atas tabel produk penetration") — distinct customer
+  // count yang beli MINIMAL 1 produk HM efektif APAPUN dalam window/scope ini,
+  // BEDA dari `customer_count` per baris (itu per-PRODUK, sengaja tidak boleh
+  // dijumlah antar baris - customer yang beli >1 produk HM akan ke-double-count).
+  // Sama utk SEMUA baris (scalar subquery), diambil dari baris pertama di
+  // service layer (getHmProductPenetrationDetail).
+  total_hm_buyers: number
+  // total_hm_buyers_existing/_new (2026-08-31, instruksi user: "buat 2 kartu,
+  // 1 existing active, 1 new customer, total yang membeli active transacting"
+  // — susulan laporan "kenapa di card 24 di tabel 25, itu inkonsistensi")
+  // — pecahan `total_hm_buyers` di atas: existing = customer transaksi PERTAMA
+  // KALI SEPANJANG HIDUP sebelum window ini mulai (SAMA definisi
+  // `established_customers` M5, lihat cteFirstInvoiceDate segment.helper.ts),
+  // new = transaksi pertamanya justru DI DALAM window ini. existing+new SELALU
+  // = total_hm_buyers (populasi sama, cuma dipecah 2, bukan hitungan baru).
+  total_hm_buyers_existing: number
+  total_hm_buyers_new: number
   penetration_rate: number
   total_revenue: number
   total_gp: number
@@ -174,9 +212,14 @@ function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | u
 
 export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
+  // windowStartCond — lihat komentar sama persis di fetchHmProductDetail
+  // (periodStart eksak MENANG atas derivasi periodEnd-activeWindow bulan).
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
@@ -191,13 +234,14 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     hm_items AS (
       SELECT
@@ -214,7 +258,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (
           ii.product_category_id IN (SELECT product_category_id FROM hm_cat_level)
@@ -225,6 +269,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     )
     SELECT
       pc.id                                                              AS category_id,
@@ -279,13 +324,44 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
 // angka konsisten dgn baris kategori (kalau kategori jadi opsi sekunder).
 export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmProductDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
+  // first_invoice_date (2026-08-31) — mirror PERSIS cteFirstInvoiceDate
+  // (segment.helper.ts, dipakai M5 established_customers) tapi ditulis inline
+  // krn beda shape param (HmDetailRepoParams vs SegmentParams) - scope-nya
+  // SENGAJA cuma company/branch (akses data), BUKAN division/exclude-
+  // intercompany (itu klasifikasi channel, bukan hak akses data historis).
+  const branchCondFid = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
+  const companyCondFid = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  // windowStartCond (2026-08-31) — periodStart EKSAK (kalau diisi caller,
+  // lihat komentar HmDetailRepoParams.periodStart) MENANG atas derivasi
+  // periodEnd-activeWindow bulan. `>=` (inklusif tanggal itu sendiri) beda
+  // dari fallback lama `>` (eksklusif hasil pengurangan bulan) - keduanya
+  // tetap SETARA persis kalau periodStart-nya sendiri hasil hitungan
+  // "periodEnd - activeWindow bulan + 1 hari", TIDAK ada perubahan perilaku
+  // utk caller lama yg belum kirim periodStart sama sekali.
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
+  const windowStartCondFid = p.periodStart
+    ? sql`fid.first_date < ${p.periodStart}::date`
+    : sql`fid.first_date < ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
+  const windowStartCondFidNew = p.periodStart
+    ? sql`fid.first_date >= ${p.periodStart}::date`
+    : sql`fid.first_date >= ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
     ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds, division)},
+    first_invoice_date AS (
+      SELECT ix0.customer_id, MIN(ix0.invoice_date) AS first_date
+      FROM invoices ix0
+      WHERE ix0.deleted_at IS NULL
+        AND ${branchCondFid}
+        AND ${companyCondFid}
+      GROUP BY ix0.customer_id
+    ),
     active AS (
       SELECT DISTINCT i.customer_id
       FROM invoices i
@@ -296,13 +372,14 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     -- Produk efektif HM: langsung per-produk (hm_product_level), ATAU seluruh
     -- produk di kategori yang ditandai level-kategori (hm_cat_level) - mirror
@@ -330,7 +407,7 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_id IN (SELECT product_id FROM hm_effective_products)
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
@@ -338,6 +415,7 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     -- "Assign To" per produk - union divisi dari flag yang berlaku (langsung
     -- per-produk ATAU warisan flag category-level, BUKAN dari flag product-level
@@ -365,6 +443,19 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       pc.name                                                            AS category_name,
       COUNT(DISTINCT hi.customer_id)::int                                AS customer_count,
       (SELECT COUNT(*)::int FROM active)                                 AS total_active_customers,
+      (SELECT COUNT(DISTINCT customer_id)::int FROM hm_items)            AS total_hm_buyers,
+      (
+        SELECT COUNT(DISTINCT hi2.customer_id)::int
+        FROM hm_items hi2
+        JOIN first_invoice_date fid ON fid.customer_id = hi2.customer_id
+        WHERE ${windowStartCondFid}
+      )                                                                  AS total_hm_buyers_existing,
+      (
+        SELECT COUNT(DISTINCT hi2.customer_id)::int
+        FROM hm_items hi2
+        JOIN first_invoice_date fid ON fid.customer_id = hi2.customer_id
+        WHERE ${windowStartCondFidNew}
+      )                                                                  AS total_hm_buyers_new,
       ROUND(
         COUNT(DISTINCT hi.customer_id)::numeric
           / NULLIF((SELECT COUNT(*) FROM active), 0) * 100, 1
@@ -394,6 +485,9 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       category_name:          String(row.category_name),
       customer_count:         Number(row.customer_count         ?? 0),
       total_active_customers: Number(row.total_active_customers ?? 0),
+      total_hm_buyers:        Number(row.total_hm_buyers        ?? 0),
+      total_hm_buyers_existing: Number(row.total_hm_buyers_existing ?? 0),
+      total_hm_buyers_new:    Number(row.total_hm_buyers_new    ?? 0),
       penetration_rate:       Number(row.penetration_rate       ?? 0),
       total_revenue:          Number(row.total_revenue          ?? 0),
       total_gp:               Number(row.total_gp               ?? 0),
@@ -408,8 +502,13 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
 
 export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<UpsellTargetDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const branchFilter = p.branchFilter ?? null
+  // windowStartCond — lihat komentar sama persis di fetchHmProductDetail
+  // (periodStart eksak MENANG atas derivasi periodEnd-activeWindow bulan).
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
@@ -437,12 +536,13 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     cust_dominant_division AS MATERIALIZED (
       SELECT customer_id, division_id
@@ -513,13 +613,14 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
           AND cd.company_id = i.company_id
         WHERE  i.deleted_at     IS NULL
           AND  ${companyCondI}
-          AND  i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+          AND  ${windowStartCond}
           AND  i.invoice_date <= ${p.periodEnd}::date
           AND  ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
           AND  (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
           AND  ${branchCond}
           AND  ${divisionScopeCond}
           AND  ${excludeIntercompanyCond}
+          AND ${onlyParetoCond}
         GROUP BY ii.product_category_id, cdd.division_id
       ) counted
       JOIN division_totals dt ON dt.division_id = counted.division_id
@@ -545,12 +646,13 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     )
     SELECT

@@ -1128,6 +1128,8 @@ export async function getHmPenetrationDetail(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
+      periodStart:     params.period_start,
+      onlyPareto:      params.only_pareto,
       page: params.page, perPage: params.per_page,
     })
 
@@ -1151,7 +1153,11 @@ export async function getHmPenetrationDetail(
 export async function getHmProductPenetrationDetail(
   params: HmDetailQuery,
   scope: MetricsScope = {},
-): Promise<{ data: object[]; total: number }> {
+): Promise<{
+  data: object[]; total: number
+  totalHmBuyers: number; totalActiveCustomers: number
+  totalHmBuyersExisting: number; totalHmBuyersNew: number
+}> {
   try {
     const cid = params.company_id === 'all' ? 0 : params.company_id
     const [py, pm] = params.period_month.split('-').map(Number)
@@ -1167,17 +1173,34 @@ export async function getHmProductPenetrationDetail(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
+      periodStart:     params.period_start,
+      onlyPareto:      params.only_pareto,
       page: params.page, perPage: params.per_page,
     })
 
     const total = rows[0]?.total_count ?? 0
+    // totalHmBuyers/totalActiveCustomers (2026-08-31, instruksi user: "tambahkan
+    // summary total pembeli high margin di atas tabel produk penetration") —
+    // scalar SAMA di semua baris (lihat komentar HmProductDbRow.total_hm_buyers),
+    // diambil dari baris pertama sbg ringkasan level-halaman, BUKAN per-produk.
+    const totalHmBuyers = rows[0]?.total_hm_buyers ?? 0
+    const totalActiveCustomers = rows[0]?.total_active_customers ?? 0
+    // totalHmBuyersExisting/New (2026-08-31, instruksi user: "buat 2 kartu, 1
+    // existing active, 1 new customer, total yang membeli active transacting"
+    // — susulan laporan "kenapa di card 24 di tabel 25, itu inkonsistensi",
+    // diverifikasi lewat query manual: beda 1 customer PT ANUGRAH GASINDO
+    // ABADI, transaksi pertamanya 12 Agustus 2026 - "New" di window Agustus,
+    // makanya dibuang dari kartu M5 "Existing Active" tapi ikut kehitung di
+    // ringkasan total sini). existing+new SELALU = totalHmBuyers.
+    const totalHmBuyersExisting = rows[0]?.total_hm_buyers_existing ?? 0
+    const totalHmBuyersNew = rows[0]?.total_hm_buyers_new ?? 0
     const data  = rows.map(({ total_count, assign_to, ...row }) => ({
       id: row.product_id,
       is_high_margin: true,
       ...row,
       assign_to: filterAssignToByScope(assign_to, scope.divisionScope),
     }))
-    return { data, total }
+    return { data, total, totalHmBuyers, totalActiveCustomers, totalHmBuyersExisting, totalHmBuyersNew }
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil penetrasi high margin per produk', 500)
@@ -1285,6 +1308,8 @@ export async function getUpsellTargets(
       excludeIntercompany: params.exclude_intercompany,
       branchFilter:    params.branch_id,
       periodEnd, activeWindow: params.active_window,
+      periodStart: params.period_start,
+      onlyPareto: params.only_pareto,
       divisionId: params.division ?? null,
       page: params.page, perPage: params.per_page,
     })

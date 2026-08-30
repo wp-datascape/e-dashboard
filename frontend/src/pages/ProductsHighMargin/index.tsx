@@ -71,6 +71,19 @@ export interface FilterState {
   periodMonth: string
   activeWindow: number
   excludeIntercompany: boolean
+  // periodStart (2026-08-31, laporan user: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini") — lihat komentar
+  // HighMarginDetailParams.period_start (types/products.ts). Opsional -
+  // ProductsHighMargin/index.tsx (halaman standalone, RangeFilter sendiri)
+  // TIDAK mengisi ini, TETAP pakai activeWindow trailing spt semula.
+  // Report/Revenue/index.tsx (reuse komponen ini) MENGISI dengan
+  // `periodStart` filter global yang SAMA dipakai Revenue/GP/M5.
+  periodStart?: string
+  // onlyPareto (2026-08-31, laporan user: "cek dan perbaiki filter lain di
+  // halaman sama") — lihat komentar HighMarginDetailParams.only_pareto
+  // (types/products.ts). Opsional - halaman standalone ini tidak punya
+  // toggle Pareto sama sekali, TIDAK mengisi ini.
+  onlyPareto?: boolean
 }
 
 // ─── Tab 1a: Product Penetration (DEFAULT — high margin adalah flag per-produk,
@@ -87,6 +100,8 @@ export function HighMarginProductTab({ filter }: { filter: FilterState }) {
     exclude_intercompany: filter.excludeIntercompany,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
+    period_start:  filter.periodStart,
+    only_pareto:   filter.onlyPareto,
     page: pagination.page + 1,
     per_page: pagination.pageSize,
   }
@@ -224,6 +239,8 @@ export function UpsellTargetsTab({ filter }: { filter: FilterState }) {
     branch_id:     filter.branchId === 'all' ? undefined : filter.branchId,
     period_month:  filter.periodMonth,
     active_window: filter.activeWindow,
+    period_start:  filter.periodStart,
+    only_pareto:   filter.onlyPareto,
     // division (2026-08-26, task031.md §4 — GANTI dari 'business_unit',
     // key backend yang lama tapi nilainya SUDAH divisi selama ini, cuma
     // salah nama key).
@@ -430,6 +447,25 @@ export default function ProductsHighMargin() {
   const avgPenetration = summaryData?.data.length
     ? summaryData.data.reduce((sum, r) => sum + r.penetration_rate, 0) / summaryData.data.length
     : 0
+  // totalHmBuyers/totalActiveCustomers (2026-08-31, instruksi user: "tambahkan
+  // summary total pembeli high margin di atas tabel produk penetration") —
+  // scalar dari backend (meta.summary, SAMA di semua baris/halaman - lihat
+  // komentar HmProductDbRow.total_hm_buyers), BUKAN dijumlah dari
+  // summaryData.data (customer_count per baris tidak boleh dijumlah antar
+  // produk, 1 customer bisa beli >1 produk HM -> double count).
+  const hmSummary = summaryData?.meta.summary as {
+    total_hm_buyers?: number; total_active_customers?: number
+    total_hm_buyers_existing?: number; total_hm_buyers_new?: number
+  } | undefined
+  const totalHmBuyers = hmSummary?.total_hm_buyers ?? 0
+  const totalActiveCustomers = hmSummary?.total_active_customers ?? 0
+  // existing/new (2026-08-31, instruksi user: "buat 2 kartu, 1 existing
+  // active, 1 new customer, total yang membeli active transacting" - susulan
+  // laporan "kenapa di card 24 di tabel 25, itu inkonsistensi") — pecahan
+  // totalHmBuyers, SELALU existing+new = totalHmBuyers (lihat komentar
+  // backend HmProductDbRow.total_hm_buyers_existing/_new).
+  const totalHmBuyersExisting = hmSummary?.total_hm_buyers_existing ?? 0
+  const totalHmBuyersNew = hmSummary?.total_hm_buyers_new ?? 0
 
   return (
     <Box sx={{ p: 3 }}>
@@ -475,9 +511,12 @@ export default function ProductsHighMargin() {
 
       {/* Summary chips */}
       {productCount > 0 && (
-        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
           <StatusChip label={t('productsHighMargin.summaryProducts', { count: productCount })} color="warning" />
           <StatusChip label={t('productsHighMargin.summaryAvgPenetration', { pct: avgPenetration.toFixed(1) })} color="info" />
+          <StatusChip label={t('productsHighMargin.summaryTotalBuyers', { buyers: totalHmBuyers.toLocaleString('id-ID'), total: totalActiveCustomers.toLocaleString('id-ID') })} color="success" />
+          <StatusChip label={t('productsHighMargin.summaryExistingBuyers', { count: totalHmBuyersExisting.toLocaleString('id-ID') })} color="default" />
+          <StatusChip label={t('productsHighMargin.summaryNewBuyers', { count: totalHmBuyersNew.toLocaleString('id-ID') })} color="default" />
         </Stack>
       )}
 

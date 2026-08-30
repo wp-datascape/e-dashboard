@@ -16,7 +16,16 @@ export const invoicesQuerySchema = z.object({
   customer_search: z.string().optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
-  sort_by: z.enum(['invoice_date', 'total_revenue', 'total_gp']).optional().default('invoice_date'),
+  // sort_by (2026-08-31, laporan user: sort kolom Kategori/Perusahaan/dst gagal
+  // dengan toast "Invalid option") — SEMUA kolom tabel Transactions ADA
+  // implementasi sort-nya di findInvoices (transactions.repository.ts), bukan
+  // cuma 3 field lama. Diperluas ke SEMUA kolom yang sebelumnya sortable di
+  // frontend tapi ditolak backend.
+  sort_by: z.enum([
+    'invoice_date', 'total_revenue', 'total_gp',
+    'invoice_number', 'company', 'customer', 'business_unit',
+    'gp_margin_percent', 'category_count', 'import_source',
+  ]).optional().default('invoice_date'),
   sort_dir: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().positive().optional().default(1),
   per_page: z.coerce.number().int().min(1).max(200).optional().default(50),

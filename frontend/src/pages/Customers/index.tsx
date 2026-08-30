@@ -4,6 +4,10 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import Collapse from '@mui/material/Collapse';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +15,7 @@ import { useCustomers } from '@/hooks/useCustomers';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
+import { FILTER_FIELD_WIDTH } from '@/components/filters/filterFieldWidth';
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker';
 import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
@@ -36,6 +41,11 @@ export default function Customers() {
   });
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  // advancedOpen (2026-08-30, instruksi user: "lakukan perbaikan serupa ke
+  // halaman customer" - sama pola dgn Products/index.tsx: Entity+Periode
+  // quick, sisanya di panel "Filter Lanjutan" collapse, filter TETAP apply
+  // langsung tiap ganti value.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Debounce search 300ms
   useEffect(() => {
@@ -95,28 +105,63 @@ export default function Customers() {
   ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('customers.title')}</Typography>
-      <Typography variant="pageSubtitle" sx={{ mb: 3 }}>{t('customers.subtitle')}</Typography>
+    // display:flex/gap:3 (BUKAN `p:3`) — pola SAMA PERSIS Transactions/Products
+    // (lihat komentar Products/index.tsx): `<main>` (DashboardLayout.tsx) SUDAH
+    // kasih padding p:3 ke SEMUA halaman, `p:3` di sini dobel jadi 48px.
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-start' },
+        justifyContent: 'space-between',
+        gap: 2,
+      }}>
+        <Box>
+          <Typography variant="pageTitle" sx={{ mb: 0.5 }}>{t('customers.title')}</Typography>
+          <Typography variant="pageSubtitle">{t('customers.subtitle')}</Typography>
+        </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3 }}>
-        <TextField size="small" placeholder={t('customers.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: { xs: '100%', sm: 240 } }} />
-        <ScopeFilterFields filter={scopeFilter} />
-        <MonthYearPicker
-          size="small" label={t('common.filters.period')}
-          value={periodMonth}
-          onChange={setPeriodMonth}
-          sx={{ width: { xs: '100%', sm: 150 } }}
-        />
-        <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: 140 } }}>
-          <MenuItem value="">{t('common.all')}</MenuItem>
-          <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
-          <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
-          <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
-          <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
-        </TextField>
-        <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, alignItems: 'center' }}>
+          <ScopeFilterFields filter={scopeFilter} fields={['entity']} />
+
+          <MonthYearPicker
+            size="small" label={t('common.filters.period')}
+            value={periodMonth}
+            onChange={setPeriodMonth}
+            // minWidth (bukan width tetap) — format "MMMM YYYY" (nama bulan
+            // penuh, mis. "Agustus 2026") butuh ruang lebih dari
+            // FILTER_FIELD_WIDTH, width tetap bikin teksnya kepotong (bug
+            // sama yang ditemukan di Products/index.tsx).
+            sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: FILTER_FIELD_WIDTH } }}
+          />
+
+          <Button
+            size="small"
+            color="inherit"
+            startIcon={advancedOpen ? <RemoveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
+            onClick={() => setAdvancedOpen((v) => !v)}
+            sx={{ textTransform: 'none' }}
+          >
+            {t('common.filters.advancedFilters')}
+          </Button>
+        </Box>
       </Box>
+
+      <Collapse in={advancedOpen}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, p: 2, border: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+          <ScopeFilterFields filter={scopeFilter} fields={['branch', 'division']} />
+
+          <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }}>
+            <MenuItem value="">{t('common.all')}</MenuItem>
+            <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
+            <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
+            <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
+            <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
+          </TextField>
+
+          <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
+        </Box>
+      </Collapse>
 
       <ResponsiveListView
         rows={data?.data ?? []}
@@ -137,6 +182,7 @@ export default function Customers() {
         // pertama di tabel desktop) — customer_code jarang terisi di database,
         // jadi kalau jadi judul, judul cardnya sering kosong/tidak informatif.
         mobileFields={['name', 'customer_code', 'company', 'division', 'status', 'category_count', 'avg_monthly_revenue', 'lifetime_value', 'last_invoice_date', 'total_invoices']}
+        search={{ value: search, onChange: setSearch, placeholder: t('customers.searchPlaceholder') }}
       />
 
       <CustomerDetailDialog

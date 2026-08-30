@@ -126,6 +126,21 @@ export interface HighMarginDetailParams {
   exclude_intercompany?: boolean
   period_month?: string
   active_window?: number
+  // period_start (2026-08-31, laporan user: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini") — kalau diisi, backend pakai
+  // INI langsung sbg awal window (skip derivasi period_month-active_window
+  // bulan yg cuma APROKSIMASI). Isi dgn `periodStart` filter GLOBAL yg SAMA
+  // dipakai Revenue/GP/M5 di halaman yg sama (Report/Revenue/index.tsx),
+  // BUKAN dihitung ulang dari period_type. Opsional - ProductsHighMargin/
+  // index.tsx (RangeFilter sendiri) TIDAK mengisi ini.
+  period_start?: string
+  // only_pareto (2026-08-31, laporan user: "cek dan perbaiki filter lain di
+  // halaman sama" — susulan period_start) — sebelumnya DITEMUKAN diam-diam
+  // no-op di backend utk endpoint ini (dipakai benar utk Revenue/GP/M5),
+  // sekarang sudah diperbaiki di backend, ini toggle "Pareto Customers" di
+  // Advanced Filters. Opsional - ProductsHighMargin/index.tsx (tidak py
+  // toggle Pareto) TIDAK mengisi ini.
+  only_pareto?: boolean
   page?: number
   per_page?: number
 }
@@ -251,6 +266,10 @@ export interface UpsellTargetParams {
   branch_id?: number
   period_month?: string
   active_window?: number
+  // period_start — lihat komentar HighMarginDetailParams.period_start di atas, pola sama.
+  period_start?: string
+  // only_pareto — lihat komentar HighMarginDetailParams.only_pareto di atas, pola sama.
+  only_pareto?: boolean
   // division (2026-08-26, task031.md §4 — GANTI dari business_unit legacy).
   division?: number
   exclude_intercompany?: boolean
