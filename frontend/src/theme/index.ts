@@ -141,9 +141,19 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
       },
       MuiCssBaseline: {
         styleOverrides: {
+          // colorScheme (2026-08-30, laporan user: "background area scroll
+          // bar berwarna hitam" di mode light) — `index.css` (:root) set
+          // `color-scheme: light dark` statis, TIDAK PERNAH disinkronkan ke
+          // `mode` app (ThemeContext.tsx, toggle manual independen dari OS).
+          // Browser bebas pilih skema native (scrollbar, kontrol form) ikut
+          // preferensi OS kalau keduanya "light dark" diizinkan — begitu OS
+          // dark tapi app displaying light (putih), scrollbar native tetap
+          // dirender gelap, kontras tajam. Deklarasi eksplisit di sini
+          // (bukan inherited dari :root) menang di body & seluruh
+          // descendant-nya (termasuk <main>, virtualScroller DataGrid, dst).
           body: isDark
-            ? { scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }
-            : { scrollbarWidth: 'thin' },
+            ? { colorScheme: 'dark', scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }
+            : { colorScheme: 'light', scrollbarWidth: 'thin' },
         },
       },
       MuiAppBar: {

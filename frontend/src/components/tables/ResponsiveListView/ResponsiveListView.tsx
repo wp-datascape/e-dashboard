@@ -96,8 +96,14 @@ export interface ResponsiveListViewProps {
   search?: ResponsiveListViewSearchConfig;
   /** Info periode+granularitas data tabel ini (tengah header, mis. "Agustus
    * 2026"/"Kuartal 3 Tahun 2026" dari `formatPeriodLabel`). Opsional,
-   * independen dari `search`/`sort`. */
-  periodLabel?: string;
+   * independen dari `search`/`sort`. String polos dibungkus Typography
+   * caption abu-abu (default lama, dipakai hampir semua caller) - kirim
+   * ReactNode sendiri (mis. Typography custom) kalau caller butuh styling
+   * beda (2026-08-30, Transactions: teks lebih besar+bold+text.primary,
+   * POSISI TETAP di slot tengah yang sama, cuma stylingnya yang beda -
+   * instruksi eksplisit user "posisinya jangan dirubah, tetap sejajar
+   * search dan ada ditengah"). */
+  periodLabel?: ReactNode;
   /** Dropdown sort di header tabel (kanan). Opsional, independen dari
    * `search`/`periodLabel`. */
   sort?: ResponsiveListViewSortConfig;
@@ -438,8 +444,20 @@ export function ResponsiveListView({
   // ikut geser ke tengah kalau cuma salah satu yang diisi (auto-placement
   // grid ngisi slot kosong berurutan kalau kolom tengah kosong total).
   const hasHeader = Boolean(search || sort || periodLabel || actions);
+  // key="header" (2026-08-30, laporan user: "search bar cuma bisa ketik 1
+  // huruf lalu hilang fokus") — root cause: cabang render `loading` (lewat
+  // wrapWithHeader di bawah, children Card = [header, content]) vs cabang
+  // desktop (children Card = [title && (...), header, Tooltip+DataGrid], SATU
+  // slot lebih banyak krn `title` walau kosong tetap tempati posisi array)
+  // punya index header BERBEDA (0 vs 1). React reconcile children TANPA key
+  // murni by POSISI — begitu `loading` flip true (query refetch, PERSIS
+  // kejadian tiap ketik di search box), React anggap elemen di index 0
+  // (yang isinya TextField search) itu "elemen baru", di-unmount lalu
+  // di-mount ulang -> DOM <input> hilang, fokus ikut hilang. `key` bikin
+  // React cocokkan by IDENTITAS, bukan posisi -> header (dan TextField-nya)
+  // di-reuse persis, walau index bergeser antar cabang render.
   const header = hasHeader ? (
-    <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+    <Box key="header" sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Box sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', sm: '1fr auto 1fr' },
@@ -459,9 +477,11 @@ export function ResponsiveListView({
         </Box>
         <Box sx={{ justifySelf: 'center', textAlign: 'center' }}>
           {periodLabel && (
-            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-              {periodLabel}
-            </Typography>
+            typeof periodLabel === 'string' ? (
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                {periodLabel}
+              </Typography>
+            ) : periodLabel
           )}
         </Box>
         <Box sx={{
@@ -601,7 +621,20 @@ export function ResponsiveListView({
         placement="right"
         disableInteractive
       >
-        <Box sx={{ height }}>
+        {/* overflow: hidden (2026-08-30, laporan user: scrollbar native jelek
+            nongol di setiap tabel berpaginasi) — Box pembungkus ini sebelumnya
+            polos, tanpa overflow sama sekali. DataGrid sendiri sudah urus
+            scroll-nya sendiri secara internal (virtualScroller, CSS bawaan
+            MUI sudah sembunyikan scrollbar native-nya, ganti scrollbar
+            custom sendiri) — Box pembungkus ini murni wadah ukuran tetap utk
+            Tooltip di atas, TIDAK PERNAH seharusnya scroll sendiri. Tanpa
+            overflow:hidden, kalau tinggi/lebar render DataGrid meleset
+            sepersekian pixel dari `height` (rounding sub-pixel, kerap
+            kejadian di scaling display Windows 125%/150% - tidak kejadian di
+            zoom 100%), Box ini nampilin scrollbar NATIVE browser sendiri
+            (tidak ke-cover CSS penyembunyi punya MUI, yang cuma ada di
+            elemen virtualScroller DI DALAM DataGrid). */}
+        <Box sx={{ height, overflow: 'hidden' }}>
           <DataGrid
             rows={rows}
             columns={desktopColumns}
@@ -655,6 +688,22 @@ export function ResponsiveListView({
             pageSizeOptions={pageSizeOptions}
             disableRowSelectionOnClick
             disableColumnMenu
+            // scrollbarSize=0 (2026-08-30, referensi resmi MUI X — DataGridProps.ts,
+            // github.com/mui/mui-x) — GANTI dari hack `sx` `.MuiDataGrid-scrollbar
+            // {display:none}` yang dipakai sebelumnya. Prop ini override
+            // `--DataGrid-scrollbarSize`, dipakai grid BUKAN cuma untuk gambar
+            // scrollbar proxy-nya sendiri tapi JUGA untuk hitung ruang filler
+            // (GridVirtualScrollerFiller: `height = hasScrollX ? scrollbarSize : 0`).
+            // Hack `display:none` sebelumnya cuma menghilangkan VISUALnya lewat
+            // override `sx` yang harus menang perang spesifisitas vs CSS internal
+            // DataGrid yang diinjeksikan Emotion sendiri (urutan injeksi bisa beda
+            // dev vs production bundle) — grid tetap MENGIRA ada scrollbar
+            // berukuran normal saat hitung layout filler, ukuran 0 di sini
+            // menghilangkan sumber mismatch itu di akarnya, bukan cuma nutup
+            // gejalanya. Scroll wheel/touch/keyboard tetap penuh jalan (proxy
+            // scrollbar ini murni indikator+drag-handle visual, terpisah dari
+            // scroll position asli yang dipegang virtualScroller).
+            scrollbarSize={0}
             sx={{
               border: 'none',
               borderRadius: 0,
@@ -697,6 +746,19 @@ export function ResponsiveListView({
               '& .MuiDataGrid-footerContainer': {
                 borderTop: '1px solid',
                 borderColor: 'divider',
+                // '<p>' MuiTablePagination-selectLabel/-displayedRows kebawa
+                // margin default browser utk tag <p> (1em atas+bawah, TIDAK
+                // di-reset MUI) — di atas font-size ~14-15px itu jadi ~14-15px
+                // margin per sisi, dobel jadi toolbar butuh ruang >52px
+                // (terukur presisi via Playwright: 23.4px teks + 14.6px*2
+                // margin = 52.64px, pas nabrak alokasi footer DataGrid yg
+                // fixed 52px). Di metrik font Windows/DPI beda, selisihnya
+                // bisa lebih lebar dan MEMICU scrollbar asli (bisa di-scroll
+                // sungguhan, bukan sekadar garis kosmetik) di dalam footer.
+                // margin:0 buang kelebihan itu di akarnya, toolbar pas 52px.
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  margin: 0,
+                },
               },
               '& .MuiDataGrid-virtualScroller': {
                 bgcolor: 'background.paper',

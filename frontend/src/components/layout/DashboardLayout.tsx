@@ -108,6 +108,15 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             contain: 'layout',
             display: isMobile ? 'flex' : undefined,
             flexDirection: isMobile ? 'column' : undefined,
+            // Scrollbar disembunyikan total (2026-08-30, laporan user: masih
+            // muncul setelah restyle tipis) — INI elemen yang scroll-nya
+            // SUNGGUHAN untuk seluruh isi halaman (bukan DataGrid mana pun),
+            // muncul di SETIAP halaman yang kontennya lebih tinggi dari
+            // viewport. Scroll TETAP berfungsi penuh (wheel/touch/keyboard,
+            // reset-scroll pindah halaman di mainRef atas juga tidak
+            // terpengaruh) — cuma affordance drag-bar visualnya yang hilang.
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
           {/* flexGrow:1 di mobile — dorong Footer (di bawah, dalam Box yang
