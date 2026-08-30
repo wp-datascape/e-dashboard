@@ -12,6 +12,8 @@ import Popover from '@mui/material/Popover';
 import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
 import MuiTooltip from '@mui/material/Tooltip';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useTranslation } from 'react-i18next';
 import { StatusChip } from '@/components/ui';
@@ -62,6 +64,19 @@ function TruncatedChip({ item, color }: { item: ChipOverflowItem; color?: Status
 
 export function ChipOverflowCell({ items, color, maxVisible = 2 }: ChipOverflowCellProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
+  // isMobile (2026-08-30, laporan user + screenshot: panel "Tampilkan
+  // semua" nongol mentok kiri, TIDAK rata tengah layar) — akar masalah:
+  // `maxWidth: 380` (dipilih SPESIFIK utk layout 2 kolom desktop) lebih
+  // lebar dari viewport HP kebanyakan (~360-400px dikurangi margin), jadi
+  // `marginThreshold` bawaan Popover (16px) TERPAKSA menggeser Popover
+  // mentok ke tepi kiri layar supaya tetap "muat" - hasilnya kelihatan
+  // nabrak tepi, bukan center. anchorOrigin/transformOrigin 'left' juga
+  // ikut memperparah krn posisi horizontal Popover dipatok dari tepi kiri
+  // tombol anchornya (bisa di mana saja di layar), bukan dari tengah
+  // viewport. Di mobile: pusatkan ke tengah ANCHOR (bukan kiri) +
+  // batasi maxWidth relatif viewport (bukan angka tetap 380).
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const visible = items.slice(0, maxVisible);
   const restCount = items.length - visible.length;
@@ -89,13 +104,16 @@ export function ChipOverflowCell({ items, color, maxVisible = 2 }: ChipOverflowC
             open={open}
             anchorEl={anchorEl}
             onClose={(e) => { (e as React.SyntheticEvent)?.stopPropagation?.(); setAnchorEl(null); }}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: isMobile ? 'center' : 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: isMobile ? 'center' : 'left' }}
             // maxWidth 380 (2026-08-26, diverifikasi visual via Playwright —
             // 340 ternyata cuma pas-pasan utk 1 chip per baris krn padding
             // Popover + gap, bukan grid 2 kolom spt yang dimaksud) — 380
-            // cukup lega utk 2 chip @ maxWidth 160 + gap + padding.
-            slotProps={{ paper: { sx: { p: 1.5, maxWidth: 380 }, onClick: (e: React.MouseEvent) => e.stopPropagation() } }}
+            // cukup lega utk 2 chip @ maxWidth 160 + gap + padding. Di xs,
+            // 380 lebih lebar dari viewport HP rata-rata - dibatasi relatif
+            // viewport (bukan angka tetap) biar selalu ada margin di kedua
+            // sisi, tidak mentok tepi layar.
+            slotProps={{ paper: { sx: { p: 1.5, maxWidth: { xs: 'calc(100vw - 32px)', sm: 380 } }, onClick: (e: React.MouseEvent) => e.stopPropagation() } }}
           >
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
               {t('productsHighMargin.showAll', { count: items.length })}
