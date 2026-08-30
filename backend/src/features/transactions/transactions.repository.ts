@@ -94,15 +94,33 @@ export async function findInvoices(
   if (isEmptyScope) return { data: [], total: 0 }
 
   const isAsc = sort_dir === 'asc'
+  // catCountExpr didefinisikan SEBELUM orderByExpr (2026-08-31) - dipakai
+  // juga di sana sekarang utk sort_by='category_count'.
+  const catCountExpr = sql<number>`COUNT(DISTINCT ${invoice_items.product_category_id})`
+  // marginExpr — bukan kolom asli, dihitung di sini KHUSUS utk ORDER BY (nilai
+  // gp_margin_percent sesungguhnya dihitung di JS dari total_gp/total_revenue
+  // saat map row di bawah, sengaja TIDAK diduplikasi di SELECT list, cuma
+  // dipakai urutan relatifnya di sini).
+  const marginExpr = sql`${invoices.total_gp}::numeric / NULLIF(${invoices.total_revenue}, 0)`
+  // Semua kolom GROUP BY invoices.id/customers.id/companies.id (functional
+  // dependency Postgres via primary key) - referensi kolom LAIN dari tabel yg
+  // SAMA (invoices.invoice_number, companies.name, customers.customer_name)
+  // valid tanpa perlu masuk aggregate/GROUP BY sendiri. divisions.label dan
+  // import_logs.source SUDAH persis di GROUP BY list (bukan lewat FK id-nya).
   const orderByExpr = (() => {
     switch (sort_by) {
-      case 'total_revenue': return isAsc ? asc(invoices.total_revenue) : desc(invoices.total_revenue)
-      case 'total_gp':      return isAsc ? asc(invoices.total_gp)      : desc(invoices.total_gp)
-      default:               return isAsc ? asc(invoices.invoice_date) : desc(invoices.invoice_date)
+      case 'total_revenue':      return isAsc ? asc(invoices.total_revenue)      : desc(invoices.total_revenue)
+      case 'total_gp':           return isAsc ? asc(invoices.total_gp)           : desc(invoices.total_gp)
+      case 'invoice_number':     return isAsc ? asc(invoices.invoice_number)     : desc(invoices.invoice_number)
+      case 'company':            return isAsc ? asc(companies.name)             : desc(companies.name)
+      case 'customer':           return isAsc ? asc(customers.customer_name)    : desc(customers.customer_name)
+      case 'business_unit':      return isAsc ? asc(divisions.label)            : desc(divisions.label)
+      case 'gp_margin_percent':  return isAsc ? asc(marginExpr)                 : desc(marginExpr)
+      case 'category_count':     return isAsc ? asc(catCountExpr)               : desc(catCountExpr)
+      case 'import_source':      return isAsc ? asc(import_logs.source)         : desc(import_logs.source)
+      default:                    return isAsc ? asc(invoices.invoice_date)      : desc(invoices.invoice_date)
     }
   })()
-
-  const catCountExpr = sql<number>`COUNT(DISTINCT ${invoice_items.product_category_id})`
 
   const [{ total }, rows] = await Promise.all([
     db
