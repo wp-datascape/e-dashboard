@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
+import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
@@ -154,21 +155,35 @@ export default function ReportRevenue() {
   // periodEnd/periodStart SAMA dgn Revenue/GP), lalu "Penetrasi Produk"/
   // "Target Upsell" dari /products/high-margin, REUSE komponen langsung.
   //
-  // Filter periode terpisah (periodMonth+activeWindow + picker sendiri)
-  // SEMPAT ditambah, TAPI ditegur user: "data nya kosong jika di filter...
-  // untuk filter data gunakan filter global saja" — filter lokal itu tidak
-  // sinkron dgn "Periode" global di atas (2 kontrol beda paradigma
-  // gampang bikin salah pilih kombinasi kosong). DIHAPUS — periodMonth
-  // SEKARANG DITURUNKAN dari `periodEnd` global (irisan bulan yang sama),
-  // activeWindow FIXED 6 bulan (tidak ada padanan konsep di filter global
-  // manapun — nilai default ProductsHighMargin sebelumnya, bukan dibuat
-  // baru). Company/branch/division/excludeIntercompany TETAP reuse scope
-  // filter halaman (tidak berubah).
+  // periodStart (2026-08-31, laporan user KERAS: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini" - susulan 2 percobaan GAGAL:
+  // (1) activeWindow fixed 6, (2) activeWindow "diturunkan" dari period_type
+  // Monthly=1/Quarter=3/dst, masih salah utk periode yg BELUM SELESAI
+  // berjalan krn "N bulan trailing dari hari ini" scr STRUKTURAL beda dari
+  // "awal kalender periode s/d hari ini" yg dipakai Revenue/GP/M5 di
+  // halaman yg SAMA). Akar masalah sebenarnya: kontrak lama endpoint HM
+  // (period_month+active_window, "trailing" model) tidak bisa
+  // merepresentasikan period_start EKSAK filter global — perbaikan yg benar
+  // BUKAN menghitung ulang activeWindow makin canggih di frontend, tapi
+  // BACKEND-nya (metrics.schema.ts periodStartField, high-margin-
+  // penetration.repository.ts windowStartCond) sekarang TERIMA period_start
+  // eksplisit, dipakai LANGSUNG kalau diisi (skip derivasi activeWindow sama
+  // sekali) — pola SAMA PERSIS customerProductsQuerySchema.period_start yg
+  // sudah ada lebih dulu. `periodStart` di sini = variabel GLOBAL yg SAMA
+  // dipakai useRevenueBreakdown/useGpBreakdown/useHmBreakdown persis di atas,
+  // BUKAN turunan/hitungan baru apa pun.
   type HmInnerTab = 'ranking' | 'penetration' | 'upsell';
   const [hmInnerTab, setHmInnerTab] = useState<HmInnerTab>('ranking');
   const hmFilter: HmFilterState = {
     companyId, branchId, division,
-    periodMonth: periodEnd.slice(0, 7), activeWindow: 6,
+    periodMonth: periodEndEffective.slice(0, 7),
+    activeWindow: 6, // fallback tidak terpakai selama periodStart terisi (lihat komentar di atas)
+    periodStart,
+    // onlyPareto (2026-08-31, laporan user: "cek dan perbaiki filter lain di
+    // halaman sama" — toggle "Pareto Customers" DITEMUKAN diam-diam no-op
+    // di 3 tab HM ini persis spt periodStart, lihat komentar
+    // HmDetailRepoParams.onlyPareto di high-margin-penetration.repository.ts).
+    onlyPareto,
     excludeIntercompany,
   };
 
@@ -185,6 +200,8 @@ export default function ReportRevenue() {
     exclude_intercompany: hmFilter.excludeIntercompany,
     period_month: hmFilter.periodMonth,
     active_window: hmFilter.activeWindow,
+    period_start: hmFilter.periodStart,
+    only_pareto: hmFilter.onlyPareto,
     page: 1,
     per_page: 100,
   });
@@ -192,6 +209,24 @@ export default function ReportRevenue() {
   const penetrationAvgRate = penetrationSummaryData?.data.length
     ? penetrationSummaryData.data.reduce((sum, r) => sum + r.penetration_rate, 0) / penetrationSummaryData.data.length
     : 0;
+  // totalHmBuyers/totalActiveCustomers (2026-08-31, instruksi user: "tambahkan
+  // summary total pembeli high margin di atas tabel produk penetration") —
+  // scalar dari backend (meta.summary), BUKAN dijumlah dari
+  // penetrationSummaryData.data (customer_count per baris tidak boleh dijumlah
+  // antar produk, 1 customer bisa beli >1 produk HM -> double count).
+  const penetrationHmSummary = penetrationSummaryData?.meta.summary as {
+    total_hm_buyers?: number; total_active_customers?: number
+    total_hm_buyers_existing?: number; total_hm_buyers_new?: number
+  } | undefined;
+  const penetrationTotalHmBuyers = penetrationHmSummary?.total_hm_buyers ?? 0;
+  const penetrationTotalActiveCustomers = penetrationHmSummary?.total_active_customers ?? 0;
+  // existing/new (2026-08-31, instruksi user: "buat 2 kartu, 1 existing
+  // active, 1 new customer, total yang membeli active transacting" - susulan
+  // laporan "kenapa di card 24 di tabel 25, itu inkonsistensi") — pecahan
+  // penetrationTotalHmBuyers, SELALU existing+new = total (lihat komentar
+  // backend HmProductDbRow.total_hm_buyers_existing/_new).
+  const penetrationTotalHmBuyersExisting = penetrationHmSummary?.total_hm_buyers_existing ?? 0;
+  const penetrationTotalHmBuyersNew = penetrationHmSummary?.total_hm_buyers_new ?? 0;
 
   const { data: upsellSummaryData } = useUpsellTargets({
     company_id: hmFilter.companyId,
@@ -200,6 +235,8 @@ export default function ReportRevenue() {
     exclude_intercompany: hmFilter.excludeIntercompany,
     period_month: hmFilter.periodMonth,
     active_window: hmFilter.activeWindow,
+    period_start: hmFilter.periodStart,
+    only_pareto: hmFilter.onlyPareto,
     page: 1,
     per_page: 100,
   });
@@ -394,7 +431,13 @@ export default function ReportRevenue() {
                     { label: t('productsHighMargin.summaryProductCountLabel'), value: penetrationProductCount.toLocaleString('id-ID'),
                       icon: CategoryIcon, iconColor: 'primary', info: t('productsHighMargin.summaryProductCountInfo') },
                     { label: t('productsHighMargin.summaryAvgPenetrationLabel'), value: `${penetrationAvgRate.toFixed(1)}%`,
-                      icon: DonutLargeIcon, iconColor: 'success', highlighted: true, info: t('productsHighMargin.summaryAvgPenetrationInfo') },
+                      icon: DonutLargeIcon, iconColor: 'success', info: t('productsHighMargin.summaryAvgPenetrationInfo') },
+                    { label: t('productsHighMargin.summaryTotalBuyersLabel'), value: `${penetrationTotalHmBuyers.toLocaleString('id-ID')} / ${penetrationTotalActiveCustomers.toLocaleString('id-ID')}`,
+                      icon: PeopleOutlineIcon, iconColor: 'success', highlighted: true, info: t('productsHighMargin.summaryTotalBuyersInfo') },
+                    { label: t('productsHighMargin.summaryExistingBuyersLabel'), value: penetrationTotalHmBuyersExisting.toLocaleString('id-ID'),
+                      icon: PeopleOutlineIcon, iconColor: 'primary', info: t('productsHighMargin.summaryExistingBuyersInfo') },
+                    { label: t('productsHighMargin.summaryNewBuyersLabel'), value: penetrationTotalHmBuyersNew.toLocaleString('id-ID'),
+                      icon: PersonAddAlt1Icon, iconColor: 'warning', info: t('productsHighMargin.summaryNewBuyersInfo') },
                   ]} />
                   <HighMarginProductTab filter={hmFilter} />
                 </>

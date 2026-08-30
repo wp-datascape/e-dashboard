@@ -154,8 +154,14 @@ export async function handleGetHmDetail(c: Context) {
 export async function handleGetHmProductDetail(c: Context) {
   const query = validateQuery(c, hmDetailQuerySchema)
   const scope = resolveScope(c, query.company_id, query.branch_id)
-  const { data, total } = await getHmProductPenetrationDetail(query, scope)
-  return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+  const { data, total, totalHmBuyers, totalActiveCustomers, totalHmBuyersExisting, totalHmBuyersNew } = await getHmProductPenetrationDetail(query, scope)
+  return paginated(c, data, {
+    page: query.page, per_page: query.per_page, total,
+    summary: {
+      total_hm_buyers: totalHmBuyers, total_active_customers: totalActiveCustomers,
+      total_hm_buyers_existing: totalHmBuyersExisting, total_hm_buyers_new: totalHmBuyersNew,
+    },
+  })
 }
 
 export async function handleGetHmCustomers(c: Context) {
