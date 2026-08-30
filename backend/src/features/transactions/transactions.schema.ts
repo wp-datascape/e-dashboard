@@ -34,6 +34,34 @@ export const invoicesSummaryQuerySchema = invoicesQuerySchema.omit({
 })
 export type InvoicesSummaryQuery = z.infer<typeof invoicesSummaryQuerySchema>
 
+// Pilih field export (2026-08-30, instruksi user: "export nya ditambahkan
+// filter field mana saja yang ingin di export") — allow-list eksplisit
+// (BUKAN terima nama field bebas dari client) supaya tidak ada risiko field
+// internal/sensitif ke-expose lewat query string sembarangan. Urutan array
+// ini JUGA urutan kolom default di Excel (dipakai handler kalau `fields`
+// kosong = export semua, urutan TETAP ini, bukan urutan client kirim).
+export const EXPORT_INVOICE_FIELDS = [
+  'invoice_number', 'invoice_date', 'company_name', 'customer_name',
+  'customer_code', 'business_unit', 'total_revenue', 'total_gp',
+  'gp_margin_ratio', 'category_count', 'import_source',
+] as const
+export type ExportInvoiceField = typeof EXPORT_INVOICE_FIELDS[number]
+
+// Export Excel (2026-08-30) — filter SAMA PERSIS invoicesSummaryQuerySchema,
+// + `fields` opsional (comma-separated, mis. "customer_name,total_revenue,
+// total_gp") utk pilih kolom yang di-export. Field TIDAK DIKENAL diam-diam
+// dibuang (bukan error) — cukup jadi seolah tidak dipilih, aman krn hasil
+// akhirnya cuma dipakai FILTER dari daftar kolom yang backend sudah
+// definisikan sendiri (handler), bukan diteruskan mentah ke query DB.
+export const invoicesExportQuerySchema = invoicesSummaryQuerySchema.extend({
+  fields: z.string().optional().transform((v) => {
+    if (!v) return undefined
+    const set = new Set(v.split(',').map((f) => f.trim()))
+    return EXPORT_INVOICE_FIELDS.filter((f) => set.has(f))
+  }),
+})
+export type InvoicesExportQuery = z.infer<typeof invoicesExportQuerySchema>
+
 export const invoiceIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })

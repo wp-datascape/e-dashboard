@@ -495,6 +495,22 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
         FROM   invoice_items ii
         JOIN   invoices  i  ON i.id  = ii.invoice_id
         JOIN   cust_dominant_division cdd ON cdd.customer_id = i.customer_id
+        -- JOIN customers c + channel_divisions cd (fix bug 2026-08-30,
+        -- laporan user: 500 "missing FROM-clause entry for table cd" utk
+        -- non-superadmin dgn division scope) — divisionScopeCond/
+        -- excludeIntercompanyCond di bawah (dari resolveInvoiceScopeConditions,
+        -- alias default 'c'/'cd', TIDAK diubah di sini) SELALU merujuk
+        -- cd.division_id (dan c.division_override_id kalau exclude_intercompany
+        -- aktif) — CTE ini sebelumnya cuma JOIN cust_dominant_division (alias
+        -- cdd, konsep beda: divisi DOMINAN customer, bukan divisi channel per
+        -- transaksi), jadi alias cd/c tidak ada sama sekali di FROM clause-nya.
+        -- LEFT JOIN (bukan JOIN) sengaja SAMA seperti CTE sibling inv_division/
+        -- customer_data di file ini — channel yang belum dipetakan ke divisi
+        -- tetap boleh muncul (division_id NULL), bukan didrop diam-diam.
+        JOIN   customers c ON c.id = i.customer_id
+        LEFT JOIN channel_divisions cd
+          ON cd.channel_name = i.channel_name
+          AND cd.company_id = i.company_id
         WHERE  i.deleted_at     IS NULL
           AND  ${companyCondI}
           AND  i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'

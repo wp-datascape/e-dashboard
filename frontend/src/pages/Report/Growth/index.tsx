@@ -18,11 +18,10 @@ import { useAdvancedFilterBar } from '@/hooks/useAdvancedFilterBar';
 import { useCan } from '@/hooks/useCan';
 import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
-import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday } from '@/utils/analisisPeriod';
+import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday, formatPeriodLabel } from '@/utils/analisisPeriod';
 import { BreakdownTable } from '../../CrossSelling/BreakdownTable';
 import { useExpansionColumns } from '../../CustomerMetrics/expansionHelpers';
 import { ReportSummaryCards } from '../ReportSummaryCards';
-import { ReportTabCard } from '../ReportTabCard';
 
 // Laporan > Growth (task029.md §30.19, 2026-08-22) — tabel breakdown Cross
 // Selling/Category (BreakdownTable, sama komponen persis M1CrossSelling.tsx/
@@ -128,6 +127,9 @@ export default function ReportGrowth() {
   const periodEndEffective = applyDateCutoff
     ? periodEnd
     : clampPeriodEndToToday(periodTypeFilter.periodType, reportPeriodKey, getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).end);
+  // Info periode+granularitas di header tabel (2026-08-29, dipusatkan ke
+  // ResponsiveListView), SAMA utk kedua tab (Cross Selling & Expansion).
+  const periodLabel = formatPeriodLabel(t, periodTypeFilter.periodType, reportPeriodKey);
   const { data: expansionData, isLoading: expansionLoading } = useExpansionBreakdown({
     period_end: periodEndEffective,
     date_from: getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).start,
@@ -219,7 +221,7 @@ export default function ReportGrowth() {
                 { label: t('crossSelling.kpi2Label'), value: String(csData?.kpi2.avg_categories ?? 0),
                   icon: CategoryIcon, info: t('crossSelling.kpi2Info') },
               ]} />
-              <BreakdownTable data={csData} yoyData={yoyData} isLoading={csLoading} />
+              <BreakdownTable data={csData} yoyData={yoyData} isLoading={csLoading} periodLabel={periodLabel} />
             </Box>
           )}
 
@@ -249,30 +251,28 @@ export default function ReportGrowth() {
                 { label: t('customerMetrics.m7.seriesDown'), value: (expansionData?.down_count ?? 0).toLocaleString('id-ID'),
                   icon: TrendingDownIcon, iconColor: 'error', info: t('customerMetrics.m7.seriesDownInfo') },
               ]} />
-              <ReportTabCard
-                searchValue={expansionSearch}
-                onSearchChange={setExpansionSearch}
-                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
-                sortValue={expansionSort}
-                onSortChange={(v) => setExpansionSort(v as typeof expansionSort)}
-                sortLabel={t('crossSelling.tableSortLabel')}
-                sortOptions={[
-                  { value: 'name', label: t('crossSelling.tableSortName') },
-                  { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
-                  { value: 'change_desc', label: t('customerMetrics.m7.tableSortChangeDesc') },
-                ]}
-              >
-                <ResponsiveListView
-                  rows={expansionRows.map((r) => ({ ...r, id: r.ranking }))}
-                  columns={expansionColumns}
-                  loading={expansionLoading}
-                  height={560}
-                  pageSize={25}
-                  pageSizeOptions={[25, 50, 100]}
-                  emptyMessage={t('customerMetrics.m7.emptyMessage')}
-                  mobileFields={['customer_name', 'cur_revenue', 'change_pct', 'status']}
-                />
-              </ReportTabCard>
+              <ResponsiveListView
+                rows={expansionRows.map((r) => ({ ...r, id: r.ranking }))}
+                columns={expansionColumns}
+                loading={expansionLoading}
+                height={560}
+                pageSize={25}
+                pageSizeOptions={[25, 50, 100]}
+                emptyMessage={t('customerMetrics.m7.emptyMessage')}
+                mobileFields={['customer_name', 'cur_revenue', 'change_pct', 'status']}
+                search={{ value: expansionSearch, onChange: setExpansionSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+                periodLabel={periodLabel}
+                sort={{
+                  value: expansionSort,
+                  onChange: (v) => setExpansionSort(v as typeof expansionSort),
+                  label: t('crossSelling.tableSortLabel'),
+                  options: [
+                    { value: 'name', label: t('crossSelling.tableSortName') },
+                    { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
+                    { value: 'change_desc', label: t('customerMetrics.m7.tableSortChangeDesc') },
+                  ],
+                }}
+              />
             </Box>
           )}
       </AdvancedFilterBar>

@@ -1,6 +1,7 @@
 {
   "title": "Transaksi",
   "subtitle": "Daftar transaksi faktur dengan filter dan detail dialog",
+  "periodHeading": "Menampilkan data periode : {{period}}",
   "invoiceNumber": "Faktur #",
   "invoiceDate": "Tanggal",
   "company": "Perusahaan",
@@ -11,5 +12,14 @@
   "searchPlaceholder": "Cari pelanggan...",
   "detailTitle": "Detail Faktur",
   "lineItems": "Item Baris",
-  "gpMargin": "Marjin GP"
+  "gpMargin": "Marjin GP",
+  "exportExcel": "Export Excel",
+  "exportError": "Gagal export Excel, coba lagi",
+  "customerCode": "Kode Customer",
+  "exportDialogTitle": "Pilih Field untuk Export",
+  "exportDialogSubtitle": "Kosongkan centang field yang tidak dibutuhkan.",
+  "exportSelectAll": "Pilih Semua",
+  "exportClearAll": "Kosongkan",
+  "exportGpMarginHint": "Perlu Revenue & GP dipilih",
+  "exportEmptyError": "Pilih minimal 1 field"
 }

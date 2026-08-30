@@ -18,7 +18,7 @@ import { useAdvancedFilterBar } from '@/hooks/useAdvancedFilterBar';
 import { useCan } from '@/hooks/useCan';
 import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
-import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday } from '@/utils/analisisPeriod';
+import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday, formatPeriodLabel } from '@/utils/analisisPeriod';
 import { useRevenueColumns, useGpColumns, useHmColumns } from '../../CustomerMetrics/valueHelpers';
 // HighMarginProductTab/UpsellTargetsTab/FilterState (2026-08-26,
 // task031.md §10 — instruksi user: "pindahkan ke menu laporan") — REUSE
@@ -30,7 +30,6 @@ import { useRevenueColumns, useGpColumns, useHmColumns } from '../../CustomerMet
 import { HighMarginProductTab, UpsellTargetsTab } from '../../ProductsHighMargin';
 import type { FilterState as HmFilterState } from '../../ProductsHighMargin';
 import { formatRupiah } from '@/utils/format';
-import { ReportTabCard } from '../ReportTabCard';
 import { ReportSummaryCards } from '../ReportSummaryCards';
 
 // Laporan > Revenue (task029.md §30.19/§33, 2026-08-25) — sebelumnya
@@ -89,6 +88,11 @@ export default function ReportRevenue() {
   const periodEndEffective = applyDateCutoff
     ? periodEnd
     : clampPeriodEndToToday(periodTypeFilter.periodType, reportPeriodKey, getPeriodDateRange(periodTypeFilter.periodType, reportPeriodKey).end);
+  // Info periode+granularitas di header tabel (2026-08-29, dipusatkan ke
+  // ResponsiveListView — lihat JSDoc `ResponsiveListViewProps.search`),
+  // SAMA utk ketiga tab (Revenue/GP/HM) krn semua share periode global yg
+  // sama.
+  const periodLabel = formatPeriodLabel(t, periodTypeFilter.periodType, reportPeriodKey);
 
   const { data: revenueData, isLoading: revenueLoading } = useRevenueBreakdown({
     period_end: periodEndEffective,
@@ -246,30 +250,28 @@ export default function ReportRevenue() {
                 { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(revenueData?.hm_revenue ?? 0),
                   icon: WorkspacePremiumIcon, iconColor: 'success' },
               ]} />
-              <ReportTabCard
-                searchValue={revenueSearch}
-                onSearchChange={setRevenueSearch}
-                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
-                sortValue={revenueSort}
-                onSortChange={(v) => setRevenueSort(v as typeof revenueSort)}
-                sortLabel={t('crossSelling.tableSortLabel')}
-                sortOptions={[
-                  { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
-                  { value: 'hm_desc', label: t('customerMetrics.m3.colHmRevenue') },
-                  { value: 'name', label: t('crossSelling.tableSortName') },
-                ]}
-              >
-                <ResponsiveListView
-                  rows={revenueRows.map((r) => ({ ...r, id: r.ranking }))}
-                  columns={revenueColumns}
-                  loading={revenueLoading}
-                  height={560}
-                  pageSize={25}
-                  pageSizeOptions={[25, 50, 100]}
-                  emptyMessage={t('customerMetrics.m3.emptyMessage')}
-                  mobileFields={['customer_name', 'revenue', 'revenue_pct', 'tier']}
-                />
-              </ReportTabCard>
+              <ResponsiveListView
+                rows={revenueRows.map((r) => ({ ...r, id: r.ranking }))}
+                columns={revenueColumns}
+                loading={revenueLoading}
+                height={560}
+                pageSize={25}
+                pageSizeOptions={[25, 50, 100]}
+                emptyMessage={t('customerMetrics.m3.emptyMessage')}
+                mobileFields={['customer_name', 'revenue', 'revenue_pct', 'tier']}
+                search={{ value: revenueSearch, onChange: setRevenueSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+                periodLabel={periodLabel}
+                sort={{
+                  value: revenueSort,
+                  onChange: (v) => setRevenueSort(v as typeof revenueSort),
+                  label: t('crossSelling.tableSortLabel'),
+                  options: [
+                    { value: 'revenue_desc', label: t('crossSelling.tableSortRevenueDesc') },
+                    { value: 'hm_desc', label: t('customerMetrics.m3.colHmRevenue') },
+                    { value: 'name', label: t('crossSelling.tableSortName') },
+                  ],
+                }}
+              />
             </Box>
           )}
 
@@ -281,29 +283,27 @@ export default function ReportRevenue() {
                 { label: t('customerMetrics.m4.summaryTotalGp'), value: formatRupiah(gpData?.total_gp ?? 0),
                   icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m4.summaryTotalGpInfo') },
               ]} />
-              <ReportTabCard
-                searchValue={gpSearch}
-                onSearchChange={setGpSearch}
-                searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
-                sortValue={gpSort}
-                onSortChange={(v) => setGpSort(v as typeof gpSort)}
-                sortLabel={t('crossSelling.tableSortLabel')}
-                sortOptions={[
-                  { value: 'gp_desc', label: t('customerMetrics.m4.colGp') },
-                  { value: 'name', label: t('crossSelling.tableSortName') },
-                ]}
-              >
-                <ResponsiveListView
-                  rows={gpRows.map((r) => ({ ...r, id: r.ranking }))}
-                  columns={gpColumns}
-                  loading={gpLoading}
-                  height={560}
-                  pageSize={25}
-                  pageSizeOptions={[25, 50, 100]}
-                  emptyMessage={t('customerMetrics.m4.emptyMessage')}
-                  mobileFields={['customer_name', 'gp', 'gp_pct', 'tier']}
-                />
-              </ReportTabCard>
+              <ResponsiveListView
+                rows={gpRows.map((r) => ({ ...r, id: r.ranking }))}
+                columns={gpColumns}
+                loading={gpLoading}
+                height={560}
+                pageSize={25}
+                pageSizeOptions={[25, 50, 100]}
+                emptyMessage={t('customerMetrics.m4.emptyMessage')}
+                mobileFields={['customer_name', 'gp', 'gp_pct', 'tier']}
+                search={{ value: gpSearch, onChange: setGpSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+                periodLabel={periodLabel}
+                sort={{
+                  value: gpSort,
+                  onChange: (v) => setGpSort(v as typeof gpSort),
+                  label: t('crossSelling.tableSortLabel'),
+                  options: [
+                    { value: 'gp_desc', label: t('customerMetrics.m4.colGp') },
+                    { value: 'name', label: t('crossSelling.tableSortName') },
+                  ],
+                }}
+              />
             </Box>
           )}
 
@@ -355,18 +355,6 @@ export default function ReportRevenue() {
                     { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(hmData?.total_hm_revenue ?? 0),
                       icon: WorkspacePremiumIcon, iconColor: 'success', highlighted: true },
                   ]} />
-                  <ReportTabCard
-                  searchValue={hmSearch}
-                  onSearchChange={setHmSearch}
-                  searchPlaceholder={t('crossSelling.tableSearchPlaceholder')}
-                  sortValue={hmSort}
-                  onSortChange={(v) => setHmSort(v as typeof hmSort)}
-                  sortLabel={t('crossSelling.tableSortLabel')}
-                  sortOptions={[
-                    { value: 'hm_desc', label: t('customerMetrics.m5.colRevenueHm') },
-                    { value: 'name', label: t('crossSelling.tableSortName') },
-                  ]}
-                >
                   <ResponsiveListView
                     rows={hmRows.map((r) => ({ ...r, id: r.ranking }))}
                     columns={hmColumns}
@@ -376,8 +364,18 @@ export default function ReportRevenue() {
                     pageSizeOptions={[25, 50, 100]}
                     emptyMessage={t('customerMetrics.m5.emptyMessage')}
                     mobileFields={['customer_name', 'hm_qty', 'hm_revenue', 'hm_pct']}
+                    search={{ value: hmSearch, onChange: setHmSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+                    periodLabel={periodLabel}
+                    sort={{
+                      value: hmSort,
+                      onChange: (v) => setHmSort(v as typeof hmSort),
+                      label: t('crossSelling.tableSortLabel'),
+                      options: [
+                        { value: 'hm_desc', label: t('customerMetrics.m5.colRevenueHm') },
+                        { value: 'name', label: t('crossSelling.tableSortName') },
+                      ],
+                    }}
                   />
-                  </ReportTabCard>
                 </>
               )}
 

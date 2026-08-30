@@ -74,6 +74,7 @@
   "radialBelowTarget": "Below Target",
   "radialTargetLabel": "Target ≥ {{threshold}}%",
   "viewDetailOf": "View {{title}} detail",
+  "rowClickHint": "Click to view details",
   "heatmap": {
     "cellTooltipTitle": "{{customer}} — {{label}}",
     "rowStatus": "Status",

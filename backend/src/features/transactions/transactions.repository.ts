@@ -180,6 +180,114 @@ export async function findInvoices(
   }
 }
 
+// Export Excel (2026-08-30, instruksi user: "export data yang terlihat,
+// berdasarkan filter... langsung dari backend, tanpa query ulang") — filter
+// SAMA PERSIS findInvoices (lewat buildInvoiceWhereClause), SATU query,
+// TANPA LIMIT/OFFSET (ambil semua baris yang lolos filter, bukan 1 halaman).
+// Shape select SAMA PERSIS findInvoices (field-nya lurus jadi kolom Excel)
+// supaya tidak ada 2 definisi "bentuk baris invoice" yang bisa menyimpang.
+//
+// EXPORT_ROW_CAP — pengaman (bukan pagination beneran, murni jaga-jaga):
+// realistis 1 company/1 periode cuma ribuan baris (dicek langsung ke DB
+// sesi ini, PT Kode Niaga Tama 1 bulan ~11rb baris) — cap ini jauh di atas
+// itu, cuma mencegah request pengecualian (company_id=all TANPA rentang
+// tanggal sama sekali) bikin buffer Excel membengkak tak terbatas di
+// memori server. Kalau nanti genuinely butuh export > cap ini, ganti ke
+// streaming writer (`ExcelJS.stream.xlsx.WorkbookWriter`, lihat JSDoc
+// utils/excel.ts), BUKAN naikkan angka ini terus.
+export const EXPORT_ROW_CAP = 50_000
+
+export async function findInvoicesForExport(
+  params: InvoiceFilterParams,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  const { where: whereWithDivision, isEmptyScope } = await buildInvoiceWhereClause(params, scopeIds, branchScope, divisionScope)
+  if (isEmptyScope) return { data: [], total: 0, truncated: false }
+
+  const catCountExpr = sql<number>`COUNT(DISTINCT ${invoice_items.product_category_id})`
+
+  const [{ total }, rows] = await Promise.all([
+    db
+      .select({ total: sql<number>`COUNT(DISTINCT ${invoices.id})` })
+      .from(invoices)
+      .innerJoin(customers, eq(invoices.customer_id, customers.id))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, invoices.channel_name),
+          eq(channel_divisions.company_id, invoices.company_id),
+        ),
+      )
+      .where(whereWithDivision)
+      .then(([r]) => r),
+    db
+      .select({
+        id:             invoices.id,
+        invoice_number: invoices.invoice_number,
+        invoice_date:   invoices.invoice_date,
+        customer_id:    customers.id,
+        customer_code:  customers.customer_code,
+        customer_name:  customers.customer_name,
+        division:       divisions.label,
+        company_id:     companies.id,
+        company_name:   companies.name,
+        total_revenue:  invoices.total_revenue,
+        total_gp:       invoices.total_gp,
+        import_source:  import_logs.source,
+        category_count: catCountExpr,
+      })
+      .from(invoices)
+      .innerJoin(customers, eq(invoices.customer_id, customers.id))
+      .innerJoin(companies, eq(invoices.company_id, companies.id))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, invoices.channel_name),
+          eq(channel_divisions.company_id, invoices.company_id),
+        ),
+      )
+      .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
+      .leftJoin(import_logs, eq(import_logs.id, invoices.import_log_id))
+      .leftJoin(invoice_items, eq(invoice_items.invoice_id, invoices.id))
+      .where(whereWithDivision)
+      .groupBy(invoices.id, customers.id, divisions.label, companies.id, import_logs.source)
+      .orderBy(desc(invoices.invoice_date))
+      .limit(EXPORT_ROW_CAP),
+  ])
+
+  return {
+    data: rows.map((r) => {
+      const totalRevenue = Number(r.total_revenue)
+      const totalGp = Number(r.total_gp)
+      return {
+        id:             r.id,
+        invoice_number: r.invoice_number,
+        invoice_date:   r.invoice_date,
+        customer_code:  r.customer_code ?? '',
+        customer_name:  r.customer_name,
+        business_unit:  r.division ?? '',
+        company_name:   r.company_name ?? '',
+        total_revenue:  totalRevenue,
+        total_gp:       totalGp,
+        // gp_margin_ratio (2026-08-30, koreksi user: "format sbg
+        // percentase, jgn salah hasil perhitungannya") — RASIO mentah
+        // (0-1), BUKAN angka persen (0-100) spt di findInvoices/
+        // findInvoicesSummary. Kolom Excel-nya jadi RUMUS `=GP/Revenue`
+        // (lihat handler) + numFmt '0.0%' — Excel SENDIRI yang kalikan
+        // 100 utk tampilan persen, kalau field ini sudah dikali 100 di
+        // sini, hasilnya kelipatan 100 SALAH ("560%" bukan "5.6%").
+        gp_margin_ratio: totalRevenue > 0 ? totalGp / totalRevenue : 0,
+        category_count: Number(r.category_count),
+        import_source:  r.import_source ?? '',
+      }
+    }),
+    total: Number(total),
+    truncated: Number(total) > EXPORT_ROW_CAP,
+  }
+}
+
 // Kartu ringkasan Revenue/Laba Kotor/Margin (2026-08-29) — 1 baris agregat,
 // filter SAMA PERSIS findInvoices (lewat buildInvoiceWhereClause), TANPA join
 // invoice_items (tidak butuh category_count di sini) supaya SUM tidak
