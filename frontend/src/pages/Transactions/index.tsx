@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -181,7 +182,11 @@ export default function Transactions() {
           onRowClick={(row) => handleRowClick(row as unknown as InvoiceRow)}
           height={600}
           search={{ value: customerSearch, onChange: setCustomerSearch, placeholder: t('transactions.searchPlaceholder') }}
-          periodLabel={periodLabel}
+          periodLabel={(
+            <Typography variant="h6" color="text.primary" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {t('transactions.periodHeading', { period: periodLabel })}
+            </Typography>
+          )}
           actions={canExport && (
             <Tooltip title={t('transactions.exportExcel')} placement="top">
               <span>

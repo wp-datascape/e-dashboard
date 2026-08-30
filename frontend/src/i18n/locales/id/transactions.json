@@ -1,6 +1,7 @@
 {
   "title": "Transaksi",
   "subtitle": "Daftar transaksi faktur dengan filter dan detail dialog",
+  "periodHeading": "Menampilkan data periode : {{period}}",
   "invoiceNumber": "Faktur #",
   "invoiceDate": "Tanggal",
   "company": "Perusahaan",

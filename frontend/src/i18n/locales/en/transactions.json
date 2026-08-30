@@ -1,6 +1,7 @@
 {
   "title": "Transactions",
   "subtitle": "Invoice transaction list with filters and detail dialog",
+  "periodHeading": "Showing data for period: {{period}}",
   "invoiceNumber": "Invoice #",
   "invoiceDate": "Date",
   "company": "Company",
