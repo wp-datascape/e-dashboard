@@ -11,6 +11,7 @@ import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data
 import { useTranslation } from 'react-i18next'
 import { useSnackbar } from 'notistack'
 import { useInvoices, useInvoicesSummary } from '@/hooks/useTransactions'
+import { useCan } from '@/hooks/useCan'
 import { transactionsApi } from '@/api/transactions.api'
 import { useAdvancedFilterBar } from '@/hooks/useAdvancedFilterBar'
 import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar'
@@ -33,6 +34,13 @@ import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday, formatP
 export default function Transactions() {
   const { t } = useTranslation()
   const { enqueueSnackbar } = useSnackbar()
+  const can = useCan()
+  // Tombol export Excel di bawah (actions) manggil backend, tapi backend
+  // cuma menolak REQUEST-nya (requirePermission di route) — tombolnya
+  // sendiri tidak pernah dicek permission di frontend, jadi tetap tampil
+  // walau user tidak punya transaction:export (laporan user, 2026-08-30:
+  // permission export di-off tapi tombolnya masih muncul).
+  const canExport = can('transaction:export')
   const [customerSearch, setCustomerSearch] = useState('')
   const [exporting, setExporting] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
@@ -174,7 +182,7 @@ export default function Transactions() {
           height={600}
           search={{ value: customerSearch, onChange: setCustomerSearch, placeholder: t('transactions.searchPlaceholder') }}
           periodLabel={periodLabel}
-          actions={(
+          actions={canExport && (
             <Tooltip title={t('transactions.exportExcel')} placement="top">
               <span>
                 <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => setExportDialogOpen(true)} disabled={exporting}>
@@ -187,12 +195,14 @@ export default function Transactions() {
       </AdvancedFilterBar>
 
       <InvoiceDetailDialog invoiceId={selectedInvoiceId} onClose={() => setSelectedInvoiceId(null)} />
-      <ExportFieldsDialog
-        open={exportDialogOpen}
-        onClose={() => setExportDialogOpen(false)}
-        onExport={handleExport}
-        exporting={exporting}
-      />
+      {canExport && (
+        <ExportFieldsDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          onExport={handleExport}
+          exporting={exporting}
+        />
+      )}
     </Box>
   )
 }
