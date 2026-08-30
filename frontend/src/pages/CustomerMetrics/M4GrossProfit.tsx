@@ -24,6 +24,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { TopMoversTimeline } from '@/components/dashboard/TopMoversTimeline';
 import type { TopMoverItem } from '@/components/dashboard/TopMoversTimeline';
 import { useGpBreakdown } from '@/hooks/useMetrics';
+import { useCan } from '@/hooks/useCan';
 import { exportGpBreakdownPdf } from '@/utils/pdf/gpBreakdown';
 import { fmtRp } from './helpers';
 import { formatRupiah } from '@/utils/format';
@@ -83,6 +84,13 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
   const theme = useTheme();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const can = useCan();
+  // Tombol export PDF di drill-down (di bawah, headerActions) generate
+  // 100% client-side dari data breakdown yang sudah dimuat — TIDAK ada
+  // panggilan backend, jadi permission `customer.gross.profit:export`
+  // tidak pernah tercek kalau tidak digate manual di sini (laporan user,
+  // 2026-08-30: permission di-off tapi tombol tetap bisa export).
+  const canExportGp = can('customer.gross.profit:export');
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [drillDateFrom, setDrillDateFrom] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
@@ -307,7 +315,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
             ))}
           </Box>
         )}
-        headerActions={breakdown && (
+        headerActions={breakdown && canExportGp && (
           <MuiTooltip title={t('customerMetrics.m4.exportPdf')} placement="top">
             <IconButton
               size="small"
