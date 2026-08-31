@@ -62,7 +62,7 @@ export async function handleExportCustomers(c: Context) {
     { header: 'Status', key: 'status_label', width: 12 },
     { header: 'Kategori', key: 'category_count', width: 10 },
     { header: 'Rata-rata Revenue Bulanan', key: 'avg_monthly_revenue', width: 20 },
-    { header: 'Revenue 12 Bulan Terakhir', key: 'lifetime_value', width: 20 },
+    { header: 'Revenue Seumur Hidup', key: 'lifetime_value', width: 20 },
     { header: 'Transaksi Terakhir', key: 'last_invoice_date', width: 16 },
     { header: 'Total Faktur', key: 'total_invoices', width: 12 },
   ]
