@@ -48,19 +48,19 @@ export const PALETTES: Record<PaletteKey, PaletteColors> = {
     secondary: { light: '#93C5FD', dark: '#93C5FD' },
     appBar:    { light: '#2563EB', dark: '#0B111E' },
     warningComplement: { light: '#F59E0B', dark: '#F59E0B' },
-   line1: { light: '#06B6D4', dark: '#22D3EE' },
-  line2: { light: '#EC4899', dark: '#F472B6' },
-  line3: { light: '#8B5CF6', dark: '#A78BFA' },
+    line1: { light: '#06B6D4', dark: '#22D3EE' },
+    line2: { light: '#EC4899', dark: '#F472B6' },
+    line3: { light: '#8B5CF6', dark: '#A78BFA' },
   },
   // "Executive Green"
   green: {
     primary:   { light: '#059669', dark: '#06C689' },
     secondary: { light: '#6EE7B7', dark: '#6EE7B7' },
     appBar:    { light: '#059669', dark: '#0B1E18' },
-    warningComplement: { light: '#FBBF24 ', dark: '#FBBF24 ' },
-    line1: { light: '#3B82F6', dark: '#60A5FA  ' },
-    line2: { light: '#EC4899', dark: '#F472B6 ' },
-    line3: { light: '#8B5CF6', dark: '#A78BFA  ' },
+    warningComplement: { light: '#FBBF24', dark: '#FBBF24' },
+    line1: { light: '#3B82F6', dark: '#60A5FA' },
+    line2: { light: '#EC4899', dark: '#F472B6' },
+    line3: { light: '#8B5CF6', dark: '#A78BFA' },
   },
   // "Modern Teal" (key internal tetap 'yellow' - lihat catatan di atas)
   yellow: {

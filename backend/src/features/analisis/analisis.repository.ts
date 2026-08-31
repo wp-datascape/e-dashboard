@@ -236,3 +236,129 @@ export async function findAnalisisCustomers(
 
   return { rows, total }
 }
+
+export interface AnalisisSummary {
+  current: { revenue: number; margin: number }
+  comparison: { revenue: number; margin: number }
+}
+
+/**
+ * Total revenue/margin utk SELURUH customer yang lolos filter (bukan cuma
+ * halaman yang sedang tampil) — dipakai baris "Total" di atas tabel Analisis.
+ * Kondisi filter DISALIN dari findAnalisisCustomers (bukan diekstrak jadi
+ * helper bersama) — sengaja, supaya fungsi scheduler-critical di atas
+ * (dipakai notifikasi digest email) tidak ikut tersentuh perubahan apa pun
+ * di sini, isolasi risiko lebih penting daripada menghindari duplikasi ~30
+ * baris kondisi scope/filter.
+ */
+export async function aggregateAnalisisSummary(
+  scopeIds: number[] | undefined,
+  search: string | undefined,
+  onlyPareto: boolean,
+  excludeIntercompany: boolean,
+  currentRange: { start: string; end: string },
+  comparisonRange: { start: string; end: string },
+  customerId?: number,
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+  branchIdFilter?: number,
+  divisionFilter?: number,
+): Promise<AnalisisSummary> {
+  const empty: AnalisisSummary = { current: { revenue: 0, margin: 0 }, comparison: { revenue: 0, margin: 0 } }
+  if (scopeIds && scopeIds.length === 0) return empty
+
+  const latestChannelSq = db
+    .selectDistinctOn([invoices.customer_id], {
+      customer_id: invoices.customer_id,
+      channel_name: invoices.channel_name,
+      branch_id: invoices.branch_id,
+    })
+    .from(invoices)
+    .where(isNull(invoices.deleted_at))
+    .orderBy(invoices.customer_id, sql`${invoices.invoice_date} DESC`, sql`${invoices.id} DESC`)
+    .as('latest_channel')
+
+  const [intercompanyIdByCompany, otherIdByCompany] = await Promise.all([
+    excludeIntercompany ? loadDivisionFallbackIds('intercompany') : Promise.resolve(undefined),
+    (branchScope || divisionScope) ? loadDivisionFallbackIds('other') : Promise.resolve(undefined),
+  ])
+  const otherIdByBranch = flattenFallbackByBranch(branchScope, otherIdByCompany ?? new Map())
+
+  const excludeIntercompanyCond = buildExcludeIntercompanyCondition(
+    customers.company_id,
+    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
+    intercompanyIdByCompany,
+    excludeIntercompany,
+  )
+
+  const branchScopeCond = buildBranchCondition(customers.company_id, latestChannelSq.branch_id, branchScope)
+  const divisionScopeCond = buildDivisionCondition(latestChannelSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranch)
+  const branchFilterCond = branchIdFilter ? eq(latestChannelSq.branch_id, branchIdFilter) : undefined
+  const divisionFilterCond = divisionFilter
+    ? eq(sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, divisionFilter)
+    : undefined
+
+  const baseConditions = [eq(customers.is_placeholder, false)]
+  if (scopeIds) baseConditions.push(inArray(customers.company_id, scopeIds))
+  if (search) baseConditions.push(ilike(customers.customer_name, `%${search}%`))
+  if (customerId) baseConditions.push(eq(customers.id, customerId))
+  if (excludeIntercompanyCond) baseConditions.push(excludeIntercompanyCond)
+  if (branchScopeCond) baseConditions.push(branchScopeCond)
+  if (divisionScopeCond) baseConditions.push(divisionScopeCond)
+  if (branchFilterCond) baseConditions.push(branchFilterCond)
+  if (divisionFilterCond) baseConditions.push(divisionFilterCond)
+
+  const activeParetoJoin = and(
+    eq(pareto_customers.customer_id, customers.id),
+    lte(pareto_customers.effective_from, sql`CURRENT_DATE`),
+    sql`(${pareto_customers.effective_until} IS NULL OR ${pareto_customers.effective_until} >= CURRENT_DATE)`,
+  )
+
+  const channelJoin = eq(latestChannelSq.customer_id, customers.id)
+  const divisionJoin = and(
+    eq(channel_divisions.channel_name, latestChannelSq.channel_name),
+    eq(channel_divisions.company_id, customers.company_id),
+  )
+
+  const curRevenueExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_revenue}::numeric END), 0)`
+  const curMarginExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${currentRange.start} AND ${currentRange.end} THEN ${invoices.total_gp}::numeric END), 0)`
+  const cmpRevenueExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${comparisonRange.start} AND ${comparisonRange.end} THEN ${invoices.total_revenue}::numeric END), 0)`
+  const cmpMarginExpr = sql<string>`COALESCE(SUM(CASE WHEN ${invoices.invoice_date} BETWEEN ${comparisonRange.start} AND ${comparisonRange.end} THEN ${invoices.total_gp}::numeric END), 0)`
+
+  let perCustomer = db
+    .select({
+      customer_id: customers.id,
+      cur_revenue: curRevenueExpr.as('cur_revenue'),
+      cur_margin: curMarginExpr.as('cur_margin'),
+      cmp_revenue: cmpRevenueExpr.as('cmp_revenue'),
+      cmp_margin: cmpMarginExpr.as('cmp_margin'),
+    })
+    .from(customers)
+    .leftJoin(pareto_customers, activeParetoJoin)
+    .leftJoin(invoices, and(eq(invoices.customer_id, customers.id), isNull(invoices.deleted_at)))
+    .leftJoin(latestChannelSq, channelJoin)
+    .leftJoin(channel_divisions, divisionJoin)
+    .where(and(...baseConditions))
+    .groupBy(customers.id)
+    .$dynamic()
+
+  if (onlyPareto) {
+    perCustomer = perCustomer.having(sql`bool_or(${pareto_customers.id} IS NOT NULL) = true`)
+  }
+
+  const sub = perCustomer.as('sub')
+  const [row] = await db
+    .select({
+      total_cur_revenue: sql<string>`COALESCE(SUM(${sub.cur_revenue}::numeric), 0)`,
+      total_cur_margin: sql<string>`COALESCE(SUM(${sub.cur_margin}::numeric), 0)`,
+      total_cmp_revenue: sql<string>`COALESCE(SUM(${sub.cmp_revenue}::numeric), 0)`,
+      total_cmp_margin: sql<string>`COALESCE(SUM(${sub.cmp_margin}::numeric), 0)`,
+    })
+    .from(sub)
+
+  if (!row) return empty
+  return {
+    current: { revenue: Number(row.total_cur_revenue), margin: Number(row.total_cur_margin) },
+    comparison: { revenue: Number(row.total_cmp_revenue), margin: Number(row.total_cmp_margin) },
+  }
+}

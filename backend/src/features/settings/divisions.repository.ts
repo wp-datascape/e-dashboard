@@ -105,7 +105,17 @@ export async function isDivisionInUse(divisionId: number): Promise<boolean> {
   return !!userDivisionRow
 }
 
-const DEFAULT_DIVISIONS = [
+/**
+ * Struktur 7-divisi ini adalah kebutuhan bisnis SPESIFIK PT Mesin Kasir Online
+ * (MKO) — BUKAN template generik untuk company mana pun (koreksi 2026-08-27,
+ * lihat docs-v2/task/task029.md). Sempat dipakai sbg default utk SEMUA company
+ * baru (termasuk KNT/SKI yang strukturnya beda total), hasilnya divisi sampah
+ * tak terpakai nempel di company lain tiap kali seeder di-re-run. Sekarang
+ * HANYA dipakai eksplisit oleh seed.ts untuk MKO (mirror pola `defaultBranches`
+ * — literal per-company, bukan template lintas-company). Company BARU (lewat
+ * UI atau seeder) pakai MINIMAL_DEFAULT_DIVISION di bawah, bukan ini.
+ */
+export const MKO_DIVISIONS_TEMPLATE = [
   { key: 'distribution', label: 'Distribution', dormant_category: 'b2b_dc' },
   { key: 'project', label: 'Project', dormant_category: 'b2b_project' },
   { key: 'e_commerce', label: 'E-Commerce', dormant_category: 'b2c' },
@@ -115,13 +125,24 @@ const DEFAULT_DIVISIONS = [
   { key: 'other', label: 'Lainnya', dormant_category: 'b2b_dc', is_protected: true },
 ] as const
 
+/** Satu-satunya division yang genuinely universal untuk company APA PUN —
+ * fallback "Lainnya"/"other" dipakai COALESCE di seluruh scope/metrics query
+ * (utils/scope.ts), jadi tetap WAJIB ada di setiap company, is_protected supaya
+ * tidak bisa dihapus manual dari UI. */
+const MINIMAL_DEFAULT_DIVISION = { key: 'other', label: 'Lainnya', dormant_category: 'b2b_dc', is_protected: true } as const
+
 /**
- * Seed 7 division default (company-wide, branch_id NULL) untuk 1 company —
- * idempotent (onConflictDoNothing). Dipanggil dari hook createCompany (company
- * baru) dan script backfill (company existing) - satu sumber kebenaran.
+ * Seed division minimal (cuma "Lainnya", company-wide branch_id NULL) untuk 1
+ * company — idempotent (onConflictDoNothing). Dipanggil dari hook createCompany
+ * (company baru lewat UI) dan seed.ts (company existing yang belum punya divisi
+ * sama sekali). Struktur divisi SELEBIHNYA (channel/kategori bisnis riil) dibuat
+ * manual lewat halaman Settings > Division Management sesuai kebutuhan masing-
+ * masing company — bukan ditebak dari template generik (lihat komentar
+ * MKO_DIVISIONS_TEMPLATE di atas soal kenapa ini berubah).
  */
 export async function seedDefaultDivisions(companyId: number) {
-  for (const d of DEFAULT_DIVISIONS) {
+  const list: readonly { key: string; label: string; dormant_category: string; is_protected?: boolean }[] = [MINIMAL_DEFAULT_DIVISION]
+  for (const d of list) {
     await db
       .insert(divisions)
       .values({

@@ -44,4 +44,5 @@ export interface UserPreferencesInput {
   theme_mode?: 'light' | 'dark';
   color_palette?: string;
   language?: string;
+  dismissed_banners?: string[];
 }

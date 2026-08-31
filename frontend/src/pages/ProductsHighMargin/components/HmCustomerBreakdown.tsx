@@ -9,7 +9,7 @@ import AccordionDetails from '@mui/material/AccordionDetails'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { useTranslation } from 'react-i18next'
 import { useHmCustomers } from '@/hooks/useProducts'
-import { formatIDR } from '@/utils/format'
+import { formatRupiah } from '@/utils/format'
 import { getDivisionColor } from '@/utils/divisionColor'
 import { StatusChip } from '@/components/ui'
 import type { HmCustomerRow, HmDivisionBreakdown } from '@/types/products'
@@ -93,7 +93,7 @@ export function HmCustomerBreakdown({
       width: 130,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'total_gp',
@@ -101,7 +101,7 @@ export function HmCustomerBreakdown({
       width: 120,
       type: 'number',
       sortable: false,
-      valueFormatter: (v) => formatIDR(v as number),
+      valueFormatter: (v) => formatRupiah(v as number),
     },
     {
       field: 'invoice_count',
@@ -162,8 +162,8 @@ export function HmCustomerBreakdown({
             />
           </Box>
           {[
-            { label: t('products.drawer.colRevenue'), value: formatIDR(r.total_revenue) },
-            { label: t('products.drawer.colGp'), value: formatIDR(r.total_gp) },
+            { label: t('products.drawer.colRevenue'), value: formatRupiah(r.total_revenue) },
+            { label: t('products.drawer.colGp'), value: formatRupiah(r.total_gp) },
             { label: t('products.drawer.colInvoice'), value: String(r.invoice_count) },
             { label: t('productsHighMargin.buyers.colLastPurchase'), value: r.last_invoice_date },
           ].map((f) => (
@@ -217,7 +217,7 @@ export function HmCustomerBreakdown({
                   />
                 </Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  {formatIDR(b.total_revenue)}
+                  {formatRupiah(b.total_revenue)}
                   {grandTotalRevenue > 0 && (
                     <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
                       ({((b.total_revenue / grandTotalRevenue) * 100).toFixed(0)}%)

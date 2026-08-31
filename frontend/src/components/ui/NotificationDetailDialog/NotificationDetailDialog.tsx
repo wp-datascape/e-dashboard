@@ -14,16 +14,10 @@ import { useAnalisis } from '@/hooks/useAnalisis'
 import { ComparisonSections } from '@/components/analisis/ComparisonMetrics'
 import type { NotificationRow } from '@/types/notifications'
 import type { AnalisisPeriodType } from '@/types/analisis'
+import { formatDateTimeID } from '@/utils/date'
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
+const fmtDate = formatDateTimeID
 
 interface AnalisisAlertEntityRef {
   customer_id: number

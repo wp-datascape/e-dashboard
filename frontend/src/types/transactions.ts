@@ -33,10 +33,22 @@ export interface InvoiceParams {
   date_to?: string
   customer_search?: string
   sort_by?: 'invoice_date' | 'total_revenue' | 'total_gp'
+    | 'invoice_number' | 'company' | 'customer' | 'business_unit'
+    | 'gp_margin_percent' | 'category_count' | 'import_source'
   sort_dir?: 'asc' | 'desc'
   page?: number
   per_page?: number
 }
+
+export interface InvoicesSummary {
+  total_revenue: number
+  total_gp: number
+  gp_margin_percent: number
+}
+
+// Filter kartu ringkasan (2026-08-29) — SAMA PERSIS InvoiceParams minus
+// sort/pagination (aggregate 1 baris, bukan list).
+export type InvoicesSummaryParams = Omit<InvoiceParams, 'sort_by' | 'sort_dir' | 'page' | 'per_page'>
 
 export interface InvoiceDetail {
   id: number

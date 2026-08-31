@@ -44,7 +44,7 @@ export const api = axios.create({
  * HTTP Request Logger — menampilkan log HTTP request/response ke browser console.
  * Format request  : [HTTP] → :method :url
  * Format response : [HTTP] ← :method :url :status :duration ms
- * Format error    : [HTTP] ✗ :method :url :status :duration ms - :message
+ * Format error    : [HTTP] ERROR :method :url :status :duration ms - :message
  *
  * Hanya aktif di development (import.meta.env.DEV).
  */
@@ -83,7 +83,7 @@ function logResponse(method: string, url: string, status: number, duration: numb
 function logError(method: string, url: string, status: number, duration: number, message: string): void {
   const methodColor = METHOD_COLORS[method] ?? 'color:#94a3b8;font-weight:bold';
   console.log(
-    `%c[HTTP] ✗ %c${method}%c ${url} %c${status}%c ${duration}ms - ${message}`,
+    `%c[HTTP] ERROR %c${method}%c ${url} %c${status}%c ${duration}ms - ${message}`,
     HTTP_STYLE,
     methodColor,
     'color:inherit',

@@ -126,6 +126,21 @@ export interface HighMarginDetailParams {
   exclude_intercompany?: boolean
   period_month?: string
   active_window?: number
+  // period_start (2026-08-31, laporan user: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini") — kalau diisi, backend pakai
+  // INI langsung sbg awal window (skip derivasi period_month-active_window
+  // bulan yg cuma APROKSIMASI). Isi dgn `periodStart` filter GLOBAL yg SAMA
+  // dipakai Revenue/GP/M5 di halaman yg sama (Report/Revenue/index.tsx),
+  // BUKAN dihitung ulang dari period_type. Opsional - ProductsHighMargin/
+  // index.tsx (RangeFilter sendiri) TIDAK mengisi ini.
+  period_start?: string
+  // only_pareto (2026-08-31, laporan user: "cek dan perbaiki filter lain di
+  // halaman sama" — susulan period_start) — sebelumnya DITEMUKAN diam-diam
+  // no-op di backend utk endpoint ini (dipakai benar utk Revenue/GP/M5),
+  // sekarang sudah diperbaiki di backend, ini toggle "Pareto Customers" di
+  // Advanced Filters. Opsional - ProductsHighMargin/index.tsx (tidak py
+  // toggle Pareto) TIDAK mengisi ini.
+  only_pareto?: boolean
   page?: number
   per_page?: number
 }
@@ -189,15 +204,26 @@ export interface HmDivisionBreakdown {
   customer_count: number
 }
 
+// UpsellMissingCategory (2026-08-26, task031.md §4 — GANTI dari CategoryRef
+// polos) — tiap kategori HM yang belum dibeli sekarang bawa affinity_pct
+// sendiri ("68% pelanggan divisi X beli kategori ini"), bukan cuma id/nama.
+export interface UpsellMissingCategory extends CategoryRef {
+  affinity_pct: number
+}
+
 export interface UpsellTargetRow {
   id: number
   customer_code: string
   customer_name: string
-  business_unit: string | null
+  // division_label (2026-08-26, task031.md §4 — GANTI dari business_unit
+  // legacy) — nama Divisi DOMINAN customer (transaksi terbanyak dalam
+  // activeWindow), sistem SAMA dgn filter Divisi KPI lain, bukan lagi
+  // divisi channel transaksi terakhir saja.
+  division_label: string | null
   last_invoice_date: string
   avg_monthly_revenue: number
   categories_bought: CategoryRef[]
-  missing_high_margin_categories: CategoryRef[]
+  missing_high_margin_categories: UpsellMissingCategory[]
 }
 
 // ─── Customer Products (purchase history drawer) ──────────────────────────────
@@ -222,6 +248,14 @@ export interface CustomerProductsParams {
   division?: number
   period_month?: string
   active_window?: number
+  // Rentang tanggal eksplisit, INKLUSIF kedua ujung — dipakai M1 heatmap
+  // drill-down (2026-08-22, bug: dialog dulu SELALU pakai active_window,
+  // tidak terkait filter granularitas Bulanan/Kuartalan/Semesteran/Tahunan
+  // di halaman) — kalau diisi, backend pakai INI, bukan period_month+
+  // active_window. UpsellCustomerDialog.tsx (Products High Margin) TETAP
+  // pakai period_month/active_window, TIDAK diubah.
+  period_start?: string
+  period_end?: string
   exclude_intercompany?: boolean
   page?: number
   per_page?: number
@@ -232,7 +266,12 @@ export interface UpsellTargetParams {
   branch_id?: number
   period_month?: string
   active_window?: number
-  business_unit?: number
+  // period_start — lihat komentar HighMarginDetailParams.period_start di atas, pola sama.
+  period_start?: string
+  // only_pareto — lihat komentar HighMarginDetailParams.only_pareto di atas, pola sama.
+  only_pareto?: boolean
+  // division (2026-08-26, task031.md §4 — GANTI dari business_unit legacy).
+  division?: number
   exclude_intercompany?: boolean
   page?: number
   per_page?: number

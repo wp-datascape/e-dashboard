@@ -14,9 +14,12 @@ import { useCan } from '@/hooks/useCan';
 interface AppBarProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
+  /** false di mobile (task034) — tidak ada lagi Sidebar drawer utk ditoggle
+   * di sana (diganti MobileBottomNav), default true utk desktop. */
+  showMenuButton?: boolean;
 }
 
-export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
+export const DashboardAppBar = ({ onToggleSidebar, showMenuButton = true }: AppBarProps) => {
   const { t } = useTranslation();
   const can = useCan();
 
@@ -36,16 +39,18 @@ export const DashboardAppBar = ({ onToggleSidebar }: AppBarProps) => {
       }}
     >
       <Toolbar sx={{ gap: 1 }}>
-        {/* Sidebar Toggle */}
-        <IconButton
-          edge="start"
-          onClick={onToggleSidebar}
-          color="inherit"
-          aria-label={t('common.toggleSidebar')}
-          sx={{ mr: 1 }}
-        >
-          <MenuIcon />
-        </IconButton>
+        {/* Sidebar Toggle (disembunyikan di mobile, lihat showMenuButton) */}
+        {showMenuButton && (
+          <IconButton
+            edge="start"
+            onClick={onToggleSidebar}
+            color="inherit"
+            aria-label={t('common.toggleSidebar')}
+            sx={{ mr: 1 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
 
         {/* Brand */}
         {/* minWidth:0 WAJIB — tanpa ini flex item dgn flexGrow:1 tidak bisa

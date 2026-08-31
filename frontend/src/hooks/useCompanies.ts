@@ -69,11 +69,22 @@ export function useDeleteCompany() {
 
 // ─── Branch Query Hooks ──────────────────────────────────────────────────────
 
-export function useBranchesByCompany(companyId: number | null) {
+// `options.enabled` (2026-08-31, bug: user branch-restricted mis. "MKO Sales"
+// dapat toast merah "Akses ditolak" di HAMPIR SEMUA halaman) — endpoint
+// `GET /companies/:id/branches` minta permission `settings.branch:view`
+// (companies.route.ts, permission menu Settings — BUKAN utk user biasa).
+// useScopedCompanyFilter.ts manggil hook ini UNCONDITIONAL begitu company
+// spesifik ke-pilih (termasuk auto-select company tunggal), padahal hasilnya
+// (`allBranches`) cuma DIPAKAI kalau user UNRESTRICTED (superadmin/full-branch-
+// access) — user restricted (branch di-assign eksplisit) sama sekali tidak
+// butuh data ini (branchOptions-nya dari `scopedBranches`, bukan dari sini),
+// tapi query-nya tetap terkirim & selalu ditolak backend. Caller WAJIB kirim
+// `enabled: !scopedBranches.restricted`.
+export function useBranchesByCompany(companyId: number | null, options?: { enabled?: boolean }) {
   return useQuery<CompanyBranch[]>({
     queryKey: companiesKeys.branches(companyId!),
     queryFn: () => companiesApi.getBranchesByCompany(companyId!),
-    enabled: companyId !== null && companyId !== undefined,
+    enabled: (options?.enabled ?? true) && companyId !== null && companyId !== undefined,
   })
 }
 

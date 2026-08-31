@@ -1,15 +1,21 @@
 // frontend/src/components/tables/ResponsiveListView/ResponsiveListView.tsx
-import { useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { useState, useMemo, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Divider from '@mui/material/Divider';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import IconButton from '@mui/material/IconButton';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -36,6 +42,34 @@ export interface CardExpandState {
   onToggle: () => void;
 }
 
+// Header tabel (search/sort/periode) — DIPUSATKAN DI SINI (2026-08-29,
+// eks `ReportTabCard.tsx`). Sebelumnya tiap halaman Laporan membungkus
+// `ResponsiveListView` dengan komponen wrapper terpisah (`ReportTabCard`)
+// buat search+sort+Card, sedangkan `BreakdownTable.tsx` (tab Cross Selling)
+// malah bikin ulang Box+TextField+TextField sendiri, TIDAK memakai
+// `ReportTabCard` sama sekali — 3 halaman terlihat konsisten, 1 halaman
+// beda sendiri (laporan user: "kenapa layout tabelnya beda"). Instruksi
+// user: "seharusnya dijadikan componen default tabel saja, tinggal diberi
+// props show true/false" — jadi properti opsional LANGSUNG di komponen
+// tabel yang SEMUA orang sudah pakai (bukan wrapper terpisah lagi yang
+// gampang lupa/skip dipasang). `ReportTabCard.tsx`/`ReportSummaryLine.tsx`
+// DIHAPUS (lihat commit ini), 5 pemakainya dipindah ke props ini.
+export interface ResponsiveListViewSearchConfig {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}
+export interface ResponsiveListViewSortOption {
+  value: string;
+  label: string;
+}
+export interface ResponsiveListViewSortConfig {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  options: ResponsiveListViewSortOption[];
+}
+
 export interface ResponsiveListViewProps {
   /** Row data */
   rows: GridRowsProp;
@@ -55,6 +89,30 @@ export interface ResponsiveListViewProps {
   emptyMessage?: string;
   /** Optional title shown at top of card area */
   title?: string;
+  /** Search field di header tabel, DI DALAM Card yang sama (kiri, sejajar
+   * `periodLabel`/`sort`). Opsional — TIDAK diisi = tabel polos spt
+   * sebelumnya (tanpa header/Card tambahan), 100% backward-compatible ke
+   * caller lama yang belum ikut migrasi. */
+  search?: ResponsiveListViewSearchConfig;
+  /** Info periode+granularitas data tabel ini (tengah header, mis. "Agustus
+   * 2026"/"Kuartal 3 Tahun 2026" dari `formatPeriodLabel`). Opsional,
+   * independen dari `search`/`sort`. String polos dibungkus Typography
+   * caption abu-abu (default lama, dipakai hampir semua caller) - kirim
+   * ReactNode sendiri (mis. Typography custom) kalau caller butuh styling
+   * beda (2026-08-30, Transactions: teks lebih besar+bold+text.primary,
+   * POSISI TETAP di slot tengah yang sama, cuma stylingnya yang beda -
+   * instruksi eksplisit user "posisinya jangan dirubah, tetap sejajar
+   * search dan ada ditengah"). */
+  periodLabel?: ReactNode;
+  /** Dropdown sort di header tabel (kanan). Opsional, independen dari
+   * `search`/`periodLabel`. */
+  sort?: ResponsiveListViewSortConfig;
+  /** Tombol aksi tambahan di header tabel (kanan, SEJAJAR `sort` — mis.
+   * tombol "Export Excel", 2026-08-30). Opsional, independen dari 3 prop
+   * header lain — tabel yang tidak punya dropdown sort (spt Transactions,
+   * sort-nya lewat klik header kolom DataGrid) bisa isi cuma `actions` saja,
+   * slot kanan tetap terisi tombol tanpa perlu dropdown sort palsu. */
+  actions?: ReactNode;
   /** Initial page size for DataGrid (default 10, ignored if paginationModel passed) */
   pageSize?: number;
   /** DataGrid container height (default 400). Pass '100%' untuk fill flex parent. */
@@ -263,6 +321,10 @@ export function ResponsiveListView({
   error = null,
   emptyMessage,
   title,
+  search,
+  periodLabel,
+  sort,
+  actions,
   pageSize = 10,
   height = 400,
   getRowHeight,
@@ -284,6 +346,51 @@ export function ResponsiveListView({
   // dipakai DashboardLayout untuk switch sidebar temporary/permanent.
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  // Tooltip hover baris (2026-08-29, instruksi user: "tambahkan tooltip di
+  // kondisi hover baris tabel 'Klik lihat detail'"). BUKAN native `title`
+  // attribute — dicek langsung ke source `@mui/x-data-grid` (GridCell.js):
+  // kolom TANPA `renderCell` custom otomatis dikasih `title` = nilai sel itu
+  // sendiri oleh DataGrid sendiri, TIDAK BERSYARAT overflow, jadi title di
+  // level baris (parent) selalu kalah — browser pilih title elemen TERDALAM
+  // di bawah kursor (dikonfirmasi via eval DOM: tiap gridcell polos punya
+  // title="<nilai selnya>"). Solusi: `Tooltip` asli (@mui/material, pola
+  // sama dipakai M3/M4/M6 dkk) dgn `open` terkontrol dari `onMouseEnter`/
+  // `onMouseLeave` yang dilewatkan via `slotProps.row` — GridRowProps resmi
+  // menyediakan 2 handler ini (dicek `GridRow.js`: diteruskan LANGSUNG ke
+  // div baris, tidak menggantikan hover CSS bawaan yg murni `:hover`).
+  // MUI Tooltip sendiri komponen Popper terpisah, tidak terikat mekanisme
+  // `title` native, jadi tidak ketimpa title bawaan sel manapun.
+  const [hoveredRow, setHoveredRow] = useState(false);
+
+  // Cegah tooltip DOBEL (2026-08-29, laporan user: "jadi tidak rapi, tooltip
+  // menjadi dobel" — screenshot Playwright TIDAK menangkap ini krn native
+  // browser title tooltip di-render OS, di luar pipeline DOM/Popper, jadi
+  // baru kelihatan di browser sungguhan). Akar masalah (dicek GridCell.js
+  // line ~283-287): kolom TANPA `renderCell` custom otomatis dikasih
+  // `title` = nilai sel itu SENDIRI oleh DataGrid (tidak bersyarat overflow)
+  // — begitu OS render title-nya (delay native, independen dari Tooltip
+  // MUI kita yg langsung tampil), 2 tooltip numpuk: punya kita ("Klik untuk
+  // lihat detail") + punya browser (nilai sel mentah).
+  //
+  // Tidak ada prop resmi DataGrid utk mematikan title otomatis ini. Fix:
+  // kasih SEMUA kolom yg belum punya `renderCell` sendiri satu `renderCell`
+  // trivial (reuse `formatColumnValue`, fungsi yg SAMA dipakai AutoCard di
+  // atas) — begitu `column.renderCell` ada, GridCell TIDAK PERNAH set
+  // `title` (baca source: title cuma diisi di cabang "children === undefined",
+  // yaitu SAAT TIDAK ADA renderCell). Outputnya identik visual (formattedValue
+  // yg sama, dirender sbg children div sel yg sama, cuma title-nya hilang).
+  // HANYA diterapkan kalau onRowClick ada (fitur tooltip ini aktif) — tabel
+  // tanpa onRowClick TIDAK disentuh, behavior title bawaan tetap sama persis.
+  const desktopColumns = useMemo(
+    () => (onRowClick
+      ? columns.map((col) => (col.renderCell ? col : {
+          ...col,
+          renderCell: (params: GridRenderCellParams) => formatColumnValue(params.row as Record<string, unknown>, col),
+        }))
+      : columns),
+    [columns, onRowClick],
+  );
+
   // Accordion exclusive terpusat (satu sumber untuk AutoCard maupun renderCard
   // custom) — buka card lain otomatis nutup yang sebelumnya, bukan tiap
   // pemakai bikin `useState` sendiri (lihat `CardExpandState`).
@@ -293,11 +400,128 @@ export function ResponsiveListView({
     onToggle: () => setExpandedId((cur) => (cur === rowId ? null : rowId)),
   });
 
+  // Bug KRITIS (2026-08-22, user: crash mobile "A problem repeatedly
+  // occurred" — Safari kehabisan memori) — cabang mobile di bawah dulu
+  // me-render SEMUA `rows` sekaligus jadi Accordion (beda dari cabang
+  // desktop yang lewat MUI DataGrid, otomatis dipaginasi via `pageSize`).
+  // Untuk tabel besar (mis. breakdown Expansion, ribuan baris client-side)
+  // ini merender ribuan komponen Accordion+Chip sekaligus — cukup untuk
+  // meng-crash tab mobile berulang kali. Paginasi CLIENT ditambahkan di
+  // sini, mirror `pageSize` yang SUDAH diterima komponen ini tapi
+  // sebelumnya diam-diam diabaikan di jalur mobile. Server-mode (`rows`
+  // sudah 1 halaman dari API) SENGAJA dilewati — datanya sudah kecil,
+  // paginasi ganda di sini malah salah (motong ulang hasil yang sudah
+  // dipotong server).
+  const isServerPaginated = paginationMode === 'server';
+  const [mobilePage, setMobilePage] = useState(0);
+  const mobileTotalPages = isServerPaginated ? 1 : Math.max(1, Math.ceil(rows.length / pageSize));
+  // Reset ke halaman 1 begitu data berubah (search/sort/filter baru bisa
+  // bikin halaman sekarang jadi kosong/di luar jangkauan) — bukan cuma
+  // begitu rows.length berubah, karena isi rows bisa berubah TOTAL
+  // (mis. ganti sort) walau panjangnya kebetulan sama.
+  //
+  // Adjust saat render, BUKAN useEffect (2026-08-24, fix lint
+  // react-hooks/set-state-in-effect) — pola resmi React "Adjusting state
+  // when a prop changes" (react.dev): simpan referensi `rows` sebelumnya,
+  // bandingkan tiap render, setState kalau berubah. React re-render ulang
+  // sebelum paint ke layar (bukan commit terpisah spt effect), jadi tidak
+  // ada flash halaman lama.
+  const [prevRows, setPrevRows] = useState(rows);
+  if (rows !== prevRows) {
+    setPrevRows(rows);
+    setMobilePage(0);
+  }
+  const visibleRows = isServerPaginated
+    ? rows
+    : rows.slice(mobilePage * pageSize, (mobilePage + 1) * pageSize);
+
   const effectiveMobileFields =
     mobileFields ?? columns.filter((c) => c.headerName).map((c) => c.field);
 
+  // Header search/periode/sort (lihat JSDoc ResponsiveListViewProps.search
+  // di atas) — grid 3 kolom `1fr auto 1fr`, kolom tengah SELALU
+  // dideklarasikan (walau periodLabel kosong) supaya search/sort tidak
+  // ikut geser ke tengah kalau cuma salah satu yang diisi (auto-placement
+  // grid ngisi slot kosong berurutan kalau kolom tengah kosong total).
+  const hasHeader = Boolean(search || sort || periodLabel || actions);
+  // key="header" (2026-08-30, laporan user: "search bar cuma bisa ketik 1
+  // huruf lalu hilang fokus") — root cause: cabang render `loading` (lewat
+  // wrapWithHeader di bawah, children Card = [header, content]) vs cabang
+  // desktop (children Card = [title && (...), header, Tooltip+DataGrid], SATU
+  // slot lebih banyak krn `title` walau kosong tetap tempati posisi array)
+  // punya index header BERBEDA (0 vs 1). React reconcile children TANPA key
+  // murni by POSISI — begitu `loading` flip true (query refetch, PERSIS
+  // kejadian tiap ketik di search box), React anggap elemen di index 0
+  // (yang isinya TextField search) itu "elemen baru", di-unmount lalu
+  // di-mount ulang -> DOM <input> hilang, fokus ikut hilang. `key` bikin
+  // React cocokkan by IDENTITAS, bukan posisi -> header (dan TextField-nya)
+  // di-reuse persis, walau index bergeser antar cabang render.
+  const header = hasHeader ? (
+    <Box key="header" sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', sm: '1fr auto 1fr' },
+        alignItems: 'center',
+        gap: 1.5,
+      }}>
+        <Box sx={{ justifySelf: { sm: 'start' }, width: { xs: '100%', sm: 'auto' } }}>
+          {search && (
+            <TextField
+              size="small"
+              placeholder={search.placeholder}
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+              sx={{ width: { xs: '100%', sm: 240 } }}
+            />
+          )}
+        </Box>
+        <Box sx={{ justifySelf: 'center', textAlign: 'center' }}>
+          {periodLabel && (
+            typeof periodLabel === 'string' ? (
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                {periodLabel}
+              </Typography>
+            ) : periodLabel
+          )}
+        </Box>
+        <Box sx={{
+          justifySelf: { sm: 'end' },
+          width: { xs: '100%', sm: 'auto' },
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 1.5,
+        }}>
+          {sort && (
+            <TextField
+              select
+              size="small"
+              label={sort.label}
+              value={sort.value}
+              onChange={(e) => sort.onChange(e.target.value)}
+              sx={{ width: { xs: '100%', sm: 200 } }}
+            >
+              {sort.options.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </TextField>
+          )}
+          {actions}
+        </Box>
+      </Box>
+    </Box>
+  ) : null;
+  // Bungkus konten (loading/error/empty/mobile — cabang yang SEBELUMNYA
+  // tidak punya Card sendiri) dgn Card+header KALAU hasHeader — cabang
+  // desktop di bawah SUDAH punya `<Card>` sendiri, header disisipkan
+  // LANGSUNG di situ (bukan lewat helper ini) biar tidak dobel Card. Kalau
+  // !hasHeader, function ini transparan (return content apa adanya) — 0
+  // perubahan utk caller lama yg belum kirim search/sort/periodLabel.
+  const wrapWithHeader = (content: ReactNode): ReactNode =>
+    hasHeader ? <Card sx={{ overflow: 'hidden' }}>{header}{content}</Card> : content;
+
   if (loading) {
-    return (
+    return wrapWithHeader(
       <Box>
         {isMobile ? (
           <Box>
@@ -313,33 +537,33 @@ export function ResponsiveListView({
         ) : (
           <Skeleton variant="rectangular" height={typeof height === 'number' ? height : 400} sx={{ borderRadius: 1 }} />
         )}
-      </Box>
+      </Box>,
     );
   }
 
   if (error) {
-    return <Alert severity="error">{getApiErrorMessage(error, t)}</Alert>;
+    return wrapWithHeader(<Alert severity="error">{getApiErrorMessage(error, t)}</Alert>);
   }
 
   if (!rows.length) {
-    return (
+    return wrapWithHeader(
       <Box sx={{ py: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.disabled">
           {emptyMessage ?? t('common.noData')}
         </Typography>
-      </Box>
+      </Box>,
     );
   }
 
   if (isMobile) {
-    return (
+    return wrapWithHeader(
       <Box>
         {title && (
           <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
             {t('common.titleWithItemCount', { title, count: rows.length })}
           </Typography>
         )}
-        {rows.map((row, idx) => {
+        {visibleRows.map((row, idx) => {
           const rowId = String((row as Record<string, unknown>).id ?? idx);
           return renderCard ? (
             renderCard(row as Record<string, unknown>, idx, makeExpandState(rowId))
@@ -354,6 +578,27 @@ export function ResponsiveListView({
             />
           );
         })}
+        {!isServerPaginated && mobileTotalPages > 1 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 1 }}>
+            <IconButton
+              size="small"
+              disabled={mobilePage === 0}
+              onClick={() => setMobilePage((p) => Math.max(0, p - 1))}
+            >
+              <ChevronLeftIcon fontSize="small" />
+            </IconButton>
+            <Typography variant="caption" color="text.secondary">
+              {t('common.pageOf', { page: mobilePage + 1, total: mobileTotalPages })}
+            </Typography>
+            <IconButton
+              size="small"
+              disabled={mobilePage >= mobileTotalPages - 1}
+              onClick={() => setMobilePage((p) => Math.min(mobileTotalPages - 1, p + 1))}
+            >
+              <ChevronRightIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
       </Box>
     );
   }
@@ -367,78 +612,161 @@ export function ResponsiveListView({
           </Typography>
         </Box>
       )}
+      {header}
 
-      <Box sx={{ height }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          loading={loading}
-          getRowHeight={getRowHeight === 'auto' ? () => 'auto' as const : undefined}
-          onRowClick={onRowClick ? ({ row }) => onRowClick(row as Record<string, unknown>) : undefined}
-          initialState={
-            paginationModel ? undefined : {
-              pagination: { paginationModel: { pageSize } },
+      <Tooltip
+        title={t('common.rowClickHint')}
+        open={Boolean(onRowClick) && hoveredRow}
+        followCursor
+        placement="right"
+        disableInteractive
+      >
+        {/* overflow: hidden (2026-08-30, laporan user: scrollbar native jelek
+            nongol di setiap tabel berpaginasi) — Box pembungkus ini sebelumnya
+            polos, tanpa overflow sama sekali. DataGrid sendiri sudah urus
+            scroll-nya sendiri secara internal (virtualScroller, CSS bawaan
+            MUI sudah sembunyikan scrollbar native-nya, ganti scrollbar
+            custom sendiri) — Box pembungkus ini murni wadah ukuran tetap utk
+            Tooltip di atas, TIDAK PERNAH seharusnya scroll sendiri. Tanpa
+            overflow:hidden, kalau tinggi/lebar render DataGrid meleset
+            sepersekian pixel dari `height` (rounding sub-pixel, kerap
+            kejadian di scaling display Windows 125%/150% - tidak kejadian di
+            zoom 100%), Box ini nampilin scrollbar NATIVE browser sendiri
+            (tidak ke-cover CSS penyembunyi punya MUI, yang cuma ada di
+            elemen virtualScroller DI DALAM DataGrid). */}
+        <Box sx={{ height, overflow: 'hidden' }}>
+          <DataGrid
+            rows={rows}
+            columns={desktopColumns}
+            loading={loading}
+            getRowHeight={getRowHeight === 'auto' ? () => 'auto' as const : undefined}
+            onRowClick={onRowClick ? ({ row }) => onRowClick(row as Record<string, unknown>) : undefined}
+            // Tooltip hover baris (2026-08-29, instruksi user: "tambahkan
+            // tooltip di kondisi hover baris tabel 'Klik lihat detail'"),
+            // dipusatkan DI SINI (bukan per halaman) supaya SEMUA tabel yang
+            // punya onRowClick otomatis konsisten.
+            //
+            // BUKAN native `title` attribute (percobaan pertama, GAGAL) —
+            // dicek langsung ke source `@mui/x-data-grid` (GridCell.js): kolom
+            // TANPA `renderCell` custom otomatis dikasih `title` = nilai sel
+            // itu sendiri oleh DataGrid, TIDAK bersyarat overflow. Sel-sel itu
+            // menutupi hampir seluruh baris, browser selalu pilih title
+            // elemen TERDALAM di bawah kursor, jadi title level-baris nyaris
+            // tidak pernah kelihatan (diverifikasi via eval DOM: tiap gridcell
+            // polos punya title="<nilai selnya sendiri>"). MUI DataGrid tidak
+            // expose GridRow/GridCell sbg named export (dicek node_modules
+            // langsung) jadi slot `row`/`cell` tidak bisa dibungkus Tooltip
+            // resmi cara `rowCheckbox` (satu-satunya slot row-level yang
+            // default component-nya diekspor publik, lihat docs MUI X).
+            //
+            // Solusi final: `Tooltip` ASLI (@mui/material, pola sama dipakai
+            // M3/M4/M6 dkk) yg `open`-nya dikontrol dari `onMouseEnter`/
+            // `onMouseLeave` — GridRowProps resmi menyediakan 2 handler ini
+            // (dicek GridRow.js: diteruskan LANGSUNG ke div baris via
+            // `publish('rowMouseEnter', ...)`, tidak menggantikan hover CSS
+            // bawaan yg murni `:hover`). Tooltip MUI adalah komponen Popper
+            // terpisah, TIDAK terikat mekanisme `title` native sama sekali,
+            // jadi tidak pernah ketimpa title bawaan sel manapun.
+            slotProps={onRowClick ? {
+              row: {
+                onMouseEnter: () => setHoveredRow(true),
+                onMouseLeave: () => setHoveredRow(false),
+              },
+            } : undefined}
+            initialState={
+              paginationModel ? undefined : {
+                pagination: { paginationModel: { pageSize } },
+              }
             }
-          }
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          rowCount={rowCount}
-          paginationMode={paginationMode}
-          sortingMode={sortingMode}
-          sortModel={sortModel}
-          onSortModelChange={onSortModelChange}
-          pageSizeOptions={pageSizeOptions}
-          disableRowSelectionOnClick
-          disableColumnMenu
-          sx={{
-            border: 'none',
-            borderRadius: 0,
-            '& .MuiDataGrid-columnHeaders': {
-              bgcolor: 'action.hover',
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            rowCount={rowCount}
+            paginationMode={paginationMode}
+            sortingMode={sortingMode}
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
+            pageSizeOptions={pageSizeOptions}
+            disableRowSelectionOnClick
+            disableColumnMenu
+            // scrollbarSize=0 (2026-08-30, referensi resmi MUI X — DataGridProps.ts,
+            // github.com/mui/mui-x) — GANTI dari hack `sx` `.MuiDataGrid-scrollbar
+            // {display:none}` yang dipakai sebelumnya. Prop ini override
+            // `--DataGrid-scrollbarSize`, dipakai grid BUKAN cuma untuk gambar
+            // scrollbar proxy-nya sendiri tapi JUGA untuk hitung ruang filler
+            // (GridVirtualScrollerFiller: `height = hasScrollX ? scrollbarSize : 0`).
+            // Hack `display:none` sebelumnya cuma menghilangkan VISUALnya lewat
+            // override `sx` yang harus menang perang spesifisitas vs CSS internal
+            // DataGrid yang diinjeksikan Emotion sendiri (urutan injeksi bisa beda
+            // dev vs production bundle) — grid tetap MENGIRA ada scrollbar
+            // berukuran normal saat hitung layout filler, ukuran 0 di sini
+            // menghilangkan sumber mismatch itu di akarnya, bukan cuma nutup
+            // gejalanya. Scroll wheel/touch/keyboard tetap penuh jalan (proxy
+            // scrollbar ini murni indikator+drag-handle visual, terpisah dari
+            // scroll position asli yang dipegang virtualScroller).
+            scrollbarSize={0}
+            sx={{
+              border: 'none',
               borderRadius: 0,
-            },
-            '& .MuiDataGrid-columnHeader': {
-              fontWeight: 600,
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'text.secondary',
-            },
-            '& .MuiDataGrid-row:hover': {
-              bgcolor: 'action.hover',
-              cursor: onRowClick ? 'pointer' : 'default',
-            },
-            '& .MuiDataGrid-cell': {
-              fontSize: '0.8125rem',
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              // Cell default MUI DataGrid = display:block - teks polos numpang
-              // baseline garis teks, tapi elemen inline-flex (Chip/badge dari
-              // renderCell custom) tidak ikut center otomatis, jadi posisinya
-              // beda dgn sel teks di baris yang sama (baris kelihatan "naik
-              // turun" tiap kali ada Chip). Paksa flex+center di level cell.
-              display: 'flex',
-              alignItems: 'center',
-            },
-            // Kolom yang isinya LIST beberapa chip (bisa wrap 2+ baris, mis.
-            // "categories_bought"/"missing_high_margin_categories" di tab Target
-            // Upsell) HARUS tetap rata atas, bukan center - kalau di-center,
-            // konten yang lebih tinggi dari row (52px) meluber ke ATAS *dan*
-            // BAWAH sekaligus, numpuk ke baris tetangga di kedua arah. Ditandai
-            // via cellClassName: 'wrap-chips-cell' di GridColDef masing-masing.
-            '& .MuiDataGrid-cell.wrap-chips-cell': {
-              alignItems: 'flex-start',
-            },
-            '& .MuiDataGrid-footerContainer': {
-              borderTop: '1px solid',
-              borderColor: 'divider',
-            },
-            '& .MuiDataGrid-virtualScroller': {
-              bgcolor: 'background.paper',
-            },
-          }}
-        />
-      </Box>
+              '& .MuiDataGrid-columnHeaders': {
+                bgcolor: 'action.hover',
+                borderRadius: 0,
+              },
+              '& .MuiDataGrid-columnHeader': {
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'text.secondary',
+              },
+              '& .MuiDataGrid-row:hover': {
+                bgcolor: 'action.hover',
+                cursor: onRowClick ? 'pointer' : 'default',
+              },
+              '& .MuiDataGrid-cell': {
+                fontSize: '0.8125rem',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                // Cell default MUI DataGrid = display:block - teks polos numpang
+                // baseline garis teks, tapi elemen inline-flex (Chip/badge dari
+                // renderCell custom) tidak ikut center otomatis, jadi posisinya
+                // beda dgn sel teks di baris yang sama (baris kelihatan "naik
+                // turun" tiap kali ada Chip). Paksa flex+center di level cell.
+                display: 'flex',
+                alignItems: 'center',
+              },
+              // Kolom yang isinya LIST beberapa chip (bisa wrap 2+ baris, mis.
+              // "categories_bought"/"missing_high_margin_categories" di tab Target
+              // Upsell) HARUS tetap rata atas, bukan center - kalau di-center,
+              // konten yang lebih tinggi dari row (52px) meluber ke ATAS *dan*
+              // BAWAH sekaligus, numpuk ke baris tetangga di kedua arah. Ditandai
+              // via cellClassName: 'wrap-chips-cell' di GridColDef masing-masing.
+              '& .MuiDataGrid-cell.wrap-chips-cell': {
+                alignItems: 'flex-start',
+              },
+              '& .MuiDataGrid-footerContainer': {
+                borderTop: '1px solid',
+                borderColor: 'divider',
+                // '<p>' MuiTablePagination-selectLabel/-displayedRows kebawa
+                // margin default browser utk tag <p> (1em atas+bawah, TIDAK
+                // di-reset MUI) — di atas font-size ~14-15px itu jadi ~14-15px
+                // margin per sisi, dobel jadi toolbar butuh ruang >52px
+                // (terukur presisi via Playwright: 23.4px teks + 14.6px*2
+                // margin = 52.64px, pas nabrak alokasi footer DataGrid yg
+                // fixed 52px). Di metrik font Windows/DPI beda, selisihnya
+                // bisa lebih lebar dan MEMICU scrollbar asli (bisa di-scroll
+                // sungguhan, bukan sekadar garis kosmetik) di dalam footer.
+                // margin:0 buang kelebihan itu di akarnya, toolbar pas 52px.
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  margin: 0,
+                },
+              },
+              '& .MuiDataGrid-virtualScroller': {
+                bgcolor: 'background.paper',
+              },
+            }}
+          />
+        </Box>
+      </Tooltip>
     </Card>
   );
 }

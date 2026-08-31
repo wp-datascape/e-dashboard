@@ -4,7 +4,7 @@ export { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdo
 export { fetchGpBreakdown }           from './repository/m4.repository'
 export { fetchHmBreakdown }           from './repository/m5.repository'
 export { fetchRorBreakdown }          from './repository/m6.repository'
-export { fetchDormantTrend, fetchDormantValueRanking } from './repository/m8m10.repository'
+export { fetchDormantTrend, fetchDormantValueRanking, fetchCustomerDormantStatusLog, fetchDormantValueHistory } from './repository/m8m10.repository'
 export {
   fetchCrossSellingKPI,
   fetchCrossSellingTrend,
@@ -13,8 +13,8 @@ export {
 } from './repository/m1.repository'
 export { fetchCategoryPerformance } from './repository/category-performance.repository'
 export type { CategoryPerformanceDbRow } from './repository/category-performance.repository'
-export { fetchProductPerformance } from './repository/product-performance.repository'
-export type { ProductPerformanceDbRow } from './repository/product-performance.repository'
+export { fetchProductPerformance, fetchProductPerformanceForExport } from './repository/product-performance.repository'
+export type { ProductPerformanceDbRow, ProductPerformanceExportRow } from './repository/product-performance.repository'
 export { fetchProductCategoryOptions } from './repository/product-categories.repository'
 export { fetchCategoryProducts } from './repository/category-products.repository'
 export type { CategoryProductDbRow } from './repository/category-products.repository'

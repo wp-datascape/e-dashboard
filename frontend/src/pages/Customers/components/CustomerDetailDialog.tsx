@@ -10,7 +10,10 @@ import { ComboChartWidget } from '@/components/charts/ComboChartWidget'
 import { StatusChip as GlobalStatusChip } from '@/components/ui'
 import { StatusChip } from './StatusChip'
 import { DivisionChip } from './DivisionChip'
-import { formatIDR } from '@/utils/format'
+// formatIDR (singkatan jt/M) khusus formatBar/formatLine axis chart di bawah — ruangnya sempit.
+// formatRupiah (angka penuh) buat teks/dialog biasa (2026-08-19).
+import { formatIDR, formatRupiah } from '@/utils/format'
+import { formatMonthLabel } from '@/utils/date'
 
 interface Props {
   customerId: number | null
@@ -77,8 +80,8 @@ export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
           {/* Metrik 4 kotak */}
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
             {[
-              { label: t('customers.detail.lifetimeValue'), value: formatIDR(detail.lifetime_value) },
-              { label: t('customers.detail.avgMonthly'), value: formatIDR(detail.avg_monthly_revenue) },
+              { label: t('customers.detail.lifetimeValue'), value: formatRupiah(detail.lifetime_value) },
+              { label: t('customers.detail.avgMonthly'), value: formatRupiah(detail.avg_monthly_revenue) },
               { label: t('customers.categories'), value: String(detail.category_count) },
               { label: t('customers.totalInvoices'), value: detail.recent_invoices.length > 0 ? `${detail.recent_invoices.length}+` : '-' },
             ].map(({ label, value }) => (
@@ -119,6 +122,7 @@ export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
               lineColor="#10B981"
               xKey="month"
               height={180}
+              xAxisFormatter={formatMonthLabel}
               formatBar={(v: number) => formatIDR(v)}
               formatLine={(v: number) => formatIDR(v)}
             />
@@ -138,8 +142,8 @@ export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
                       <Typography variant="body2" color="text.secondary">{inv.invoice_date}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatIDR(inv.total_revenue) })}</Typography>
-                      <Typography variant="caption" color="text.secondary">{t('customers.detail.gpColon', { value: formatIDR(inv.total_gp) })}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatRupiah(inv.total_revenue) })}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t('customers.detail.gpColon', { value: formatRupiah(inv.total_gp) })}</Typography>
                     </Box>
                   </Box>
                 ))}

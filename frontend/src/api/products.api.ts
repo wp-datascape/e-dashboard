@@ -45,6 +45,31 @@ export const productsApi = {
     return res.data
   },
 
+  // Export Excel (2026-08-31) — filter SAMA PERSIS getProductPerformance
+  // minus page/per_page/sort_by/sort_dir, SATU request ke backend
+  // (`/metrics/product-performance/export`), pola sama persis
+  // transactionsApi.exportInvoices. `fields` opsional (2026-08-31, dialog
+  // pilih kolom) — array key, digabung jadi 1 query param comma-separated,
+  // kosong/undefined = export semua kolom (default backend).
+  exportProductPerformance: async (
+    params: Omit<ProductPerformanceParams, 'page' | 'per_page' | 'sort_by' | 'sort_dir'>,
+    fields?: string[]
+  ): Promise<void> => {
+    const res = await api.get('/metrics/product-performance/export', {
+      params: { ...params, fields: fields?.length ? fields.join(',') : undefined },
+      responseType: 'blob',
+    })
+    const contentDisposition = String(res.headers['content-disposition'] ?? '')
+    const match = /filename="([^"]+)"/.exec(contentDisposition)
+    const filename = match?.[1] ?? 'produk.xlsx'
+    const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
   // 3.1c — Opsi dropdown filter kategori di halaman flat list produk
   getProductCategoryOptions: async (
     params: { company_id: number | 'all'; item_type?: string }

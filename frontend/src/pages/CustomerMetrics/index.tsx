@@ -10,6 +10,7 @@ import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { todayIsoDate } from './helpers';
+import { clampDateNotFuture } from '@/utils/date';
 import { M3Revenue }     from './M3Revenue';
 import { M4GrossProfit } from './M4GrossProfit';
 import { M5HighMargin }  from './M5HighMargin';
@@ -31,7 +32,6 @@ export default function CustomerMetrics() {
   });
 
   const trend = data?.trend ?? [];
-  const hm    = data?.high_margin_current;
   const ror   = data?.repeat_order_current;
 
   return (
@@ -59,7 +59,8 @@ export default function CustomerMetrics() {
           <DatePicker
             size="small" label={t('common.filters.periodDate')}
             value={periodEnd}
-            onChange={(e) => setPeriodEnd(e.target.value)}
+            onChange={(e) => setPeriodEnd(clampDateNotFuture(e.target.value, todayIsoDate()))}
+            max={todayIsoDate()}
             sx={{ minWidth: { xs: '100%', sm: 160 } }}
           />
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />
@@ -90,8 +91,8 @@ export default function CustomerMetrics() {
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
           <M5HighMargin
+            trend={trend}
             isLoading={isLoading}
-            hm={hm}
             companyId={companyId}
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
@@ -104,10 +105,10 @@ export default function CustomerMetrics() {
             isLoading={isLoading}
             value={ror?.value ?? 0}
             thresholdPct={ror?.target_pct ?? 80}
+            trend={data?.trend}
             companyId={companyId}
             branchId={branchId === 'all' ? undefined : branchId}
             division={division || undefined}
-            periodEnd={periodEnd}
             excludeIntercompany={excludeIntercompany}
           />
         </Grid>

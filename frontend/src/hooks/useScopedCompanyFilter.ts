@@ -20,6 +20,31 @@ export function useScopedCompanyFilter() {
 
   const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
   const [branchId, setBranchIdState] = useState<number | 'all'>('all');
+
+  // Bug (2026-08-22, user: "user hanya punya akses 1 company, combo box
+  // branch tetap terdisable, sedangkan user tidak punya filter company") —
+  // ScopeFilterFields.tsx men-disable Branch berdasarkan `companyId ===
+  // 'all'` (filter berjenjang, Branch baru aktif kalau Company sudah
+  // dipersempit). Untuk user dgn cuma 1 company, dropdown Entity
+  // disembunyikan (`showCompanyFilter = companies.length > 1`, di bawah) —
+  // tidak ada UI buat user memilih company itu, jadi `companyId` macet di
+  // 'all' SELAMANYA, Branch permanen terkunci walau user itu py banyak
+  // branch. Fix: begitu `companies` resolve (react-query async) ke PERSIS 1
+  // entri, auto-set `companyId` ke company itu — dari sudut pandang
+  // filtering, 'all' dan "company tunggal itu" toh setara utk user restricted
+  // 1 company (RBAC scope di backend tetap final authority, ini murni state
+  // UI). Guard `companyId === 'all'` mencegah override kalau nanti ada alur
+  // lain yang sengaja set companyId lebih dulu.
+  //
+  // Adjust saat render, BUKAN useEffect (2026-08-24, fix lint
+  // react-hooks/set-state-in-effect) — kondisi `companyId === 'all'` OTOMATIS
+  // jadi false setelah setState ini jalan, jadi aman dari infinite loop tanpa
+  // perlu state pembanding tambahan. Pola resmi React ("Adjusting state
+  // during render", react.dev) — React re-render ulang sebelum paint ke
+  // layar, tidak ada commit/paint terpisah spt effect.
+  if (companies.length === 1 && companyId === 'all') {
+    setCompanyIdState(companies[0]!.id);
+  }
   // Division sekarang FK integer per company (task012 v2) — division_id, bukan
   // string key lagi.
   const [division, setDivision] = useState<number | ''>('');
@@ -46,7 +71,18 @@ export function useScopedCompanyFilter() {
 
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);
-  const { data: allBranches = [] } = useBranchesByCompany(companyId === 'all' ? null : companyId);
+  // enabled: !scopedBranches.restricted (2026-08-31, bug: user branch-
+  // restricted mis. "MKO Sales" kena toast merah "Akses ditolak" di hampir
+  // semua halaman) — `allBranches` di bawah cuma DIPAKAI kalau user
+  // UNRESTRICTED (lihat branchOptions), tapi query-nya SEBELUMNYA jalan
+  // TANPA SYARAT begitu companyId spesifik, padahal endpoint-nya (`GET
+  // /companies/:id/branches`) minta permission `settings.branch:view` yang
+  // TIDAK dipunyai user biasa — selalu 403 utk user restricted, sia-sia
+  // pula (hasilnya toh dibuang). Lihat JSDoc useBranchesByCompany.
+  const { data: allBranches = [] } = useBranchesByCompany(
+    companyId === 'all' ? null : companyId,
+    { enabled: !scopedBranches.restricted },
+  );
   // company_name cuma terisi di getScopedBranches() saat companyId==='all' (union
   // lintas company) - itulah satu-satunya kondisi nama branch bisa ambigu/bertabrakan
   // (mis. dua company sama-sama punya branch "Jakarta"), jadi suffix cuma muncul di

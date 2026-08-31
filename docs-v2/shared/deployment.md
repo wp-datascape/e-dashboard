@@ -23,7 +23,10 @@ itu khusus panel aaPanel sendiri, mekanismenya beda dan auto-managed, jangan dis
 
 ### CD (GitHub Actions → GHCR → VPS)
 
-`.github/workflows/cd.yml` — 2 job terpisah:
+`.github/workflows/pipeline.yml` (2026-08-27, task029.md §38 — digabung dari `ci.yml`+`cd.yml`
+terpisah, lihat `docs-v2/shared/ci-cd.md` §0 untuk alasannya) — job `deploy-dev`/`deploy-prod`
+`needs: [backend, frontend]`, jadi **tidak jalan sama sekali kalau CI (typecheck/audit/test/
+build) gagal** di commit yang sama, bukan cuma sinyal peringatan:
 - **deploy-dev**: trigger push ke branch `dev`
 - **deploy-prod**: trigger push ke branch `main`
 

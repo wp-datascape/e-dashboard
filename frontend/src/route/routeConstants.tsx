@@ -2,6 +2,12 @@ import { ReactNode } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import {
   Dashboard,
+  Growth,
+  Retention,
+  Value,
+  ReportGrowth,
+  ReportRetention,
+  ReportRevenue,
   Customers,
   CustomerMetrics,
   CrossSelling,
@@ -32,6 +38,8 @@ import {
   IntegrationPage,
   FeaturesPage,
   AbTesting,
+  HelpPage,
+  WhatsNewPage,
 } from './routeLazyComponents'
 
 // Helper: wrap page in DashboardLayout
@@ -51,6 +59,38 @@ export interface RouteRegistryItem {
 export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Executive Dashboard ─────────────────────────────────────────────────
   'dashboard':            { path: '/dashboard',              element: withLayout(<Dashboard />),             protected: true, permissionKey: 'dashboard:view' },
+  // Growth/Retention/Value (task029, 2026-08-19) — 1 menu, 1 halaman per
+  // grup, reuse LANGSUNG komponen chart M1-M10 yg sudah ada di
+  // cross-selling/customer-metrics/dormant-customer (bukan chart baru dari
+  // /dashboard — percobaan pertama salah, sudah dikoreksi user).
+  //
+  // permissionKey pakai permission baru khusus per grup (growth:view/
+  // retention:view/value:view, lihat backend/src/db/seed.ts) mengikuti pola
+  // menu+view yang sudah ada di tiap halaman lain (bukan reuse dashboard:view
+  // — itu punya Overview, endpoint beda).
+  //
+  // CATATAN: ini gerbang ROUTE level doang. Data yang benar-benar dipanggil
+  // tiap halaman TETAP dicek independen oleh permission endpoint aslinya —
+  // Growth: /metrics/cross-selling (cross.selling:view) + /metrics/
+  // customer-metrics (expansion:view). Retention: /metrics/customer-metrics
+  // + /metrics/dormant-customer (churn.risk:view). Value: /metrics/
+  // customer-metrics. growth:view/dst tidak menggantikan pengecekan itu —
+  // kalau user py2 growth:view tapi TIDAK py2 cross.selling:view/
+  // expansion:view, halaman kebuka tapi chart-nya 403. ADMIN_PERMISSION_NAMES/
+  // USER_PERMISSION_NAMES di seed.ts sudah include keduanya sekaligus jadi
+  // tidak kejadian utk role default, tapi role custom bisa saja timpang —
+  // belum ditangani di UI (misal: sembunyikan chart yang usernya tidak
+  // berhak, bukan biarkan 403 polos), follow-up.
+  'growth':               { path: '/growth',                 element: withLayout(<Growth />),                protected: true, permissionKey: 'growth:view' },
+  'retention':            { path: '/retention',               element: withLayout(<Retention />),             protected: true, permissionKey: 'retention:view' },
+  'value':                { path: '/value',                   element: withLayout(<Value />),                 protected: true, permissionKey: 'value:view' },
+  // Laporan (task029.md §30.19, 2026-08-22) — tabel breakdown Growth/
+  // Retention/Revenue, dipisah dari halaman chart. permissionKey REUSE
+  // growth:view/retention:view/value:view (SAMA dgn chart-nya) — bukan
+  // permission baru.
+  'report-growth':        { path: '/report/growth',          element: withLayout(<ReportGrowth />),          protected: true, permissionKey: 'growth:view' },
+  'report-retention':     { path: '/report/retention',       element: withLayout(<ReportRetention />),       protected: true, permissionKey: 'retention:view' },
+  'report-revenue':       { path: '/report/revenue',         element: withLayout(<ReportRevenue />),         protected: true, permissionKey: 'value:view' },
   // ── Customer Workbench ───────────────────────────────────────────────────
   'customers':            { path: '/customers',              element: withLayout(<Customers />),             protected: true, permissionKey: 'customer:view' },
   'customers-expansion':  { path: '/customer-metrics',       element: withLayout(<CustomerMetrics />),       protected: true, permissionKey: 'expansion:view' },
@@ -63,7 +103,12 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   // ── Transaction & Revenue ────────────────────────────────────────────────
   'transactions':         { path: '/transactions',           element: withLayout(<Transactions />),          protected: true, permissionKey: 'transaction:view' },
   'projects':             { path: '/projects',               element: withLayout(<Projects />),              protected: true, permissionKey: 'project:view' },
-  'analisis':             { path: '/analisis',                element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'analisis:view' },
+  // permissionKey ikut backend saat ini (task025 rename: analisis:view ->
+  // customer.revenue:view, lihat backend/src/features/analisis/analisis.route.ts)
+  // — dibawa dari dev-legacy bareng backend, seed.ts py migrasi backward-compat
+  // ('analisis:view' -> 'customer.revenue:view') tapi frontend langsung pakai
+  // key final, tidak bergantung shim itu.
+  'analisis':             { path: '/analisis',                element: withLayout(<AnalisisPage />),           protected: true, permissionKey: 'customer.revenue:view' },
   // Personal, tidak butuh permission spesifik — siapa pun yang login berhak
   // lihat notifikasi miliknya sendiri (di-scope by user_id di backend).
   'notifications':        { path: '/notifications',           element: withLayout(<NotificationsPage />),      protected: true, permissionKey: 'notifications:view' },
@@ -89,6 +134,14 @@ export const routeRegistry: Record<string, RouteRegistryItem> = {
   'audit-log':            { path: '/audit-log',              element: withLayout(<AuditLog />),              protected: true, permissionKey: 'audit.log:view' },
   'activity-log':         { path: '/activity-log',            element: withLayout(<ActivityLog />),           protected: true, permissionKey: 'activity.log:view' },
   'login-log':            { path: '/login-log',               element: withLayout(<LoginLog />),              protected: true, permissionKey: 'login.log:view' },
+  // ── Help (task029.md §37) ────────────────────────────────────────────────
+  // Terlihat SEMUA user login (bukan gated per-role spt Settings) — sengaja
+  // TANPA permissionKey, ProtectedRoute cuma cek isAuthenticated kalau
+  // permissionKey undefined (lihat context/AuthContext.tsx).
+  'help':                 { path: '/help',                    element: withLayout(<HelpPage />),              protected: true },
+  // task033 — halaman "Info & Panduan", standalone spt Help, TANPA
+  // permissionKey (terlihat semua user login apa pun role-nya).
+  'whats-new':            { path: '/whats-new',               element: withLayout(<WhatsNewPage />),          protected: true },
   // ── Legacy (backward compat — tidak di menu) ─────────────────────────────
   'config':               { path: '/config',                 element: withLayout(<Config />),                protected: true },
 }

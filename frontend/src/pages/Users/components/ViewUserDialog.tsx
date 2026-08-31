@@ -8,6 +8,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import type { StatusChipColor } from '@/components/ui/StatusChip';
 import type { User } from '@/types/users';
+import { formatDateID, formatDateTimeID } from '@/utils/date';
 
 interface ViewUserDialogProps {
   open: boolean;
@@ -26,14 +27,9 @@ const getRoleColor = (roleName: string): StatusChipColor => {
   return map[roleName] ?? 'default';
 };
 
-const fmtDate = (iso: string | null, fallback: string): string => {
-  if (!iso) return fallback;
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
+// Format Indonesia dd-mm-yyyy — dipusatkan di utils/date.ts (2026-08-19)
+const fmtDate = (iso: string | null, fallback: string): string =>
+  iso ? formatDateID(iso) : fallback;
 
 export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
   const { t } = useTranslation();
@@ -134,7 +130,7 @@ export function ViewUserDialog({ open, onClose, user }: ViewUserDialogProps) {
             </Typography>
             <Typography variant="body2">
               {user.last_login_at
-                ? new Date(user.last_login_at).toLocaleString('id-ID')
+                ? formatDateTimeID(user.last_login_at)
                 : t('users.no_last_login')}
             </Typography>
           </Box>

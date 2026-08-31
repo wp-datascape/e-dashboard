@@ -1,6 +1,7 @@
 {
   "title": "Transactions",
   "subtitle": "Invoice transaction list with filters and detail dialog",
+  "periodHeading": "Showing data for period: {{period}}",
   "invoiceNumber": "Invoice #",
   "invoiceDate": "Date",
   "company": "Company",
@@ -11,5 +12,14 @@
   "searchPlaceholder": "Search customer...",
   "detailTitle": "Invoice Detail",
   "lineItems": "Line Items",
-  "gpMargin": "GP Margin"
+  "gpMargin": "GP Margin",
+  "exportExcel": "Export Excel",
+  "exportError": "Failed to export Excel, try again",
+  "customerCode": "Customer Code",
+  "exportDialogTitle": "Select Fields to Export",
+  "exportDialogSubtitle": "Uncheck any field you don't need.",
+  "exportSelectAll": "Select All",
+  "exportClearAll": "Clear All",
+  "exportGpMarginHint": "Requires Revenue & GP to be selected",
+  "exportEmptyError": "Select at least 1 field"
 }

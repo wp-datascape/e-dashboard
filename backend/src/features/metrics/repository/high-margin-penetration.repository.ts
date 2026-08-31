@@ -1,6 +1,7 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { buildCompanyConditionRaw, buildBranchConditionRaw } from '@/utils/scope'
+import { resolveInvoiceScopeConditions } from '../segment.helper'
 
 // ─── Params ───────────────────────────────────────────────────────────────────
 
@@ -9,10 +10,25 @@ export interface HmDetailRepoParams {
   companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
+  // periodStart (2026-08-31, laporan user: "makanya aku menyuruh pakai
+  // filter global itu karena hal seperti ini" — lihat komentar
+  // periodStartField di metrics.schema.ts) — kalau diisi, dipakai LANGSUNG
+  // sbg batas awal window (skip perhitungan periodEnd-activeWindow bulan,
+  // yg cuma APROKSIMASI). Opsional - caller lama (ProductsHighMargin/
+  // index.tsx, RangeFilter sendiri) yg tidak isi ini TETAP jalan seperti biasa.
+  periodStart?: string | null
   page: number
   perPage: number
   division?: number | null   // filter laporan - mirror business_unit di metrics lain
   excludeIntercompany?: boolean
+  // onlyPareto/filterDate (2026-08-31, laporan user: "cek dan perbaiki filter
+  // lain di halaman sama" — lihat komentar hmDetailQuerySchema.only_pareto
+  // di metrics.schema.ts) — DITEMUKAN sebelumnya sengaja no-op (lihat
+  // InvoiceScopeParams.filterDate di segment.helper.ts), benar SAAT itu utk
+  // ProductsHighMargin (tidak py UI Pareto), TAPI Report/Revenue reuse
+  // komponen ini DENGAN toggle Pareto - celah sama persis dgn periodStart.
+  onlyPareto?: boolean
+  filterDate?: string
   branchFilter?: number | null // filter laporan - mirror branch_id di metrics lain
   branchScope?: Map<number, number[]>
   divisionScope?: Map<number, number[]>
@@ -25,7 +41,14 @@ export interface UpsellTargetRepoParams {
   companyScopeIds?: number[]
   periodEnd: string
   activeWindow: number
-  businessUnit: string | null
+  // periodStart — lihat komentar HmDetailRepoParams.periodStart di atas, pola sama.
+  periodStart?: string | null
+  // onlyPareto/filterDate — lihat komentar HmDetailRepoParams di atas, pola sama.
+  onlyPareto?: boolean
+  filterDate?: string
+  // divisionId (2026-08-26, task031.md §3 — GANTI dari `businessUnit: string`
+  // legacy free-text ke FK numeric, sama pola filter Divisi KPI lain).
+  divisionId: number | null
   page: number
   perPage: number
   excludeIntercompany?: boolean
@@ -70,6 +93,24 @@ export interface HmProductDbRow {
   category_name: string
   customer_count: number
   total_active_customers: number
+  // total_hm_buyers (2026-08-31, instruksi user: "tambahkan summary total
+  // pembeli high margin di atas tabel produk penetration") — distinct customer
+  // count yang beli MINIMAL 1 produk HM efektif APAPUN dalam window/scope ini,
+  // BEDA dari `customer_count` per baris (itu per-PRODUK, sengaja tidak boleh
+  // dijumlah antar baris - customer yang beli >1 produk HM akan ke-double-count).
+  // Sama utk SEMUA baris (scalar subquery), diambil dari baris pertama di
+  // service layer (getHmProductPenetrationDetail).
+  total_hm_buyers: number
+  // total_hm_buyers_existing/_new (2026-08-31, instruksi user: "buat 2 kartu,
+  // 1 existing active, 1 new customer, total yang membeli active transacting"
+  // — susulan laporan "kenapa di card 24 di tabel 25, itu inkonsistensi")
+  // — pecahan `total_hm_buyers` di atas: existing = customer transaksi PERTAMA
+  // KALI SEPANJANG HIDUP sebelum window ini mulai (SAMA definisi
+  // `established_customers` M5, lihat cteFirstInvoiceDate segment.helper.ts),
+  // new = transaksi pertamanya justru DI DALAM window ini. existing+new SELALU
+  // = total_hm_buyers (populasi sama, cuma dipecah 2, bukan hitungan baru).
+  total_hm_buyers_existing: number
+  total_hm_buyers_new: number
   penetration_rate: number
   total_revenue: number
   total_gp: number
@@ -78,16 +119,27 @@ export interface HmProductDbRow {
   assign_to: AssignToDivision[]
 }
 
+// UpsellMissingCategory (2026-08-26, task031.md §3) — CategoryRef diperkaya
+// affinity_pct per kategori (0 = tidak match divisi dominan customer/di
+// bawah ambang sampel), lihat komentar hm_affinity/missing_high_margin_categories
+// di fetchUpsellTargets.
+export interface UpsellMissingCategory extends CategoryRef {
+  affinity_pct: number
+}
+
 export interface UpsellTargetDbRow {
   id: number
   customer_code: string | null
   customer_name: string
-  business_unit: string | null
+  // division_label (2026-08-26, task031.md §3 — GANTI dari `business_unit`
+  // legacy) — nama Divisi DOMINAN customer ini (transaksi terbanyak dalam
+  // activeWindow), bukan lagi divisi dari channel transaksi terakhir saja.
+  division_label: string | null
   last_invoice_date: string
   avg_monthly_revenue: number
   relevance_score: number
   categories_bought: CategoryRef[]
-  missing_high_margin_categories: CategoryRef[]
+  missing_high_margin_categories: UpsellMissingCategory[]
   total_count: number
 }
 
@@ -160,12 +212,14 @@ function hmCatsCte(cid: number, periodEnd: string, companyScopeIds: number[] | u
 
 export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
+  // windowStartCond — lihat komentar sama persis di fetchHmProductDetail
+  // (periodStart eksak MENANG atas derivasi periodEnd-activeWindow bulan).
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
@@ -180,13 +234,14 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     hm_items AS (
       SELECT
@@ -203,7 +258,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (
           ii.product_category_id IN (SELECT product_category_id FROM hm_cat_level)
@@ -214,6 +269,7 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     )
     SELECT
       pc.id                                                              AS category_id,
@@ -268,16 +324,44 @@ export async function fetchHmDetail(p: HmDetailRepoParams): Promise<HmDetailDbRo
 // angka konsisten dgn baris kategori (kalau kategori jadi opsi sekunder).
 export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmProductDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
+  // first_invoice_date (2026-08-31) — mirror PERSIS cteFirstInvoiceDate
+  // (segment.helper.ts, dipakai M5 established_customers) tapi ditulis inline
+  // krn beda shape param (HmDetailRepoParams vs SegmentParams) - scope-nya
+  // SENGAJA cuma company/branch (akses data), BUKAN division/exclude-
+  // intercompany (itu klasifikasi channel, bukan hak akses data historis).
+  const branchCondFid = buildBranchConditionRaw('ix0.company_id', 'ix0.branch_id', p.branchScope)
+  const companyCondFid = buildCompanyConditionRaw('ix0.company_id', p.cid, p.companyScopeIds)
+  // windowStartCond (2026-08-31) — periodStart EKSAK (kalau diisi caller,
+  // lihat komentar HmDetailRepoParams.periodStart) MENANG atas derivasi
+  // periodEnd-activeWindow bulan. `>=` (inklusif tanggal itu sendiri) beda
+  // dari fallback lama `>` (eksklusif hasil pengurangan bulan) - keduanya
+  // tetap SETARA persis kalau periodStart-nya sendiri hasil hitungan
+  // "periodEnd - activeWindow bulan + 1 hari", TIDAK ada perubahan perilaku
+  // utk caller lama yg belum kirim periodStart sama sekali.
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
+  const windowStartCondFid = p.periodStart
+    ? sql`fid.first_date < ${p.periodStart}::date`
+    : sql`fid.first_date < ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
+  const windowStartCondFidNew = p.periodStart
+    ? sql`fid.first_date >= ${p.periodStart}::date`
+    : sql`fid.first_date >= ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
     ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds, division)},
+    first_invoice_date AS (
+      SELECT ix0.customer_id, MIN(ix0.invoice_date) AS first_date
+      FROM invoices ix0
+      WHERE ix0.deleted_at IS NULL
+        AND ${branchCondFid}
+        AND ${companyCondFid}
+      GROUP BY ix0.customer_id
+    ),
     active AS (
       SELECT DISTINCT i.customer_id
       FROM invoices i
@@ -288,13 +372,14 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     -- Produk efektif HM: langsung per-produk (hm_product_level), ATAU seluruh
     -- produk di kategori yang ditandai level-kategori (hm_cat_level) - mirror
@@ -322,7 +407,7 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND ii.product_id IN (SELECT product_id FROM hm_effective_products)
         AND (${division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${division}::int)
@@ -330,6 +415,7 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
     ),
     -- "Assign To" per produk - union divisi dari flag yang berlaku (langsung
     -- per-produk ATAU warisan flag category-level, BUKAN dari flag product-level
@@ -357,6 +443,19 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       pc.name                                                            AS category_name,
       COUNT(DISTINCT hi.customer_id)::int                                AS customer_count,
       (SELECT COUNT(*)::int FROM active)                                 AS total_active_customers,
+      (SELECT COUNT(DISTINCT customer_id)::int FROM hm_items)            AS total_hm_buyers,
+      (
+        SELECT COUNT(DISTINCT hi2.customer_id)::int
+        FROM hm_items hi2
+        JOIN first_invoice_date fid ON fid.customer_id = hi2.customer_id
+        WHERE ${windowStartCondFid}
+      )                                                                  AS total_hm_buyers_existing,
+      (
+        SELECT COUNT(DISTINCT hi2.customer_id)::int
+        FROM hm_items hi2
+        JOIN first_invoice_date fid ON fid.customer_id = hi2.customer_id
+        WHERE ${windowStartCondFidNew}
+      )                                                                  AS total_hm_buyers_new,
       ROUND(
         COUNT(DISTINCT hi.customer_id)::numeric
           / NULLIF((SELECT COUNT(*) FROM active), 0) * 100, 1
@@ -386,6 +485,9 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
       category_name:          String(row.category_name),
       customer_count:         Number(row.customer_count         ?? 0),
       total_active_customers: Number(row.total_active_customers ?? 0),
+      total_hm_buyers:        Number(row.total_hm_buyers        ?? 0),
+      total_hm_buyers_existing: Number(row.total_hm_buyers_existing ?? 0),
+      total_hm_buyers_new:    Number(row.total_hm_buyers_new    ?? 0),
       penetration_rate:       Number(row.penetration_rate       ?? 0),
       total_revenue:          Number(row.total_revenue          ?? 0),
       total_gp:               Number(row.total_gp               ?? 0),
@@ -400,46 +502,132 @@ export async function fetchHmProductDetail(p: HmDetailRepoParams): Promise<HmPro
 
 export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<UpsellTargetDbRow[]> {
   const offset = (p.page - 1) * p.perPage
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions({ ...p, filterDate: p.filterDate ?? p.periodEnd })
   const branchFilter = p.branchFilter ?? null
+  // windowStartCond — lihat komentar sama persis di fetchHmProductDetail
+  // (periodStart eksak MENANG atas derivasi periodEnd-activeWindow bulan).
+  const windowStartCond = p.periodStart
+    ? sql`i.invoice_date >= ${p.periodStart}::date`
+    : sql`i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'`
 
   const rows = await db.execute(sql`
     WITH
     ${hmCatsCte(p.cid, p.periodEnd, p.companyScopeIds, null)},
-    -- Top-2 business_unit per HM category berdasarkan jumlah distinct buyer
-    hm_affinity AS (
-      SELECT product_category_id, business_unit
+    -- cust_dominant_division (2026-08-26, task031.md §2/§3 — GANTI dari
+    -- 'customers.business_unit' legacy, yang nilainya cuma divisi dari
+    -- CHANNEL transaksi PALING BARU customer — bisa flip-flop 1 transaksi,
+    -- terpisah dari sistem Divisi resmi M1-M10). Resolusi per invoice SAMA
+    -- PERSIS pola 'latest_inv' M1 (COALESCE override -> channel_divisions ->
+    -- "Lainnya"), tapi di sini di-agregasi jadi divisi TEMPAT TRANSAKSI
+    -- TERBANYAK (by invoice count) dalam activeWindow — bukan cuma yang
+    -- terakhir, jauh lebih stabil mencerminkan jenis usaha yang genuine.
+    -- MATERIALIZED (alasan performa SAMA PERSIS hm_affinity di bawah — CTE
+    -- ini dipakai dalam subquery berkorelasi per baris juga, lihat cdd2 di
+    -- SELECT akhir).
+    inv_division AS (
+      SELECT
+        i.customer_id,
+        COALESCE(c.division_override_id, cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) AS division_id
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN channel_divisions cd
+        ON cd.channel_name = i.channel_name
+        AND cd.company_id = i.company_id
+      WHERE i.deleted_at    IS NULL
+        AND c.is_placeholder = false
+        AND ${companyCondI}
+        AND ${windowStartCond}
+        AND i.invoice_date <= ${p.periodEnd}::date
+        AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
+        AND ${branchCond}
+        AND ${divisionScopeCond}
+        AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
+    ),
+    cust_dominant_division AS MATERIALIZED (
+      SELECT customer_id, division_id
+      FROM (
+        SELECT customer_id, division_id,
+          ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COUNT(*) DESC) AS rn
+        FROM inv_division
+        WHERE division_id IS NOT NULL
+        GROUP BY customer_id, division_id
+      ) ranked
+      WHERE rn = 1
+    ),
+    division_totals AS MATERIALIZED (
+      SELECT division_id, COUNT(*)::int AS total
+      FROM cust_dominant_division
+      GROUP BY division_id
+    ),
+    -- hm_affinity (2026-08-26, task031.md §2/§3 — GANTI dari "Top-2
+    -- business_unit per kategori HM TANPA ambang minimum" ke "persentase
+    -- pembeli per divisi dominan, HANYA kalau >= 20 pembeli unik" — sebelum
+    -- ini kategori dgn 2 pembeli otomatis 'favorit' 2 business_unit itu,
+    -- sinyal terlalu tipis buat dasar rekomendasi. 'affinity_pct' sekarang
+    -- ANGKA YANG BISA DIBACA LANGSUNG ("68% pelanggan divisi X beli
+    -- kategori ini"), bukan skor mentah tanpa arti.
+    --
+    -- MATERIALIZED (2026-08-22, bug timeout 20s dgn scope "Semua Entitas") —
+    -- CTE ini dibaca dari DALAM subquery berkorelasi relevance_score di SELECT
+    -- akhir (per baris customer_data x customers, bisa puluhan ribu baris).
+    -- Postgres 12+ defaultnya meng-INLINE CTE yang cuma dipakai di 1 tempat
+    -- (bukan materialize) — karena titik pakainya ada DI DALAM subquery
+    -- berkorelasi, "1 tempat" itu dieksekusi ULANG tiap baris outer query,
+    -- jadi JOIN+WindowAgg berat CTE ini (invoice_items x invoices x customers x
+    -- channel_divisions) ikut dihitung ulang per-customer alih-alih SEKALI lalu
+    -- dipakai ulang. EXPLAIN membuktikan: SubPlan relevance_score punya
+    -- WindowAgg/GroupAggregate TERINLINE identik definisi CTE ini (bukan CTE
+    -- Scan ke hasil yang sudah dihitung), total cost sampai 84 JUTA (vs cost
+    -- CTE ini sendirian cuma puluhan ribu). MATERIALIZED memaksa Postgres
+    -- hitung SEKALI, simpan hasilnya, baru dipakai berulang oleh subquery.
+    hm_affinity AS MATERIALIZED (
+      SELECT
+        counted.product_category_id,
+        counted.division_id,
+        counted.buyer_count,
+        ROUND(counted.buyer_count::numeric / dt.total * 100, 1) AS affinity_pct
       FROM (
         SELECT
           ii.product_category_id,
-          c.business_unit,
-          RANK() OVER (
-            PARTITION BY ii.product_category_id
-            ORDER BY COUNT(DISTINCT i.customer_id) DESC
-          ) AS bu_rank
+          cdd.division_id,
+          COUNT(DISTINCT i.customer_id) AS buyer_count
         FROM   invoice_items ii
         JOIN   invoices  i  ON i.id  = ii.invoice_id
-        JOIN   customers c  ON c.id  = i.customer_id
+        JOIN   cust_dominant_division cdd ON cdd.customer_id = i.customer_id
+        -- JOIN customers c + channel_divisions cd (fix bug 2026-08-30,
+        -- laporan user: 500 "missing FROM-clause entry for table cd" utk
+        -- non-superadmin dgn division scope) — divisionScopeCond/
+        -- excludeIntercompanyCond di bawah (dari resolveInvoiceScopeConditions,
+        -- alias default 'c'/'cd', TIDAK diubah di sini) SELALU merujuk
+        -- cd.division_id (dan c.division_override_id kalau exclude_intercompany
+        -- aktif) — CTE ini sebelumnya cuma JOIN cust_dominant_division (alias
+        -- cdd, konsep beda: divisi DOMINAN customer, bukan divisi channel per
+        -- transaksi), jadi alias cd/c tidak ada sama sekali di FROM clause-nya.
+        -- LEFT JOIN (bukan JOIN) sengaja SAMA seperti CTE sibling inv_division/
+        -- customer_data di file ini — channel yang belum dipetakan ke divisi
+        -- tetap boleh muncul (division_id NULL), bukan didrop diam-diam.
+        JOIN   customers c ON c.id = i.customer_id
         LEFT JOIN channel_divisions cd
           ON cd.channel_name = i.channel_name
           AND cd.company_id = i.company_id
         WHERE  i.deleted_at     IS NULL
-          AND  c.is_placeholder  = false
           AND  ${companyCondI}
-          AND  i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+          AND  ${windowStartCond}
           AND  i.invoice_date <= ${p.periodEnd}::date
-          AND  c.business_unit  IS NOT NULL
           AND  ii.product_category_id IN (SELECT product_category_id FROM hm_cats)
           AND  (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
           AND  ${branchCond}
           AND  ${divisionScopeCond}
           AND  ${excludeIntercompanyCond}
-        GROUP BY ii.product_category_id, c.business_unit
-      ) ranked
-      WHERE bu_rank <= 2
+          AND ${onlyParetoCond}
+        GROUP BY ii.product_category_id, cdd.division_id
+      ) counted
+      JOIN division_totals dt ON dt.division_id = counted.division_id
+      -- Ambang minimum sampel (task031.md §2, keputusan user via
+      -- AskUserQuestion): 20 pembeli unik, di bawah itu sinyal dianggap
+      -- terlalu tipis utk jadi dasar "kategori favorit divisi ini".
+      WHERE counted.buyer_count >= 20
     ),
     customer_data AS (
       SELECT
@@ -458,51 +646,65 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       WHERE i.deleted_at    IS NULL
         AND c.is_placeholder = false
         AND ${companyCondI}
-        AND i.invoice_date >  ${p.periodEnd}::date - ${p.activeWindow}::int * INTERVAL '1 month'
+        AND ${windowStartCond}
         AND i.invoice_date <= ${p.periodEnd}::date
         AND (${branchFilter}::int IS NULL OR i.branch_id = ${branchFilter}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
+        AND ${onlyParetoCond}
       GROUP BY i.customer_id
     )
     SELECT
       c.id,
       c.customer_code,
       c.customer_name,
-      c.business_unit,
+      d.label                                                                  AS division_label,
       cd.last_invoice_date,
       ROUND(cd.total_revenue / NULLIF(cd.active_months_count, 0), 0)::bigint AS avg_monthly_revenue,
-      -- Jumlah missing HM categories yang business_unit-nya = top buyer segment customer ini
+      -- relevance_score (2026-08-26, task031.md §2/§3) — GANTI dari COUNT
+      -- kategori yang cocok (angka mentah tanpa arti langsung) ke MAX
+      -- affinity_pct di antara kategori yang belum dibeli customer ini —
+      -- angka persentase yang self-explanatory, dipakai jg utk ORDER BY.
       (
-        SELECT COUNT(*)
+        SELECT COALESCE(MAX(ha.affinity_pct), 0)
         FROM   hm_cats hmc_r
+        LEFT JOIN hm_affinity ha
+          ON ha.product_category_id = hmc_r.product_category_id
+          AND ha.division_id        = cdd2.division_id
         WHERE  NOT (hmc_r.product_category_id = ANY(COALESCE(cd.cat_ids_bought, '{}')))
-          AND  EXISTS (
-            SELECT 1 FROM hm_affinity ha
-            WHERE  ha.product_category_id = hmc_r.product_category_id
-              AND  ha.business_unit       = c.business_unit
-          )
-      )::int                                                                   AS relevance_score,
+      )                                                                        AS relevance_score,
       (
         SELECT COALESCE(json_agg(json_build_object('id', pc.id, 'name', pc.name) ORDER BY pc.name), '[]'::json)
         FROM   UNNEST(COALESCE(cd.cat_ids_bought, '{}')) AS cat_id
         JOIN   product_categories pc ON pc.id = cat_id
       )                                                                        AS categories_bought,
+      -- missing_high_margin_categories (2026-08-26) — tiap elemen sekarang
+      -- bawa affinity_pct sendiri (0 kalau kategori itu tidak match divisi
+      -- dominan customer ini/di bawah ambang 20 pembeli) — biar UI bisa
+      -- tampilkan "68% pelanggan divisi X beli kategori ini" per kategori,
+      -- bukan cuma 1 skor gabungan yang butuh penjelasan terpisah.
       (
-        SELECT COALESCE(json_agg(json_build_object('id', pc.id, 'name', pc.name) ORDER BY pc.name), '[]'::json)
+        SELECT COALESCE(json_agg(json_build_object(
+          'id', pc.id, 'name', pc.name, 'affinity_pct', COALESCE(ha.affinity_pct, 0)
+        ) ORDER BY COALESCE(ha.affinity_pct, 0) DESC, pc.name), '[]'::json)
         FROM   hm_cats hmc2
         JOIN   product_categories pc ON pc.id = hmc2.product_category_id
+        LEFT JOIN hm_affinity ha
+          ON ha.product_category_id = hmc2.product_category_id
+          AND ha.division_id        = cdd2.division_id
         WHERE  NOT (hmc2.product_category_id = ANY(COALESCE(cd.cat_ids_bought, '{}')))
       )                                                                        AS missing_high_margin_categories,
       COUNT(*) OVER ()::int                                                    AS total_count
     FROM   customer_data cd
     JOIN   customers c ON c.id = cd.customer_id
+    LEFT JOIN cust_dominant_division cdd2 ON cdd2.customer_id = c.id
+    LEFT JOIN divisions d ON d.id = cdd2.division_id
     WHERE  NOT (
              (SELECT ARRAY_AGG(product_category_id) FROM hm_cats)
              <@ COALESCE(cd.cat_ids_bought, '{}')
            )
-      AND  (${p.businessUnit}::text IS NULL OR c.business_unit = ${p.businessUnit}::text)
+      AND  (${p.divisionId}::int IS NULL OR cdd2.division_id = ${p.divisionId}::int)
     ORDER  BY relevance_score DESC, avg_monthly_revenue DESC NULLS LAST
     LIMIT  ${p.perPage}
     OFFSET ${offset}
@@ -514,12 +716,12 @@ export async function fetchUpsellTargets(p: UpsellTargetRepoParams): Promise<Ups
       id:                           Number(row.id),
       customer_code:                row.customer_code ? String(row.customer_code) : null,
       customer_name:                String(row.customer_name),
-      business_unit:                row.business_unit ? String(row.business_unit) : null,
+      division_label:               row.division_label ? String(row.division_label) : null,
       last_invoice_date:            String(row.last_invoice_date ?? ''),
       avg_monthly_revenue:          Number(row.avg_monthly_revenue ?? 0),
       relevance_score:              Number(row.relevance_score ?? 0),
       categories_bought:            (row.categories_bought as CategoryRef[]) ?? [],
-      missing_high_margin_categories: (row.missing_high_margin_categories as CategoryRef[]) ?? [],
+      missing_high_margin_categories: (row.missing_high_margin_categories as UpsellMissingCategory[]) ?? [],
       total_count:                  Number(row.total_count ?? 0),
     }
   })

@@ -10,8 +10,6 @@ import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
-import Switch from '@mui/material/Switch'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import SearchIcon from '@mui/icons-material/Search'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -22,14 +20,16 @@ import { Card, StatusChip, DatePicker } from '@/components/ui'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
+import { ParetoFilterToggle } from '@/components/filters/ParetoFilterToggle'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
 import { useAnalisis } from '@/hooks/useAnalisis'
-import { formatIDR, formatIDRSigned } from '@/utils/format'
+import { formatRupiah, formatRupiahSigned } from '@/utils/format'
 import {
   getCurrentPeriodKey, getPeriodDateRange, formatDateRange, formatPeriodLabel, shiftDateByYears, shiftEndDate,
 } from '@/utils/analisisPeriod'
 import { MetricPair, MetricPercentPair } from '@/components/analisis/ComparisonMetrics'
 import { trendColor } from '@/utils/analisisComparison'
+import { clampDateNotFuture } from '@/utils/date'
 import type { AnalisisPeriodType, AnalisisRow } from '@/types/analisis'
 
 // Urutan terpendek -> terpanjang (UI/UX review 2026-07-31).
@@ -125,8 +125,8 @@ export default function AnalisisPage() {
   const periodStart = getPeriodDateRange(periodType, periodKey).start
   const currentRange = { start: periodStart, end: endDate }
   const comparisonRange = { start: shiftDateByYears(periodStart, -1), end: shiftDateByYears(endDate, -1) }
-  const currentRangeText = formatDateRange(currentRange)
-  const comparisonRangeText = formatDateRange(comparisonRange)
+  const currentRangeText = formatDateRange(t, currentRange)
+  const comparisonRangeText = formatDateRange(t, comparisonRange)
 
   const { data, isLoading } = useAnalisis({
     company_id: companyId,
@@ -189,7 +189,7 @@ export default function AnalisisPage() {
       width: 170,
       sortable: false,
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.comparison.revenue)} marginText={formatIDR(row.comparison.margin)} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatRupiah(row.comparison.revenue)} marginText={formatRupiah(row.comparison.margin)} />
       ),
     },
     {
@@ -201,7 +201,7 @@ export default function AnalisisPage() {
       // asc dulu bikin customer revenue 0 numpuk di atas, kelihatan salah arah.
       sortingOrder: ['desc', 'asc', null],
       renderCell: ({ row }) => (
-        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatIDR(row.current.revenue)} marginText={formatIDR(row.current.margin)} showLabels={false} />
+        <MetricPair revenueLabel={revLabel} marginLabel={gpLabel} revenueText={formatRupiah(row.current.revenue)} marginText={formatRupiah(row.current.margin)} showLabels={false} />
       ),
     },
     {
@@ -213,8 +213,8 @@ export default function AnalisisPage() {
         <MetricPair
           revenueLabel={revLabel}
           marginLabel={gpLabel}
-          revenueText={formatIDRSigned(row.comparison.revenue_change_value)}
-          marginText={formatIDRSigned(row.comparison.margin_change_value)}
+          revenueText={formatRupiahSigned(row.comparison.revenue_change_value)}
+          marginText={formatRupiahSigned(row.comparison.margin_change_value)}
           revenueColor={trendColor(row.comparison.revenue_change_pct, row.comparison.revenue_alert)}
           marginColor={trendColor(row.comparison.margin_change_pct, row.comparison.margin_alert)}
           showLabels={false}
@@ -280,12 +280,15 @@ export default function AnalisisPage() {
             label={t('analisis.periodDataLabel')}
             value={endDate}
             onChange={(e) => {
-              // Tidak boleh pilih tanggal di masa depan — clamp ke hari ini
-              // (komponen DatePicker atomic tidak expose slotProps/max native).
-              const picked = e.target.value
-              setEndDate(picked && picked > todayStr ? todayStr : picked)
+              // Tidak boleh pilih tanggal di masa depan ATAU kosong
+              // (2026-08-23, bug dilaporkan user: tombol clear bawaan
+              // browser bikin value kosong → fetch error, seharusnya reset
+              // ke hari ini) — clampDateNotFuture (utils/date.ts) SATU
+              // tempat pusat. `max` di bawah cegah dari calendar widget.
+              setEndDate(clampDateNotFuture(e.target.value, todayStr))
               setPaginationModel((p) => ({ ...p, page: 0 }))
             }}
+            max={todayStr}
             sx={{ minWidth: { xs: '100%', sm: 170 }, flex: { sm: '1 1 170px' } }}
           />
 
@@ -301,19 +304,12 @@ export default function AnalisisPage() {
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
           />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={onlyPareto}
-                onChange={(e) => {
-                  setOnlyPareto(e.target.checked)
-                  setPaginationModel((p) => ({ ...p, page: 0 }))
-                }}
-                size="small"
-              />
-            }
-            label={t('analisis.onlyPareto')}
-            sx={{ ml: 0, whiteSpace: 'nowrap' }}
+          <ParetoFilterToggle
+            checked={onlyPareto}
+            onChange={(checked) => {
+              setOnlyPareto(checked)
+              setPaginationModel((p) => ({ ...p, page: 0 }))
+            }}
           />
 
           <ExcludeIntercompanyToggle
@@ -331,7 +327,7 @@ export default function AnalisisPage() {
           </IconButton>
           <Stack spacing={0.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <Typography variant="subtitle2" noWrap sx={{ maxWidth: '100%' }}>
-              {formatPeriodLabel(periodType, periodKey)}
+              {formatPeriodLabel(t, periodType, periodKey)}
             </Typography>
             <Typography
               variant="caption"

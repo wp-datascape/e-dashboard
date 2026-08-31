@@ -1,6 +1,6 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
-import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw } from '@/utils/scope'
+import { resolveInvoiceScopeConditions } from '../segment.helper'
 
 /**
  * Drill-down "Customer Pembeli" + "Capaian per Divisi" (task017) — fitur baru
@@ -59,10 +59,7 @@ export interface HmDivisionBreakdownDbRow {
 // scalar/window function nempel di baris per-customer, supaya tetap benar walau
 // halaman customer yang diminta kosong.
 function hmCustomerItemsCte(p: HmCustomerRepoParams) {
-  const branchCond = buildBranchConditionRaw('i.company_id', 'i.branch_id', p.branchScope)
-  const divisionScopeCond = buildDivisionConditionRaw('i.branch_id', 'cd.division_id', p.divisionScope, p.otherIdByBranch)
-  const companyCondI = buildCompanyConditionRaw('i.company_id', p.cid, p.companyScopeIds)
-  const excludeIntercompanyCond = buildExcludeIntercompanyRaw('i.company_id', 'COALESCE(c.division_override_id, cd.division_id)', p.intercompanyIdByCompany, p.excludeIntercompany)
+  const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond } = resolveInvoiceScopeConditions(p)
   const division = p.division ?? null
   const branchFilter = p.branchFilter ?? null
   const targetCond = p.targetType === 'product'

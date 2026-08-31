@@ -104,12 +104,56 @@ export function createAppTheme(mode: 'light' | 'dark', paletteKey: PaletteKey = 
             pageSubtitle: 'p',
           },
         },
+        // Dukung prop `color` path bertitik, mis. `color="text.secondary"`
+        // (2026-08-25, koreksi user: "Semua harus tercentral dari theme
+        // config" — susulan bug "text tooltip tidak terbaca di mode
+        // terang"). Root cause: Typography BAWAAN MUI cuma generate style
+        // utk key warna TANPA titik (lihat @mui/material/Typography/
+        // Typography.js — top-level palette key spt "primary"/"warning",
+        // atau "textSecondary"/"textPrimary"/"textDisabled" tanpa titik).
+        // Konvensi path bertitik (`"text.secondary"`, `"warning.main"`,
+        // dst) dipakai di RATUSAN tempat di seluruh app — sebelumnya SEMUA
+        // itu gagal SENYAP (tanpa error/warning), warisi color ambient
+        // (kelihatan fatal di dalam MuiTooltip yang defaultnya putih).
+        // Rule generik ini resolve `<paletteKey>.<shade>` APAPUN dari 1
+        // tempat (theme config), bukan ganti satu-satu di tiap file —
+        // otomatis berlaku ke SEMUA pemakaian lama maupun baru.
+        variants: [
+          {
+            props: ({ ownerState }) => typeof ownerState.color === 'string' && ownerState.color.includes('.'),
+            // `style` (beda dari `props` di atas) tipenya dibatasi MUI cuma
+            // `{ theme: Theme }` (lihat @mui/material/styles/variants.d.ts)
+            // — TIDAK mendeklarasikan `ownerState` walau runtime-nya
+            // (createStyled.js `processStyleVariants`) SELALU nge-spread
+            // properti ownerState (termasuk `color`) LANGSUNG ke object
+            // yang sama, bukan cuma nested di `.ownerState`. Diakses
+            // sbg properti langsung (`props.color`) di sini utk menghindari
+            // gap tipe itu, bukan `as any`.
+            style: (props: { theme: Theme; color?: unknown }) => {
+              if (typeof props.color !== 'string') return {}
+              const [key, shade] = props.color.split('.')
+              const group = (props.theme.palette as unknown as Record<string, Record<string, string> | undefined>)[key]
+              const resolved = group?.[shade]
+              return resolved ? { color: resolved } : {}
+            },
+          },
+        ],
       },
       MuiCssBaseline: {
         styleOverrides: {
+          // colorScheme (2026-08-30, laporan user: "background area scroll
+          // bar berwarna hitam" di mode light) — `index.css` (:root) set
+          // `color-scheme: light dark` statis, TIDAK PERNAH disinkronkan ke
+          // `mode` app (ThemeContext.tsx, toggle manual independen dari OS).
+          // Browser bebas pilih skema native (scrollbar, kontrol form) ikut
+          // preferensi OS kalau keduanya "light dark" diizinkan — begitu OS
+          // dark tapi app displaying light (putih), scrollbar native tetap
+          // dirender gelap, kontras tajam. Deklarasi eksplisit di sini
+          // (bukan inherited dari :root) menang di body & seluruh
+          // descendant-nya (termasuk <main>, virtualScroller DataGrid, dst).
           body: isDark
-            ? { scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }
-            : { scrollbarWidth: 'thin' },
+            ? { colorScheme: 'dark', scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }
+            : { colorScheme: 'light', scrollbarWidth: 'thin' },
         },
       },
       MuiAppBar: {

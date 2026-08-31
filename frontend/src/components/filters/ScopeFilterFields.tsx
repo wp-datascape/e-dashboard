@@ -4,6 +4,7 @@ import MenuItem from '@mui/material/MenuItem'
 import { useTranslation } from 'react-i18next'
 import type { SxProps, Theme } from '@mui/material/styles'
 import type { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { FILTER_FIELD_WIDTH } from './filterFieldWidth'
 
 type ScopedFilter = ReturnType<typeof useScopedCompanyFilter>
 
@@ -12,6 +13,10 @@ export interface ScopeFilterFieldsProps {
   filter: ScopedFilter
   size?: 'small' | 'medium'
   sx?: SxProps<Theme>
+  /** Subset field yang dirender (default semua) — dipakai caller yang misah
+   * Entity di "quick filter" dan Branch/Division di panel "Filter Lanjutan"
+   * (mis. Growth/index.tsx, instruksi user 2026-08-20), TANPA duplikasi markup. */
+  fields?: Array<'entity' | 'branch' | 'division'>
 }
 
 /**
@@ -23,13 +28,29 @@ export interface ScopeFilterFieldsProps {
  * Opsi yang muncul SUDAH difilter scope user oleh useScopedCompanyFilter() (via
  * getScopedBranches/getScopedDivisions) - komponen ini cuma render apa yang dikasih.
  */
-export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFieldsProps) {
+export function ScopeFilterFields({ filter, size = 'small', sx, fields = ['entity', 'branch', 'division'] }: ScopeFilterFieldsProps) {
   const { t } = useTranslation()
   const {
     companies, showCompanyFilter, companyId, setCompanyId,
     branchOptions, showBranchFilter, branchId, setBranchId,
     divisionOptions, showDivisionFilter, division, setDivision,
   } = filter
+
+  // Filter berjenjang (2026-08-31, koreksi user: sebelumnya Division baru
+  // aktif kalau Branch JUGA sudah dipersempit ke 1 cabang spesifik — user
+  // sekarang minta Branch DAN Division sama-sama aktif begitu Company
+  // dipilih, tidak perlu nunggu Branch dipersempit dulu). Field-nya tetap
+  // TAMPIL (disabled/abu-abu), BUKAN disembunyikan, selama Company masih
+  // 'all' (koreksi user 2026-08-20: awalnya field malah hilang total, bukan
+  // disabled, karena branchOptions kosong saat companyId==='all' jadi
+  // showBranchFilter ikut false). Begitu company dipilih dan opsinya cuma
+  // <=1 (genuinely tidak ada pilihan berarti), showBranchFilter/
+  // showDivisionFilter tetap dipakai buat sembunyikan — itu kasus beda
+  // (bukan "belum dipilih").
+  const branchDisabled = companyId === 'all'
+  const divisionDisabled = companyId === 'all'
+  const showBranch = branchDisabled || showBranchFilter
+  const showDivision = divisionDisabled || showDivisionFilter
 
   return (
     <>
@@ -39,12 +60,12 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
           1 kolom di mobile TANPA perlu ubah direction parent jadi column secara terpisah
           di tiap halaman. Sebelumnya cuma minWidth (150-160px), di layar sempit 2 field
           muat berdampingan lewat wrap tapi keduanya kepotong/numpuk tidak rata. */}
-      {showCompanyFilter && (
+      {fields.includes('entity') && showCompanyFilter && (
         <TextField
           select size={size} label={t('common.filters.entity')}
           value={companyId}
           onChange={(e) => setCompanyId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          sx={{ width: { xs: '100%', sm: 160 }, ...sx }}
+          sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH }, ...sx }}
         >
           <MenuItem value="all">{t('common.filters.allEntities')}</MenuItem>
           {companies.map((c) => (
@@ -53,12 +74,13 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
         </TextField>
       )}
 
-      {showBranchFilter && (
+      {fields.includes('branch') && showBranch && (
         <TextField
           select size={size} label={t('common.branch')}
           value={branchId}
+          disabled={branchDisabled}
           onChange={(e) => setBranchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
+          sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH }, ...sx }}
         >
           <MenuItem value="all">{t('common.all')}</MenuItem>
           {branchOptions.map((b) => (
@@ -67,15 +89,16 @@ export function ScopeFilterFields({ filter, size = 'small', sx }: ScopeFilterFie
         </TextField>
       )}
 
-      {showDivisionFilter && (
+      {fields.includes('division') && showDivision && (
         <TextField
           select size={size} label={t('customers.detail.division')}
           value={division}
+          disabled={divisionDisabled}
           // Division sekarang division_id (number, task012 v2) — konversi eksplisit,
           // sama seperti Entity/Branch di atas (jangan andalkan `as` cast, MUI Select
           // event value bisa datang sebagai string tergantung render path).
           onChange={(e) => setDivision(e.target.value === '' ? '' : Number(e.target.value))}
-          sx={{ width: { xs: '100%', sm: 150 }, ...sx }}
+          sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH }, ...sx }}
           // MUI Select tidak render teks MenuItem terpilih kalau value === '' kecuali
           // displayEmpty di-set - beda dari Entity/Branch yang pakai sentinel 'all'
           // (non-empty), jadi selalu tampil normal tanpa perlu ini.

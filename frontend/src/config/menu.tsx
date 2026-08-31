@@ -2,13 +2,10 @@ import type { ReactNode } from 'react';
 
 // Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InventoryIcon from '@mui/icons-material/Inventory';
-import StarIcon from '@mui/icons-material/Star';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -31,6 +28,10 @@ import WebIcon from '@mui/icons-material/Web';
 import LoginIcon from '@mui/icons-material/Login';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import SummarizeIcon from '@mui/icons-material/Summarize';
+import StorageIcon from '@mui/icons-material/Storage';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlineOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 
 export interface NavItem {
   key: string;
@@ -47,106 +48,174 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 1: EXECUTIVE DASHBOARD
-  // ─────────────────────────────────────────────────────────────────────────
+  // Susulan (2026-08-22, instruksi user: "coba hilangkan judul section dan
+  // divider, jadi langsung overview") — SEMUA `groupLabelKey` di file ini
+  // dilepas (bukan cuma yang ini) — Sidebar.tsx cuma render header teks +
+  // Divider KALAU `section.groupLabelKey` truthy, jadi tanpa itu, TIDAK
+  // ada header/divider sama sekali, item-item mengalir jadi 1 list rapi.
+  // Business/Data yang tadinya "section flat py judul" (§30.20) DIUBAH JADI
+  // parent collapsible (pola sama Report/Settings) — satu-satunya cara
+  // tetap mengelompokkan visual tanpa judul section, lihat blok di bawah.
   {
     key: 'dashboard',
     path: '/dashboard',
     labelKey: 'nav.dashboard',
     icon: <DashboardIcon fontSize="small" />,
     permissionKey: 'dashboard:menu',
-    groupLabelKey: 'nav.groups.executiveDashboard',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 2: CUSTOMER WORKBENCH
+  // BUSINESS (task029 §30.20, direvisi 2026-08-22 — instruksi user: "menu
+  // business, sub menu growth, retention, revenue"). SEBELUMNYA "section
+  // flat" (item terpisah py `groupLabelKey` sama, §30.20) — sekarang parent
+  // COLLAPSIBLE (pola sama Report/Settings di bawah), Growth/Retention/
+  // Revenue jadi children-nya. Diperlukan krn judul section+divider
+  // dihapus total (lihat comment di 'dashboard' di atas) — tanpa jadi
+  // parent+children, 3 item ini akan mengalir polos tanpa pengelompokan
+  // visual apa pun.
+  //
+  // 'value' (child ketiga) — labelKey TETAP `nav.groups.revenue` ("Revenue",
+  // instruksi user 2026-08-22 sebelumnya) — key/path/permission internal
+  // TETAP 'value'/'/value'/'value:menu' (rename permission/route di luar
+  // scope, cuma label tampilan yang berubah).
+  //
+  // 10 KPI dikelompokkan per framework bisnis (docs-v2/task/task029.md
+  // §1-2). 1 menu per grup (2026-08-19) — REUSE LANGSUNG komponen chart
+  // M1-M10 yang sudah ada di cross-selling/customer-metrics/dormant-customer
+  // (M1CrossSelling, M2AvgCategory, M3Revenue, dst), BUKAN chart baru dari
+  // data ringkas /dashboard. Permission PAKAI permission khusus per grup
+  // (growth:menu/retention:menu/value:menu — lihat seed.ts). CATATAN: ini
+  // gerbang level menu/route doang — endpoint data yang dipanggil tiap
+  // halaman (cross.selling:view, expansion:view, churn.risk:view) TETAP
+  // dicek independen oleh backend-nya masing-masing, lihat routeConstants.tsx.
   // ─────────────────────────────────────────────────────────────────────────
   {
-    key: 'customer',
+    key: 'business',
+    path: '/growth',
+    labelKey: 'nav.groups.business',
+    icon: <BusinessIcon fontSize="small" />,
+    children: [
+      {
+        key: 'growth',
+        path: '/growth',
+        labelKey: 'nav.groups.growth',
+        icon: <TrendingUpIcon fontSize="small" />,
+        permissionKey: 'growth:menu',
+      },
+      {
+        key: 'retention',
+        path: '/retention',
+        labelKey: 'nav.groups.retention',
+        icon: <PersonOffIcon fontSize="small" />,
+        permissionKey: 'retention:menu',
+      },
+      {
+        key: 'value',
+        path: '/value',
+        labelKey: 'nav.groups.revenue',
+        icon: <AssessmentIcon fontSize="small" />,
+        permissionKey: 'value:menu',
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // REPORT (task029.md §30.19, 2026-08-22) — tabel breakdown yang dulu
+  // nempel permanen di bawah chart Growth (§29) DIPINDAH ke sini (koreksi
+  // keras user: "terlalu kotor jika chart digabung dengan tabel", "buatkan
+  // saja halaman khusus tabel"). Submenu Retention/Revenue baru shell/
+  // placeholder — isinya "nanti kita maping tabel-tabel apa saja yang kita
+  // masukkan disana" (instruksi user, BELUM diputuskan tabel mana yang
+  // pindah ke situ, Retention/Value tidak py tabel breakdown permanen sama
+  // sekali sejauh ini, cuma dialog drill-down klik-chart).
+  // permissionKey children REUSE growth:menu/retention:menu/value:menu
+  // (permission yang SAMA dgn halaman chart-nya) — bukan permission baru,
+  // supaya tidak perlu migrasi/seed tambahan: kalau bisa lihat chart
+  // Growth, bisa lihat tabel Growth.
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    key: 'report',
+    path: '/report/growth',
+    labelKey: 'nav.groups.report',
+    icon: <SummarizeIcon fontSize="small" />,
+    children: [
+      {
+        key: 'report-growth',
+        path: '/report/growth',
+        labelKey: 'nav.groups.growth',
+        icon: <TrendingUpIcon fontSize="small" />,
+        permissionKey: 'growth:menu',
+      },
+      {
+        key: 'report-retention',
+        path: '/report/retention',
+        labelKey: 'nav.groups.retention',
+        icon: <PersonOffIcon fontSize="small" />,
+        permissionKey: 'retention:menu',
+      },
+      {
+        key: 'report-revenue',
+        path: '/report/revenue',
+        labelKey: 'nav.groups.revenue',
+        icon: <AssessmentIcon fontSize="small" />,
+        permissionKey: 'value:menu',
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DATA (task029 §30.20, direvisi 2026-08-22 — instruksi user: "menu data,
+  // sub menu customer, produk, high margin, tren produk (hapus ini,
+  // redundan dengan retention), transaksi, proyek"). SEBELUMNYA "section
+  // flat" — sekarang parent COLLAPSIBLE (sama alasan dgn Business di atas).
+  // 'product-trend' (Tren Produk) DIHAPUS dari sini (instruksi eksplisit
+  // user: redundan dgn Retention) — HANYA dilepas dari MENU/sidebar, route
+  // `/products/trend` TIDAK dihapus dari routeConstants.tsx/page_settings
+  // (pola sama halaman lama lain di file ini — "isinya sama, cuma sudah
+  // tidak ada entry langsung di sidebar").
+  // 'high-margin' (task031.md §10, 2026-08-26 — instruksi user: "pindahkan
+  // ke menu laporan") DIHAPUS dari sini SAMA PERSIS pola 'product-trend' —
+  // isinya (tab Penetrasi Produk + Target Upsell) sudah digabung jadi
+  // sub-tab Report/Revenue -> "hm", route `/products/high-margin` TETAP
+  // ada (tidak dihapus dari routeConstants.tsx), cuma tidak ada entry
+  // langsung di sidebar lagi.
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    key: 'data',
     path: '/customers',
-    labelKey: 'nav.customers',
-    icon: <PeopleIcon fontSize="small" />,
-    permissionKey: 'customer:menu',
-    groupLabelKey: 'nav.groups.customerWorkbench',
+    labelKey: 'nav.groups.data',
+    icon: <StorageIcon fontSize="small" />,
+    children: [
+      {
+        key: 'customer',
+        path: '/customers',
+        labelKey: 'nav.customers',
+        icon: <PeopleIcon fontSize="small" />,
+        permissionKey: 'customer:menu',
+      },
+      {
+        key: 'product',
+        path: '/products',
+        labelKey: 'nav.productLedger',
+        icon: <InventoryIcon fontSize="small" />,
+        permissionKey: 'product:menu',
+      },
+      {
+        key: 'transaction',
+        path: '/transactions',
+        labelKey: 'nav.transactionLedger',
+        icon: <ReceiptLongIcon fontSize="small" />,
+        permissionKey: 'transaction:menu',
+      },
+      {
+        key: 'project',
+        path: '/projects',
+        labelKey: 'nav.projectMilestone',
+        icon: <EngineeringIcon fontSize="small" />,
+        permissionKey: 'project:menu',
+      },
+    ],
   },
-  {
-    key: 'expansion',
-    path: '/customer-metrics',
-    labelKey: 'nav.expansionTargets',
-    icon: <TrendingUpIcon fontSize="small" />,
-    permissionKey: 'expansion:menu',
-  },
-  {
-    key: 'churn-risk',
-    path: '/dormant-customer',
-    labelKey: 'nav.churnRisk',
-    icon: <PersonOffIcon fontSize="small" />,
-    permissionKey: 'churn.risk:menu',
-  },
-  {
-    key: 'cross-selling',
-    path: '/cross-selling',
-    labelKey: 'nav.crossSellMatrix',
-    icon: <SwapHorizIcon fontSize="small" />,
-    permissionKey: 'cross.selling:menu',
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 3: PRODUCT & PORTFOLIO
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    key: 'product',
-    path: '/products',
-    labelKey: 'nav.productLedger',
-    icon: <InventoryIcon fontSize="small" />,
-    permissionKey: 'product:menu',
-    groupLabelKey: 'nav.groups.productPortfolio',
-  },
-  {
-    key: 'high-margin',
-    path: '/products/high-margin',
-    labelKey: 'nav.highMarginPush',
-    icon: <StarIcon fontSize="small" />,
-    permissionKey: 'high.margin:menu',
-  },
-  {
-    key: 'product-trend',
-    path: '/products/trend',
-    labelKey: 'nav.productTrend',
-    icon: <ShowChartIcon fontSize="small" />,
-    permissionKey: 'product.trend:menu',
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 4: TRANSACTION & REVENUE
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    key: 'transaction',
-    path: '/transactions',
-    labelKey: 'nav.transactionLedger',
-    icon: <ReceiptLongIcon fontSize="small" />,
-    permissionKey: 'transaction:menu',
-    groupLabelKey: 'nav.groups.transactionRevenue',
-  },
-  {
-    key: 'analisis',
-    path: '/analisis',
-    labelKey: 'nav.analisis',
-    icon: <AssessmentIcon fontSize="small" />,
-    permissionKey: 'analisis:menu',
-  },
-  {
-    key: 'project',
-    path: '/projects',
-    labelKey: 'nav.projectMilestone',
-    icon: <EngineeringIcon fontSize="small" />,
-    permissionKey: 'project:menu',
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // GROUP 5: ADMINISTRATION
-  // ─────────────────────────────────────────────────────────────────────────
 
   // Settings — collapsible
   {
@@ -154,7 +223,6 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/settings/app',
     labelKey: 'nav.settings',
     icon: <TuneIcon fontSize="small" />,
-    groupLabelKey: 'nav.groups.administration',
     children: [
       {
         key: 'settings-app',
@@ -314,4 +382,44 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
+
+  // What's New & Guide (task033, 2026-08-27) — item berdiri sendiri, TANPA
+  // permissionKey, pola sama Help di bawah: halaman discovery umum ("apa yang
+  // baru & bagaimana cara pakainya"), bukan fitur bisnis yang perlu digate
+  // RBAC. Sengaja TERPISAH dari Help — Help fokus "apa arti istilah ini"
+  // (glosarium), halaman ini fokus "apa yang baru & cara pakai fitur",
+  // jangan digabung (instruksi eksplisit user).
+  {
+    key: 'whats-new',
+    path: '/whats-new',
+    labelKey: 'nav.whatsNew',
+    icon: <AutoAwesomeOutlinedIcon fontSize="small" />,
+  },
+
+  // Help (task029.md §37, 2026-08-27, instruksi user) — item berdiri sendiri,
+  // TANPA permissionKey ("Undefined = always visible" — lihat komentar NavItem
+  // di atas), terlihat semua user login apa pun role-nya, bukan gated per-role
+  // spt item Administration di atas.
+  {
+    key: 'help',
+    path: '/help',
+    labelKey: 'nav.help',
+    icon: <HelpOutlineIcon fontSize="small" />,
+  },
 ];
+
+/** Cek apakah suatu path dianggap "aktif" dibanding pathname saat ini —
+ * dipusatkan di sini (dipakai Sidebar desktop DAN bottom nav mobile, task034)
+ * supaya definisi "aktif" tidak didefinisikan ulang beda-beda di tiap tempat. */
+export function isPathActive(itemPath: string, pathname: string): boolean {
+  return pathname === itemPath || (itemPath !== '/dashboard' && pathname.startsWith(itemPath));
+}
+
+/** Cek apakah satu item akan ter-render (visible) berdasarkan permission —
+ * dipusatkan di sini (sebelumnya cuma ada di Sidebar.tsx), dipakai juga oleh
+ * bottom nav mobile (task034) supaya aturan RBAC-nya identik. */
+export function isNavItemVisible(item: NavItem, canSee: (k?: string) => boolean): boolean {
+  if (!canSee(item.permissionKey)) return false;
+  if (!item.children) return true;
+  return item.children.some((c) => canSee(c.permissionKey));
+}

@@ -1,7 +1,7 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { isNotFoundError } from '@/utils/response'
-import { findCustomers, findCustomerDetail } from './customers.repository'
-import type { CustomersQuery } from './customers.schema'
+import { findCustomers, findCustomersForExport, findCustomerDetail } from './customers.repository'
+import type { CustomersQuery, CustomersExportQuery } from './customers.schema'
 
 export async function getCustomers(
   params: CustomersQuery,
@@ -16,6 +16,22 @@ export async function getCustomers(
     if (isNotFoundError(err)) return { data: [], total: 0 }
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data customer', 500)
+  }
+}
+
+// Export Excel (2026-08-31) — filter SAMA PERSIS getCustomers, TANPA
+// page/per_page/sort_by/sort_dir, satu query lewat findCustomersForExport.
+export async function getCustomersExport(
+  params: CustomersExportQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  try {
+    return await findCustomersForExport(params, scopeIds, branchScope, divisionScope)
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil export data customer', 500)
   }
 }
 

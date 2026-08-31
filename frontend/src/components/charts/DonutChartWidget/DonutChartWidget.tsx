@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ChartCardTitle } from '../shared/ChartCardTitle';
 
 export interface DonutSlice {
   name: string;
@@ -11,8 +12,20 @@ export interface DonutSlice {
 }
 
 export interface DonutChartWidgetProps {
-  title: string;
+  /** Opsional (2026-08-25, task029.md §33 — M5 standarisasi ke pola
+   * Growth/Retention: judul dipindah ke SectionLabel luar widget, sama
+   * pola BarChartWidget/ComboChartWidget/LineAlertWidget — caller yang
+   * belum kirim `title` cukup tidak menampilkan header bawaan sama
+   * sekali, TIDAK berubah utk caller existing yang masih kirim). */
+  title?: string;
   subtitle?: string;
+  /** Penjelasan KPI sbg tooltip ikon info di sebelah judul, GANTI caption
+   * permanen `subtitle` (2026-08-28, task029.md §44) — lihat JSDoc prop
+   * `titleInfo` di BarChartWidget. `subtitle` TETAP didukung. */
+  titleInfo?: string;
+  /** Header custom di DALAM Card widget (2026-08-25) — pola sama persis
+   * `headerContent` widget lain, dipakai M5 utk KpiHeader current-vs-YoY. */
+  headerContent?: React.ReactNode;
   data: DonutSlice[];
   height?: number;
   centerLabel?: string;
@@ -23,6 +36,8 @@ export interface DonutChartWidgetProps {
 export const DonutChartWidget = ({
   title,
   subtitle,
+  titleInfo,
+  headerContent,
   data,
   height = 240,
   centerLabel,
@@ -32,16 +47,18 @@ export const DonutChartWidget = ({
   const theme = useTheme();
   return (
     <Card sx={{ p: 2, height: '100%', border: 'none' }}>
-      <Box sx={{ mb: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary">
-            {subtitle}
-          </Typography>
-        )}
-      </Box>
+      {headerContent ? (
+        <Box sx={{ mb: 1 }}>{headerContent}</Box>
+      ) : title && (
+        <Box sx={{ mb: 1 }}>
+          <ChartCardTitle title={title} info={titleInfo} />
+          {subtitle && (
+            <Typography variant="caption" color="text.secondary">
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       <Box sx={{ position: 'relative' }}>
         {/* debounce dibedakan per tipe widget - lihat StatCard.tsx untuk alasan lengkap

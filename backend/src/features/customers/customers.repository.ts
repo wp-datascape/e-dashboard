@@ -2,7 +2,7 @@ import { db } from '@/config/db'
 import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions } from '@/db/schema'
 import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { loadThresholds, resolveDormantMonths, resolveDormantCategory } from '@/features/config/threshold'
+import { loadThresholds, resolveDormantCategory, getDormantCategoryMap, buildDormantCaseSql } from '@/features/config/threshold'
 import {
   buildBranchCondition,
   buildDivisionCondition,
@@ -12,22 +12,44 @@ import {
   loadDivisionFallbackIds,
   flattenFallbackByBranch,
 } from '@/utils/scope'
+import { EXPORT_ROW_CAP } from '@/utils/excel'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
 import type { CustomersQuery } from './customers.schema'
 
-export async function findCustomers(
-  params: CustomersQuery,
+// buildCustomerQueryContext (2026-08-31, refactor persiapan export Excel) —
+// SEMUA logic where-clause/scope/subquery yang SEBELUMNYA cuma ada di dalam
+// findCustomers, DIPAKAI BERSAMA findCustomers (list) DAN findCustomersForExport
+// (export, di bawah) supaya TIDAK ADA 2 definisi filter/scope RBAC yang bisa
+// menyimpang (celah RBAC task015/018 lahir justru dari filter yang ditulis
+// dobel di tempat berbeda) — cuma bagian ORDER BY/LIMIT/OFFSET dan proyeksi
+// kolom akhir yang beda antara list vs export, itu TETAP ditulis terpisah di
+// masing-masing fungsi.
+type CustomerFilterParams = Omit<CustomersQuery, 'sort_by' | 'sort_dir' | 'page' | 'per_page'>
+
+async function buildCustomerQueryContext(
+  params: CustomerFilterParams,
   scopeIds?: number[],
   branchScope?: Map<number, number[]>,
   divisionScope?: Map<number, number[]>,
 ) {
-  const { company_id, branch_id, search, business_unit, status, sort_by, sort_dir, page, per_page, as_of_date, exclude_intercompany } = params
-  const offset = (page - 1) * per_page
+  const { company_id, branch_id, search, business_unit, status, as_of_date, exclude_intercompany } = params
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
-  const dormantMonths = await resolveDormantMonths(cid, dormant, scopeIds)
+  // Threshold dormant PER-CUSTOMER (task027 fix, 2026-08-21) — dulu 1 angka
+  // dominan company-wide (resolveDormantMonths) dipakai ke SEMUA baris,
+  // sekarang per baris sesuai kategori bisnis divisi customer itu sendiri
+  // (pola sama m8m10.repository.ts). channel_divisions.division_id yang
+  // dipakai di sini SUDAH di-JOIN di query total/rows di bawah lewat
+  // latestSalespersonSq (divisi dari invoice TERBARU customer) — reuse,
+  // bukan JOIN baru.
+  const dormantCategoryMap = await getDormantCategoryMap(cid !== 0 ? cid : undefined)
+  const dormantThresholdExpr = buildDormantCaseSql(
+    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
+    dormant,
+    dormantCategoryMap,
+  )
 
   // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
   // dari urutan lama yang baru dihitung dekat akhir function.
@@ -92,12 +114,31 @@ export async function findCustomers(
   const outerDivisionCond = buildDivisionCondition(invoices.branch_id, cdInv.division_id, divisionScope, otherIdByBranchEarly)
   const outerScopeGuard = sql`(${outerBranchCond ?? sql`true`}) AND (${outerDivisionCond ?? sql`true`})`
 
-  const invCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)
-  `
-  const catCountExpr = sql<number>`
-    COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)
-  `
+  // Subquery: total_invoices/category_count per customer, agregasi SEKALI (GROUP BY)
+  // — BUKAN lagi JOIN invoices+invoice_items mentah langsung ke query customer di
+  // bawah. Fix bug performa (2026-08-27, ditemukan lewat audit production): JOIN
+  // invoices mentah bareng latestSalespersonSq (subquery DISTINCT ON) di query yang
+  // SAMA bikin planner Postgres pilih Nested Loop nyaris cross-product begitu ada
+  // kondisi scope branch/division (user non-superadmin) — /customers timeout 20
+  // detik (statement_timeout) utk SEMUA company, termasuk yang datanya kecil.
+  // Superadmin (bypass, tanpa kondisi scope) tidak kena krn planner kebetulan pilih
+  // strategi lain, tapi struktur query-nya tetap rapuh. Pola subquery ini SAMA
+  // PERSIS liveDatesSq di atas (agregasi per customer dulu, baru LEFT JOIN 1x hasil
+  // yang sudah 1-baris-per-customer) — sudah terbukti aman di kedua kasus scope.
+  const invAggSq = db
+    .select({
+      customer_id: invoices.customer_id,
+      inv_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoices.id} END)`.as('inv_count'),
+      cat_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${outerScopeGuard} THEN ${invoice_items.product_category_id} END)`.as('cat_count'),
+    })
+    .from(invoices)
+    .leftJoin(invoice_items, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
+    .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
+    .groupBy(invoices.customer_id)
+    .as('inv_agg')
+
+  const invCountExpr = invAggSq.inv_count
+  const catCountExpr = invAggSq.cat_count
 
   // WHERE conditions (tanpa division — division difilter via JOIN channel_divisions)
   const conditions = []
@@ -110,12 +151,12 @@ export async function findCustomers(
   conditions.push(isNotNull(liveDatesSq.live_first))
   if (company_id !== 'all') conditions.push(eq(customers.company_id, company_id))
   else if (scopeIds) {
-    if (scopeIds.length === 0) return { data: [], total: 0 }
+    if (scopeIds.length === 0) return { isEmptyScope: true as const }
     conditions.push(inArray(customers.company_id, scopeIds))
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
   const statusCond = status
-    ? sqlStatusWhere(status, refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
+    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
     : undefined
   if (statusCond) conditions.push(statusCond)
 
@@ -131,18 +172,7 @@ export async function findCustomers(
     ? eq(sql`COALESCE(${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, business_unit)
     : undefined
 
-  // Sort
-  const isAsc = sort_dir === 'asc'
-  const orderByExpr = (() => {
-    switch (sort_by) {
-      case 'lifetime_value':      return isAsc ? asc(liveDatesSq.lifetime_value) : desc(liveDatesSq.lifetime_value)
-      case 'avg_monthly_revenue': return isAsc ? asc(liveDatesSq.avg_monthly_revenue) : desc(liveDatesSq.avg_monthly_revenue)
-      case 'category_count':      return isAsc ? asc(catCountExpr) : desc(catCountExpr)
-      default:                    return isAsc ? asc(liveDatesSq.live_last) : desc(liveDatesSq.live_last)
-    }
-  })()
-
-  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantMonths, liveDatesSq.live_last, liveDatesSq.live_first)
+  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -189,6 +219,37 @@ export async function findCustomers(
     ? whereClause ? and(whereClause, ...scopeConditions) : and(...scopeConditions)
     : whereClause
 
+  return {
+    isEmptyScope: false as const,
+    liveDatesSq, invAggSq, latestSalespersonSq,
+    invCountExpr, catCountExpr, statusExpr, whereWithDivision,
+  }
+}
+
+export async function findCustomers(
+  params: CustomersQuery,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+) {
+  const { sort_by, sort_dir, page, per_page } = params
+  const offset = (page - 1) * per_page
+
+  const ctx = await buildCustomerQueryContext(params, scopeIds, branchScope, divisionScope)
+  if (ctx.isEmptyScope) return { data: [], total: 0 }
+  const { liveDatesSq, invAggSq, latestSalespersonSq, invCountExpr, catCountExpr, statusExpr, whereWithDivision } = ctx
+
+  // Sort
+  const isAsc = sort_dir === 'asc'
+  const orderByExpr = (() => {
+    switch (sort_by) {
+      case 'lifetime_value':      return isAsc ? asc(liveDatesSq.lifetime_value) : desc(liveDatesSq.lifetime_value)
+      case 'avg_monthly_revenue': return isAsc ? asc(liveDatesSq.avg_monthly_revenue) : desc(liveDatesSq.avg_monthly_revenue)
+      case 'category_count':      return isAsc ? asc(catCountExpr) : desc(catCountExpr)
+      default:                    return isAsc ? asc(liveDatesSq.live_last) : desc(liveDatesSq.live_last)
+    }
+  })()
+
   const [{ total }, rows] = await Promise.all([
     db
       .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
@@ -224,11 +285,6 @@ export async function findCustomers(
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
       .leftJoin(companies, eq(customers.company_id, companies.id))
-      .leftJoin(invoices, eq(invoices.customer_id, customers.id))
-      .leftJoin(
-        invoice_items,
-        and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)),
-      )
       .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
       .leftJoin(
         channel_divisions,
@@ -238,12 +294,12 @@ export async function findCustomers(
         ),
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
-      // cdInv — lihat komentar di definisi outerScopeGuard di atas, JOIN kedua
-      // channel_divisions via channel invoice yang SEDANG dihitung (bukan channel
-      // invoice terbaru customer), khusus dipakai invCountExpr/catCountExpr.
-      .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
+      // invAggSq — sudah 1 baris per customer (agregasi COUNT DISTINCT di dalam
+      // subquery-nya sendiri, lihat komentar di definisinya di atas), BUKAN lagi
+      // JOIN invoices/invoice_items/cdInv mentah di sini.
+      .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
@@ -266,6 +322,101 @@ export async function findCustomers(
       status: r.status as 'new' | 'active' | 'dormant' | 'existing',
     })),
     total: Number(total),
+  }
+}
+
+export interface CustomerExportRow {
+  customer_code: string
+  name: string
+  company_name: string
+  division_label: string
+  status: 'new' | 'active' | 'dormant' | 'existing'
+  category_count: number
+  avg_monthly_revenue: number
+  lifetime_value: number
+  last_invoice_date: string
+  total_invoices: number
+}
+
+// Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export excel
+// juga di ke 2 menu" — susulan export Transactions) — filter SAMA PERSIS
+// findCustomers (lewat buildCustomerQueryContext), TANPA LIMIT/OFFSET,
+// diurutkan tetap transaksi terakhir DESC (default tampilan tabel) — bukan
+// sort pilihan user, export selalu representasi PENUH dari filter aktif.
+// EXPORT_ROW_CAP — lihat JSDoc di utils/excel.ts, pola sama persis
+// findInvoicesForExport (transactions.repository.ts).
+export async function findCustomersForExport(
+  params: CustomerFilterParams,
+  scopeIds?: number[],
+  branchScope?: Map<number, number[]>,
+  divisionScope?: Map<number, number[]>,
+): Promise<{ data: CustomerExportRow[]; total: number; truncated: boolean }> {
+  const ctx = await buildCustomerQueryContext(params, scopeIds, branchScope, divisionScope)
+  if (ctx.isEmptyScope) return { data: [], total: 0, truncated: false }
+  const { liveDatesSq, invAggSq, latestSalespersonSq, invCountExpr, catCountExpr, statusExpr, whereWithDivision } = ctx
+
+  const [{ total }, rows] = await Promise.all([
+    db
+      .select({ total: sql<number>`COUNT(DISTINCT ${customers.id})` })
+      .from(customers)
+      .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
+      .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          eq(channel_divisions.company_id, customers.company_id),
+        ),
+      )
+      .where(whereWithDivision)
+      .then(([r]) => r),
+    db
+      .select({
+        customer_code: customers.customer_code,
+        name: customers.customer_name,
+        company_name: companies.name,
+        division: divisions.label,
+        last_invoice_date: liveDatesSq.live_last,
+        total_invoices: invCountExpr,
+        lifetime_value: liveDatesSq.lifetime_value,
+        avg_monthly_revenue: liveDatesSq.avg_monthly_revenue,
+        category_count: catCountExpr,
+        status: statusExpr,
+      })
+      .from(customers)
+      .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
+      .leftJoin(companies, eq(customers.company_id, companies.id))
+      .leftJoin(latestSalespersonSq, eq(latestSalespersonSq.customer_id, customers.id))
+      .leftJoin(
+        channel_divisions,
+        and(
+          eq(channel_divisions.channel_name, latestSalespersonSq.channel_name),
+          eq(channel_divisions.company_id, customers.company_id),
+        ),
+      )
+      .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
+      .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
+      .where(whereWithDivision)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
+      .orderBy(desc(liveDatesSq.live_last))
+      .limit(EXPORT_ROW_CAP),
+  ])
+
+  return {
+    data: rows.map((r) => ({
+      customer_code: r.customer_code ?? '',
+      name: r.name,
+      company_name: r.company_name ?? '',
+      division_label: r.division ?? '—',
+      status: r.status as 'new' | 'active' | 'dormant' | 'existing',
+      category_count: Number(r.category_count),
+      avg_monthly_revenue: Number(r.avg_monthly_revenue),
+      lifetime_value: Number(r.lifetime_value),
+      last_invoice_date: r.last_invoice_date ?? '',
+      total_invoices: Number(r.total_invoices),
+    })),
+    total: Number(total),
+    truncated: Number(total) > EXPORT_ROW_CAP,
   }
 }
 

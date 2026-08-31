@@ -15,7 +15,7 @@
  * 4. Update import_log status
  * 5. Audit log
  */
-import { classifyItemType } from '@/utils/classifier'
+import { classifyItemType, loadClassificationRules } from '@/utils/classifier'
 import { parseCsv, parseExcel } from '@/utils/parser'
 import { logAudit } from '@/utils/audit'
 import { AppError, ErrorCode } from '@/utils/error'
@@ -146,12 +146,35 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   let totalItems = 0
   let totalItemRows = 0
 
+  // Rule klasifikasi SEKALI per batch (bukan per baris) — lihat docstring
+  // loadClassificationRules (classifier.ts, audit N+1 2026-08-21): rule-nya
+  // identik untuk semua baris company yang sama, sebelumnya di-query ULANG di
+  // SETIAP baris (bisa puluhan ribu query redundan per file).
+  const classificationRules = await loadClassificationRules(companyId)
+
   // invoice_number → invoice_id: reuse dalam satu batch (multi-item per SI)
   const batchInvoiceCache = new Map<string, number>()
   // Set invoice_id yang sudah di-reset items-nya saat re-import
   const resetItemsCache = new Set<number>()
   // branch_name → branch_id: reuse dalam satu batch (banyak baris berbagi branch_name sama)
   const batchBranchIdCache = new Map<string, number | null>()
+  // product_category name (UPPER+trim) → {id, item_type} — reuse dalam satu batch
+  // (audit N+1 2026-08-21: banyak baris berbagi nama kategori sama). item_type
+  // ikut disimpan supaya kalau baris LAIN dgn nama sama tapi hasil klasifikasi
+  // BEDA (mis. rule price_range, harga beda -> item_type beda), cache di-miss
+  // dgn sengaja dan upsertProductCategory dipanggil lagi (sync item_type tetap
+  // benar, TIDAK mengorbankan correctness demi performa) — key SUDAH upper+trim
+  // sama persis dgn logika matching upsertProductCategory sendiri.
+  const batchCategoryCache = new Map<string, { id: number; item_type: string }>()
+  // product name (UPPER+trim) → {id, product_category_id} — pola sama seperti
+  // kategori di atas, alasan sama (audit N+1 2026-08-21).
+  const batchProductCache = new Map<string, { id: number; product_category_id: number | null }>()
+  // invoice_id yang tersentuh batch ini — updateInvoiceTotals dipanggil SEKALI
+  // per invoice di akhir (bukan per baris item, lihat bawah) — hasilnya IDENTIK
+  // (SUM selalu dihitung ulang dari invoice_items yang ADA di DB, tidak peduli
+  // kapan/berapa kali dipanggil), cuma buang N-1 pemanggilan redundan per
+  // invoice ber-multi-item (audit N+1 2026-08-21).
+  const touchedInvoiceIds = new Set<number>()
 
   for (const row of parseResult.rows) {
     const rowNum = parseResult.rows.indexOf(row) + 2
@@ -174,26 +197,36 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
       // ke-klasifikasi 'sparepart'/'unit'). Fallback ke revenue kalau unit_price
       // tidak ada di file (kolom opsional) - sama seperti fallback yang sudah
       // dipakai buat invoice_items.unit_price di bawah.
-      const classification = await classifyItemType({
+      const classification = classifyItemType({
         itemName: row.product_category,
         categoryName: row.product_category,
         unitPrice: row.unit_price ?? row.revenue,
-        companyId,
+        rules: classificationRules,
       })
 
-      // ── Upsert product category ─────────────────────────────────────────
-      const category = await upsertProductCategory({
-        company_id: companyId,
-        name: row.product_category,
-        item_type: classification.itemType,
-      })
+      // ── Upsert product category (cache per batch, lihat komentar di atas) ─
+      const categoryKey = row.product_category.trim().toUpperCase()
+      const cachedCategory = batchCategoryCache.get(categoryKey)
+      const category = cachedCategory && cachedCategory.item_type === classification.itemType
+        ? { id: cachedCategory.id }
+        : await upsertProductCategory({
+            company_id: companyId,
+            name: row.product_category,
+            item_type: classification.itemType,
+          })
+      batchCategoryCache.set(categoryKey, { id: category.id, item_type: classification.itemType })
 
-      // ── Upsert product ──────────────────────────────────────────────────
-      const product = await upsertProduct({
-        company_id: companyId,
-        product_name: (row.item_name ?? row.product_category).trim(),
-        product_category_id: category.id,
-      })
+      // ── Upsert product (cache per batch, lihat komentar di atas) ─────────
+      const productKey = (row.item_name ?? row.product_category).trim().toUpperCase()
+      const cachedProduct = batchProductCache.get(productKey)
+      const product = cachedProduct && cachedProduct.product_category_id === category.id
+        ? { id: cachedProduct.id }
+        : await upsertProduct({
+            company_id: companyId,
+            product_name: (row.item_name ?? row.product_category).trim(),
+            product_category_id: category.id,
+          })
+      batchProductCache.set(productKey, { id: product.id, product_category_id: category.id })
 
       // ── Resolve invoice: reuse dari batch ini, atau insert/update ───────
       const invoiceKey = row.invoice_number.toUpperCase().trim()
@@ -266,9 +299,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
         gross_profit: String(row.gross_profit),
       })
       totalItems++
-
-      // ── Update invoice totals ───────────────────────────────────────────
-      await updateInvoiceTotals(invoiceId)
+      touchedInvoiceIds.add(invoiceId)
 
       successCount++
     } catch (err) {
@@ -291,6 +322,13 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   }
 
   totalItemRows = parseResult.rows.length
+
+  // ── Update invoice totals — SEKALI per invoice (lihat komentar touchedInvoiceIds
+  // di atas), bukan per baris item. SUM dihitung dari invoice_items yang BENERAN
+  // ke-insert (baris gagal otomatis tidak ikut kehitung), hasilnya tetap akurat.
+  for (const invoiceId of touchedInvoiceIds) {
+    await updateInvoiceTotals(invoiceId)
+  }
 
   // ── Save errors ──────────────────────────────────────────────────────────
   await createImportErrors(errors)
