@@ -71,7 +71,18 @@ export function useScopedCompanyFilter() {
 
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);
-  const { data: allBranches = [] } = useBranchesByCompany(companyId === 'all' ? null : companyId);
+  // enabled: !scopedBranches.restricted (2026-08-31, bug: user branch-
+  // restricted mis. "MKO Sales" kena toast merah "Akses ditolak" di hampir
+  // semua halaman) — `allBranches` di bawah cuma DIPAKAI kalau user
+  // UNRESTRICTED (lihat branchOptions), tapi query-nya SEBELUMNYA jalan
+  // TANPA SYARAT begitu companyId spesifik, padahal endpoint-nya (`GET
+  // /companies/:id/branches`) minta permission `settings.branch:view` yang
+  // TIDAK dipunyai user biasa — selalu 403 utk user restricted, sia-sia
+  // pula (hasilnya toh dibuang). Lihat JSDoc useBranchesByCompany.
+  const { data: allBranches = [] } = useBranchesByCompany(
+    companyId === 'all' ? null : companyId,
+    { enabled: !scopedBranches.restricted },
+  );
   // company_name cuma terisi di getScopedBranches() saat companyId==='all' (union
   // lintas company) - itulah satu-satunya kondisi nama branch bisa ambigu/bertabrakan
   // (mis. dua company sama-sama punya branch "Jakarta"), jadi suffix cuma muncul di
