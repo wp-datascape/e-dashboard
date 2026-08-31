@@ -23,6 +23,7 @@ import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { TopMoversTimeline } from '@/components/dashboard/TopMoversTimeline';
 import type { TopMoverItem } from '@/components/dashboard/TopMoversTimeline';
 import { useRevenueBreakdown } from '@/hooks/useMetrics';
+import { useCan } from '@/hooks/useCan';
 import { useThemeMode } from '@/theme/theme.context';
 import { PALETTES } from '@/theme/palettes';
 import { fmtRp } from './helpers';
@@ -96,6 +97,16 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
   const { palette: paletteKey, isDark } = useThemeMode();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const can = useCan();
+  // canRevenue (2026-08-31, bug: role 'user' lihat toast merah "Akses
+  // ditolak" di halaman Value walau tidak buka apa pun secara eksplisit) —
+  // customer.revenue:view SENGAJA TIDAK dimiliki role 'user' (lihat
+  // db/seed.ts USER_PERMISSION_NAMES), beda dari expansion:view yang gate
+  // akses ke halaman Value itu sendiri. Top 5 + drill-down dialog di bawah
+  // reuse endpoint /metrics/revenue-breakdown yang minta permission SPESIFIK
+  // ini — TANPA gate ini, query tetap terkirim & backend menolak 403,
+  // toast globalnya tampil padahal viewer tidak pernah mengklik apa pun.
+  const canRevenue = can('customer.revenue:view');
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [drillDateFrom, setDrillDateFrom] = useState<string | null>(null);
   const [drillMonth, setDrillMonth] = useState<string | null>(null);
@@ -125,7 +136,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
     division,
     exclude_intercompany: excludeIntercompany,
     only_pareto: onlyPareto,
-  });
+  }, { enabled: canRevenue });
   const top5Items: TopMoverItem[] = (currentBreakdown?.rows ?? []).slice(0, 5).map((r) => ({
     id: r.ranking,
     name: r.customer_name,
@@ -142,7 +153,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
     division,
     exclude_intercompany: excludeIntercompany,
     only_pareto: onlyPareto,
-  });
+  }, { enabled: canRevenue });
 
   // non_hm_revenue (2026-08-25, task029.md §36, instruksi user: "Ganti cart
   // m3 menjadi stack bar cart, bar utuh untuk total revenue, bar dalam
@@ -233,7 +244,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
 
       <Box sx={{ p: 2.5 }}>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 8 }}>
+        <Grid size={{ xs: 12, md: canRevenue ? 8 : 12 }}>
           {isLoading ? (
             <Skeleton variant="rectangular" height={280} />
           ) : (
@@ -292,13 +303,13 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
               formatBar={(v) => fmtRp(v)}
               formatLine={(v) => fmtRp(v)}
               renderTooltip={(props) => <M3Tooltip {...props} periodType={periodType} />}
-              onBarClick={(d) => {
+              onBarClick={canRevenue ? (d) => {
                 const month = String(d.month ?? '');
                 const range = getPeriodDateRange(periodType, month);
                 setDrillMonth(month);
                 setDrillDateFrom(range.start);
                 setDrillDate(clampPeriodEndToToday(periodType, month, range.end));
-              }}
+              } : undefined}
               headerContent={periodEnd ? (
                 <KpiHeader
                   current={last?.total_revenue_existing ?? 0}
@@ -334,41 +345,46 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
         </Grid>
 
         {/* Top 5 (2026-08-25) + tombol "Cek Detail di Laporan" — pola SAMA
-            PERSIS M1/M6/M8. */}
-        <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column' }}>
-          {isLoading || currentBreakdownLoading ? (
-            <Skeleton variant="rectangular" height={200} />
-          ) : (
-            <Box>
-              <Box sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <SectionLabel label={t('customerMetrics.m3.topCustomersLabel')} />
-                <MuiTooltip
-                  title={t('customerMetrics.m3.topCustomersInfo')}
-                  placement="top"
-                  arrow
-                  slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.6 } } }}
-                >
-                  <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
-                    <InfoOutlinedIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </MuiTooltip>
+            PERSIS M1/M6/M8. Disembunyikan total kalau !canRevenue (2026-08-31,
+            lihat komentar canRevenue di atas) — bukan cuma query breakdown-nya
+            yang di-skip, section ini SELURUHNYA butuh data itu, jadi tampil
+            kosong/rusak kalau tetap dirender tanpa akses. */}
+        {canRevenue && (
+          <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column' }}>
+            {isLoading || currentBreakdownLoading ? (
+              <Skeleton variant="rectangular" height={200} />
+            ) : (
+              <Box>
+                <Box sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <SectionLabel label={t('customerMetrics.m3.topCustomersLabel')} />
+                  <MuiTooltip
+                    title={t('customerMetrics.m3.topCustomersInfo')}
+                    placement="top"
+                    arrow
+                    slotProps={{ tooltip: { sx: { maxWidth: 280, fontSize: 12, lineHeight: 1.6 } } }}
+                  >
+                    <IconButton size="small" sx={{ p: 0.25, mb: 0.5, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}>
+                      <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </MuiTooltip>
+                </Box>
+                <TopMoversTimeline items={top5Items} emptyMessage={t('customerMetrics.m3.emptyMessage')} />
               </Box>
-              <TopMoversTimeline items={top5Items} emptyMessage={t('customerMetrics.m3.emptyMessage')} />
-            </Box>
-          )}
-          {!(isLoading || currentBreakdownLoading) && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto', pt: 1 }}>
-              <Button
-                size="small"
-                endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
-                onClick={() => navigate('/report/revenue?tab=revenue')}
-                sx={{ textTransform: 'none', fontSize: 12 }}
-              >
-                {t('customerMetrics.m3.viewDetailInReport')}
-              </Button>
-            </Box>
-          )}
-        </Grid>
+            )}
+            {!(isLoading || currentBreakdownLoading) && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto', pt: 1 }}>
+                <Button
+                  size="small"
+                  endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => navigate('/report/revenue?tab=revenue')}
+                  sx={{ textTransform: 'none', fontSize: 12 }}
+                >
+                  {t('customerMetrics.m3.viewDetailInReport')}
+                </Button>
+              </Box>
+            )}
+          </Grid>
+        )}
       </Grid>
       </Box>
       </Card>
