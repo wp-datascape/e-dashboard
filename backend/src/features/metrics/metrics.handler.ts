@@ -153,7 +153,12 @@ export async function handleExportProductPerformance(c: Context) {
     ['Jumlah Baris', data.length.toLocaleString('id-ID') + (truncated ? ` (dibatasi dari ${total.toLocaleString('id-ID')} total)` : '')],
   ]
 
-  const columns: ExcelColumn[] = [
+  // `fields` KOSONG/tidak dikirim = export SEMUA kolom (default, sama spt
+  // Transactions) — pola sama persis handleExportInvoices.
+  const selectedFields: readonly string[] | undefined = query.fields
+  const isSelected = (key: string) => !selectedFields?.length || selectedFields.includes(key)
+
+  const allColumns: ExcelColumn[] = [
     { header: 'Nama Produk', key: 'product_name', width: 30 },
     { header: 'Kategori', key: 'category_name', width: 22 },
     { header: 'High Margin', key: 'is_high_margin', width: 12 },
@@ -164,6 +169,7 @@ export async function handleExportProductPerformance(c: Context) {
     { header: 'Faktur', key: 'invoice_count', width: 10 },
     { header: 'Terakhir Terjual', key: 'last_sold_month', width: 14 },
   ]
+  const columns = allColumns.filter((c) => isSelected(c.key))
 
   // is_high_margin boolean -> "Ya"/"Tidak" (lebih terbaca di Excel dibanding
   // TRUE/FALSE mentah), diubah di sini (bukan repository) — repository tetap

@@ -21,10 +21,17 @@ export const customersApi = {
   // Export Excel (2026-08-31) — filter SAMA PERSIS getCustomers minus
   // page/per_page/sort_by/sort_dir, SATU request ke backend
   // (`/customers/export`), pola sama persis transactionsApi.exportInvoices.
+  // `fields` opsional (2026-08-31, dialog pilih kolom) — array key, digabung
+  // jadi 1 query param comma-separated, kosong/undefined = export semua
+  // kolom (default backend).
   exportCustomers: async (
-    params: Omit<CustomerParams, 'page' | 'per_page' | 'sort_by' | 'sort_dir'>
+    params: Omit<CustomerParams, 'page' | 'per_page' | 'sort_by' | 'sort_dir'>,
+    fields?: string[]
   ): Promise<void> => {
-    const res = await api.get('/customers/export', { params, responseType: 'blob' });
+    const res = await api.get('/customers/export', {
+      params: { ...params, fields: fields?.length ? fields.join(',') : undefined },
+      responseType: 'blob',
+    });
     const contentDisposition = String(res.headers['content-disposition'] ?? '');
     const match = /filename="([^"]+)"/.exec(contentDisposition);
     const filename = match?.[1] ?? 'customer.xlsx';

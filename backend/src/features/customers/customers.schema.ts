@@ -25,15 +25,35 @@ export const customersQuerySchema = z.object({
   exclude_intercompany: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
 })
 
+// Pilih field export (2026-08-31, instruksi user: "expor produk belum ada
+// fitur pilih field seperti transaksi" + "periksa juga untuk export
+// customer") — allow-list eksplisit, pola SAMA PERSIS
+// EXPORT_INVOICE_FIELDS (transactions.schema.ts). Urutan array ini JUGA
+// urutan kolom default di Excel (dipakai handler kalau `fields` kosong =
+// export semua, urutan TETAP ini, bukan urutan client kirim).
+export const EXPORT_CUSTOMER_FIELDS = [
+  'customer_code', 'name', 'company_name', 'division_label', 'status_label',
+  'category_count', 'avg_monthly_revenue', 'lifetime_value', 'last_invoice_date', 'total_invoices',
+] as const
+export type ExportCustomerField = typeof EXPORT_CUSTOMER_FIELDS[number]
+
 // Export Excel (2026-08-31) — filter SAMA PERSIS customersQuerySchema, TANPA
 // page/per_page/sort_by/sort_dir (export selalu representasi PENUH dari
-// filter aktif, bukan 1 halaman/1 urutan pilihan user) — pola sama persis
-// invoicesExportQuerySchema (transactions.schema.ts).
+// filter aktif, bukan 1 halaman/1 urutan pilihan user), + `fields` opsional
+// (comma-separated) utk pilih kolom yang di-export — pola sama persis
+// invoicesExportQuerySchema (transactions.schema.ts). Field TIDAK DIKENAL
+// diam-diam dibuang (bukan error).
 export const customersExportQuerySchema = customersQuerySchema.omit({
   sort_by: true,
   sort_dir: true,
   page: true,
   per_page: true,
+}).extend({
+  fields: z.string().optional().transform((v) => {
+    if (!v) return undefined
+    const set = new Set(v.split(',').map((f) => f.trim()))
+    return EXPORT_CUSTOMER_FIELDS.filter((f) => set.has(f))
+  }),
 })
 export type CustomersExportQuery = z.infer<typeof customersExportQuerySchema>
 
