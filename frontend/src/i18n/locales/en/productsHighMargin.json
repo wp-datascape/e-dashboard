@@ -8,7 +8,6 @@
   "customersBuying": "Customers Buying",
   "categoriesBought": "Categories Bought",
   "missingHighMargin": "Missing High Margin",
-  "showAll": "Show all ({{count}})",
   "summaryProducts": "{{count}} HM Products",
   "summaryAvgPenetration": "Avg Penetration {{pct}}%",
   "summaryTotalBuyers": "{{buyers}} / {{total}} HM Buyers",

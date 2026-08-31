@@ -15,3 +15,4 @@ export * from './MonthYearPicker';
 export * from './ProgressBar';
 export * from './ActionMenu';
 export * from './ThemeToggle';
+export * from './ChipOverflowCell';

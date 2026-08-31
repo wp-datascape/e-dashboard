@@ -2,6 +2,7 @@
   "appName": "Executive Dashboard",
   "loading": "Loading...",
   "save": "Save",
+  "showAll": "Show all ({{count}})",
   "cancel": "Cancel",
   "delete": "Delete",
   "edit": "Edit",

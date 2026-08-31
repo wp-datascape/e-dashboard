@@ -26,12 +26,11 @@ import type {
   CategoryRef,
 } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
-import { StatusChip } from '@/components/ui'
+import { StatusChip, ChipOverflowCell } from '@/components/ui'
 import { formatRupiah } from '@/utils/format'
 import { UpsellCustomerDialog } from './components/UpsellCustomerDialog'
 import { CategoryProductsDialog } from '@/pages/Products/components/CategoryProductsDialog'
 import { ProductBreakdownDialog } from './components/ProductBreakdownDialog'
-import { ChipOverflowCell } from './components/ChipOverflowCell'
 import type { ProductBreakdownTarget } from './components/ProductBreakdownDialog'
 
 function todayMonth(): string {

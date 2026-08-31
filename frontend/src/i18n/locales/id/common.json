@@ -2,6 +2,7 @@
   "appName": "Executive Dashboard",
   "loading": "Memuat...",
   "save": "Simpan",
+  "showAll": "Tampilkan semua ({{count}})",
   "cancel": "Batal",
   "delete": "Hapus",
   "edit": "Ubah",
