@@ -31,7 +31,18 @@ companiesRoutes.patch('/:id', requirePermission('settings.company:update'), comp
 companiesRoutes.delete('/:id', requirePermission('settings.company:delete'), companyMutationRateLimit, handleDeleteCompany)
 
 // ─── Branch Routes ────────────────────────────────────────────────────────────
-companiesRoutes.get('/:id/branches', requirePermission('settings.branch:view'), handleGetBranches)
+// GET /:id/branches sengaja TIDAK di-requirePermission (2026-08-31, bug: toast
+// "Akses ditolak" muncul di HAMPIR SEMUA halaman untuk user branch-restricted
+// mis. "MKO Sales") — endpoint ini dipakai luas sbg dropdown filter Branch
+// (useBranchesByCompany() -> useScopedCompanyFilter.ts) di 8+ halaman, BUKAN
+// cuma halaman Settings/Companies. Pola SAMA PERSIS `GET /` companies di atas
+// (comment 2026-07-06) — Mewajibkan settings.branch:view (permission "kelola
+// branch", bukan "lihat dropdown") bikin HAMPIR SEMUA role non-superadmin 403
+// begitu company spesifik terpilih. resolveCompanyScope() di handler tetap
+// menjaga user tidak bisa lihat branch company di luar aksesnya (celah RBAC
+// company-scope, BEDA dari izin CRUD Settings) — konsisten dgn pola
+// divisions.route.ts (`GET /values` juga tanpa requirePermission).
+companiesRoutes.get('/:id/branches', handleGetBranches)
 companiesRoutes.post('/:id/branches', requirePermission('settings.branch:create'), companyMutationRateLimit, handleCreateBranch)
 companiesRoutes.patch('/branches/:branchId', requirePermission('settings.branch:update'), companyMutationRateLimit, handleUpdateBranch)
 companiesRoutes.delete('/branches/:branchId', requirePermission('settings.branch:delete'), companyMutationRateLimit, handleDeleteBranch)

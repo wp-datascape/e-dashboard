@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { z } from 'zod'
 import { success, noContent } from '@/utils/response'
 import { validateBody, validateParam, validateQuery } from '@/utils/validator'
+import { resolveCompanyScope } from '@/middleware/auth'
 import {
   getCompanies, getCompanyById,
   createCompanyService, updateCompanyService, deleteCompanyService,
@@ -52,6 +53,12 @@ export async function handleDeleteCompany(c: Context) {
 
 export async function handleGetBranches(c: Context) {
   const { id } = validateParam(c, companyIdParamSchema)
+  // resolveCompanyScope (2026-08-31) — endpoint ini sekarang TANPA
+  // requirePermission (lihat companies.route.ts), jadi guard company-scope
+  // WAJIB dipindah ke sini sendiri — throw 403 kalau `id` di luar
+  // companyIds user (celah RBAC company-scope, beda dari izin CRUD Settings
+  // yang sebelumnya jadi satu-satunya penjaga di sini).
+  resolveCompanyScope(c, id)
   const rows = await getBranchesByCompany(id)
   return success(c, rows)
 }
