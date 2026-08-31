@@ -43,19 +43,22 @@ interface UserDef {
   role: 'admin-like' | 'user-like'
 }
 
-// Kredensial REAL diberikan user (2026-08-27) — BUKAN fixture sintetis. Password
-// akun production sungguhan, sengaja literal di sini (bukan file rahasia) karena
-// ini test lokal-only (skip otomatis di CI) terhadap clone DB, bukan production asli.
+// Kredensial REAL akun production (2026-08-27) — BUKAN fixture sintetis.
+// SEMUA password WAJIB dari env (2026-09-01, instruksi user: "jangan tulis
+// kredensial di e2e tes, gunakan secret dari env file") — akun ini masih
+// aktif di production sungguhan, bukan cuma clone DB lokal, jadi literal di
+// source (walau file ini local-only/skip CI) tetap risiko kalau ter-commit.
+// Set di .env (TIDAK di-commit, lihat .gitignore) — nama var di .env.example.
+// 'Executive Holding' (executive@semanggi.id) SENGAJA di-skip (2026-08-27) —
+// password yang diberikan salah (401), user minta lewati dulu sampai password
+// benar dikonfirmasi ulang. Tinggal tambah balik ke array ini kalau sudah ada.
 const USER_DEFS: UserDef[] = [
-  { label: 'Super Admin', email: 'admin@mail.com', password: '123456', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
-  { label: 'FAT Holding', email: 'finance@semanggi.id', password: '@Finance1234', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
-  { label: 'Marketing Holding', email: 'marketing@semanggi.id', password: '@Marketing1234', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
-  // 'Executive Holding' (executive@semanggi.id) SENGAJA di-skip (2026-08-27) —
-  // password yang diberikan salah (401), user minta lewati dulu sampai password
-  // benar dikonfirmasi ulang. Tinggal tambah balik ke array ini kalau sudah ada.
-  { label: 'MD MKO', email: 'mko.executive@semanggi.id', password: '12345678', companies: [COMPANY.MKO], role: 'admin-like' },
-  { label: 'FAT MKO', email: 'mko.finance@semanggi.id', password: '12345678', companies: [COMPANY.MKO], role: 'user-like' },
-  { label: 'MD KNT', email: 'knt.executive@semanggi.id', password: '12345678', companies: [COMPANY.KNT], role: 'admin-like' },
+  { label: 'Super Admin', email: 'admin@mail.com', password: process.env.E2E_ADMIN_PASSWORD ?? '', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
+  { label: 'FAT Holding', email: 'finance@semanggi.id', password: process.env.E2E_PROD_FINANCE_PASSWORD ?? '', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
+  { label: 'Marketing Holding', email: 'marketing@semanggi.id', password: process.env.E2E_PROD_MARKETING_PASSWORD ?? '', companies: ['all', COMPANY.MKO, COMPANY.KNT, COMPANY.SKI], role: 'admin-like' },
+  { label: 'MD MKO', email: 'mko.executive@semanggi.id', password: process.env.E2E_PROD_MKO_EXECUTIVE_PASSWORD ?? '', companies: [COMPANY.MKO], role: 'admin-like' },
+  { label: 'FAT MKO', email: 'mko.finance@semanggi.id', password: process.env.E2E_PROD_MKO_FINANCE_PASSWORD ?? '', companies: [COMPANY.MKO], role: 'user-like' },
+  { label: 'MD KNT', email: 'knt.executive@semanggi.id', password: process.env.E2E_PROD_KNT_EXECUTIVE_PASSWORD ?? '', companies: [COMPANY.KNT], role: 'admin-like' },
 ]
 
 async function loginAndGetCookie(email: string, password: string): Promise<string> {
@@ -162,8 +165,15 @@ async function fetchDormantSnapshot(
 const emails = USER_DEFS.map((u) => u.email)
 const existingEmails = new Set((await db.select({ email: users.email }).from(users).where(inArray(users.email, emails))).map((r) => r.email))
 const allUsersExist = emails.every((e) => existingEmails.has(e))
+// allPasswordsSet (2026-09-01, susulan pindah password ke env) — skip juga
+// kalau .env belum diisi lengkap, supaya gagalnya jelas via skip (pesan di
+// bawah), bukan 401 membingungkan satu-satu per kombinasi user x endpoint.
+const allPasswordsSet = USER_DEFS.every((u) => u.password !== '')
+if (allUsersExist && !allPasswordsSet) {
+  console.warn('[production-kpi-matrix.e2e.test.ts] Akun production ada di DB tapi password belum lengkap di .env (lihat .env.example) — suite di-skip.')
+}
 
-describe.skipIf(!allUsersExist)('KPI M1-M10 — matrix production riil (login sungguhan)', () => {
+describe.skipIf(!allUsersExist || !allPasswordsSet)('KPI M1-M10 — matrix production riil (login sungguhan)', () => {
   const cookies = new Map<string, string>()
 
   beforeAll(async () => {

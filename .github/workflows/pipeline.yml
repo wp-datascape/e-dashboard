@@ -42,6 +42,19 @@ jobs:
       JWT_SECRET: ci-test-jwt-secret-minimal-32-karakter!!
       CSRF_SECRET: ci-test-csrf-secret-minimal-32-karakter!
       CREDENTIALS_ENCRYPTION_KEY: ci-test-encryption-key-32-karakter!!
+      # E2E_ADMIN_* (2026-09-01) — akun seed admin@mail.com dari db/seed.ts,
+      # dipakai transactions-filter.e2e.test.ts & scope-isolation.e2e.test.ts.
+      # Email literal AMAN (bukan rahasia, cuma username) TAPI password-nya
+      # BUKAN dummy — koreksi user: ini password superadmin ASLI yang SAMA
+      # dipakai login ke dev-dashboard.semanggi.id sungguhan (bukan cuma
+      # ephemeral DB seed CI), beda kelas dari JWT_SECRET/CSRF_SECRET/
+      # CREDENTIALS_ENCRYPTION_KEY di atas (dummy string acak, TIDAK match
+      # rahasia produksi mana pun) — WAJIB GitHub Secret, bukan literal YAML.
+      # E2E_PROD_* (password akun production riil lainnya) SENGAJA TIDAK
+      # diset di sini — production-kpi-matrix.e2e.test.ts local-only,
+      # otomatis skip di CI (DB seed CI tidak punya akun production tsb).
+      E2E_ADMIN_EMAIL: admin@mail.com
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
     services:
       postgres:

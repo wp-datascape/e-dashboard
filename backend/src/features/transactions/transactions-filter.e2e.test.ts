@@ -30,6 +30,17 @@ import { createRouter } from '@/router'
 const app = new Hono()
 createRouter(app)
 
+// Kredensial login e2e (2026-09-01, instruksi user: "jangan tulis kredensial
+// di e2e tes, gunakan secret dari env file") — WAJIB diset di .env (lokal)
+// atau env job CI (lihat .github/workflows/pipeline.yml), bukan literal di
+// source. Lihat .env.example untuk nilai default seed (admin@mail.com/123456,
+// bukan rahasia sungguhan — cuma dipindah ke env demi konsistensi pola).
+const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
+if (!E2E_ADMIN_EMAIL || !E2E_ADMIN_PASSWORD) {
+  throw new Error('E2E_ADMIN_EMAIL dan E2E_ADMIN_PASSWORD wajib diset di .env untuk menjalankan test ini (lihat .env.example)')
+}
+
 let cookie: string
 // Division sekarang FK integer per company (task012 v2) — id + label dinamis,
 // di-resolve di beforeAll (bukan literal string tetap lagi).
@@ -40,7 +51,7 @@ beforeAll(async () => {
   const res = await app.request('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@mail.com', password: '123456' }),
+    body: JSON.stringify({ email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD }),
   })
   const setCookie = res.headers.get('set-cookie') ?? ''
   const match = setCookie.match(/access_token=([^;,]+)/)

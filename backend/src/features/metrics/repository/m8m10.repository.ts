@@ -340,7 +340,20 @@ export async function fetchDormantValueRanking(p: SegmentParams, limit: number |
         c.customer_name,
         c.customer_code,
         co.name                 AS company_name,
-        d.label                 AS division_label,
+        -- division_label (2026-08-31, laporan user: "itu bug filtering" —
+        -- report difilter ke 1 divisi, tapi label tetap tampilkan divisi
+        -- DOMINAN/permanen customer itu company-wide, mis. filter "Ucard"
+        -- tapi baris tampil "Offline" krn itu divisi dominan customer tsb
+        -- secara keseluruhan). Kalau laporan difilter ke 1 divisi, SEMUA
+        -- baris di sini SUDAH PASTI py riwayat di divisi itu (dijamin JOIN
+        -- inv yang sudah difilter parameter division di atas) — tampilkan
+        -- label divisi yang SEDANG DIFILTER, bukan divisi dominan customer.
+        -- Tanpa filter (division=NULL, "All Divisions"), tetap tampilkan
+        -- divisi dominan sbg ringkasan (perilaku lama, tidak berubah).
+        CASE WHEN ${division}::int IS NOT NULL
+          THEN (SELECT label FROM divisions WHERE id = ${division}::int)
+          ELSE d.label
+        END                     AS division_label,
         MAX(inv.invoice_date)   AS last_invoice_date
       FROM customers c
       JOIN inv ON inv.customer_id = c.id

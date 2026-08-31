@@ -27,6 +27,16 @@ const USER_ROLE_ID = 3
 // isolasi scope berlaku ke SEMUA role non-superadmin, bukan cuma 'user'.
 const ADMIN_ROLE_ID = 2
 const TEST_PASSWORD = 'password123'
+// Kredensial superadmin seed (2026-09-01, instruksi user: "jangan tulis
+// kredensial di e2e tes, gunakan secret dari env file") — WAJIB diset di
+// .env (lokal) atau env job CI, lihat .env.example. Beda dari TEST_PASSWORD
+// di atas (itu password fixture user SINTETIS yang dibuat & dihapus sendiri
+// oleh test ini, bukan akun sungguhan — tidak perlu dipindah ke env).
+const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
+if (!E2E_ADMIN_EMAIL || !E2E_ADMIN_PASSWORD) {
+  throw new Error('E2E_ADMIN_EMAIL dan E2E_ADMIN_PASSWORD wajib diset di .env untuk menjalankan test ini (lihat .env.example)')
+}
 // Division sekarang FK integer per company (task012 v2) — id dinamis, di-resolve
 // di beforeAll() lewat divisionIdByKey/divisionLabelById (bukan literal string lagi).
 let divisionIdByKey: Map<string, number>
@@ -257,7 +267,7 @@ beforeAll(async () => {
     loginAndGetCookie(distributionOnlyUser.email),
     loginAndGetCookie(noBranchUser.email),
     loginAndGetCookie(fullAccessUser.email),
-    loginAndGetCookie('admin@mail.com', '123456'),
+    loginAndGetCookie(E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD),
     loginAndGetCookie(multiBranchAdminUser.email),
     loginAndGetCookie(crossCompanyUser.email),
     loginAndGetCookie(narrowDivisionUser.email),
