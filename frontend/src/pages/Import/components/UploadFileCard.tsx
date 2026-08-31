@@ -24,11 +24,14 @@ import { channelDivisionsApi } from '@/api/channelDivisions.api'
 import { importClassificationRules, downloadClassificationTemplate } from '@/api/classification.api'
 import { downloadFakturTemplate } from '@/api/import.api'
 import { usersApi } from '@/api/users.api'
+import { highMarginApi } from '@/api/highMargin.api'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
 import { ResultBanner } from './ResultBanner'
+import { HighMarginImportReview } from './HighMarginImportReview'
 import type { Company } from '@/types/users'
+import type { HighMarginImportPreviewResult } from '@/types/highMargin'
 
-type ImportType = 'faktur' | 'divisi' | 'klasifikasi' | 'user'
+type ImportType = 'faktur' | 'divisi' | 'klasifikasi' | 'user' | 'high_margin'
 
 interface MasterImportResult {
   added: number
@@ -59,6 +62,11 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
   const [dragOver, setDragOver] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [masterResult, setMasterResult] = useState<MasterImportResult | null>(null)
+  // hmPreview (task036, 2026-08-31) — tahap preview mapping High Margin,
+  // BEDA dari 3 tipe master data lain (masterResult) yang commit langsung.
+  // Terisi setelah upload berhasil di-parse+validasi, TABEL REVIEW muncul
+  // menggantikan dropzone+tombol submit sampai user selesai (Terapkan/Batal).
+  const [hmPreview, setHmPreview] = useState<HighMarginImportPreviewResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Faktur SSE import ──
@@ -108,7 +116,18 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     onError: () => enqueueSnackbar(t('import.form.snackbarUserError'), { variant: 'error' }),
   })
 
-  const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending || userMutation.isPending
+  // ── High Margin import: tahap preview (task036) ──
+  const hmPreviewMutation = useMutation({
+    mutationFn: ({ file, companyId }: { file: File; companyId: number }) =>
+      highMarginApi.previewImport(file, companyId),
+    onSuccess: (res) => {
+      setHmPreview(res)
+      setFile(null)
+    },
+    onError: () => enqueueSnackbar(t('import.form.hmPreviewError'), { variant: 'error' }),
+  })
+
+  const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending || userMutation.isPending || hmPreviewMutation.isPending
   const isPending = isFakturPending || isMasterPending
   const isDisabled = isPending || disabled
 
@@ -120,6 +139,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     setFile(null)
     setFormError(null)
     setMasterResult(null)
+    setHmPreview(null)
     setDefaultPassword('')
     reset()
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -138,6 +158,12 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
       if (importType === 'faktur') await downloadFakturTemplate()
       else if (importType === 'divisi') await channelDivisionsApi.downloadTemplate()
       else if (importType === 'user') await usersApi.downloadTemplate()
+      else if (importType === 'high_margin') {
+        // Template High Margin BEDA per company (sheet legend divisi ikut
+        // company yang dipilih, task036.md) — TIDAK generik spt tipe lain.
+        if (!companyId) { setFormError(t('import.form.errorCompany')); return }
+        await highMarginApi.downloadImportTemplate(companyId as number)
+      }
       else await downloadClassificationTemplate()
     } catch {
       enqueueSnackbar(t('import.form.snackbarTemplateError'), { variant: 'error' })
@@ -165,6 +191,10 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
       if (!file) { setFormError(t('import.form.errorFile')); return }
       if (defaultPassword.length < 8) { setFormError(t('import.form.errorDefaultPassword')); return }
       userMutation.mutate({ file, defaultPassword })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } else if (importType === 'high_margin') {
+      if (!file) { setFormError(t('import.form.errorFile')); return }
+      hmPreviewMutation.mutate({ file, companyId: companyId as number })
       if (fileInputRef.current) fileInputRef.current.value = ''
     } else {
       if (!file) { setFormError(t('import.form.errorFile')); return }
@@ -208,6 +238,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
               <MenuItem value="faktur">{t('import.form.typeFaktur')}</MenuItem>
               <MenuItem value="divisi">{t('import.form.typeDivisi')}</MenuItem>
               <MenuItem value="klasifikasi">{t('import.form.typeKlasifikasi')}</MenuItem>
+              <MenuItem value="high_margin">{t('import.form.typeHighMargin')}</MenuItem>
               <MenuItem value="user">{t('import.form.typeUser')}</MenuItem>
             </Select>
           </FormControl>
@@ -309,6 +340,18 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
           </Box>
         </Box>
 
+        {/* ── Dialog review High Margin (task036) — tahap preview, sebelum
+            commit ── */}
+        {importType === 'high_margin' && (
+          <HighMarginImportReview
+            open={!!hmPreview}
+            companyId={companyId as number}
+            preview={hmPreview}
+            onCancel={() => setHmPreview(null)}
+            onDone={() => setHmPreview(null)}
+          />
+        )}
+
         {/* ── Progress faktur ── */}
         {importType === 'faktur' && (phase === 'uploading' || phase === 'processing') && (
           <Box>
@@ -362,7 +405,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             disabled={isDisabled}
             startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
           >
-            {isPending ? t('import.form.loading') : t('import.file.submit')}
+            {isPending ? t('import.form.loading') : importType === 'high_margin' ? t('import.form.hmPreviewSubmit') : t('import.file.submit')}
           </Button>
         )}
       </Stack>

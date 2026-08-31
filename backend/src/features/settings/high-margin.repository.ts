@@ -136,6 +136,45 @@ export async function closeHighMargin(id: number, today: string) {
   return result
 }
 
+// Bulk import commit (task036, 2026-08-31) — 1 baris = 1 insert, opsional
+// didahului tutup mapping lama (supersede) dalam TRANSAKSI YANG SAMA supaya
+// atomik (kalau insert baris baru gagal, penutupan mapping lama ikut
+// dibatalkan — tidak ada state "mapping lama sudah ditutup tapi baris baru
+// gagal masuk"). Mirror createHighMargin di atas, ditambah langkah close
+// opsional sebelum insert.
+export async function createHighMarginWithSupersede(
+  data: NewHighMarginProduct,
+  divisionIds: number[],
+  supersedeId: number | undefined,
+  supersedeUntil: string | undefined,
+) {
+  return db.transaction(async (tx) => {
+    if (supersedeId != null && supersedeUntil != null) {
+      await tx.update(high_margin_products)
+        .set({ effective_until: supersedeUntil, updated_at: new Date() })
+        .where(eq(high_margin_products.id, supersedeId))
+    }
+    const [result] = await tx.insert(high_margin_products).values(data).returning()
+    await tx.insert(high_margin_product_divisions).values(
+      divisionIds.map((division_id) => ({ high_margin_product_id: result!.id, division_id })),
+    )
+    return result
+  })
+}
+
 export async function deleteHighMargin(id: number) {
   await db.delete(high_margin_products).where(eq(high_margin_products.id, id))
+}
+
+// "Kamus" nama produk+kategori 1 company (task036, 2026-08-31) — dipakai
+// validasi bulk import by-name (lihat high-margin-import.service.ts),
+// pola sama persis dedup existing app ini (UPPER(name)+company_id,
+// docs-v2/features/high-margin-products.md §1.1) — nama di-uppercase +
+// trim di service layer saat build lookup map, bukan di sini.
+export async function findProductsAndCategoriesByCompany(companyId: number) {
+  const [productRows, categoryRows] = await Promise.all([
+    db.select({ id: products.id, name: products.product_name }).from(products).where(eq(products.company_id, companyId)),
+    db.select({ id: product_categories.id, name: product_categories.name }).from(product_categories).where(eq(product_categories.company_id, companyId)),
+  ])
+  return { products: productRows, categories: categoryRows }
 }
