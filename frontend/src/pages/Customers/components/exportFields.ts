@@ -21,7 +21,7 @@ export const EXPORT_FIELDS: ExportFieldDef[] = [
   { key: 'status_label', labelKey: 'customers.status' },
   { key: 'category_count', labelKey: 'customers.categories' },
   { key: 'avg_monthly_revenue', labelKey: 'customers.detail.avgMonthly' },
-  { key: 'lifetime_value', labelKey: 'customers.detail.lifetimeValue' },
+  { key: 'lifetime_value', labelKey: 'customers.detail.lifetimeTotal' },
   { key: 'last_invoice_date', labelKey: 'customers.lastTransaction' },
   { key: 'total_invoices', labelKey: 'customers.totalInvoices' },
 ];

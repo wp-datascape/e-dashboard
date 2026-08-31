@@ -81,6 +81,14 @@ async function buildCustomerQueryContext(
       live_first: sql<string | null>`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${liveDatesScopeGuard} THEN ${invoices.invoice_date} END)`.as('live_first'),
       // WAJIB dibatasi invoice_date <= refDate — sebelumnya cuma filter deleted_at,
       // jadi lifetime_value/avg_monthly_revenue SELALU all-time (mengabaikan as_of_date).
+      // lifetime_value MEMANG all-time (total sepanjang riwayat s/d as_of_date) BY
+      // DESIGN (2026-08-31, instruksi user: "life time value ini diperlukan" — bukan
+      // salah hitung, tapi labelnya keliru bilang "Revenue 12 Bulan Terakhir" padahal
+      // ini akumulasi seumur hidup). Fix sebenarnya: pisahkan label ini dari label
+      // 12-bulan di dialog detail (`customers.detail.lifetimeValue`, findCustomerDetail
+      // baris ~608), lihat key i18n baru `customers.detail.lifetimeTotal` di
+      // Customers/index.tsx + customers.handler.ts (export header) — BUKAN mengubah
+      // query ini jadi windowed.
       lifetime_value: sql<string>`COALESCE(SUM(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${liveDatesScopeGuard} THEN ${invoices.total_revenue}::numeric END), 0)`.as('lifetime_value'),
       // Dibatasi 12 bulan kalender terakhir (sama persis window monthly_revenue_trend
       // di findCustomerDetail) — pembagi FIXED 12 (bukan COUNT bulan aktif) supaya
