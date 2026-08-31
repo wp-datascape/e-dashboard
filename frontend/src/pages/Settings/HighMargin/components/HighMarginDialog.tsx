@@ -173,6 +173,7 @@ export function HighMarginDialog({
 
         <Autocomplete<DivisionOption, true, false, false>
           multiple
+          disableCloseOnSelect
           options={assignableDivisions}
           value={assignableDivisions.filter((d) => divisionIds.includes(d.id))}
           onChange={(_, vals) => setDivisionIds(vals.map((v) => v.id))}

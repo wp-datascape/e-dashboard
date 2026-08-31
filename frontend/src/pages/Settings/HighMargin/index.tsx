@@ -16,9 +16,7 @@ import StarIcon from '@mui/icons-material/Star'
 import CategoryIcon from '@mui/icons-material/Category'
 import { useTranslation } from 'react-i18next'
 import type { GridColDef } from '@mui/x-data-grid'
-import Stack from '@mui/material/Stack'
-import Chip from '@mui/material/Chip'
-import { Card, Button, ActionMenu, StatusChip } from '@/components/ui'
+import { Card, Button, ActionMenu, StatusChip, ChipOverflowCell } from '@/components/ui'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { useCompanies } from '@/hooks/useCompanies'
@@ -144,11 +142,10 @@ export default function HighMarginSettings() {
       minWidth: 160,
       sortable: false,
       renderCell: ({ row }) => (
-        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', py: 0.5 }}>
-          {row.division_names.map((name) => (
-            <Chip key={name} size="small" label={name} variant="outlined" />
-          ))}
-        </Stack>
+        <ChipOverflowCell
+          maxVisible={1}
+          items={row.division_names.map((name) => ({ id: name, label: name, tooltipText: name }))}
+        />
       ),
     },
     {
@@ -271,6 +268,7 @@ export default function HighMarginSettings() {
           rows={mappings}
           columns={columns}
           loading={isLoading}
+          getRowHeight="auto"
         />
       </Card>
 

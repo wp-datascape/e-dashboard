@@ -5,6 +5,10 @@
 // yang butuh pola identik: preview 2 chip + Popover berisi SEMUA chip
 // (tetap bisa diklik satu-satu), row height jadi SERAGAM krn preview selalu
 // maks 2 chip (bukan wrap tak terbatas spt sebelumnya, §36.12/task031 §8).
+// Dipindah dari pages/ProductsHighMargin/components (2026-08-31, instruksi
+// user: pola tabel "Divisi Fokus" di Settings/HighMargin dibuat SAMA spt
+// tabel rekomendasi upsell) ke sini spy genuinely reusable lintas halaman,
+// bukan cross-import antar folder pages/*.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import Box from '@mui/material/Box';
@@ -16,11 +20,11 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useTranslation } from 'react-i18next';
-import { StatusChip } from '@/components/ui';
-import type { StatusChipColor } from '@/components/ui/StatusChip/StatusChip';
+import { StatusChip } from '@/components/ui/StatusChip';
+import type { StatusChipColor } from '@/components/ui/StatusChip';
 
 export interface ChipOverflowItem {
-  id: number;
+  id: number | string;
   /** Isi chip — bisa ReactNode (mis. persentase di-bold via `<b>`), lihat
    * `missing_high_margin_categories` di ProductsHighMargin/index.tsx. */
   label: ReactNode;
@@ -97,7 +101,7 @@ export function ChipOverflowCell({ items, color, maxVisible = 2 }: ChipOverflowC
               '&:hover': { bgcolor: 'action.hover' },
             }}
           >
-            {t('productsHighMargin.showAll', { count: items.length })}
+            {t('common.showAll', { count: items.length })}
             <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
           </ButtonBase>
           <Popover
@@ -116,7 +120,7 @@ export function ChipOverflowCell({ items, color, maxVisible = 2 }: ChipOverflowC
             slotProps={{ paper: { sx: { p: 1.5, maxWidth: { xs: 'calc(100vw - 32px)', sm: 380 } }, onClick: (e: React.MouseEvent) => e.stopPropagation() } }}
           >
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
-              {t('productsHighMargin.showAll', { count: items.length })}
+              {t('common.showAll', { count: items.length })}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
               {items.map((item) => (
