@@ -28,6 +28,7 @@ import type { CustomerStatus, CustomerRow } from '@/types/customers';
 import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
+import { ExportFieldsDialog } from './components/ExportFieldsDialog';
 import { formatRupiah } from '@/utils/format';
 import { currentYearMonth, resolvePeriodEnd, formatMonthYearLabel } from '@/utils/date';
 
@@ -45,6 +46,7 @@ export default function Customers() {
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
   const [exporting, setExporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -107,10 +109,12 @@ export default function Customers() {
   // Products/index.tsx, filter di halaman ini juga cuma bulan tunggal.
   const periodLabel = formatMonthYearLabel(periodMonth);
 
-  // Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export
-  // excel juga di ke 2 menu" — susulan export Transactions) — filter SAMA
+  // Dialog pilih field (2026-08-31, instruksi user: "periksa juga untuk
+  // export customer" — susulan fitur pilih field export Products) — buka
+  // dialog dulu, download beneran baru dipicu dari tombol Export DI DALAM
+  // dialog itu, pola sama persis Transactions/index.tsx. Filter SAMA
   // PERSIS queryParams minus page/per_page/sort_by/sort_dir.
-  const handleExport = async () => {
+  const handleExport = async (fields: string[]) => {
     setExporting(true);
     try {
       await customersApi.exportCustomers({
@@ -121,7 +125,8 @@ export default function Customers() {
         business_unit: divisionFilter || undefined,
         as_of_date: asOfDate,
         exclude_intercompany: excludeIntercompany,
-      });
+      }, fields);
+      setExportDialogOpen(false);
     } catch {
       enqueueSnackbar(t('customers.exportError'), { variant: 'error' });
     } finally {
@@ -229,7 +234,7 @@ export default function Customers() {
         actions={canExport && (
           <Tooltip title={t('customers.exportExcel')} placement="top">
             <span>
-              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={handleExport} disabled={exporting}>
+              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => setExportDialogOpen(true)} disabled={exporting}>
                 {exporting ? <CircularProgress size={18} /> : <DownloadOutlinedIcon sx={{ fontSize: 18 }} />}
               </IconButton>
             </span>
@@ -242,6 +247,14 @@ export default function Customers() {
         onClose={() => setSelectedCustomerId(null)}
         asOfDate={asOfDate}
       />
+      {canExport && (
+        <ExportFieldsDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          onExport={handleExport}
+          exporting={exporting}
+        />
+      )}
     </Box>
   );
 }

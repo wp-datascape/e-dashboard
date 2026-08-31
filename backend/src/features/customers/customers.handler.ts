@@ -49,7 +49,12 @@ export async function handleExportCustomers(c: Context) {
     ['Jumlah Baris', data.length.toLocaleString('id-ID') + (truncated ? ` (dibatasi dari ${total.toLocaleString('id-ID')} total)` : '')],
   ]
 
-  const columns: ExcelColumn[] = [
+  // `fields` KOSONG/tidak dikirim = export SEMUA kolom (default, sama spt
+  // Transactions) — pola sama persis handleExportInvoices.
+  const selectedFields: readonly string[] | undefined = query.fields
+  const isSelected = (key: string) => !selectedFields?.length || selectedFields.includes(key)
+
+  const allColumns: ExcelColumn[] = [
     { header: 'Kode Customer', key: 'customer_code', width: 16 },
     { header: 'Nama Customer', key: 'name', width: 28 },
     { header: 'Company', key: 'company_name', width: 20 },
@@ -61,6 +66,7 @@ export async function handleExportCustomers(c: Context) {
     { header: 'Transaksi Terakhir', key: 'last_invoice_date', width: 16 },
     { header: 'Total Faktur', key: 'total_invoices', width: 12 },
   ]
+  const columns = allColumns.filter((c) => isSelected(c.key))
 
   const rows = data.map((row) => ({ ...row, status_label: STATUS_LABEL[row.status] ?? row.status }))
 

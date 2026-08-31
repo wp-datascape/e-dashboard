@@ -30,6 +30,7 @@ import { FILTER_FIELD_WIDTH } from '@/components/filters/filterFieldWidth'
 import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
+import { ExportFieldsDialog } from './components/ExportFieldsDialog'
 import { formatRupiah } from '@/utils/format'
 import { formatMonthYearLabel } from '@/utils/date'
 
@@ -57,6 +58,7 @@ export default function Products() {
   const [itemType,        setItemType]        = useState<string>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
   const [exporting,       setExporting]       = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   // advancedOpen (2026-08-30, instruksi user: "rapikan filter" — sebelumnya
   // 8 kontrol filter ditumpuk 1 baris wrap, tidak konsisten dgn pola halaman
   // lain di app ini (Transactions/Growth/Retention/Revenue: Entity+Periode
@@ -116,11 +118,13 @@ export default function Products() {
   // Transactions/Report), jadi formatnya "Agustus 2026" polos.
   const periodLabel = formatMonthYearLabel(periodMonth)
 
-  // Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export
-  // excel juga di ke 2 menu" — susulan export Transactions) — filter SAMA
-  // PERSIS queryParams minus page/per_page/sort_by/sort_dir, supaya export
-  // selalu representasi PENUH dari filter yang lagi aktif di tabel.
-  const handleExport = async () => {
+  // Dialog pilih field (2026-08-31, instruksi user: "expor produk belum ada
+  // fitur pilih field seperti transaksi") — buka dialog dulu, download
+  // beneran baru dipicu dari tombol Export DI DALAM dialog itu, pola sama
+  // persis Transactions/index.tsx. Filter SAMA PERSIS queryParams minus
+  // page/per_page/sort_by/sort_dir, supaya export selalu representasi
+  // PENUH dari filter yang lagi aktif di tabel.
+  const handleExport = async (fields: string[]) => {
     setExporting(true)
     try {
       await productsApi.exportProductPerformance({
@@ -134,7 +138,8 @@ export default function Products() {
         search: search || undefined,
         high_margin_only: highMarginOnly || undefined,
         exclude_intercompany: excludeIntercompany,
-      })
+      }, fields)
+      setExportDialogOpen(false)
     } catch {
       enqueueSnackbar(t('products.exportError'), { variant: 'error' })
     } finally {
@@ -358,13 +363,22 @@ export default function Products() {
         actions={canExport && (
           <Tooltip title={t('products.exportExcel')} placement="top">
             <span>
-              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={handleExport} disabled={exporting}>
+              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => setExportDialogOpen(true)} disabled={exporting}>
                 {exporting ? <CircularProgress size={18} /> : <DownloadOutlinedIcon sx={{ fontSize: 18 }} />}
               </IconButton>
             </span>
           </Tooltip>
         )}
       />
+
+      {canExport && (
+        <ExportFieldsDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          onExport={handleExport}
+          exporting={exporting}
+        />
+      )}
     </Box>
   )
 }

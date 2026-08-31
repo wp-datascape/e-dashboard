@@ -392,15 +392,34 @@ export const productPerformanceQuerySchema = z.object({
 
 export type ProductPerformanceQuery = z.infer<typeof productPerformanceQuerySchema>
 
+// Pilih field export (2026-08-31, instruksi user: "expor produk belum ada
+// fitur pilih field seperti transaksi") — allow-list eksplisit, pola SAMA
+// PERSIS EXPORT_INVOICE_FIELDS (transactions.schema.ts). Urutan array ini
+// JUGA urutan kolom default di Excel (dipakai handler kalau `fields` kosong
+// = export semua, urutan TETAP ini, bukan urutan client kirim).
+export const EXPORT_PRODUCT_FIELDS = [
+  'product_name', 'category_name', 'is_high_margin', 'total_revenue',
+  'total_gp', 'gp_margin_ratio', 'customer_count', 'invoice_count', 'last_sold_month',
+] as const
+export type ExportProductField = typeof EXPORT_PRODUCT_FIELDS[number]
+
 // Export Excel (2026-08-31) — filter SAMA PERSIS productPerformanceQuerySchema,
 // TANPA page/per_page/sort_by/sort_dir (export selalu representasi PENUH dari
-// filter aktif, bukan 1 halaman/1 urutan pilihan user) — pola sama persis
-// invoicesExportQuerySchema (transactions.schema.ts).
+// filter aktif, bukan 1 halaman/1 urutan pilihan user), + `fields` opsional
+// (comma-separated) utk pilih kolom yang di-export — pola sama persis
+// invoicesExportQuerySchema (transactions.schema.ts). Field TIDAK DIKENAL
+// diam-diam dibuang (bukan error).
 export const productPerformanceExportQuerySchema = productPerformanceQuerySchema.omit({
   page: true,
   per_page: true,
   sort_by: true,
   sort_dir: true,
+}).extend({
+  fields: z.string().optional().transform((v) => {
+    if (!v) return undefined
+    const set = new Set(v.split(',').map((f) => f.trim()))
+    return EXPORT_PRODUCT_FIELDS.filter((f) => set.has(f))
+  }),
 })
 export type ProductPerformanceExportQuery = z.infer<typeof productPerformanceExportQuerySchema>
 
