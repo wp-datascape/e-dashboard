@@ -105,20 +105,11 @@ export function useCustomerMetrics(params?: {
 
 // ── M3 Revenue Drill-down ─────────────────────────────────────────────────────
 // date_from (2026-08-25, task029.md §33) — pola sama persis useGpBreakdown/useExpansionBreakdown.
-// `options.enabled` (2026-08-31, bug: role 'user' TIDAK punya customer.revenue:view
-// tapi tetap kena toast merah "Akses ditolak" di halaman Value — fetch ini
-// SEBELUMNYA jalan tanpa cek permission sama sekali, cuma cek period_end
-// terisi. Backend endpoint /metrics/revenue-breakdown minta customer.revenue:view
-// [metrics.route.ts], beda dari expansion:view yang gate halaman Value itu
-// sendiri) — caller (M3Revenue.tsx) WAJIB kirim `enabled: canRevenue`.
-export function useRevenueBreakdown(
-  params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean },
-  options?: { enabled?: boolean },
-) {
+export function useRevenueBreakdown(params: { period_end: string | null; date_from?: string; company_id?: number | 'all'; division?: number; branch_id?: number; exclude_intercompany?: boolean; only_pareto?: boolean }) {
   return useQuery<RevenueBreakdownData>({
     queryKey: ['metrics', 'revenue-breakdown', params],
     queryFn: () => metricsApi.getRevenueBreakdown({ period_end: params.period_end!, date_from: params.date_from, company_id: params.company_id, division: params.division, branch_id: params.branch_id, exclude_intercompany: params.exclude_intercompany, only_pareto: params.only_pareto }),
-    enabled: (options?.enabled ?? true) && !!params.period_end,
+    enabled: !!params.period_end,
     staleTime: STALE_TIME,
   });
 }
