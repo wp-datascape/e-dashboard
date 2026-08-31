@@ -42,6 +42,12 @@ export async function fetchHmBreakdown(
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
         AND ${onlyParetoCond}
+        -- Filter divisi laporan (2026-08-31, laporan user: drill-down HM
+        -- Buyers tetap tampil "Existing Active: 1.109" saat report difilter
+        -- ke 1 divisi/Ucard, padahal tooltip trend chart bilang 11 —
+        -- HILANG di sini sebelumnya, cuma divisionScopeCond [RBAC] yang ada,
+        -- BUKAN p.division [filter laporan]. Samakan pola dgn m3m7.repository.ts.
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
       GROUP BY i.customer_id
     ),
     -- inv_active (2026-08-25, task029.md §36) — BEDA dari M3/M4: denominator
@@ -65,6 +71,7 @@ export async function fetchHmBreakdown(
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
         AND ${onlyParetoCond}
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
     ),
     total AS (
       SELECT
@@ -122,6 +129,7 @@ export async function fetchHmBreakdown(
           AND ${divisionScopeCond}
           AND ${excludeIntercompanyCond}
           AND ${onlyParetoCond}
+          AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
       )
       SELECT COUNT(*)::int AS total_existing
       FROM established_customers ec
