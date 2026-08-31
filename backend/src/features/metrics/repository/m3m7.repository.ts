@@ -790,6 +790,17 @@ export async function fetchExpansionBreakdown(
   const curRangeCond = dateFrom
     ? sql`i.invoice_date >= ${dateFrom}::date AND i.invoice_date <= ${filterDate}::date`
     : sql`i.invoice_date >  ${filterDate}::date - ${activeMonths}::int * INTERVAL '1 month' AND i.invoice_date <= ${filterDate}::date`
+  // latestInvRangeCond (2026-08-31, laporan user: kolom Divisi/Cabang/
+  // Channel kosong "—" utk pelanggan status "down"/"inactive" di tabel
+  // Customer Expansion) — beda dari curRangeCond (window periode berjalan
+  // SAJA), populasi M7 BUKAN cuma yang transaksi periode ini (unlike M1
+  // yang jadi rujukan pola latest_inv aslinya) — customer "down"/"inactive"
+  // justru TIDAK PUNYA invoice di curRangeCond sama sekali, jadi kalau
+  // dibatasi curRangeCond hasilnya selalu kosong utk mereka. Cari invoice
+  // TERAKHIR kapan pun (s/d filterDate), bukan cuma di window ini — utk
+  // customer yang genuinely transaksi periode ini, hasilnya tetap SAMA
+  // (invoice terbarunya otomatis jatuh di curRangeCond juga).
+  const latestInvRangeCond = sql`i.invoice_date <= ${filterDate}::date`
   // prevRangeCond (2026-08-23, koreksi user: "membandingkan 1-7 vs 26-31 itu
   // makesense?" — jawaban TIDAK) — kalau prevDateFrom/prevDateTo dikirim
   // (dihitung PERIOD-ANCHORED di service layer, posisi relatif sama di
@@ -906,8 +917,9 @@ export async function fetchExpansionBreakdown(
         AND cd.company_id = i.company_id
       LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
       WHERE i.deleted_at IS NULL
-        AND ${curRangeCond}
+        AND ${latestInvRangeCond}
         AND ${companyCondI}
+        AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
         AND ${branchCond}
         AND ${divisionScopeCond}
         AND ${excludeIntercompanyCond}
