@@ -13,7 +13,7 @@ import { DivisionChip } from './DivisionChip'
 // formatIDR (singkatan jt/M) khusus formatBar/formatLine axis chart di bawah — ruangnya sempit.
 // formatRupiah (angka penuh) buat teks/dialog biasa (2026-08-19).
 import { formatIDR, formatRupiah } from '@/utils/format'
-import { formatMonthLabel } from '@/utils/date'
+import { formatMonthLabel, formatDateID } from '@/utils/date'
 
 interface Props {
   customerId: number | null
@@ -139,7 +139,7 @@ export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
                   <Box key={inv.invoice_number} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{inv.invoice_number}</Typography>
-                      <Typography variant="body2" color="text.secondary">{inv.invoice_date}</Typography>
+                      <Typography variant="body2" color="text.secondary">{formatDateID(inv.invoice_date)}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
                       <Typography variant="caption" color="text.secondary">{t('customers.detail.revenueColon', { value: formatRupiah(inv.total_revenue) })}</Typography>
