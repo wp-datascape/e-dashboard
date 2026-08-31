@@ -36,17 +36,19 @@ export function ScopeFilterFields({ filter, size = 'small', sx, fields = ['entit
     divisionOptions, showDivisionFilter, division, setDivision,
   } = filter
 
-  // Filter berjenjang (2026-08-20, instruksi user): Branch baru bisa dipilih
-  // kalau Company sudah dipersempit ke 1 entitas spesifik, Division baru bisa
-  // dipilih kalau Branch juga sudah dipersempit — field-nya harus TETAP
-  // TAMPIL (disabled/abu-abu), BUKAN disembunyikan, selama parent-nya masih
-  // 'all' (koreksi user: awalnya field malah hilang total, bukan disabled,
-  // karena branchOptions kosong saat companyId==='all' jadi showBranchFilter
-  // ikut false). Begitu company dipilih dan opsinya cuma <=1 (genuinely tidak
-  // ada pilihan berarti), showBranchFilter/showDivisionFilter tetap dipakai
-  // buat sembunyikan — itu kasus beda (bukan "belum dipilih").
+  // Filter berjenjang (2026-08-31, koreksi user: sebelumnya Division baru
+  // aktif kalau Branch JUGA sudah dipersempit ke 1 cabang spesifik — user
+  // sekarang minta Branch DAN Division sama-sama aktif begitu Company
+  // dipilih, tidak perlu nunggu Branch dipersempit dulu). Field-nya tetap
+  // TAMPIL (disabled/abu-abu), BUKAN disembunyikan, selama Company masih
+  // 'all' (koreksi user 2026-08-20: awalnya field malah hilang total, bukan
+  // disabled, karena branchOptions kosong saat companyId==='all' jadi
+  // showBranchFilter ikut false). Begitu company dipilih dan opsinya cuma
+  // <=1 (genuinely tidak ada pilihan berarti), showBranchFilter/
+  // showDivisionFilter tetap dipakai buat sembunyikan — itu kasus beda
+  // (bukan "belum dipilih").
   const branchDisabled = companyId === 'all'
-  const divisionDisabled = branchId === 'all'
+  const divisionDisabled = companyId === 'all'
   const showBranch = branchDisabled || showBranchFilter
   const showDivision = divisionDisabled || showDivisionFilter
 
