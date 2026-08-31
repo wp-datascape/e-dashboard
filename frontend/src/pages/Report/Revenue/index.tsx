@@ -285,6 +285,14 @@ export default function ReportRevenue() {
                 { label: t('customerMetrics.m3.summaryTotalRevenue'), value: formatRupiah(revenueData?.total_revenue ?? 0),
                   icon: PaidOutlinedIcon, iconColor: 'primary', highlighted: true, info: t('customerMetrics.m3.summaryTotalRevenueInfo') },
                 { label: t('customerMetrics.m3.rowHmContribution'), value: formatRupiah(revenueData?.hm_revenue ?? 0),
+                  // pct (2026-08-31, instruksi user: "tambahkan persentase
+                  // kontribusi high margin di card kontribusi high margin")
+                  // — rumus SAMA PERSIS dialog drill-down M3Revenue.tsx
+                  // (dialogHmContributionPct): hm_revenue ÷ total_revenue,
+                  // bukan sumber/hitungan baru.
+                  pct: revenueData && revenueData.total_revenue > 0
+                    ? `${((revenueData.hm_revenue / revenueData.total_revenue) * 100).toFixed(1)}%`
+                    : '0%',
                   icon: WorkspacePremiumIcon, iconColor: 'success' },
               ]} />
               <ResponsiveListView
