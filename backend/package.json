@@ -20,7 +20,7 @@
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "0.45.2",
     "exceljs": "^4.4.0",
-    "hono": "^4.12.28",
+    "hono": "^4.13.5",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
