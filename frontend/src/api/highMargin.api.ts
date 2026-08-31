@@ -6,6 +6,9 @@ import type {
   UpdateHighMarginPayload,
   HighMarginListParams,
   ProductOption,
+  HighMarginImportPreviewResult,
+  HighMarginImportCommitPayload,
+  HighMarginImportCommitResult,
 } from '@/types/highMargin'
 
 export const highMarginApi = {
@@ -47,5 +50,34 @@ export const highMarginApi = {
       { params: { company_id } }
     )
     return res.data.data.map((c) => ({ id: c.id, name: c.name, type: 'category' as const }))
+  },
+
+  // ─── Bulk Import (task036, 2026-08-31) — alur 2 tahap: preview (parse+
+  // validasi, TANPA tulis DB) lalu commit (baru insert, setelah user
+  // review status tiap baris) ────────────────────────────────────────────
+  downloadImportTemplate: async (companyId: number): Promise<void> => {
+    const res = await api.get('/settings/high-margin/import/template', {
+      params: { company_id: companyId },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'high_margin_import_template.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
+  previewImport: async (file: File, companyId: number): Promise<HighMarginImportPreviewResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('company_id', String(companyId))
+    const res = await api.post<ApiResponse<HighMarginImportPreviewResult>>('/settings/high-margin/import/preview', form)
+    return res.data.data
+  },
+
+  commitImport: async (payload: HighMarginImportCommitPayload): Promise<HighMarginImportCommitResult> => {
+    const res = await api.post<ApiResponse<HighMarginImportCommitResult>>('/settings/high-margin/import/commit', payload)
+    return res.data.data
   },
 }

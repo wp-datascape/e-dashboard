@@ -39,3 +39,41 @@ export const highMarginIdParamSchema = z.object({
 export type CreateHighMarginDto = z.infer<typeof createHighMarginSchema>
 export type UpdateHighMarginDto = z.infer<typeof updateHighMarginSchema>
 export type ListHighMarginQuery = z.infer<typeof listHighMarginQuerySchema>
+
+// ─── Bulk Import (task036, 2026-08-31) ─────────────────────────────────────
+// Alur 2 tahap (instruksi user): preview (parse+validasi, TANPA tulis DB)
+// lalu commit (baru insert, setelah user review status tiap baris di
+// frontend) — BEDA dari import lain (divisi/klasifikasi) yang commit
+// langsung 1 langkah, lihat task036.md §"Alur UI".
+
+export const highMarginImportTemplateQuerySchema = z.object({
+  company_id: z.coerce.number().int().positive(),
+})
+
+// commit menerima baris HASIL preview (bukan file mentah lagi) — frontend
+// yang re-submit row yang mau disimpan, backend WAJIB validasi ulang semua
+// (jangan percaya begitu saja payload client, lihat task036.md §Backend).
+const highMarginImportCommitRowSchema = z.object({
+  type: z.enum(['product', 'category']),
+  target_id: z.number().int().positive(),
+  division_ids: z.array(z.number().int().positive()).min(1, 'Pilih minimal 1 divisi'),
+  effective_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  effective_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  note: z.string().max(500).optional(),
+  // supersede_id — TERISI kalau baris ini konflik dan user pilih "Pakai yang
+  // Baru": mapping lama (id ini) otomatis dinonaktifkan (effective_until =
+  // sehari sebelum effective_from baris baru) dalam TRANSAKSI YANG SAMA
+  // dengan insert baris baru. Kosong = insert biasa (baris Sukses, atau
+  // baris Konflik yang user pilih "Pertahankan yang Lama" TIDAK PERNAH
+  // dikirim sama sekali ke commit — di-skip di frontend sebelum submit).
+  supersede_id: z.number().int().positive().optional(),
+})
+
+export const highMarginImportCommitSchema = z.object({
+  company_id: z.number().int().positive(),
+  rows: z.array(highMarginImportCommitRowSchema).min(1, 'Tidak ada baris untuk disimpan'),
+})
+
+export type HighMarginImportTemplateQuery = z.infer<typeof highMarginImportTemplateQuerySchema>
+export type HighMarginImportCommitDto = z.infer<typeof highMarginImportCommitSchema>
+export type HighMarginImportCommitRow = z.infer<typeof highMarginImportCommitRowSchema>
