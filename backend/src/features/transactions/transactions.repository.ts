@@ -8,6 +8,7 @@ import {
   loadDivisionFallbackIds,
   flattenFallbackByBranch,
 } from '@/utils/scope'
+import { EXPORT_ROW_CAP } from '@/utils/excel'
 import type { InvoicesQuery, InvoicesSummaryQuery } from './transactions.schema'
 
 // Filter dasar (company/branch/division/exclude-intercompany/search/tanggal) —
@@ -204,17 +205,8 @@ export async function findInvoices(
 // TANPA LIMIT/OFFSET (ambil semua baris yang lolos filter, bukan 1 halaman).
 // Shape select SAMA PERSIS findInvoices (field-nya lurus jadi kolom Excel)
 // supaya tidak ada 2 definisi "bentuk baris invoice" yang bisa menyimpang.
-//
-// EXPORT_ROW_CAP — pengaman (bukan pagination beneran, murni jaga-jaga):
-// realistis 1 company/1 periode cuma ribuan baris (dicek langsung ke DB
-// sesi ini, PT Kode Niaga Tama 1 bulan ~11rb baris) — cap ini jauh di atas
-// itu, cuma mencegah request pengecualian (company_id=all TANPA rentang
-// tanggal sama sekali) bikin buffer Excel membengkak tak terbatas di
-// memori server. Kalau nanti genuinely butuh export > cap ini, ganti ke
-// streaming writer (`ExcelJS.stream.xlsx.WorkbookWriter`, lihat JSDoc
-// utils/excel.ts), BUKAN naikkan angka ini terus.
-export const EXPORT_ROW_CAP = 50_000
-
+// EXPORT_ROW_CAP (2026-08-31, dipindah ke utils/excel.ts) — dipakai bersama
+// semua endpoint export lain (Products/Customers), bukan cuma di sini lagi.
 export async function findInvoicesForExport(
   params: InvoiceFilterParams,
   scopeIds?: number[],

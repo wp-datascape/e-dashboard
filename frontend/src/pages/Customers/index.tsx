@@ -6,13 +6,20 @@ import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
 import Collapse from '@mui/material/Collapse';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter';
+import { useCan } from '@/hooks/useCan';
+import { customersApi } from '@/api/customers.api';
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields';
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle';
 import { FILTER_FIELD_WIDTH } from '@/components/filters/filterFieldWidth';
@@ -22,10 +29,13 @@ import { StatusChip } from './components/StatusChip';
 import { DivisionChip } from './components/DivisionChip';
 import { CustomerDetailDialog } from './components/CustomerDetailDialog';
 import { formatRupiah } from '@/utils/format';
-import { currentYearMonth, resolvePeriodEnd } from '@/utils/date';
+import { currentYearMonth, resolvePeriodEnd, formatMonthYearLabel } from '@/utils/date';
 
 export default function Customers() {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
+  const can = useCan();
+  const canExport = can('customer:export');
 
   const scopeFilter = useScopedCompanyFilter();
   const { companyId: companyFilter, branchId: branchFilter, division: divisionFilter, excludeIntercompany, setExcludeIntercompany } = scopeFilter;
@@ -34,6 +44,7 @@ export default function Customers() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [periodMonth, setPeriodMonth] = useState(currentYearMonth());
+  const [exporting, setExporting] = useState(false);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -90,6 +101,33 @@ export default function Customers() {
   const handleRowClick = useCallback((row: CustomerRow) => {
     setSelectedCustomerId(row.id);
   }, []);
+
+  // Info periode di header tabel (2026-08-31, instruksi user: "tambahkan
+  // info periode sebagai judul di tabel product dan customer") — pola sama
+  // Products/index.tsx, filter di halaman ini juga cuma bulan tunggal.
+  const periodLabel = formatMonthYearLabel(periodMonth);
+
+  // Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export
+  // excel juga di ke 2 menu" — susulan export Transactions) — filter SAMA
+  // PERSIS queryParams minus page/per_page/sort_by/sort_dir.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await customersApi.exportCustomers({
+        company_id: companyFilter,
+        branch_id: branchFilter === 'all' ? undefined : branchFilter,
+        search: debouncedSearch || undefined,
+        status: (statusFilter || undefined) as CustomerStatus | undefined,
+        business_unit: divisionFilter || undefined,
+        as_of_date: asOfDate,
+        exclude_intercompany: excludeIntercompany,
+      });
+    } catch {
+      enqueueSnackbar(t('customers.exportError'), { variant: 'error' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const columns: GridColDef<CustomerRow>[] = [
     { field: 'customer_code', headerName: t('customers.code'), width: 130, sortable: false },
@@ -183,6 +221,20 @@ export default function Customers() {
         // jadi kalau jadi judul, judul cardnya sering kosong/tidak informatif.
         mobileFields={['name', 'customer_code', 'company', 'division', 'status', 'category_count', 'avg_monthly_revenue', 'lifetime_value', 'last_invoice_date', 'total_invoices']}
         search={{ value: search, onChange: setSearch, placeholder: t('customers.searchPlaceholder') }}
+        periodLabel={(
+          <Typography variant="h6" color="text.primary" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {t('customers.periodHeading', { period: periodLabel })}
+          </Typography>
+        )}
+        actions={canExport && (
+          <Tooltip title={t('customers.exportExcel')} placement="top">
+            <span>
+              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={handleExport} disabled={exporting}>
+                {exporting ? <CircularProgress size={18} /> : <DownloadOutlinedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
       />
 
       <CustomerDetailDialog

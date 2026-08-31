@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCrossSellingSummary, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCrossSellingSummary, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleExportProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -36,6 +36,10 @@ metricsRoutes.get('/dormant-status-breakdown', requirePermission('churn.risk:vie
 metricsRoutes.get('/dormant-value-history', requirePermission('churn.risk:view'), handleGetDormantValueHistory)
 metricsRoutes.get('/category-performance',  requirePermission('product:view'), handleGetCategoryPerformance)
 metricsRoutes.get('/product-performance',   requirePermission('product:view'), handleGetProductPerformance)
+// Export Excel (2026-08-31) — permission SUDAH ada di seed sejak awal
+// ('product:export', category 'Product'), belum pernah dipakai endpoint
+// manapun sampai fitur ini.
+metricsRoutes.get('/product-performance/export', requirePermission('product:export'), handleExportProductPerformance)
 metricsRoutes.get('/product-categories',    requirePermission('product:view'), handleGetProductCategoryOptions)
 metricsRoutes.get('/category-products',                 requirePermission('product:view'), handleGetCategoryProducts)
 metricsRoutes.get('/high-margin-penetration/detail',    requirePermission('high.margin:view'), handleGetHmDetail)

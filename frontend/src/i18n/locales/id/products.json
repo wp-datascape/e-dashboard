@@ -1,6 +1,9 @@
 {
   "title": "Buku Besar Kinerja Produk",
   "subtitle": "Revenue, GP, dan margin per produk",
+  "periodHeading": "Menampilkan data periode : {{period}}",
+  "exportExcel": "Export Excel",
+  "exportError": "Gagal export Excel, coba lagi",
   "categoryName": "Kategori",
   "productName": "Nama Produk",
   "totalRevenue": "Revenue",

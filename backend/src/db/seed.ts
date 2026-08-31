@@ -85,6 +85,7 @@ const defaultPermissions = [
   // ── Customer Workbench ─────────────────────────────────────────────────
   { name: 'customer:menu',        description: 'Menu Customer List',        category: 'Customer' },
   { name: 'customer:view',        description: 'View Customer List',        category: 'Customer' },
+  { name: 'customer:export',      description: 'Export Customer List',      category: 'Customer' },
   { name: 'expansion:menu',       description: 'Menu Customer Expansion',   category: 'Expansion' },
   { name: 'expansion:view',       description: 'View Customer Expansion',   category: 'Expansion' },
   { name: 'expansion:export',     description: 'Export Customer Expansion', category: 'Expansion' },
@@ -286,7 +287,7 @@ const ADMIN_PERMISSION_NAMES = [
   'growth:menu', 'growth:view',
   'retention:menu', 'retention:view',
   'value:menu', 'value:view',
-  'customer:menu', 'customer:view',
+  'customer:menu', 'customer:view', 'customer:export',
   'expansion:menu', 'expansion:view', 'expansion:export',
   'churn.risk:menu', 'churn.risk:view', 'churn.risk:export',
   'cross.selling:menu', 'cross.selling:view', 'cross.selling:export',
@@ -328,7 +329,7 @@ const USER_PERMISSION_NAMES = [
   'growth:menu', 'growth:view',
   'retention:menu', 'retention:view',
   'value:menu', 'value:view',
-  'customer:menu', 'customer:view',
+  'customer:menu', 'customer:view', 'customer:export',
   'expansion:menu', 'expansion:view', 'expansion:export',
   // KPI4/5/7 (task025 §12) — role 'user' py2 punya expansion:view (yg dulu
   // sekaligus gate dialog GP/HM/Expansion breakdown), jadi 3 permission

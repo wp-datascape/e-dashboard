@@ -17,4 +17,22 @@ export const customersApi = {
     });
     return response.data.data;
   },
+
+  // Export Excel (2026-08-31) — filter SAMA PERSIS getCustomers minus
+  // page/per_page/sort_by/sort_dir, SATU request ke backend
+  // (`/customers/export`), pola sama persis transactionsApi.exportInvoices.
+  exportCustomers: async (
+    params: Omit<CustomerParams, 'page' | 'per_page' | 'sort_by' | 'sort_dir'>
+  ): Promise<void> => {
+    const res = await api.get('/customers/export', { params, responseType: 'blob' });
+    const contentDisposition = String(res.headers['content-disposition'] ?? '');
+    const match = /filename="([^"]+)"/.exec(contentDisposition);
+    const filename = match?.[1] ?? 'customer.xlsx';
+    const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

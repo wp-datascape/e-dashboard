@@ -392,6 +392,18 @@ export const productPerformanceQuerySchema = z.object({
 
 export type ProductPerformanceQuery = z.infer<typeof productPerformanceQuerySchema>
 
+// Export Excel (2026-08-31) — filter SAMA PERSIS productPerformanceQuerySchema,
+// TANPA page/per_page/sort_by/sort_dir (export selalu representasi PENUH dari
+// filter aktif, bukan 1 halaman/1 urutan pilihan user) — pola sama persis
+// invoicesExportQuerySchema (transactions.schema.ts).
+export const productPerformanceExportQuerySchema = productPerformanceQuerySchema.omit({
+  page: true,
+  per_page: true,
+  sort_by: true,
+  sort_dir: true,
+})
+export type ProductPerformanceExportQuery = z.infer<typeof productPerformanceExportQuerySchema>
+
 export const productCategoryOptionsQuerySchema = z.object({
   company_id: z
     .union([z.coerce.number().int().positive(), z.literal('all')])
