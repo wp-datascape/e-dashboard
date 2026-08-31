@@ -1,7 +1,7 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { loadThresholds, resolveDormantCategory, resolveDormantMonths, getDormantCategoryMap } from '@/features/config/threshold'
 import { loadDivisionFallbackIds, flattenFallbackByBranch } from '@/utils/scope'
-import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCustomerDormantStatusLog, fetchDormantValueHistory, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
+import { fetchCustomerMetricsTrend, fetchRevenueBreakdown, fetchExpansionBreakdown, fetchGpBreakdown, fetchHmBreakdown, fetchRorBreakdown, fetchDormantTrend, fetchDormantValueRanking, fetchCustomerDormantStatusLog, fetchDormantValueHistory, fetchCrossSellingKPI, fetchCrossSellingTrend, fetchCrossSellingDetail, fetchCrossSellingHeatmap, fetchCategoryPerformance, fetchProductPerformance, fetchProductPerformanceForExport, fetchProductCategoryOptions, fetchCategoryProducts, fetchHmDetail, fetchHmProductDetail, fetchUpsellTargets, fetchCustomerProducts, fetchAvgCategoryTrend, fetchHmCustomers, fetchHmDivisionBreakdown } from './metrics.repository'
 // Reuse fetchDormantValueTrend (task025 §19, 2026-08-07) — sebelumnya cuma
 // dipakai Dashboard summary card, sekarang dipakai juga halaman KPI9
 // (Nilai Hilang) supaya bisa averageLastMonths sama seperti KPI8/KPI10.
@@ -17,7 +17,7 @@ import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductPerformanceExportQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
 import type { CrossSellingMetricsData, CrossSellingSummaryData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData } from './metrics.types'
 
 // "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
@@ -1053,6 +1053,40 @@ export async function getProductPerformance(
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil performa produk', 500)
+  }
+}
+
+// Export Excel (2026-08-31) — filter SAMA PERSIS getProductPerformance,
+// TANPA page/per_page/sort_by/sort_dir, satu query lewat
+// fetchProductPerformanceForExport (reuse CTE yang sama, tanpa LIMIT/OFFSET).
+export async function getProductPerformanceExport(
+  params: ProductPerformanceExportQuery,
+  scope: MetricsScope = {},
+): Promise<{ data: object[]; total: number; truncated: boolean }> {
+  try {
+    const cid = params.company_id === 'all' ? 0 : params.company_id
+    const [py, pm] = params.period_month.split('-').map(Number)
+    const lastDay   = new Date(Date.UTC(py, pm, 0)).getDate()
+    const periodEnd = `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    return await fetchProductPerformanceForExport({
+      cid,
+      companyScopeIds: scope.companyScopeIds,
+      branchScope:     scope.branchScope,
+      divisionScope:   scope.divisionScope,
+      division:        params.division,
+      excludeIntercompany: params.exclude_intercompany,
+      branchFilter:    params.branch_id,
+      categoryId:      params.category_id,
+      itemType:        params.item_type,
+      periodEnd,
+      activeWindow:   params.active_window,
+      search:         params.search,
+      highMarginOnly: params.high_margin_only,
+    })
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil export performa produk', 500)
   }
 }
 

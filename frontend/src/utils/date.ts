@@ -88,3 +88,18 @@ export function formatMonthLabel(month: string): string {
   const d = new Date(y, m - 1, 1)
   return d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
 }
+
+/**
+ * Label bulan lengkap buat judul periode di header tabel — terima 'YYYY-MM',
+ * hasil "Agustus 2026" (2026-08-31, instruksi user: "tambahkan info periode
+ * sebagai judul di tabel product dan customer") — pola sama Transactions
+ * (formatPeriodLabel di analisisPeriod.ts), tapi versi sederhana KHUSUS
+ * halaman yang cuma punya filter bulan tunggal (tanpa granularitas Kuartal/
+ * Semester/Tahunan seperti Transactions/Report).
+ */
+export function formatMonthYearLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  if (!y || !m) return month
+  const d = new Date(y, m - 1, 1)
+  return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+}

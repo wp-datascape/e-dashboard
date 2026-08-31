@@ -1,6 +1,9 @@
 {
   "title": "Customer",
   "subtitle": "Master customer database with segmentation and performance metrics",
+  "periodHeading": "Showing data for period: {{period}}",
+  "exportExcel": "Export Excel",
+  "exportError": "Failed to export Excel, try again",
   "code": "Customer Code",
   "name": "Customer Name",
   "status": "Status",

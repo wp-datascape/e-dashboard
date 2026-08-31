@@ -1,6 +1,9 @@
 {
   "title": "Customer",
   "subtitle": "Database master customer dengan segmentasi dan metrik performa",
+  "periodHeading": "Menampilkan data periode : {{period}}",
+  "exportExcel": "Export Excel",
+  "exportError": "Gagal export Excel, coba lagi",
   "code": "Kode Customer",
   "name": "Nama Customer",
   "status": "Status",

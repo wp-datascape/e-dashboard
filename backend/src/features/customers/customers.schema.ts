@@ -25,6 +25,18 @@ export const customersQuerySchema = z.object({
   exclude_intercompany: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
 })
 
+// Export Excel (2026-08-31) — filter SAMA PERSIS customersQuerySchema, TANPA
+// page/per_page/sort_by/sort_dir (export selalu representasi PENUH dari
+// filter aktif, bukan 1 halaman/1 urutan pilihan user) — pola sama persis
+// invoicesExportQuerySchema (transactions.schema.ts).
+export const customersExportQuerySchema = customersQuerySchema.omit({
+  sort_by: true,
+  sort_dir: true,
+  page: true,
+  per_page: true,
+})
+export type CustomersExportQuery = z.infer<typeof customersExportQuerySchema>
+
 export const customerIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })

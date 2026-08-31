@@ -8,14 +8,21 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
 import Button from '@mui/material/Button'
 import Collapse from '@mui/material/Collapse'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import CircularProgress from '@mui/material/CircularProgress'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import { StatusChip } from '@/components/ui'
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid'
 import { useTranslation } from 'react-i18next'
+import { useSnackbar } from 'notistack'
 import { useProductPerformance, useProductCategoryOptions } from '@/hooks/useProducts'
 import { useItemTypeValues } from '@/hooks/useItemTypes'
 import { useScopedCompanyFilter } from '@/hooks/useScopedCompanyFilter'
+import { useCan } from '@/hooks/useCan'
+import { productsApi } from '@/api/products.api'
 import { ScopeFilterFields } from '@/components/filters/ScopeFilterFields'
 import { ExcludeIntercompanyToggle } from '@/components/filters/ExcludeIntercompanyToggle'
 import { RangeFilter } from '@/components/filters/RangeFilter'
@@ -24,6 +31,7 @@ import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import type { ProductPerformanceRow, ProductPerformanceParams } from '@/types/products'
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView'
 import { formatRupiah } from '@/utils/format'
+import { formatMonthYearLabel } from '@/utils/date'
 
 function todayMonth(): string {
   const now = new Date()
@@ -37,6 +45,9 @@ function MarginChip({ pct }: { pct: number }) {
 
 export default function Products() {
   const { t } = useTranslation()
+  const { enqueueSnackbar } = useSnackbar()
+  const can = useCan()
+  const canExport = can('product:export')
 
   const scopeFilter = useScopedCompanyFilter()
   const { companyId, branchId, division, excludeIntercompany, setExcludeIntercompany } = scopeFilter
@@ -45,6 +56,7 @@ export default function Products() {
   const [search,          setSearch]          = useState('')
   const [itemType,        setItemType]        = useState<string>('all')
   const [categoryId,      setCategoryId]      = useState<number | 'all'>('all')
+  const [exporting,       setExporting]       = useState(false)
   // advancedOpen (2026-08-30, instruksi user: "rapikan filter" — sebelumnya
   // 8 kontrol filter ditumpuk 1 baris wrap, tidak konsisten dgn pola halaman
   // lain di app ini (Transactions/Growth/Retention/Revenue: Entity+Periode
@@ -97,6 +109,38 @@ export default function Products() {
   }
 
   const { data, isLoading, error } = useProductPerformance(queryParams)
+
+  // Info periode di header tabel (2026-08-31, instruksi user: "tambahkan
+  // info periode sebagai judul di tabel product dan customer") — halaman
+  // ini cuma filter bulan tunggal (bukan Kuartal/Semester/Tahunan spt
+  // Transactions/Report), jadi formatnya "Agustus 2026" polos.
+  const periodLabel = formatMonthYearLabel(periodMonth)
+
+  // Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export
+  // excel juga di ke 2 menu" — susulan export Transactions) — filter SAMA
+  // PERSIS queryParams minus page/per_page/sort_by/sort_dir, supaya export
+  // selalu representasi PENUH dari filter yang lagi aktif di tabel.
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      await productsApi.exportProductPerformance({
+        company_id: companyId,
+        branch_id: branchId === 'all' ? undefined : branchId,
+        division: division || undefined,
+        item_type: itemTypeFilter,
+        category_id: categoryId === 'all' ? undefined : categoryId,
+        period_month: periodMonth,
+        active_window: activeWindow,
+        search: search || undefined,
+        high_margin_only: highMarginOnly || undefined,
+        exclude_intercompany: excludeIntercompany,
+      })
+    } catch {
+      enqueueSnackbar(t('products.exportError'), { variant: 'error' })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: GridColDef<ProductPerformanceRow>[] = [
     {
@@ -306,6 +350,20 @@ export default function Products() {
           onChange: (v) => { setSearch(v); setPaginationModel((p) => ({ ...p, page: 0 })) },
           placeholder: t('products.searchProductLabel'),
         }}
+        periodLabel={(
+          <Typography variant="h6" color="text.primary" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {t('products.periodHeading', { period: periodLabel })}
+          </Typography>
+        )}
+        actions={canExport && (
+          <Tooltip title={t('products.exportExcel')} placement="top">
+            <span>
+              <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={handleExport} disabled={exporting}>
+                {exporting ? <CircularProgress size={18} /> : <DownloadOutlinedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
       />
     </Box>
   )

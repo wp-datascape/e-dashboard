@@ -1,6 +1,9 @@
 {
   "title": "Product Performance Ledger",
   "subtitle": "Revenue, GP, and margin by product",
+  "periodHeading": "Showing data for period: {{period}}",
+  "exportExcel": "Export Excel",
+  "exportError": "Failed to export Excel, try again",
   "categoryName": "Category",
   "productName": "Product Name",
   "totalRevenue": "Revenue",

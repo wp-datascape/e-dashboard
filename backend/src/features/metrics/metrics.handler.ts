@@ -2,8 +2,11 @@ import type { Context } from 'hono'
 import { success, paginated } from '@/utils/response'
 import { validateQuery } from '@/utils/validator'
 import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBranchFilterAccess } from '@/middleware/auth'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCrossSellingSummary, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { buildExcelBuffer, excelResponseHeaders } from '@/utils/excel'
+import type { ExcelColumn } from '@/utils/excel'
+import { findCompanyById } from '@/features/companies/companies.repository'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productPerformanceExportQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCrossSellingSummary, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductPerformanceExport, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -128,6 +131,59 @@ export async function handleGetProductPerformance(c: Context) {
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const { data, total } = await getProductPerformance(query, scope)
   return paginated(c, data, { page: query.page, per_page: query.per_page, total })
+}
+
+// Export Excel (2026-08-31, instruksi user: "tambahkan fungsi export excel
+// juga di ke 2 menu" — susulan export Transactions) — filter SAMA PERSIS
+// handleGetProductPerformance, satu query tanpa pagination lewat
+// getProductPerformanceExport. Kolom Excel SAMA PERSIS kolom tabel di layar
+// (Products/index.tsx), bukan set kolom baru yang bisa menyimpang.
+export async function handleExportProductPerformance(c: Context) {
+  const query = validateQuery(c, productPerformanceExportQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const { data, total, truncated } = await getProductPerformanceExport(query, scope)
+
+  const entitasLabel = query.company_id === 'all'
+    ? 'Semua Entitas'
+    : (await findCompanyById(query.company_id))?.name ?? `Company #${query.company_id}`
+
+  const meta: [string, string][] = [
+    ['Entitas', entitasLabel],
+    ['Periode', query.period_month],
+    ['Jumlah Baris', data.length.toLocaleString('id-ID') + (truncated ? ` (dibatasi dari ${total.toLocaleString('id-ID')} total)` : '')],
+  ]
+
+  const columns: ExcelColumn[] = [
+    { header: 'Nama Produk', key: 'product_name', width: 30 },
+    { header: 'Kategori', key: 'category_name', width: 22 },
+    { header: 'High Margin', key: 'is_high_margin', width: 12 },
+    { header: 'Revenue', key: 'total_revenue', width: 16 },
+    { header: 'Laba Kotor', key: 'total_gp', width: 16 },
+    { header: 'Marjin GP (%)', key: 'gp_margin_ratio', width: 12, numFmt: '0.0%' },
+    { header: 'Pelanggan', key: 'customer_count', width: 12 },
+    { header: 'Faktur', key: 'invoice_count', width: 10 },
+    { header: 'Terakhir Terjual', key: 'last_sold_month', width: 14 },
+  ]
+
+  // is_high_margin boolean -> "Ya"/"Tidak" (lebih terbaca di Excel dibanding
+  // TRUE/FALSE mentah), diubah di sini (bukan repository) — repository tetap
+  // balikin boolean murni utk konsisten dgn shape data lain di app ini.
+  const rows = data.map((row) => {
+    const r = row as Record<string, unknown>
+    return { ...r, is_high_margin: r.is_high_margin ? 'Ya' : 'Tidak' }
+  })
+
+  const buffer = await buildExcelBuffer({
+    title: 'Buku Besar Kinerja Produk',
+    printedFrom: c.req.url,
+    meta,
+    columns,
+    rows,
+  })
+
+  const filename = `produk-${query.period_month}.xlsx`
+  const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
+  return new Response(ab, { headers: excelResponseHeaders(filename) })
 }
 
 export async function handleGetProductCategoryOptions(c: Context) {

@@ -192,6 +192,17 @@ export async function buildExcelBuffer(options: ExcelExportOptions): Promise<Buf
   return Buffer.from(buffer)
 }
 
+// EXPORT_ROW_CAP — pengaman (bukan pagination beneran, murni jaga-jaga) dipakai
+// SEMUA endpoint export Excel (Transactions/Products/Customers, dst) yang query
+// LANGSUNG ke DB tanpa batas paginasi (2026-08-30/31) — realistis 1 company/1
+// periode cuma ribuan baris (dicek langsung ke DB, PT Kode Niaga Tama 1 bulan
+// ~11rb baris), cap ini jauh di atas itu, cuma mencegah request pengecualian
+// (company_id=all TANPA rentang tanggal sama sekali) bikin buffer Excel
+// membengkak tak terbatas di memori server. Kalau nanti genuinely butuh export
+// > cap ini, ganti ke streaming writer (`ExcelJS.stream.xlsx.WorkbookWriter`),
+// BUKAN naikkan angka ini terus.
+export const EXPORT_ROW_CAP = 50_000
+
 /** Header HTTP standar utk response file .xlsx (dipakai semua handler
  * export — pola sama persis `import.handler.ts` template faktur). */
 export function excelResponseHeaders(filename: string): Record<string, string> {
