@@ -318,3 +318,63 @@ jobs:
         run: |
           sleep 5
           curl -sf ${{ env.BACKEND_URL }}/health || (echo "Health check gagal" && exit 1)
+
+  # Sync state work item Plane setelah deploy dev/prod BENERAN sukses (bukan
+  # cuma saat PR di-merge) — otomasi tambahan di luar fitur bawaan Plane
+  # (Pull Request State Mapping tidak bisa membedakan branch tujuan, dan
+  # premium-only). Detail lengkap: docs-v2/plane/SETUP_BRANCH_STATE_SYNC.md.
+  sync-plane-dev:
+    name: Sync Plane state (dev)
+    needs: [deploy-dev]
+    if: github.ref == 'refs/heads/dev' && needs.deploy-dev.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependency
+        run: pip install requests
+
+      - name: Update state Plane -> In Review
+        env:
+          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
+          PLANE_WORKSPACE: "semanggi_holding"
+          PLANE_PROJECT_ID: "f18c2855-78f8-4e53-9820-9a21ca186d0e"
+          PLANE_PROJECT_IDENTIFIER: "EDASHBOARD"
+          TARGET_BRANCH: "dev"
+          COMMIT_MESSAGES_JSON: ${{ toJson(github.event.commits.*.message) }}
+          COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+        run: python3 scripts/plane_branch_state_sync.py
+
+  sync-plane-prod:
+    name: Sync Plane state (prod)
+    needs: [deploy-prod]
+    if: github.ref == 'refs/heads/main' && needs.deploy-prod.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependency
+        run: pip install requests
+
+      - name: Update state Plane -> Done
+        env:
+          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
+          PLANE_WORKSPACE: "semanggi_holding"
+          PLANE_PROJECT_ID: "f18c2855-78f8-4e53-9820-9a21ca186d0e"
+          PLANE_PROJECT_IDENTIFIER: "EDASHBOARD"
+          TARGET_BRANCH: "main"
+          COMMIT_MESSAGES_JSON: ${{ toJson(github.event.commits.*.message) }}
+          COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+        run: python3 scripts/plane_branch_state_sync.py
