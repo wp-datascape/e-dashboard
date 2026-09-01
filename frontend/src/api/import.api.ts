@@ -1,7 +1,14 @@
 // src/api/import.api.ts
 import { api as axiosInstance } from './axios'
 import type { ApiResponse, PaginatedResponse } from '@/types/api'
-import type { ImportLog, ImportResult, ImportErrorRow, ImportFilePayload, ImportAccuratePayload } from '@/types/import'
+import type {
+  ImportLog,
+  ImportResult,
+  ImportErrorRow,
+  ImportFilePayload,
+  ImportAccuratePayload,
+  FakturImportPreviewResult,
+} from '@/types/import'
 import type { Company } from '@/types/users'
 
 export const importFile = (payload: ImportFilePayload) => {
@@ -10,6 +17,16 @@ export const importFile = (payload: ImportFilePayload) => {
   form.append('company_id', String(payload.company_id))
   form.append('period_month', payload.period_month)
   return axiosInstance.post<ApiResponse<ImportResult>>('/import/csv', form)
+}
+
+// ─── Review Import Faktur (task037/EDASHBOARD-588) ──────────────────────────
+
+export const previewFakturImport = async (file: File, companyId: number): Promise<FakturImportPreviewResult> => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('company_id', String(companyId))
+  const res = await axiosInstance.post<ApiResponse<FakturImportPreviewResult>>('/import/csv/preview', form)
+  return res.data.data
 }
 
 export const importAccurate = (payload: ImportAccuratePayload) =>

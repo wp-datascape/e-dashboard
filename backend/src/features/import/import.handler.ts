@@ -8,9 +8,16 @@ import { streamSSE } from 'hono/streaming'
 import * as XLSX from 'xlsx'
 import { success, paginated, error } from '@/utils/response'
 import { AppError, ErrorCode } from '@/utils/error'
+import { validateBody } from '@/utils/validator'
 import { resolveCompanyScope } from '@/middleware/auth'
-import { importFile as importFileService, getImportLogs, getImportLogDetail } from './import.service'
-import { importFileSchema, importAccurateSchema, importLogQuerySchema } from './import.schema'
+import {
+  importFile as importFileService,
+  previewImportFile,
+  commitImportFile,
+  getImportLogs,
+  getImportLogDetail,
+} from './import.service'
+import { importFileSchema, importAccurateSchema, importLogQuerySchema, importCommitSchema } from './import.schema'
 
 export async function handleImportFile(c: Context) {
   try {
@@ -121,6 +128,77 @@ export async function handleImportFileStream(c: Context) {
             success_invoices: result.successInvoices,
             error_rows: result.errorRows,
             error_summary: result.errorSummary,
+          },
+        }),
+      })
+    } catch (err) {
+      const code = err instanceof AppError ? err.code : ErrorCode.INTERNAL_ERROR
+      const message = err instanceof AppError
+        ? err.message
+        : `Import failed: ${err instanceof Error ? err.message : String(err)}`
+      await stream.writeSSE({ data: JSON.stringify({ event: 'error', error: code, message }) })
+    }
+  })
+}
+
+// ─── Review Import Faktur (task037/EDASHBOARD-588) ─────────────────────────
+
+export async function handlePreviewImportFile(c: Context) {
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File | null
+  const companyIdRaw = formData.get('company_id')
+
+  if (!file) return error(c, ErrorCode.VALIDATION_ERROR, 'File is required', 400)
+  if (file.size > 50 * 1024 * 1024) return error(c, ErrorCode.FILE_TOO_LARGE, 'File too large (max 50MB)', 413)
+
+  const validMimes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
+  if (!validMimes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+    return error(c, ErrorCode.INVALID_FILE_FORMAT, 'Invalid file format. Accepted: .csv, .xlsx', 400)
+  }
+
+  const companyId = Number(companyIdRaw)
+  if (!Number.isInteger(companyId) || companyId <= 0) return error(c, ErrorCode.VALIDATION_ERROR, 'company_id tidak valid', 400)
+  resolveCompanyScope(c, companyId)
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const result = await previewImportFile({ companyId, buffer, mimetype: file.type })
+  return success(c, { ...result, filename: file.name })
+}
+
+export async function handleCommitImportStream(c: Context) {
+  const body = await validateBody(c, importCommitSchema)
+  resolveCompanyScope(c, body.company_id)
+  const userId = c.var.user.userId
+
+  return streamSSE(c, async (stream) => {
+    try {
+      const result = await commitImportFile({
+        companyId: body.company_id,
+        periodMonth: body.period_month,
+        userId,
+        filename: body.filename,
+        invoices: body.invoices,
+        ctx: c,
+        onProgress: async ({ processed, total, success: s, errors }) => {
+          await stream.writeSSE({
+            data: JSON.stringify({ event: 'progress', processed, total, success: s, errors }),
+          })
+        },
+      })
+
+      await stream.writeSSE({
+        data: JSON.stringify({
+          event: 'done',
+          result: {
+            import_log_id: result.importLogId,
+            status: result.status,
+            total_invoices: result.totalInvoices,
+            success_invoices: result.successInvoices,
+            error_rows: result.errorRows,
+            error_summary: result.errorSummary,
+            skipped_invoices: result.skippedInvoices,
           },
         }),
       })

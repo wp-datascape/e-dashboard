@@ -57,3 +57,43 @@ export const classificationRuleUpdateSchema = z.object({
   item_type: z.string().min(1).max(30).optional(),
   is_active: z.boolean().optional(),
 })
+
+// ─── Review Import Faktur (task037/EDASHBOARD-588) ──────────────────────────
+// Alur 2 tahap seperti High Margin (task036): preview (parse+deteksi konflik,
+// TANPA tulis DB) lalu commit (baris hasil preview yang mau disimpan, dikirim
+// ulang dari frontend beserta pilihan per baris konflik) — lihat
+// docs-v2/task/task037.md.
+
+const importCommitItemSchema = z.object({
+  product_category: z.string().min(1),
+  item_name: z.string().optional(),
+  quantity: z.coerce.number().optional(),
+  unit_price: z.coerce.number().optional(),
+  revenue: z.coerce.number(),
+  gross_profit: z.coerce.number(),
+})
+
+// action per invoice — 'skip' HANYA valid utk baris konflik yang user pilih
+// "Lewati" (baris baru/new selalu 'create', tidak ada pilihan lain). Divalidasi
+// ulang di service layer (jangan percaya begitu saja payload client), bukan di
+// sini — schema cuma memastikan bentuknya valid.
+const importCommitInvoiceSchema = z.object({
+  invoice_number: z.string().min(1),
+  action: z.enum(['create', 'update', 'skip']),
+  invoice_date: z.string().min(1),
+  customer_code: z.string().min(1),
+  customer_name: z.string().min(1),
+  branch_name: z.string().optional(),
+  channel_name: z.string().optional(),
+  items: z.array(importCommitItemSchema).min(1),
+})
+
+export const importCommitSchema = z.object({
+  company_id: z.number().int().positive(),
+  period_month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM'),
+  filename: z.string().min(1),
+  invoices: z.array(importCommitInvoiceSchema).min(1, 'Tidak ada invoice untuk disimpan'),
+})
+
+export type ImportCommitDto = z.infer<typeof importCommitSchema>
+export type ImportCommitInvoiceDto = z.infer<typeof importCommitInvoiceSchema>
