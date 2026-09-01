@@ -17,6 +17,7 @@
  */
 import { classifyItemType, loadClassificationRules } from '@/utils/classifier'
 import { parseCsv, parseExcel } from '@/utils/parser'
+import type { InvoiceRow, ParseRowError } from '@/utils/parser'
 import { logAudit } from '@/utils/audit'
 import { AppError, ErrorCode } from '@/utils/error'
 import type { Context } from 'hono'
@@ -30,6 +31,7 @@ import {
   upsertProductCategory,
   upsertProduct,
   findInvoiceByNumber,
+  findInvoicesByNumbers,
   createInvoice,
   updateInvoice,
   deleteInvoiceItemsByInvoiceId,
@@ -39,6 +41,7 @@ import {
   findBranchIdByName,
 } from './import.repository'
 import type { NewImportLogError } from '@/db/schema'
+import type { ImportCommitInvoiceDto } from './import.schema'
 
 export interface ImportProgress {
   processed: number
@@ -125,26 +128,66 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
     }
   }
 
+  return processImportRows({
+    companyId,
+    periodMonth,
+    userId,
+    filename,
+    source: 'file',
+    rows: parseResult.rows,
+    parseErrors: parseResult.errors,
+    ctx,
+    onProgress,
+  })
+}
+
+// ─── Shared row-processing loop ──────────────────────────────────────────────
+// Dipakai import langsung (importFile, rows dari parser) MAUPUN commit setelah
+// review (commitImportFile, rows hasil flatten dari pilihan per invoice user —
+// task037/EDASHBOARD-588) — logic upsert customer/kategori/produk, resolve
+// invoice, tulis item HARUS identik di kedua alur, jadi dipusatkan di sini
+// (bukan copy-paste, lihat docs-v2/task/task037.md).
+
+interface ProcessImportRowsOptions {
+  companyId: number
+  periodMonth: string
+  userId: number
+  filename: string
+  source: string
+  rows: InvoiceRow[]
+  parseErrors: ParseRowError[]
+  ctx: Context
+  auditMeta?: Record<string, unknown>
+  onProgress?: (p: ImportProgress) => Promise<void>
+}
+
+async function processImportRows(options: ProcessImportRowsOptions): Promise<ImportResult> {
+  const { companyId, periodMonth, userId, filename, source, rows, parseErrors, ctx, auditMeta, onProgress } = options
+
   // ── Create import log — status awal 'failed', diupdate ke final di akhir ────
   // Pesimistik: jika proses terputus (browser refresh, crash), log tetap 'failed'
   // bukan 'partial' yang menyesatkan.
   const importLog = await createImportLog({
     company_id: companyId,
-    source: 'file',
+    source,
     filename,
     period_month: periodMonth,
     status: 'failed',
-    total_invoices: parseResult.rows.length,
+    total_invoices: rows.length,
     total_items: 0,
     success_invoices: 0,
     error_rows: 0,
     imported_by: userId,
   })
 
-  const errors: NewImportLogError[] = []
+  const errors: NewImportLogError[] = parseErrors.map((e) => ({
+    import_log_id: importLog.id,
+    row_number: e.rowNumber,
+    raw_data: e.rawData,
+    error_message: e.errorMessage,
+  }))
   let successCount = 0
   let totalItems = 0
-  let totalItemRows = 0
 
   // Rule klasifikasi SEKALI per batch (bukan per baris) — lihat docstring
   // loadClassificationRules (classifier.ts, audit N+1 2026-08-21): rule-nya
@@ -176,8 +219,9 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   // invoice ber-multi-item (audit N+1 2026-08-21).
   const touchedInvoiceIds = new Set<number>()
 
-  for (const row of parseResult.rows) {
-    const rowNum = parseResult.rows.indexOf(row) + 2
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx]!
+    const rowNum = idx + 2
 
     try {
       // ── Parse date ─────────────────────────────────────────────────────
@@ -313,15 +357,13 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
 
     if (onProgress) {
       await onProgress({
-        processed: parseResult.rows.indexOf(row) + 1,
-        total: parseResult.rows.length,
+        processed: idx + 1,
+        total: rows.length,
         success: successCount,
         errors: errors.length,
       })
     }
   }
-
-  totalItemRows = parseResult.rows.length
 
   // ── Update invoice totals — SEKALI per invoice (lihat komentar touchedInvoiceIds
   // di atas), bukan per baris item. SUM dihitung dari invoice_items yang BENERAN
@@ -337,7 +379,7 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
   const finalStatus = successCount === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'success'
   await updateImportLog(importLog.id, {
     status: finalStatus,
-    total_invoices: totalItemRows,
+    total_invoices: rows.length,
     total_items: totalItems,
     success_invoices: successCount,
     error_rows: errors.length,
@@ -350,23 +392,228 @@ export async function importFile(options: ImportFileOptions): Promise<ImportResu
     companyId,
     newValue: {
       status: finalStatus,
-      total_invoices: totalItemRows,
+      total_invoices: rows.length,
       success_invoices: successCount,
       error_rows: errors.length,
     },
-    meta: { filename, period_month: periodMonth, source: 'file' },
+    meta: { filename, period_month: periodMonth, source, ...auditMeta },
   })
 
   return {
     importLogId: importLog.id,
     status: finalStatus,
-    totalInvoices: totalItemRows,
+    totalInvoices: rows.length,
     successInvoices: successCount,
     errorRows: errors.length,
     errorSummary: errors.length > 0
       ? `${errors.length} baris gagal: ${errors[0].error_message}`
       : '',
   }
+}
+
+// ─── Review Import Faktur (task037/EDASHBOARD-588) ───────────────────────────
+// Preview: parse file + deteksi konflik terhadap invoice yang SUDAH ADA,
+// TANPA tulis DB sama sekali. Commit: terima baris hasil preview yang sudah
+// direview user (pilihan Timpa/Lewati per baris konflik) dan benar-benar
+// tulis DB, reuse processImportRows yang SAMA dgn importFile() biasa — lihat
+// docs-v2/task/task037.md.
+
+export interface PreviewInvoiceItem {
+  product_category: string
+  item_name?: string
+  quantity?: number
+  unit_price?: number
+  revenue: number
+  gross_profit: number
+}
+
+export interface PreviewInvoiceRow {
+  invoice_number: string
+  invoice_date: string
+  customer_code: string
+  customer_name: string
+  branch_name?: string
+  channel_name?: string
+  item_count: number
+  total_revenue: number
+  total_gp: number
+  status: 'new' | 'conflict' | 'error'
+  error_message?: string
+  // Terisi kalau status='conflict' — data invoice AKTIF yang bentrok, dipakai
+  // frontend menampilkan "data lama vs data baru" berdampingan.
+  conflict?: {
+    total_revenue: number
+    updated_at: string
+  }
+  items: PreviewInvoiceItem[]
+}
+
+export interface PreviewImportResult {
+  invoices: PreviewInvoiceRow[]
+  summary: { new: number; conflict: number; error: number }
+  raw_row_count: number
+}
+
+export async function previewImportFile(options: {
+  companyId: number
+  buffer: Buffer
+  mimetype: string
+}): Promise<PreviewImportResult> {
+  const { companyId, buffer, mimetype } = options
+
+  const parseResult = mimetype.includes('csv') ? await parseCsv(buffer) : await parseExcel(buffer)
+
+  // Group per INVOICE (invoice_number), BUKAN per baris file mentah — 1
+  // invoice bisa punya banyak baris item, tabel review harus 1 baris = 1
+  // invoice (docs-v2/task/task037.md §"Grouping").
+  const grouped = new Map<string, InvoiceRow[]>()
+  for (const row of parseResult.rows) {
+    const key = row.invoice_number.trim().toUpperCase()
+    const bucket = grouped.get(key)
+    if (bucket) bucket.push(row)
+    else grouped.set(key, [row])
+  }
+
+  // 1 query batch utk SEMUA invoice_number sekaligus — aman utk ribuan
+  // invoice sekali jalan (bukan query per baris).
+  const existingInvoices = await findInvoicesByNumbers(companyId, [...grouped.keys()])
+  const existingMap = new Map(existingInvoices.map((inv) => [inv.invoiceNumber, inv]))
+
+  const invoiceRows: PreviewInvoiceRow[] = []
+  let newCount = 0
+  let conflictCount = 0
+  let errorCount = 0
+
+  for (const [key, itemRows] of grouped) {
+    const first = itemRows[0]!
+    let totalRevenue = 0
+    let totalGp = 0
+    const items: PreviewInvoiceItem[] = []
+    for (const r of itemRows) {
+      totalRevenue += r.revenue
+      totalGp += r.gross_profit
+      items.push({
+        product_category: r.product_category,
+        item_name: r.item_name,
+        quantity: r.quantity,
+        unit_price: r.unit_price,
+        revenue: r.revenue,
+        gross_profit: r.gross_profit,
+      })
+    }
+
+    const existing = existingMap.get(key)
+    const row: PreviewInvoiceRow = {
+      invoice_number: key,
+      invoice_date: first.invoice_date,
+      customer_code: first.customer_code,
+      customer_name: first.customer_name,
+      branch_name: first.branch_name,
+      channel_name: first.channel_name,
+      item_count: items.length,
+      total_revenue: totalRevenue,
+      total_gp: totalGp,
+      status: existing ? 'conflict' : 'new',
+      items,
+    }
+
+    if (existing) {
+      conflictCount++
+      row.conflict = {
+        total_revenue: Number(existing.totalRevenue),
+        updated_at: existing.updatedAt.toISOString(),
+      }
+    } else {
+      newCount++
+    }
+    invoiceRows.push(row)
+  }
+
+  // Baris gagal parse (mis. invoice_number kosong) — tidak bisa digroup per
+  // invoice, ditampilkan apa adanya per baris file mentah.
+  for (const e of parseResult.errors) {
+    errorCount++
+    invoiceRows.push({
+      invoice_number: `(baris ${e.rowNumber})`,
+      invoice_date: '',
+      customer_code: '',
+      customer_name: '',
+      item_count: 0,
+      total_revenue: 0,
+      total_gp: 0,
+      status: 'error',
+      error_message: e.errorMessage,
+      items: [],
+    })
+  }
+
+  return {
+    invoices: invoiceRows,
+    summary: { new: newCount, conflict: conflictCount, error: errorCount },
+    raw_row_count: parseResult.rows.length + parseResult.errors.length,
+  }
+}
+
+export interface CommitImportFileOptions {
+  companyId: number
+  periodMonth: string
+  userId: number
+  filename: string
+  invoices: ImportCommitInvoiceDto[]
+  ctx: Context
+  onProgress?: (p: ImportProgress) => Promise<void>
+}
+
+export interface CommitImportResult extends ImportResult {
+  skippedInvoices: number
+}
+
+export async function commitImportFile(options: CommitImportFileOptions): Promise<CommitImportResult> {
+  const { companyId, periodMonth, userId, filename, invoices, ctx, onProgress } = options
+
+  // Baris dgn action 'skip' (user pilih "Lewati" utk invoice konflik) TIDAK
+  // disentuh sama sekali — flatten balik ke InvoiceRow[] item-level, reuse
+  // processImportRows yang SAMA persis dgn importFile() biasa (task037.md).
+  const rows: InvoiceRow[] = []
+  let skippedInvoices = 0
+  for (const inv of invoices) {
+    if (inv.action === 'skip') { skippedInvoices++; continue }
+    for (const item of inv.items) {
+      rows.push({
+        invoice_number: inv.invoice_number,
+        invoice_date: inv.invoice_date,
+        customer_code: inv.customer_code,
+        customer_name: inv.customer_name,
+        product_category: item.product_category,
+        item_name: item.item_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        revenue: item.revenue,
+        gross_profit: item.gross_profit,
+        branch_name: inv.branch_name,
+        channel_name: inv.channel_name,
+      })
+    }
+  }
+
+  if (rows.length === 0) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 'Tidak ada invoice yang akan disimpan (semua baris dilewati)', 400)
+  }
+
+  const result = await processImportRows({
+    companyId,
+    periodMonth,
+    userId,
+    filename,
+    source: 'file',
+    rows,
+    parseErrors: [],
+    ctx,
+    auditMeta: { reviewed: true, skipped_invoices: skippedInvoices },
+    onProgress,
+  })
+
+  return { ...result, skippedInvoices }
 }
 
 export async function getImportLogs(companyId?: number, page = 1, perPage = 20, scopeIds?: number[]) {

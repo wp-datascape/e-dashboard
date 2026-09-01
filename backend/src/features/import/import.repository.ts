@@ -358,6 +358,25 @@ export async function findInvoiceByNumber(companyId: number, invoiceNumber: stri
   return result
 }
 
+/**
+ * Cek eksistensi BANYAK invoice_number sekaligus (1 query) — dipakai preview
+ * import (task037/EDASHBOARD-588) utk deteksi konflik terhadap ribuan invoice
+ * tanpa N+1 query per baris. Match case-insensitive/trim sama seperti
+ * findInvoiceByNumber di atas, cuma dibatch.
+ */
+export async function findInvoicesByNumbers(companyId: number, invoiceNumbers: string[]) {
+  if (invoiceNumbers.length === 0) return []
+  const upper = invoiceNumbers.map((n) => n.trim().toUpperCase())
+  return db
+    .select({
+      invoiceNumber: sql<string>`UPPER(${invoices.invoice_number})`,
+      totalRevenue: invoices.total_revenue,
+      updatedAt: invoices.updated_at,
+    })
+    .from(invoices)
+    .where(and(eq(invoices.company_id, companyId), inArray(sql`UPPER(${invoices.invoice_number})`, upper)))
+}
+
 export async function createInvoice(data: NewInvoice) {
   const [result] = await db.insert(invoices).values(data).returning()
   return result
