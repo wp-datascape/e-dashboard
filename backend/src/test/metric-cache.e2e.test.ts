@@ -313,14 +313,28 @@ beforeAll(async () => {
   const [otherChannelDivision] = await db.insert(channel_divisions).values({ company_id: COMPANY_ID, channel_name: otherChannel, division_id: secondDivisionId }).returning()
   createdFixtureChannelDivisionIds = [distChannelDivision!.id, otherChannelDivision!.id]
 
-  const [distributionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Distribution Customer', is_placeholder: false }).returning()
-  const [otherDivisionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Other Division Customer', is_placeholder: false }).returning()
+  // first_invoice_date/last_invoice_date WAJIB diisi manual (2026-09-02,
+  // ditemukan lewat kegagalan CI) — kolom ini di DENORMALISASI di tabel
+  // customers, di-update proses IMPORT NYATA setiap ada invoice baru
+  // (bukan dihitung dinamis dari tabel invoices tiap query). m3m7.repository.ts
+  // baca `c.first_invoice_date` LANGSUNG utk klasifikasi Existing/New
+  // customer per bucket (`c.first_invoice_date < b.ps` / `BETWEEN b.ps AND
+  // b.pe`) — customer yang dibuat lewat insert mentah (bukan lewat import
+  // service) TANPA field ini NULL, tidak match kondisi manapun, jadi
+  // "hilang" total dari SEMUA hasil M3-M7 walau invoice-nya ada. first_invoice_date
+  // sengaja jauh di masa lalu supaya pasti terklasifikasi "Existing" di
+  // bucket period APA PUN (bukan "New", yang cuma masuk hitungan di 1 bucket
+  // spesifik saat first_invoice_date jatuh).
+  const fixtureInvoiceDate = todayIso()
+  const fixtureFirstInvoiceDate = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const [distributionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Distribution Customer', is_placeholder: false, first_invoice_date: fixtureFirstInvoiceDate, last_invoice_date: fixtureInvoiceDate }).returning()
+  const [otherDivisionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Other Division Customer', is_placeholder: false, first_invoice_date: fixtureFirstInvoiceDate, last_invoice_date: fixtureInvoiceDate }).returning()
   createdDivisionCustomerIds = [distributionCustomer!.id, otherDivisionCustomer!.id]
 
   const [fixtureProduct] = await db.insert(products).values({ company_id: COMPANY_ID, product_name: 'E2E Cache Test Product', product_category_id: createdCategoryId }).returning()
   createdProductId = fixtureProduct!.id
 
-  const fixtureInvoiceDate = todayIso()
   const [distributionInvoice] = await db.insert(invoices).values({
     company_id: COMPANY_ID, customer_id: distributionCustomer!.id, invoice_number: `E2E-CACHE-DIST-${Date.now()}`,
     invoice_date: fixtureInvoiceDate, total_revenue: '1000000', total_gp: '200000', branch_id: targetBranchId, channel_name: distributionChannel,
