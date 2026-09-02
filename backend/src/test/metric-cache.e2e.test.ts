@@ -190,6 +190,8 @@ let createdDivisionId: number | null = null
 let createdParetoCustomerId: number | null = null
 let existingCustomerId: number
 let anyCategoryId: number
+let createdCustomerId: number
+let createdCategoryId: number
 
 let cookies: { narrow: string; wide: string; superadmin: string; holding: string; entityAdmin: string; entityUser: string }
 let superadminCsrfToken: string
@@ -259,19 +261,21 @@ beforeAll(async () => {
   }
   superadminCsrfToken = superadmin.csrfToken
 
-  // Customer nyata company 1 (bukan placeholder) — dipakai fixture Pareto
-  // Customer di test invalidasi, TIDAK dibuat/dihapus sendiri (reuse data
-  // yang sudah ada, cukup baca id-nya).
-  const existing = await db.select({ id: customers.id }).from(customers).where(and(eq(customers.company_id, COMPANY_ID), eq(customers.is_placeholder, false))).limit(1)
-  if (existing.length === 0) throw new Error(`Company ${COMPANY_ID} butuh minimal 1 customer non-placeholder untuk test Pareto`)
-  existingCustomerId = existing[0]!.id
+  // Customer + product category company 1 — dibuat & dihapus sendiri
+  // (2026-09-02, koreksi CI: "reuse data yang sudah ada" cuma valid di DB
+  // lokal yang sudah direstore data production, tapi seed CI standar
+  // (db/seed.ts) SAMA SEKALI TIDAK membuat baris customers/product_categories
+  // apa pun — cuma transaksional, muncul lewat import data, bukan seed dasar.
+  // Query "cari 1 baris yang sudah ada" jadi 0 baris di CI dan bikin
+  // beforeAll throw, men-fail-kan SELURUH file). Pola sama persis fixture
+  // user lain di file ini — dibuat di sini, dibersihkan di afterAll.
+  const [createdCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Test Customer', is_placeholder: false }).returning()
+  createdCustomerId = createdCustomer!.id
+  existingCustomerId = createdCustomerId
 
-  // Kategori produk nyata company 1 — dipakai param target_id endpoint
-  // high-margin-penetration/buyers (hmCustomersQuerySchema, WAJIB target_type+
-  // target_id) di smoke test semua endpoint.
-  const category = await db.select({ id: product_categories.id }).from(product_categories).where(eq(product_categories.company_id, COMPANY_ID)).limit(1)
-  if (category.length === 0) throw new Error(`Company ${COMPANY_ID} butuh minimal 1 product category untuk test ini`)
-  anyCategoryId = category[0]!.id
+  const [createdCategory] = await db.insert(product_categories).values({ company_id: COMPANY_ID, name: 'E2E Cache Test Category' }).returning()
+  createdCategoryId = createdCategory!.id
+  anyCategoryId = createdCategoryId
 })
 
 afterAll(async () => {
@@ -289,6 +293,10 @@ afterAll(async () => {
   if (createdParetoCustomerId) {
     await db.delete(pareto_customers).where(eq(pareto_customers.id, createdParetoCustomerId))
   }
+  // Urutan SETELAH pareto_customers (FK customer_id) — hapus customer dulu
+  // bisa gagal/RESTRICT kalau pareto_customers-nya belum dibersihkan duluan.
+  await db.delete(customers).where(eq(customers.id, createdCustomerId))
+  await db.delete(product_categories).where(eq(product_categories.id, createdCategoryId))
   await clearMetricCache(COMPANY_ID)
   await clearMetricCache(SECOND_COMPANY_ID)
   await clearMetricCache(ALL_COMPANIES_SENTINEL) // baris company_id=all (2026-09-02)
