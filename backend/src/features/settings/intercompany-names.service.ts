@@ -15,6 +15,7 @@ import {
   findCustomerNameOptions,
 } from './intercompany-names.repository'
 import type { CreateIntercompanyNameDto, UpdateIntercompanyNameDto } from './intercompany-names.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 export async function listIntercompanyNamesService(scopeIds?: number[]) {
   try {
@@ -61,6 +62,7 @@ export async function createIntercompanyNameService(body: CreateIntercompanyName
       companyId: body.company_id,
       newValue: body,
     })
+    await invalidateMetricCache(body.company_id) // EDASHBOARD-591, task038.md
 
     return result
   } catch (err) {
@@ -101,6 +103,7 @@ export async function updateIntercompanyNameService(id: number, body: UpdateInte
       oldValue: { is_active: existing.is_active },
       newValue: body,
     })
+    await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
     return result
   } catch (err) {
@@ -125,6 +128,7 @@ export async function deleteIntercompanyNameService(id: number, ctx: Context) {
       companyId: existing.company_id,
       oldValue: { customer_name: existing.customer_name },
     })
+    await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menghapus nama sister company', 500)

@@ -4,6 +4,7 @@ import { isDuplicateError } from '@/utils/response'
 import { logAudit } from '@/utils/audit'
 import { resolveCompanyScope } from '@/middleware/auth'
 import { loadDivisionFallbackIds } from '@/utils/scope'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 import {
   createHighMargin,
   findHighMarginById,
@@ -53,6 +54,7 @@ export async function addHighMargin(dto: CreateHighMarginDto, userId: number, ct
       companyId: dto.company_id,
       newValue: { ...dto, created_by: userId },
     })
+    await invalidateMetricCache(dto.company_id) // EDASHBOARD-591, task038.md
 
     return mapping
   } catch (err) {
@@ -82,6 +84,7 @@ export async function editHighMargin(id: number, dto: UpdateHighMarginDto, ctx: 
     oldValue: { effective_until: existing.effective_until, note: existing.note },
     newValue: { effective_until: dto.effective_until, note: dto.note },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
   return updated
 }
@@ -102,6 +105,7 @@ export async function deactivateHighMargin(id: number, ctx: Context) {
     oldValue: { effective_until: existing.effective_until, is_active: 'active' },
     newValue: { effective_until: today, is_active: 'deactivated' },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
   return result
 }
@@ -120,4 +124,5 @@ export async function removeHighMargin(id: number, ctx: Context) {
     companyId: existing.company_id,
     oldValue: { id: existing.id, company_id: existing.company_id },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 }
