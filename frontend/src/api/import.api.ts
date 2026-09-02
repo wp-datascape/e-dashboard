@@ -25,7 +25,15 @@ export const previewFakturImport = async (file: File, companyId: number): Promis
   const form = new FormData()
   form.append('file', file)
   form.append('company_id', String(companyId))
-  const res = await axiosInstance.post<ApiResponse<FakturImportPreviewResult>>('/import/csv/preview', form)
+  // Timeout khusus 200 detik (2026-09-02, laporan user: file KNT 42MB gagal
+  // "timeout of 40000ms exceeded" walau backend-nya sendiri masih memproses,
+  // tidak ada baris respons sama sekali di log — koneksi keburu diputus
+  // browser). Default global 40 detik (axios.ts) sengaja dipilih utk skenario
+  // LAIN (AB-Testing network-throttle), bukan utk proses berat spt ini.
+  // 200 detik = di bawah idle timeout server (Bun.serve, 255 detik,
+  // backend/src/index.ts), preview endpoint sendiri tidak streaming (satu
+  // request/response biasa, beda dari commit yang sudah pakai SSE).
+  const res = await axiosInstance.post<ApiResponse<FakturImportPreviewResult>>('/import/csv/preview', form, { timeout: 200_000 })
   return res.data.data
 }
 
