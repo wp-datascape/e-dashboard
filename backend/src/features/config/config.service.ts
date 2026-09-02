@@ -3,6 +3,7 @@ import { AppError, ErrorCode } from '@/errors'
 import { logger } from '@/utils/logger'
 import { logAudit } from '@/utils/audit'
 import { findAllConfigs, findConfigByKey, updateConfigValue } from './config.repository'
+import { invalidateAllMetricCache } from '@/features/metrics/metric-cache.helper'
 
 export async function getConfigs() {
   return findAllConfigs()
@@ -24,5 +25,9 @@ export async function updateConfig(key: string, body: { value: string }, c: Cont
   })
 
   logger.info(`Config updated: ${key} = ${body.value}`)
+  // EDASHBOARD-591, task038.md — business_configs GLOBAL (company_id null di
+  // audit log di atas), invalidasi cache SEMUA company sekaligus, bukan cuma
+  // 1 (tidak tahu company_id spesifik yang kena dari config generik ini).
+  await invalidateAllMetricCache()
   return updated
 }

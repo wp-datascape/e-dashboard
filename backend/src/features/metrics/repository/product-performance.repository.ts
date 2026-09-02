@@ -154,7 +154,13 @@ export async function fetchProductPerformance(
         OR pr.id IN (SELECT product_id FROM hm_product_level)
         OR pr.product_category_id IN (SELECT product_category_id FROM hm_cat_level)
       )
-    ORDER BY ${sql.raw(`${sortCol} ${sortDir}`)}
+    -- Tie-break product_id (2026-09-02, koreksi user: sorting tanpa pemutus
+    -- seri bikin urutan antar baris yg nilainya SAMA PERSIS di sortCol tidak
+    -- stabil antar eksekusi query -> paginasi (LIMIT/OFFSET) bisa nampilin
+    -- produk dobel di 2 halaman atau kelewat sama sekali. Kolom ke-2 ini
+    -- TIDAK pernah mempengaruhi urutan kalau sortCol beda - Postgres cuma
+    -- pakai dia utk baris yg genuinely tied di kolom pertama.
+    ORDER BY ${sql.raw(`${sortCol} ${sortDir}`)}, product_id ASC
     LIMIT  ${p.perPage}
     OFFSET ${offset}
   `)

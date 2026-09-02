@@ -19,6 +19,7 @@ import {
   createHighMarginWithSupersede,
 } from './high-margin.repository'
 import type { HighMarginImportCommitDto } from './high-margin.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 export interface HighMarginImportPreviewRow {
   row: number
@@ -318,6 +319,8 @@ export async function commitHighMarginImport(
       errors.push({ row: rowNum, message: err instanceof Error ? err.message : 'Gagal menyimpan baris ini' })
     }
   }
+
+  if (added > 0) await invalidateMetricCache(dto.company_id) // EDASHBOARD-591, task038.md
 
   return { added, superseded, errors }
 }

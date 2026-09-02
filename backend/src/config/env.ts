@@ -54,6 +54,12 @@ const envSchema = z.object({
   // no-op (skip diam-diam, tidak crash) supaya env lain (test/CI) tidak wajib setup bot.
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
+
+  // Metric Cache (EDASHBOARD-591, task038.md) — TTL jaring pengaman utk cache
+  // hasil endpoint metrics (customer-metrics/cross-selling/expansion-breakdown).
+  // Default 30 menit — cukup pendek utk data tetap terasa segar, cukup panjang
+  // utk benar-benar menghemat query berat (~5 detik) yg sama dipanggil ulang.
+  METRIC_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(30),
 })
 
 const parsed = envSchema.safeParse(process.env)

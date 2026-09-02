@@ -42,6 +42,7 @@ import {
 } from './import.repository'
 import type { NewImportLogError } from '@/db/schema'
 import type { ImportCommitInvoiceDto } from './import.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 export interface ImportProgress {
   processed: number
@@ -398,6 +399,12 @@ async function processImportRows(options: ProcessImportRowsOptions): Promise<Imp
     },
     meta: { filename, period_month: periodMonth, source, ...auditMeta },
   })
+
+  // Cache metrics (EDASHBOARD-591, task038.md) — invalidasi SEMUA cache
+  // company ini setelah import selesai. Fungsi ini SHARED oleh importFile()
+  // (upload langsung) MAUPUN commitImportFile() (review-commit, task037) —
+  // 1 hook di sini menutup KEDUA jalur, tidak perlu dipasang 2x.
+  await invalidateMetricCache(companyId)
 
   return {
     importLogId: importLog.id,
