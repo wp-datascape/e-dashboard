@@ -367,17 +367,36 @@ export async function findInvoiceByNumber(companyId: number, invoiceNumber: stri
  * tanpa N+1 query per baris. Match case-insensitive/trim sama seperti
  * findInvoiceByNumber di atas, cuma dibatch.
  */
+// Postgres batasan KERAS 65535 parameter per query (protokol wire pakai Int16
+// utk hitung parameter) - file KNT 42MB (~254 ribu invoice unik) bikin 1 query
+// tunggal gagal total ("Unhandled exception Failed query...", log dev
+// 2026-09-02, EDASHBOARD-595 lanjutan). CHUNK_SIZE jauh di bawah limit itu
+// (company_id sendiri sudah pakai 1 slot), supaya company besar mana pun
+// aman tanpa perlu tahu jumlah pasti invoice-nya dulu.
+const INVOICE_LOOKUP_CHUNK_SIZE = 10_000
+
 export async function findInvoicesByNumbers(companyId: number, invoiceNumbers: string[]) {
   if (invoiceNumbers.length === 0) return []
   const upper = invoiceNumbers.map((n) => n.trim().toUpperCase())
-  return db
-    .select({
-      invoiceNumber: sql<string>`UPPER(${invoices.invoice_number})`,
-      totalRevenue: invoices.total_revenue,
-      updatedAt: invoices.updated_at,
-    })
-    .from(invoices)
-    .where(and(eq(invoices.company_id, companyId), inArray(sql`UPPER(${invoices.invoice_number})`, upper)))
+
+  const chunks: string[][] = []
+  for (let i = 0; i < upper.length; i += INVOICE_LOOKUP_CHUNK_SIZE) {
+    chunks.push(upper.slice(i, i + INVOICE_LOOKUP_CHUNK_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      db
+        .select({
+          invoiceNumber: sql<string>`UPPER(${invoices.invoice_number})`,
+          totalRevenue: invoices.total_revenue,
+          updatedAt: invoices.updated_at,
+        })
+        .from(invoices)
+        .where(and(eq(invoices.company_id, companyId), inArray(sql`UPPER(${invoices.invoice_number})`, chunk))),
+    ),
+  )
+  return results.flat()
 }
 
 export async function createInvoice(data: NewInvoice) {
