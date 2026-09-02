@@ -143,8 +143,9 @@ const PLACEHOLDER_NAMES = new Set([
   'GENERAL CUSTOMER',
 ])
 
-export async function upsertCustomer(data: { company_id: number; customer_name: string; invoice_date: Date; channel_name?: string }) {
+export async function upsertCustomer(data: { company_id: number; customer_name: string; customer_code: string; invoice_date: Date; channel_name?: string }) {
   const upperName = data.customer_name.trim().toUpperCase()
+  const upperCode = data.customer_code.trim().toUpperCase()
   const invoiceDateStr = toDateString(data.invoice_date)
 
   // Lookup division dari channel_divisions berdasarkan channel_name — di-scope company_id
@@ -193,6 +194,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
       first_invoice_date: toDateString(newFirstDate),
       last_invoice_date: toDateString(newLastDate),
       customer_name: upperName,
+      customer_code: upperCode,
       is_placeholder: PLACEHOLDER_NAMES.has(upperName),
       updated_at: new Date(),
     }
@@ -240,6 +242,7 @@ export async function upsertCustomer(data: { company_id: number; customer_name: 
     .values({
       company_id: data.company_id,
       customer_name: upperName,
+      customer_code: upperCode,
       is_placeholder: PLACEHOLDER_NAMES.has(upperName),
       first_invoice_date: invoiceDateStr,
       last_invoice_date: invoiceDateStr,

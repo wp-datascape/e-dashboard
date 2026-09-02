@@ -241,12 +241,13 @@ export async function handleGetFakturTemplate(_c: Context) {
   // Baris 4-6: contoh data
 
   const title = [
-    'Template Import Faktur Penjualan', '', '', '', '', '', '', '', '', '', '',
+    'Template Import Faktur Penjualan', '', '', '', '', '', '', '', '', '', '', '',
   ]
 
   const descriptions = [
     'Tanggal faktur\n(DD/MM/YYYY atau DD MMM YYYY)',
     'Nomor faktur\n(awali dengan SI. atau INV-)',
+    'Kode pelanggan dari Accurate\n(opsional — kosongkan kalau tidak ada, kode akan dibuat otomatis dari nomor faktur)',
     'Nama pelanggan / customer',
     'Nama kategori barang\n(dari Accurate: Kategori Barang & Jasa)',
     'Nama barang / item detail',
@@ -261,6 +262,7 @@ export async function handleGetFakturTemplate(_c: Context) {
   const headers = [
     'Tanggal',
     'Sales Invoice',
+    'ID Pelanggan Pelanggan Faktur Penjualan',
     'Pelanggan',
     'Nama Kategori Barang Barang & Jasa',
     'Nama Barang',
@@ -273,16 +275,16 @@ export async function handleGetFakturTemplate(_c: Context) {
   ]
 
   const examples = [
-    ['01/01/2025', 'SI.00001', 'TOKO MAJU JAYA', 'PRINTER', 'CANON PIXMA G2010', 2, 1500000, 3000000, 600000, 'PUSAT', 'DC WEST'],
-    ['15/01/2025', 'SI.00002', 'CV BERKAH MAKMUR', 'SCANNER', 'FUJITSU SP-1130N', 1, 4500000, 4500000, 900000, 'SURABAYA', 'B2B EAST'],
-    ['20/01/2025', 'SI.00003', 'PT SINAR ABADI', 'CARTRIDGE', 'CANON PG-745', 10, 85000, 850000, 170000, '', 'TOKOPEDIA'],
+    ['01/01/2025', 'SI.00001', 'CUST-001', 'TOKO MAJU JAYA', 'PRINTER', 'CANON PIXMA G2010', 2, 1500000, 3000000, 600000, 'PUSAT', 'DC WEST'],
+    ['15/01/2025', 'SI.00002', 'CUST-002', 'CV BERKAH MAKMUR', 'SCANNER', 'FUJITSU SP-1130N', 1, 4500000, 4500000, 900000, 'SURABAYA', 'B2B EAST'],
+    ['20/01/2025', 'SI.00003', 'CUST-003', 'PT SINAR ABADI', 'CARTRIDGE', 'CANON PG-745', 10, 85000, 850000, 170000, '', 'TOKOPEDIA'],
   ]
 
   const ws = XLSX.utils.aoa_to_sheet([title, descriptions, headers, ...examples])
 
   // Lebar kolom
   ws['!cols'] = [
-    { wch: 22 }, { wch: 18 }, { wch: 28 },
+    { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 28 },
     { wch: 38 }, { wch: 28 }, { wch: 12 },
     { wch: 14 }, { wch: 16 }, { wch: 14 },
     { wch: 18 }, { wch: 24 },
