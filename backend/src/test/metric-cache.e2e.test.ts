@@ -13,9 +13,9 @@
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/config/db'
-import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, divisions, metric_cache, channel_divisions, businessConfigs, pareto_customers, customers, product_categories } from '@/db/schema'
+import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, divisions, metric_cache, channel_divisions, businessConfigs, pareto_customers, customers, product_categories, products, invoices, invoice_items } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
 
@@ -192,6 +192,10 @@ let existingCustomerId: number
 let anyCategoryId: number
 let createdCustomerId: number
 let createdCategoryId: number
+let createdProductId: number
+let createdDivisionCustomerIds: number[] = []
+let createdInvoiceIds: number[] = []
+let createdFixtureChannelDivisionIds: number[] = []
 
 let cookies: { narrow: string; wide: string; superadmin: string; holding: string; entityAdmin: string; entityUser: string }
 let superadminCsrfToken: string
@@ -276,6 +280,61 @@ beforeAll(async () => {
   const [createdCategory] = await db.insert(product_categories).values({ company_id: COMPANY_ID, name: 'E2E Cache Test Category' }).returning()
   createdCategoryId = createdCategory!.id
   anyCategoryId = createdCategoryId
+
+  // Invoice fixture company 1 — 2 customer, masing2 1 invoice di
+  // targetBranchId, dibedakan channel_name -> channel_divisions -> division
+  // (BUKAN customers.division_override_id) — dipakai MEMBUKTIKAN narrowUser
+  // (division=distribution) vs wideUser (semua division) benar2 dapat DATA
+  // BEDA (2026-09-02, koreksi CI: seed dasar TIDAK PERNAH membuat invoice/
+  // customer transaksional apa pun, jadi tanpa fixture ini SEMUA scope
+  // kebagian angka nol yang identik — assertion "hasil harus beda" gagal
+  // bukan krn bug isolasi, tapi krn memang tidak ada data buat dibedakan).
+  //
+  // PENTING (ditemukan 2026-09-02 lewat percobaan gagal pakai
+  // division_override_id): buildDivisionConditionRaw (dipakai
+  // resolveInvoiceScopeConditions, segment.helper.ts) utk RBAC SCOPE
+  // enforcement cek `channel_divisions.division_id` LANGSUNG, BUKAN
+  // COALESCE(customers.division_override_id, channel_divisions.division_id)
+  // — override cuma dipakai reporting FILTER (param `division` opsional),
+  // bukan enforcement scope. Invoice dgn division HANYA dari override (tanpa
+  // channel_name yang match) jadi division_id-nya NULL di mata scope
+  // enforcement, dan NULL tidak lolos filter Map divisionScope eksplisit
+  // (cuma lolos di jalur bypass superadmin) — customer/invoice jadi
+  // "hilang" utk SEMUA user non-superadmin walau grant-nya penuh. Ini bug
+  // scope lama yang di luar cakupan EDASHBOARD-591, TIDAK diperbaiki di
+  // sini — fixture ini cukup dibuat lewat jalur yang SAMA dgn data
+  // production asli (channel_name), supaya tidak kena celah itu.
+  const secondDivisionId = allDivisionIds.find((id) => id !== distributionId)
+  if (!secondDivisionId) throw new Error(`Company ${COMPANY_ID} butuh minimal 2 division untuk fixture isolasi cache`)
+
+  const distributionChannel = `E2E-CACHE-DIST-CHANNEL-${Date.now()}`
+  const otherChannel = `E2E-CACHE-OTHER-CHANNEL-${Date.now()}`
+  const [distChannelDivision] = await db.insert(channel_divisions).values({ company_id: COMPANY_ID, channel_name: distributionChannel, division_id: distributionId }).returning()
+  const [otherChannelDivision] = await db.insert(channel_divisions).values({ company_id: COMPANY_ID, channel_name: otherChannel, division_id: secondDivisionId }).returning()
+  createdFixtureChannelDivisionIds = [distChannelDivision!.id, otherChannelDivision!.id]
+
+  const [distributionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Distribution Customer', is_placeholder: false }).returning()
+  const [otherDivisionCustomer] = await db.insert(customers).values({ company_id: COMPANY_ID, customer_name: 'E2E Cache Other Division Customer', is_placeholder: false }).returning()
+  createdDivisionCustomerIds = [distributionCustomer!.id, otherDivisionCustomer!.id]
+
+  const [fixtureProduct] = await db.insert(products).values({ company_id: COMPANY_ID, product_name: 'E2E Cache Test Product', product_category_id: createdCategoryId }).returning()
+  createdProductId = fixtureProduct!.id
+
+  const fixtureInvoiceDate = todayIso()
+  const [distributionInvoice] = await db.insert(invoices).values({
+    company_id: COMPANY_ID, customer_id: distributionCustomer!.id, invoice_number: `E2E-CACHE-DIST-${Date.now()}`,
+    invoice_date: fixtureInvoiceDate, total_revenue: '1000000', total_gp: '200000', branch_id: targetBranchId, channel_name: distributionChannel,
+  }).returning()
+  const [otherDivisionInvoice] = await db.insert(invoices).values({
+    company_id: COMPANY_ID, customer_id: otherDivisionCustomer!.id, invoice_number: `E2E-CACHE-OTHER-${Date.now()}`,
+    invoice_date: fixtureInvoiceDate, total_revenue: '2000000', total_gp: '400000', branch_id: targetBranchId, channel_name: otherChannel,
+  }).returning()
+  createdInvoiceIds = [distributionInvoice!.id, otherDivisionInvoice!.id]
+
+  await db.insert(invoice_items).values([
+    { invoice_id: distributionInvoice!.id, product_id: fixtureProduct!.id, product_category_id: createdCategoryId, quantity: 1, unit_price: '1000000', revenue: '1000000', gross_profit: '200000' },
+    { invoice_id: otherDivisionInvoice!.id, product_id: fixtureProduct!.id, product_category_id: createdCategoryId, quantity: 1, unit_price: '2000000', revenue: '2000000', gross_profit: '400000' },
+  ])
 })
 
 afterAll(async () => {
@@ -295,8 +354,23 @@ afterAll(async () => {
   }
   // Urutan SETELAH pareto_customers (FK customer_id) — hapus customer dulu
   // bisa gagal/RESTRICT kalau pareto_customers-nya belum dibersihkan duluan.
+  // invoices dulu (cascade invoice_items otomatis, ON DELETE CASCADE) baru
+  // customer (invoices.customer_id ON DELETE RESTRICT — customer tidak bisa
+  // dihapus selama masih ada invoice yang mereferensikannya).
+  if (createdInvoiceIds.length > 0) {
+    await db.delete(invoices).where(inArray(invoices.id, createdInvoiceIds))
+  }
+  if (createdDivisionCustomerIds.length > 0) {
+    await db.delete(customers).where(inArray(customers.id, createdDivisionCustomerIds))
+  }
   await db.delete(customers).where(eq(customers.id, createdCustomerId))
+  if (createdProductId) {
+    await db.delete(products).where(eq(products.id, createdProductId))
+  }
   await db.delete(product_categories).where(eq(product_categories.id, createdCategoryId))
+  if (createdFixtureChannelDivisionIds.length > 0) {
+    await db.delete(channel_divisions).where(inArray(channel_divisions.id, createdFixtureChannelDivisionIds))
+  }
   await clearMetricCache(COMPANY_ID)
   await clearMetricCache(SECOND_COMPANY_ID)
   await clearMetricCache(ALL_COMPANIES_SENTINEL) // baris company_id=all (2026-09-02)
