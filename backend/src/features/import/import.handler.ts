@@ -94,6 +94,13 @@ export async function handleImportFileStream(c: Context) {
   const buffer = Buffer.from(arrayBuffer)
   const userId = c.var.user.userId
 
+  // X-Accel-Buffering: no (2026-09-02) - WAJIB utk SSE di belakang reverse
+  // proxy nginx (VPS dev/prod, docs-v2/task/task019.md) - tanpa ini nginx
+  // bisa mem-buffer response streaming alih-alih meneruskan real-time,
+  // berpotensi memicu masalah utk stream yang sangat panjang (laporan user:
+  // import file besar KNT, commit >15-20 menit gagal di sisi browser walau
+  // backend tetap lanjut & sukses di background).
+  c.header('X-Accel-Buffering', 'no')
   return streamSSE(c, async (stream) => {
     try {
       const result = await importFileService({
