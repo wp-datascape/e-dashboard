@@ -282,6 +282,7 @@ async function processImportRows(options: ProcessImportRowsOptions): Promise<Imp
         const customer = await upsertCustomer({
           company_id: companyId,
           customer_name: row.customer_name,
+          customer_code: row.customer_code,
           invoice_date: invoiceDate,
           channel_name: row.channel_name,
         })
