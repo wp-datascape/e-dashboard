@@ -135,12 +135,19 @@ export const LineAlertWidget = ({
     : undefined;
 
   // Calculate y-max from data to bound the reference area
-  const yMax =
+  // Math.ceil (EDASHBOARD-599) - tanpa ini, hasil * 1.15 sering berupa
+  // floating point mentah (mis. 62.44499999999999) yang lolos ke Recharts
+  // sebagai domain, dan Recharts merender ANGKA MENTAH itu apa adanya sbg
+  // label sumbu-Y teratas (titik desimalnya kecil di layar, gampang terbaca
+  // keliru sbg angka besar seperti "99999"). Math.ceil membulatkan ke
+  // integer bersih sebelum jadi domain chart.
+  const yMax = Math.ceil(
     Math.max(
       ...(data as Record<string, number>[]).map((d) => (d[lineKey] as number) || 0),
       ...(targetBarKey ? (data as Record<string, number>[]).map((d) => (d[targetBarKey] as number) || 0) : []),
       threshold,
-    ) * 1.15;
+    ) * 1.15,
+  );
 
   return (
     <Card sx={{ p: 2, height: '100%' }}>
