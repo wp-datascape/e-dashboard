@@ -23,6 +23,7 @@
     "FILE_TOO_LARGE": "Ukuran file melebihi batas maksimum.",
     "IMPORT_PROCESSING_ERROR": "Terjadi kesalahan saat memproses import.",
     "RATE_LIMITED": "Terlalu banyak permintaan. Silakan coba lagi nanti.",
+    "ACCOUNT_LOCKED": "Akun terkunci karena terlalu banyak percobaan login gagal. Coba lagi beberapa saat lagi, atau hubungi admin.",
     "ACCURATE_API_ERROR": "Gagal terhubung ke Accurate. Silakan coba lagi nanti.",
     "INTERNAL_ERROR": "Terjadi kesalahan pada server. Silakan coba lagi.",
     "INTERNAL_SERVER_ERROR": "Tidak dapat terhubung ke server. Periksa koneksi Anda."
