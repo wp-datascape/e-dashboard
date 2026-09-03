@@ -23,6 +23,7 @@
     "FILE_TOO_LARGE": "The file exceeds the maximum allowed size.",
     "IMPORT_PROCESSING_ERROR": "An error occurred while processing the import.",
     "RATE_LIMITED": "Too many requests. Please try again later.",
+    "ACCOUNT_LOCKED": "Account locked due to too many failed login attempts. Please try again shortly, or contact an admin.",
     "ACCURATE_API_ERROR": "Failed to connect to Accurate. Please try again later.",
     "INTERNAL_ERROR": "Something went wrong on our end. Please try again.",
     "INTERNAL_SERVER_ERROR": "Cannot connect to server. Please check your connection."
