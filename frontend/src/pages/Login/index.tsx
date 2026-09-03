@@ -23,6 +23,7 @@ import { AppAlert } from '@/components/ui/Alert';
 
 // Logic Hooks
 import { useLoginMutation } from '@/hooks/useAuth';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 // Schema Validation
 const createLoginSchema = (t: (key: string) => string) =>
@@ -52,11 +53,16 @@ export default function Login() {
 
   const onSubmit = (data: LoginFormInput) => {
     login(data, {
-      onError: () => {
+      // EDASHBOARD-599: sebelumnya SELALU pakai pesan generic apa pun kode
+      // error dari backend (mis. ACCOUNT_LOCKED, RATE_LIMITED) — user tidak
+      // pernah tahu akun terkunci/berapa lama harus menunggu. getApiErrorMessage
+      // resolve lewat error code + i18n (pola sama komponen lain), fallback ke
+      // pesan generic kalau kodenya tidak dikenali.
+      onError: (error) => {
         setErrorInfo({
           open: true,
           title: t('auth.loginFailedTitle'),
-          message: t('auth.loginFailedMessage'),
+          message: getApiErrorMessage(error, t),
         });
       },
     });
