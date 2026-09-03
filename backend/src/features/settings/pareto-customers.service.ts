@@ -13,6 +13,7 @@ import {
   findCustomerOptionsForPareto,
 } from './pareto-customers.repository'
 import type { CreateParetoCustomerDto, UpdateParetoCustomerDto, ListParetoCustomersQuery } from './pareto-customers.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 export async function listParetoCustomers(query: ListParetoCustomersQuery, scopeIds?: number[]) {
   return findParetoCustomers({
@@ -47,6 +48,7 @@ export async function addParetoCustomer(dto: CreateParetoCustomerDto, userId: nu
       companyId: dto.company_id,
       newValue: { ...dto, created_by: userId },
     })
+    await invalidateMetricCache(dto.company_id) // EDASHBOARD-591, task038.md
 
     return mapping
   } catch (err) {
@@ -74,6 +76,7 @@ export async function editParetoCustomer(id: number, dto: UpdateParetoCustomerDt
     oldValue: { effective_until: existing.effective_until, note: existing.note },
     newValue: { effective_until: dto.effective_until, note: dto.note },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
   return updated
 }
@@ -94,6 +97,7 @@ export async function deactivateParetoCustomer(id: number, ctx: Context) {
     oldValue: { effective_until: existing.effective_until, is_active: 'active' },
     newValue: { effective_until: today, is_active: 'deactivated' },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
   return result
 }
@@ -112,4 +116,5 @@ export async function removeParetoCustomer(id: number, ctx: Context) {
     companyId: existing.company_id,
     oldValue: { id: existing.id, company_id: existing.company_id },
   })
+  await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 }

@@ -22,6 +22,7 @@ import type {
   CreateChannelDivisionDto,
   UpdateChannelDivisionDto,
 } from './channel-divisions.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 // Division sekarang FK integer per company (task012 v2, tabel `divisions`) — validasi
 // terhadap DB (company-scoped), bukan const VALID_DIVISIONS tetap lagi.
@@ -76,6 +77,7 @@ export async function createChannelDivisionService(body: CreateChannelDivisionDt
       companyId: body.company_id,
       newValue: body,
     })
+    await invalidateMetricCache(body.company_id) // EDASHBOARD-591, task038.md
 
     return result
   } catch (err) {
@@ -118,6 +120,10 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
       oldValue: { channel_name: existing.channel_name, division_id: existing.division_id },
       newValue: { channel_name: body.channel_name ?? existing.channel_name, division_id: body.division_id ?? existing.division_id },
     })
+    // EDASHBOARD-591, task038.md — company_id bisa berubah lewat body.company_id,
+    // invalidasi keduanya (aman kalau sama, cuma jadi 2 DELETE identik).
+    await invalidateMetricCache(existing.company_id)
+    if (body.company_id && body.company_id !== existing.company_id) await invalidateMetricCache(body.company_id)
 
     return result
   } catch (err) {
@@ -205,6 +211,7 @@ export async function importChannelDivisionsService(
       companyId,
       newValue: { added, skipped, errors: errors.length },
     })
+    await invalidateMetricCache(companyId) // EDASHBOARD-591, task038.md
   }
 
   return { added, skipped, errors }
@@ -255,6 +262,7 @@ export async function deleteChannelDivisionService(id: number, ctx: Context) {
       companyId: existing.company_id,
       oldValue: { channel_name: existing.channel_name, division_id: existing.division_id },
     })
+    await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menghapus channel division', 500)

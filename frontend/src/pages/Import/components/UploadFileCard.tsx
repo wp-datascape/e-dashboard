@@ -16,20 +16,20 @@ import DownloadIcon from '@mui/icons-material/Download'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSnackbar } from 'notistack'
-import { Card, Button, ProgressBar } from '@/components/ui'
-import { useImportFileProgress } from '@/hooks/useImport'
+import { Card, Button } from '@/components/ui'
 import { useCan } from '@/hooks/useCan'
 import { usersKeys } from '@/hooks/useUsers'
 import { channelDivisionsApi } from '@/api/channelDivisions.api'
 import { importClassificationRules, downloadClassificationTemplate } from '@/api/classification.api'
-import { downloadFakturTemplate } from '@/api/import.api'
+import { downloadFakturTemplate, previewFakturImport } from '@/api/import.api'
 import { usersApi } from '@/api/users.api'
 import { highMarginApi } from '@/api/highMargin.api'
 import { CompanyPeriodFields } from './CompanyPeriodFields'
-import { ResultBanner } from './ResultBanner'
 import { HighMarginImportReview } from './HighMarginImportReview'
+import { FakturImportReview } from './FakturImportReview'
 import type { Company } from '@/types/users'
 import type { HighMarginImportPreviewResult } from '@/types/highMargin'
+import type { FakturImportPreviewResult } from '@/types/import'
 
 type ImportType = 'faktur' | 'divisi' | 'klasifikasi' | 'user' | 'high_margin'
 
@@ -67,10 +67,12 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
   // Terisi setelah upload berhasil di-parse+validasi, TABEL REVIEW muncul
   // menggantikan dropzone+tombol submit sampai user selesai (Terapkan/Batal).
   const [hmPreview, setHmPreview] = useState<HighMarginImportPreviewResult | null>(null)
+  // fakturPreview (task037/EDASHBOARD-588) — tahap preview import Faktur,
+  // pola SAMA persis dgn hmPreview di atas: terisi setelah upload berhasil
+  // di-parse+deteksi konflik, TABEL REVIEW (FakturImportReview) muncul
+  // menggantikan dropzone+tombol submit sampai user selesai (Terapkan/Batal).
+  const [fakturPreview, setFakturPreview] = useState<FakturImportPreviewResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ── Faktur SSE import ──
-  const { phase, progress, result, errorMessage, mutate: mutateFaktur, reset, isPending: isFakturPending } = useImportFileProgress()
 
   // ── Master data mutations ──
   const divisiMutation = useMutation({
@@ -127,8 +129,18 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     onError: () => enqueueSnackbar(t('import.form.hmPreviewError'), { variant: 'error' }),
   })
 
-  const isMasterPending = divisiMutation.isPending || klasifikasiMutation.isPending || userMutation.isPending || hmPreviewMutation.isPending
-  const isPending = isFakturPending || isMasterPending
+  // ── Faktur import: tahap preview (task037/EDASHBOARD-588) ──
+  const fakturPreviewMutation = useMutation({
+    mutationFn: ({ file, companyId }: { file: File; companyId: number }) =>
+      previewFakturImport(file, companyId),
+    onSuccess: (res) => {
+      setFakturPreview(res)
+      setFile(null)
+    },
+    onError: () => enqueueSnackbar(t('import.form.hmPreviewError'), { variant: 'error' }),
+  })
+
+  const isPending = divisiMutation.isPending || klasifikasiMutation.isPending || userMutation.isPending || hmPreviewMutation.isPending || fakturPreviewMutation.isPending
   const isDisabled = isPending || disabled
 
   useEffect(() => { onPendingChange?.(isPending) }, [isPending, onPendingChange])
@@ -140,8 +152,8 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     setFormError(null)
     setMasterResult(null)
     setHmPreview(null)
+    setFakturPreview(null)
     setDefaultPassword('')
-    reset()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -180,13 +192,10 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
     if (importType !== 'user' && !companyId) { setFormError(t('import.form.errorCompany')); return }
 
     if (importType === 'faktur') {
-      reset()
-      if (fileInputRef.current) fileInputRef.current.value = ''
       if (!periodMonth) { setFormError(t('import.form.errorPeriod')); return }
       if (!file) { setFormError(t('import.form.errorFile')); return }
-      void mutateFaktur({ file, company_id: companyId as number, period_month: periodMonth })
+      fakturPreviewMutation.mutate({ file, companyId: companyId as number })
       if (fileInputRef.current) fileInputRef.current.value = ''
-      if (phase === 'done') setFile(null)
     } else if (importType === 'user') {
       if (!file) { setFormError(t('import.form.errorFile')); return }
       if (defaultPassword.length < 8) { setFormError(t('import.form.errorDefaultPassword')); return }
@@ -203,8 +212,6 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
-
-  const handleCloseResult = () => { reset(); setFile(null) }
 
   return (
     <Card sx={{ p: 3, height: '100%', opacity: disabled && !isPending ? 0.5 : 1, transition: 'opacity 0.2s' }}>
@@ -352,23 +359,17 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
           />
         )}
 
-        {/* ── Progress faktur ── */}
-        {importType === 'faktur' && (phase === 'uploading' || phase === 'processing') && (
-          <Box>
-            <ProgressBar
-              total={progress.total}
-              success={progress.success}
-              error={progress.errors}
-              status={phase === 'uploading' ? 'loading' : undefined}
-              size="sm"
-              showLabel={false}
-            />
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
-              {phase === 'uploading'
-                ? t('import.form.loading')
-                : t('import.form.rowsProcessed', { processed: progress.processed.toLocaleString(), total: progress.total.toLocaleString() })}
-            </Typography>
-          </Box>
+        {/* ── Dialog review Faktur (task037/EDASHBOARD-588) — tahap preview
+            + resolusi konflik per baris, sebelum commit ── */}
+        {importType === 'faktur' && (
+          <FakturImportReview
+            open={!!fakturPreview}
+            companyId={companyId as number}
+            periodMonth={periodMonth}
+            preview={fakturPreview}
+            onCancel={() => setFakturPreview(null)}
+            onDone={() => setFakturPreview(null)}
+          />
         )}
 
         {/* ── Hasil master data import ── */}
@@ -391,12 +392,6 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
         {formError && (
           <Alert severity="error" onClose={() => setFormError(null)}>{formError}</Alert>
         )}
-        {importType === 'faktur' && phase === 'error' && errorMessage && (
-          <Alert severity="error" onClose={reset}>{errorMessage}</Alert>
-        )}
-        {importType === 'faktur' && phase === 'done' && result && (
-          <ResultBanner result={result} onClose={handleCloseResult} />
-        )}
 
         {can('config.import:import') && (
           <Button
@@ -405,7 +400,7 @@ export function UploadFileCard({ companies, disabled = false, onPendingChange }:
             disabled={isDisabled}
             startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
           >
-            {isPending ? t('import.form.loading') : importType === 'high_margin' ? t('import.form.hmPreviewSubmit') : t('import.file.submit')}
+            {isPending ? t('import.form.loading') : importType === 'high_margin' || importType === 'faktur' ? t('import.form.hmPreviewSubmit') : t('import.file.submit')}
           </Button>
         )}
       </Stack>

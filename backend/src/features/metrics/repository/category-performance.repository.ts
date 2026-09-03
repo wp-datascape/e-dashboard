@@ -133,7 +133,13 @@ export async function fetchCategoryPerformance(
     LEFT JOIN hm_cats hmc       ON hmc.product_category_id = pc.id
     WHERE (${p.search} = '' OR pc.name ILIKE '%' || ${p.search} || '%')
       AND (${p.highMarginOnly}::boolean = false OR hmc.product_category_id IS NOT NULL)
-    ORDER BY ${sql.raw(`${sortCol} ${sortDir}`)}
+    -- Tie-break category_id (2026-09-02, koreksi user: sorting tanpa
+    -- pemutus seri bikin urutan antar baris yg nilainya SAMA PERSIS di
+    -- sortCol tidak stabil antar eksekusi query -> paginasi (LIMIT/OFFSET)
+    -- bisa nampilin kategori dobel di 2 halaman atau kelewat sama sekali.
+    -- Kolom ke-2 ini TIDAK pernah mempengaruhi urutan kalau sortCol beda -
+    -- Postgres cuma pakai dia utk baris yg genuinely tied di kolom pertama.
+    ORDER BY ${sql.raw(`${sortCol} ${sortDir}`)}, category_id ASC
     LIMIT  ${p.perPage}
     OFFSET ${offset}
   `)

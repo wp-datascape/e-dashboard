@@ -17,6 +17,7 @@
  *                           pareto_alert_thresholds, pareto_period_snapshots,
  *                           notifications
  * - page_settings.ts      — berdiri sendiri (tidak ada FK ke domain manapun)
+ * - metric_cache.ts       — cache hasil endpoint metrics (EDASHBOARD-591)
  *
  * Naming convention: snake_case plural (contoh: invoices, invoice_items, companies)
  * Setiap tabel wajib punya: id, created_at, updated_at
@@ -28,4 +29,4 @@ export * from './schema-company'
 export * from './schema-product'
 export * from './schema-transaction'
 export * from './page_settings'
-// export * from './metric_cache'
+export * from './metric_cache'

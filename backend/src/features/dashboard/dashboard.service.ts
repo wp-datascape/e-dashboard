@@ -1,6 +1,7 @@
 import { AppError, ErrorCode } from '@/utils/error'
 import { getCrossSellingMetrics, getCustomerMetrics, getDormantCustomerMetrics, resolveSegmentParams } from '@/features/metrics/metrics.service'
 import type { MetricsScope } from '@/features/metrics/metrics.service'
+import { withMetricCache } from '@/features/metrics/metric-cache.helper'
 import { loadThresholds } from '@/features/config/threshold'
 import { fetchDormantValueTrend } from './dashboard.repository'
 import type { ChartType, DashboardData, MetricCard, MetricSummary, MonthlyTrendPoint } from './dashboard.types'
@@ -162,9 +163,31 @@ export async function getDashboard(
     const buckets = resolveTrailingBuckets(filterDate, periodType)
     const comparisonBuckets = resolveTrailingBuckets(comparisonDate, periodType)
 
+    // fetchDormantValueTrend SENDIRI berat (12 bucket x limit=null tiap
+    // panggilan, diukur ~700ms-2s utk company besar — lihat komentar
+    // dashboard.repository.ts) — dibungkus withMetricCache DI SINI (service
+    // layer, bukan diubah isinya di repository, CRITICAL_RULES.md). Params
+    // sama persis bentuknya dgn getCrossSellingMetrics dkk di atas, supaya
+    // filterDate vs comparisonDate otomatis dapat cache_key terpisah.
+    // Invalidasi ikut gratis lewat hook per-company yang sudah ada (
+    // deleteMetricCacheByCompany hapus SEMUA metric_key company itu, tidak
+    // perlu wiring baru) — koreksi user 2026-09-02: "padahal DB juga sudah
+    // di index, kenapa masih mencapai 3.000ms" — akar masalahnya fan-out (12
+    // query berat paralel x2 tanggal), bukan index; caching di sini
+    // menghilangkan biaya itu utk load ulang, bukan load pertama.
     const [dormantValueTrend, dormantValueTrendYoy] = await Promise.all([
-      fetchDormantValueTrend(segParams, buckets),
-      fetchDormantValueTrend(segParamsYoy, comparisonBuckets),
+      withMetricCache(
+        'dormant_value_trend', companyId,
+        { company_id: companyId, period_end: filterDate, period_type: periodType, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false },
+        scope,
+        () => fetchDormantValueTrend(segParams, buckets),
+      ),
+      withMetricCache(
+        'dormant_value_trend', companyId,
+        { company_id: companyId, period_end: comparisonDate, period_type: periodType, division, branch_id: branchId, exclude_intercompany: excludeIC, only_pareto: false },
+        scope,
+        () => fetchDormantValueTrend(segParamsYoy, comparisonBuckets),
+      ),
     ])
 
     // Nilai headline = rata-rata field bulanan dlm rentang [periodStart,

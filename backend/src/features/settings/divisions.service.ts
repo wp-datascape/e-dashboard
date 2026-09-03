@@ -15,6 +15,7 @@ import {
   findBranchById,
 } from './divisions.repository'
 import type { CreateDivisionDto, UpdateDivisionDto } from './divisions.schema'
+import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
 
 function slugify(label: string): string {
   const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30)
@@ -71,6 +72,7 @@ export async function createDivisionService(body: CreateDivisionDto, ctx: Contex
       companyId: body.company_id,
       newValue: { key, label: body.label, dormant_category: body.dormant_category, branch_id: branchId },
     })
+    await invalidateMetricCache(body.company_id) // EDASHBOARD-591, task038.md
 
     return result
   } catch (err) {
@@ -100,6 +102,7 @@ export async function updateDivisionService(id: number, body: UpdateDivisionDto,
       oldValue: { label: existing.label, dormant_category: existing.dormant_category, is_active: existing.is_active },
       newValue: body,
     })
+    await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
 
     return result
   } catch (err) {
@@ -136,6 +139,7 @@ export async function deleteDivisionService(id: number, ctx: Context) {
       companyId: existing.company_id,
       oldValue: { key: existing.key, label: existing.label },
     })
+    await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menghapus division', 500)

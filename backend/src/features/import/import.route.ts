@@ -9,7 +9,15 @@
  *   GET  /import/logs/:id — Detail import log + errors
  */
 import { Hono } from 'hono'
-import { handleImportFile, handleImportFileStream, handleGetImportLogs, handleGetImportLogDetail, handleGetFakturTemplate } from './import.handler'
+import {
+  handleImportFile,
+  handleImportFileStream,
+  handlePreviewImportFile,
+  handleCommitImportStream,
+  handleGetImportLogs,
+  handleGetImportLogDetail,
+  handleGetFakturTemplate,
+} from './import.handler'
 import { requirePermission } from '@/middleware/permission'
 import { rateLimit, keyByUser } from '@/middleware/rate-limit'
 
@@ -26,5 +34,11 @@ const importRateLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 5, keyFn: key
 importRoutes.get('/template', requirePermission('config.import:view'), handleGetFakturTemplate)
 importRoutes.post('/csv', requirePermission('config.import:import'), importRateLimit, handleImportFile)
 importRoutes.post('/csv/stream', requirePermission('config.import:import'), importRateLimit, handleImportFileStream)
+// Review sebelum commit (task037/EDASHBOARD-588) — /preview parse+deteksi
+// konflik TANPA tulis DB, /commit tulis DB berdasar pilihan user per invoice
+// konflik (Timpa/Lewati). Rate limit SAMA dgn /csv di atas (bukan lebih
+// longgar) — payload besar tetap mahal walau /preview tidak tulis DB.
+importRoutes.post('/csv/preview', requirePermission('config.import:import'), importRateLimit, handlePreviewImportFile)
+importRoutes.post('/csv/commit', requirePermission('config.import:import'), importRateLimit, handleCommitImportStream)
 importRoutes.get('/logs', requirePermission('config.import:view'), handleGetImportLogs)
 importRoutes.get('/logs/:id', requirePermission('config.import:view'), handleGetImportLogDetail)
