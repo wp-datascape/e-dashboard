@@ -116,14 +116,26 @@ export function sqlStatusExpr(
   dormantMonths: number | SQL,
   lastInv: unknown,
   firstInv: unknown,
+  // dormantRefDate (task039.md, 2026-09-11, fix susulan — bug ditemukan user:
+  // "geser mundur customer new ini gimana maksutnya" — awalnya SATU refDate
+  // dipakai buat activeCutoff (New/Active) DAN isDormant sekaligus, akibatnya
+  // checkpoint Dormant yang digeser ikut MENGGESER batas New/Active juga,
+  // padahal niatnya cuma benerin Dormant — diverifikasi angka status=new
+  // company 1 berubah 5 jadi 11, TIDAK diminta). SEKARANG dipisah: `refDate`
+  // TETAP live (activeCutoff/New tidak berubah), `dormantRefDate` (opsional,
+  // fallback ke `refDate` kalau tidak dikirim — backward-compat caller lama
+  // spt findCustomerDetail yang belum kirim ini) KHUSUS utk isDormant, SSOT
+  // dgn checkpoint M3-M10 (resolveStatusCheckpointDate, period.util.ts).
+  dormantRefDate?: ReturnType<typeof sql>,
 ) {
   const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
+  const dormantAsOf = dormantRefDate ?? refDate
   // isDormant (2026-08-27, task029.md §36.52 — koreksi KERAS user: "pelanggan
   // baru pindah status dorman saat bulan agustus sudah habis... ada
   // kesalahan logika disini") — reuse dormantCrossedSql (kalender-bulan
   // penuh), BUKAN lagi `lastInv <= refDate - dormantMonths bulan` mentah
   // (tanggal presisi, bikin status dormant "meletus" di tengah bulan).
-  const isDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`)
+  const isDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
 
   return sql<string>`
     CASE
@@ -148,12 +160,16 @@ export function sqlStatusWhere(
   dormantMonths: number | SQL,
   lastInv: unknown,
   firstInv: unknown,
+  // dormantRefDate — pola SAMA PERSIS sqlStatusExpr di atas, lihat komentar
+  // di sana kenapa dipisah dari refDate (bug "New" ikut kegeser).
+  dormantRefDate?: ReturnType<typeof sql>,
 ) {
   const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
+  const dormantAsOf = dormantRefDate ?? refDate
   // isDormant/notDormant (2026-08-27, task029.md §36.52) — pola SAMA PERSIS
   // sqlStatusExpr di atas, reuse dormantCrossedSql kalender-bulan penuh.
-  const isDormant  = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`)
-  const notDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${refDate}::date`, sql`${dormantMonths}::int`, true)
+  const isDormant  = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
+  const notDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`, true)
 
   const isNew  = or(sql`${lastInv} IS NULL`, sql`${firstInv}::date >= ${activeCutoff}`)
   const notNew = and(

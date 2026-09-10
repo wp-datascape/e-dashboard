@@ -12,7 +12,7 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // fitur Analisis (task016), sekarang juga dipakai granularitas M1 Cross
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
-import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart, clampToElapsedEnd } from '@/features/analisis/period.util'
+import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart, clampToElapsedEnd, buildStatusCheckpointBuckets, resolveStatusCheckpointDate } from '@/features/analisis/period.util'
 import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
@@ -317,12 +317,26 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
         return { label: b.label, start: prevRange.start, end: prevRange.end }
       })
 
+      // statusBuckets (task039.md, 2026-09-11) — checkpoint klasifikasi status
+      // customer (New/Active/Existing/Dormant) DISAMAKAN dgn M8-M10
+      // (getDormantCustomerMetrics di bawah): titik "Agustus" datanya digeser
+      // ke Juli (bulan yang SUDAH TUTUP penuh) — SSOT `buildStatusCheckpointBuckets`
+      // (period.util.ts), bukan lagi dihitung terpisah per fitur. Populasi
+      // revenue/GP/expansion rate (resolvedBuckets di atas) TIDAK ikut mundur,
+      // cuma populasi "siapa yang existing/dormant" yang disamakan — lihat
+      // JSDoc fetchCustomerMetricsTrend/m3m7.repository.ts. Mode apply_date_cutoff
+      // (jarang dipakai M3-M7 saat ini) TIDAK digeser sama sekali, mirror
+      // persis cabang yang sama di getDormantCustomerMetrics.
+      const statusBuckets = params.apply_date_cutoff
+        ? resolvedBuckets
+        : buildStatusCheckpointBuckets(periodType, periodKey, 12)
+
       const [segParams, { repeatOrderTargetPct }] = await Promise.all([
         resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto),
         loadThresholds(),
       ])
 
-      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets)
+      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets, statusBuckets)
 
       const trendPoints: CustomerMetricsTrendPoint[] = trend.map((row) => ({
         month:                  row.month,
@@ -411,6 +425,10 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
     try {
       const filterDate = params.period_end ?? todayDate()
       const segParams = await resolveSegmentParams(params.company_id, filterDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+      // statusCheckpoint (task039.md, 2026-09-11) — SSOT dgn getCustomerMetrics/
+      // getDormantCustomerMetrics, supaya total_existing dialog drilldown ini
+      // MATCH kartu "Customer Base" trend chart M7 (bukan lagi live/filterDate).
+      const statusCheckpoint = resolveStatusCheckpointDate(params.period_type ?? 'monthly', filterDate)
       // date_from = periode penarikan data (mirror getGpBreakdown, koreksi user
       // 2026-08-10) — TERPISAH dari segParams.activeMonths (business config
       // "existing", tetap fixed).
@@ -439,7 +457,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
         prevDateFrom = prevRange.start
         prevDateTo = prevEndStr < prevRange.end ? prevEndStr : prevRange.end
       }
-      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo)
+      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo, statusCheckpoint)
       return {
         period_end:     filterDate,
         up_count:       result.up_count,
@@ -558,12 +576,13 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         // fetchDormantTrend).
         liveBuckets = resolved.buckets
       } else {
+        // buildStatusCheckpointBuckets (task039.md, 2026-09-11) — SSOT geser-1-
+        // periode, diekstrak ke period.util.ts supaya getCustomerMetrics (M3-M7)
+        // bisa reuse definisi checkpoint yang PERSIS SAMA (bukan 2 implementasi
+        // paralel yang kebetulan sama persis). Perilaku endpoint ini SENDIRI
+        // tidak berubah sama sekali.
         const labelBuckets = buildTrailingPeriods(periodType, periodKey, 12)
-        resolvedBuckets = labelBuckets.map((b) => {
-          const dataKey = getPreviousPeriodKey(periodType, b.label)
-          const dataRange = getPeriodRange(periodType, dataKey)
-          return { label: b.label, start: dataRange.start, end: dataRange.end }
-        })
+        resolvedBuckets = buildStatusCheckpointBuckets(periodType, periodKey, 12)
         periodEndDate = resolvedBuckets.at(-1)!.end
 
         // live_buckets (2026-08-24, definisi FINAL user: "reaktivasi adalah

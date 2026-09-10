@@ -14,7 +14,16 @@ import {
 } from '@/utils/scope'
 import { EXPORT_ROW_CAP } from '@/utils/excel'
 import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
+import { resolveStatusCheckpointDate } from '@/features/analisis/period.util'
 import type { CustomersQuery } from './customers.schema'
+
+// todayDate (task039.md, 2026-09-11) — pola sama persis metrics.service.ts,
+// dibutuhkan resolveStatusCheckpointDate (butuh string YYYY-MM-DD, bukan SQL
+// `CURRENT_DATE`).
+function todayDate(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
 
 // buildCustomerQueryContext (2026-08-31, refactor persiapan export Excel) —
 // SEMUA logic where-clause/scope/subquery yang SEBELUMNYA cuma ada di dalam
@@ -34,6 +43,14 @@ async function buildCustomerQueryContext(
 ) {
   const { company_id, branch_id, search, business_unit, status, as_of_date, exclude_intercompany } = params
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
+  // statusRefDate (task039.md, 2026-09-11) — checkpoint klasifikasi status
+  // customer (New/Active/Existing/Dormant) DISAMAKAN dgn M3-M10
+  // (resolveStatusCheckpointDate, period.util.ts, granularitas bulanan
+  // default) — TERPISAH dari refDate di atas (yang TETAP live/hari ini,
+  // dipakai live_last/live_first/lifetime_value/avg_monthly_revenue di bawah,
+  // TIDAK berubah). Keputusan user 2026-09-10: badge status Workbench IKUT
+  // disamakan ke checkpoint bulan lalu, bukan cuma M3-M10.
+  const statusRefDate = sql`${resolveStatusCheckpointDate('monthly', as_of_date ?? todayDate())}::date`
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
@@ -164,7 +181,7 @@ async function buildCustomerQueryContext(
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
   const statusCond = status
-    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
+    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first, statusRefDate)
     : undefined
   if (statusCond) conditions.push(statusCond)
 
@@ -180,7 +197,7 @@ async function buildCustomerQueryContext(
     ? eq(sql`COALESCE(${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, business_unit)
     : undefined
 
-  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first)
+  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first, statusRefDate)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -436,6 +453,10 @@ export async function findCustomerDetail(
 ) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = asOfDate ? sql`${asOfDate}::date` : sql`CURRENT_DATE`
+  // statusRefDate (task039.md, 2026-09-11) — sama persis buildCustomerQueryContext
+  // di atas: badge status di dialog detail HARUS konsisten dgn badge di list
+  // Customer Workbench (checkpoint bulan lalu), bukan lagi live/hari ini.
+  const statusRefDate = sql`${resolveStatusCheckpointDate('monthly', asOfDate ?? todayDate())}::date`
 
   // task018 — endpoint ini SEBELUMNYA tidak pernah cek branch/division sama sekali
   // (cuma company-scope, task015), jadi SEMUA query di bawah agregasi invoice
@@ -513,7 +534,7 @@ export async function findCustomerDetail(
       business_unit: customers.business_unit,
       first_invoice_date: liveFirstInv.mapWith(String),
       last_invoice_date: liveLastInv.mapWith(String),
-      status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv),
+      status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv, statusRefDate),
       category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoice_items.product_category_id} END)`,
     })
     .from(customers)
