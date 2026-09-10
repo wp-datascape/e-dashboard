@@ -476,6 +476,46 @@ export function getElapsedRangeEnd(periodType: PeriodType, today: Date = new Dat
  * — dipakai sebagai default kalau user tidak pilih periode eksplisit di UI.
  * Periode yang masih berjalan tidak adil dibandingkan (belum penuh sebulan/dst).
  */
+/**
+ * N titik trend (label = periode berjalan, pola SAMA `buildTrailingPeriods`),
+ * TAPI rentang tanggal DATA tiap titik digeser mundur 1 periode dari
+ * labelnya sendiri — checkpoint "sudah tutup penuh" (task039.md, SSOT status
+ * customer New/Active/Existing/Dormant di SELURUH KPI). Diekstrak dari logic
+ * yang sebelumnya inline HANYA di `getDormantCustomerMetrics` (M8-M10,
+ * metrics.service.ts) — sekarang dipakai jg `getCustomerMetrics` (M3-M7)
+ * supaya base customer M7 (Customer Base) match persis M8 (Total Customer
+ * Base - Dormant) di company/period yang sama. Populasi "siapa yang New/
+ * Existing" (not-new gate) TIDAK ikut fungsi ini — itu TETAP relatif ke
+ * label kalender ASLI (live), cuma evaluasi "sudah dormant atau belum" yang
+ * butuh checkpoint tertutup ini (lihat JSDoc `getDormantCustomerMetrics`
+ * kenapa: status absen cuma bisa dipastikan kalau bulan itu sudah tutup).
+ */
+export function buildStatusCheckpointBuckets(periodType: PeriodType, currentKey: string, count: number): TrailingPeriodBucket[] {
+  const labelBuckets = buildTrailingPeriods(periodType, currentKey, count)
+  return labelBuckets.map((b) => {
+    const dataKey = getPreviousPeriodKey(periodType, b.label)
+    const dataRange = getPeriodRange(periodType, dataKey)
+    return { label: b.label, start: dataRange.start, end: dataRange.end }
+  })
+}
+
+/**
+ * Checkpoint TUNGGAL (bukan 12 titik trend) — dipakai fitur non-trend yang
+ * butuh 1 titik snapshot "status customer per bulan lalu yang sudah tutup"
+ * (mis. Customer Workbench). SAMA PERSIS titik terakhir
+ * `buildStatusCheckpointBuckets`, cuma tanpa overhead bangun 12 titik.
+ */
+export function resolveStatusCheckpointDate(periodType: PeriodType, referenceDate: string): string {
+  // Parse manual komponen lokal (BUKAN `new Date(referenceDate)`) — string ISO
+  // "YYYY-MM-DD" di-parse `new Date()` sbg UTC midnight, bisa geser ke hari
+  // lokal yang beda tergantung timezone server (pola sama getCustomerMetrics
+  // dkk, metrics.service.ts, "hindari pergeseran timezone dari parsing string ISO").
+  const [ry, rm, rd] = referenceDate.split('-').map(Number)
+  const currentKey = getCurrentPeriodKey(periodType, new Date(ry!, rm! - 1, rd!))
+  const closedKey = getPreviousPeriodKey(periodType, currentKey)
+  return getPeriodRange(periodType, closedKey).end
+}
+
 export function getLatestClosedPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
   const year = today.getFullYear()
   const month = today.getMonth() + 1 // 1-12
