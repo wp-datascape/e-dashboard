@@ -7,7 +7,6 @@ import type { StatusChipColor } from '@/components/ui/StatusChip';
 import { formatDateID } from '@/utils/date';
 import { formatRupiah } from '@/utils/format';
 import type { DormantCustomerStatus } from '@/types/metrics';
-import { fmtRp } from './helpers';
 
 // Helper non-komponen dipisah dari M8DormantRate.tsx/M10ReactivationRate.tsx
 // (2026-08-24, pola sama persis expansionHelpers.tsx/rorHelpers.tsx — ESLint
@@ -50,9 +49,9 @@ export function useDormantBreakdownColumns(t: TFunction): GridColDef[] {
     // omzet bulanan customer ini SEBELUM dormant", bukan cuma total
     // estimasi kerugian akumulatif.
     { field: 'avg_monthly_revenue', headerName: t('dormantCustomer.colAvgMonthlyRevenue'), width: 160, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRp(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
     { field: 'estimated_lost_value', headerName: t('dormantCustomer.colEstimatedLoss'), width: 150, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRp(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
     // estimated_lost_gp (2026-08-26, task029.md §36.12 — susulan "Tambah
     // versi Gross Profit paralel", GAP ditemukan saat cek "apakah sudah
     // tersedia lengkap di menu Laporan": kolom GP baru sempat cuma
@@ -62,7 +61,7 @@ export function useDormantBreakdownColumns(t: TFunction): GridColDef[] {
     // tab dormant sekaligus (pola centralize yang sudah didokumentasikan
     // di atas).
     { field: 'estimated_lost_gp', headerName: t('dormantCustomer.colEstimatedLossGp'), width: 170, align: 'right', headerAlign: 'right',
-      renderCell: (p) => fmtRp(p.value as number) },
+      renderCell: (p) => formatRupiah(p.value as number) },
   ]
 }
 

@@ -149,7 +149,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
             {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
               <KpiCard
                 label={t('customerMetrics.m4.summaryTotalGp')}
-                value={fmtRp(totalGp)}
+                value={formatRupiah(totalGp)}
                 sub={periodPhrase}
                 color={theme.palette.primary.main}
                 info={t('customerMetrics.m4.summaryTotalGpInfo')}
@@ -160,7 +160,7 @@ export function M4GrossProfit({ trend, yoyTrend = [], isLoading, periodType = 'm
             {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
               <KpiCard
                 label={t('customerMetrics.m4.summaryAvgGp')}
-                value={fmtRp(avgGp)}
+                value={formatRupiah(avgGp)}
                 sub={periodPhrase}
                 color={theme.palette.info.main}
               />

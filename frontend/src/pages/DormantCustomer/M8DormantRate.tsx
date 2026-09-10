@@ -26,7 +26,7 @@ import type { DormantData } from '@/types/metrics';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 import { SectionLabel } from '../CustomerMetrics/HelperComponents';
 import { KpiCard } from '../CrossSelling/HelperComponents';
-import { fmtRp } from './helpers';
+import { formatRupiah } from '@/utils/format';
 import { useDormantBreakdownColumns } from './dormantHelpers';
 import { useTheme } from '@mui/material/styles';
 
@@ -177,7 +177,7 @@ export function M8DormantRate({ data, isLoading, periodType = 'monthly', applyDa
   const top5Items: TopMoverItem[] = (data?.value_ranking ?? []).slice(0, 5).map((r) => ({
     id: r.customer_id,
     name: r.customer_name,
-    metricText: fmtRp(r.estimated_lost_value),
+    metricText: formatRupiah(r.estimated_lost_value),
     icon: BedtimeIcon,
     iconColor: theme.palette.error.main,
   }));

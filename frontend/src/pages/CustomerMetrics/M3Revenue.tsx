@@ -129,7 +129,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
   const top5Items: TopMoverItem[] = (currentBreakdown?.rows ?? []).slice(0, 5).map((r) => ({
     id: r.ranking,
     name: r.customer_name,
-    metricText: fmtRp(r.revenue),
+    metricText: formatRupiah(r.revenue),
     icon: MonetizationOnIcon,
     iconColor: theme.palette.primary.main,
   }));
@@ -178,7 +178,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('customerMetrics.m3.summaryTotalRevenue')}
-              value={fmtRp(last?.total_revenue_existing ?? 0)}
+              value={formatRupiah(last?.total_revenue_existing ?? 0)}
               sub={periodPhrase}
               color={theme.palette.primary.main}
               info={t('customerMetrics.m3.summaryTotalRevenueInfo')}
@@ -189,7 +189,7 @@ export function M3Revenue({ trend, yoyTrend = [], isLoading, periodType = 'month
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('customerMetrics.m3.summaryAvgRevenue')}
-              value={fmtRp(last?.avg_revenue ?? 0)}
+              value={formatRupiah(last?.avg_revenue ?? 0)}
               sub={periodPhrase}
               color={theme.palette.info.main}
             />

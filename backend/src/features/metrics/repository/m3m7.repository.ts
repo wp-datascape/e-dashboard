@@ -86,7 +86,7 @@ export type TrendRow = {
  *    JUGA identik dgn sebelumnya — bedanya cuma kelihatan di kuartal/
  *    semester/tahun (baru, belum pernah ada).
  */
-export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
+export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], statusBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
@@ -102,6 +102,14 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     prevBuckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
     sql.raw(', '),
   )
+  // statusBucketValues (task039.md, 2026-09-11) — checkpoint klasifikasi
+  // dormant, SSOT dgn m8m10.repository.ts (buildStatusCheckpointBuckets,
+  // period.util.ts). JOIN by label ke `buckets` (bucket DATA/revenue, TIDAK
+  // ikut digeser) di last_inv_per_bucket di bawah.
+  const statusBucketValues = sql.join(
+    statusBuckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
+    sql.raw(', '),
+  )
   const earliestStart = prevBuckets[0]!.start
   const latestEnd = buckets[buckets.length - 1]!.end
 
@@ -109,6 +117,7 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     WITH
     buckets(label, ps, pe) AS (VALUES ${bucketValues}),
     prev_buckets(label, ps, pe) AS (VALUES ${prevBucketValues}),
+    status_buckets(label, ps, pe) AS (VALUES ${statusBucketValues}),
 
     -- Semua invoice relevan: dari awal bucket "previous" paling lama
     -- (dibutuhkan prev_inv_agg titik pertama) sampai akhir bucket terakhir.
@@ -267,10 +276,18 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
         AND ${onlyParetoCond}
       GROUP BY i.customer_id
     ),
+    -- bucket_end SEKARANG dari status_buckets (sb.pe, checkpoint bulan yang
+    -- SUDAH TUTUP), BUKAN lagi buckets.pe (b.pe, live/berjalan) — task039.md,
+    -- SSOT dgn m8m10.repository.ts (last_at_me di sana jg dibatasi bucket
+    -- yang sudah digeser). Populasi "existing e" (siapa yang not-new) TETAP
+    -- gate live (JOIN by b.label, TIDAK berubah) — cuma evaluasi "kapan
+    -- terakhir transaksi, sudah lewat ambang dormant atau belum" yang
+    -- checkpoint-nya disamakan.
     last_inv_per_bucket AS MATERIALIZED (
-      SELECT b.label, e.id AS customer_id, b.pe AS bucket_end, cdt.dormant_threshold,
-        (SELECT MAX(d) FROM unnest(cid.dates) AS d WHERE d <= b.pe) AS last_inv_before_be
+      SELECT b.label, e.id AS customer_id, sb.pe AS bucket_end, cdt.dormant_threshold,
+        (SELECT MAX(d) FROM unnest(cid.dates) AS d WHERE d <= sb.pe) AS last_inv_before_be
       FROM buckets b
+      JOIN status_buckets sb ON sb.label = b.label
       JOIN existing e ON e.label = b.label
       JOIN cust_dormant_threshold cdt ON cdt.cid = e.id
       LEFT JOIN customer_inv_dates cid ON cid.customer_id = e.id
@@ -776,8 +793,16 @@ export async function fetchExpansionBreakdown(
   dateFrom?: string,
   prevDateFrom?: string,
   prevDateTo?: string,
+  // statusCheckpoint (task039.md, 2026-09-11) — checkpoint "sudah tutup
+  // penuh" (resolveStatusCheckpointDate, period.util.ts), SSOT dgn
+  // fetchCustomerMetricsTrend/m8m10.repository.ts, supaya total_existing di
+  // dialog drilldown ini MATCH kartu "Customer Base" trend chart-nya sendiri.
+  // Fallback filterDate kalau caller lama belum kirim (drilldown tanpa
+  // periodType, backward-compat).
+  statusCheckpoint?: string,
 ): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; active_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
+  const dormantAsOf = statusCheckpoint ?? filterDate
   // periodStart (task029 §30.10, 2026-08-23 — "patokan ke definisi terbaru")
   // — kalau dateFrom dikirim (klik-titik chart granularitas-aware), itu
   // SUDAH persis awal bucket yang dilihat, reuse langsung. Kalau tidak
@@ -848,7 +873,7 @@ export async function fetchExpansionBreakdown(
           AND cd.company_id = i.company_id
         LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
         WHERE i.customer_id = ec.id
-          AND i.invoice_date <= ${filterDate}::date
+          AND i.invoice_date <= ${dormantAsOf}::date
           AND i.deleted_at IS NULL
           AND ${companyCondI}
           AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
@@ -860,7 +885,7 @@ export async function fetchExpansionBreakdown(
         LIMIT 1
       ) li ON true
       WHERE li.invoice_date IS NOT NULL
-        AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
+        AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${dormantAsOf}::date`, sql`cdt.dormant_threshold`, true)}
     ),
     inv_current AS (
       SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
@@ -1013,7 +1038,7 @@ export async function fetchExpansionBreakdown(
             AND cd.company_id = i.company_id
           LEFT JOIN customers c_ov ON c_ov.id = i.customer_id
           WHERE i.customer_id = ec.id
-            AND i.invoice_date <= ${filterDate}::date
+            AND i.invoice_date <= ${dormantAsOf}::date
             AND i.deleted_at IS NULL
             AND ${companyCondI}
             AND (${p.division}::int IS NULL OR COALESCE(cd.division_id, (SELECT id FROM divisions WHERE company_id = i.company_id AND key = 'other')) = ${p.division}::int)
@@ -1025,7 +1050,7 @@ export async function fetchExpansionBreakdown(
           LIMIT 1
         ) li ON true
         WHERE li.invoice_date IS NOT NULL
-          AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${filterDate}::date`, sql`cdt.dormant_threshold`, true)}
+          AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${dormantAsOf}::date`, sql`cdt.dormant_threshold`, true)}
       )
       SELECT COUNT(*)::int AS total_existing FROM established_not_dormant
     `) as unknown[]
