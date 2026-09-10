@@ -150,7 +150,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9TopLossLabel', { count: ranking.length })}
-              value={fmtRp(data?.value_ranking_total_current ?? 0)}
+              value={formatRupiah(data?.value_ranking_total_current ?? 0)}
               sub={currentPeriodLabel}
               color={theme.palette.error.main}
               info={t('dormantCustomer.m9TopLossInfo', { count: ranking.length })}
@@ -161,7 +161,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9TopLossGpLabel', { count: ranking.length })}
-              value={fmtRp(data?.value_ranking_total_gp_current ?? 0)}
+              value={formatRupiah(data?.value_ranking_total_gp_current ?? 0)}
               sub={currentPeriodLabel}
               color={theme.palette.error.main}
               info={t('dormantCustomer.m9TopLossGpInfo', { count: ranking.length })}
@@ -182,7 +182,7 @@ export function M9DormantValue({ data, isLoading, periodType = 'monthly', compan
           {isLoading ? <Skeleton variant="rectangular" height={110} /> : (
             <KpiCard
               label={t('dormantCustomer.m9HighestLossLabel')}
-              value={fmtRp(topCustomer?.estimated_lost_value ?? 0)}
+              value={formatRupiah(topCustomer?.estimated_lost_value ?? 0)}
               sub={topCustomer?.customer_name ?? t('dormantCustomer.m8TopCustomersEmpty')}
               color={theme.palette.warning.main}
             />

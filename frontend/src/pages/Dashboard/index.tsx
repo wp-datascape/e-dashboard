@@ -26,7 +26,7 @@ import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar';
 import { PeriodStrip } from '@/components/dashboard/PeriodStrip';
 import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
 import { SectionLabel } from '@/pages/CrossSelling/HelperComponents';
-import { formatIDR } from '@/utils/format';
+import { formatIDR, formatRupiah } from '@/utils/format';
 import { formatPeriodLabelShort } from '@/utils/analisisPeriod';
 import type { MetricCard } from '@/types/dashboard';
 
@@ -200,8 +200,8 @@ export default function Dashboard() {
     repeatOrderCard && { label: t('dashboard.overview.retention.repeatOrderLabel'), value: `${repeatOrderCard.summary.current_value.toFixed(1)}%`, badge: repeatOrderBadge },
     dormantRateCard && { label: t('dashboard.overview.retention.dormantRateLabel'), value: `${dormantRateCard.summary.current_value.toFixed(1)}%`, badge: dormantRateBadge },
     reactivationCard && { label: t('dashboard.overview.retention.reactivationLabel'), value: `${reactivationCard.summary.current_value.toFixed(1)}%`, badge: reactivationBadge },
-    avgRevenueCard && { label: t('dashboard.overview.value.avgRevenueLabel'), value: formatIDR(avgRevenueCard.summary.current_value), badge: yoyBadge(avgRevenueCard, true) },
-    avgGpCard && { label: t('dashboard.overview.value.avgGpLabel'), value: formatIDR(avgGpCard.summary.current_value), badge: yoyBadge(avgGpCard, true) },
+    avgRevenueCard && { label: t('dashboard.overview.value.avgRevenueLabel'), value: formatRupiah(avgRevenueCard.summary.current_value), badge: yoyBadge(avgRevenueCard, true) },
+    avgGpCard && { label: t('dashboard.overview.value.avgGpLabel'), value: formatRupiah(avgGpCard.summary.current_value), badge: yoyBadge(avgGpCard, true) },
     highMarginCard && { label: t('dashboard.overview.value.highMarginLabel'), value: `${highMarginCard.summary.current_value.toFixed(1)}%`, badge: ppBadge(highMarginCard, true) },
   ].map((x) => (x && x.badge && x.badge.color !== 'success' && x.badge.color !== 'default' ? (x as AlertItem) : null));
   const severityOrder: Record<string, number> = { error: 0, warning: 1 };
@@ -437,7 +437,7 @@ export default function Dashboard() {
                       headerContent={(
                         <ChartCardHeader
                           title={t('dashboard.overview.value.avgRevenueLabel')}
-                          value={avgRevenueCard ? formatIDR(avgRevenueCard.summary.current_value) : '—'}
+                          value={avgRevenueCard ? formatRupiah(avgRevenueCard.summary.current_value) : '—'}
                           badge={yoyBadge(avgRevenueCard, true)}
                           info={t('dashboard.overview.value.avgRevenueInfo')}
                         />
@@ -469,7 +469,7 @@ export default function Dashboard() {
                       headerContent={(
                         <ChartCardHeader
                           title={t('dashboard.overview.value.avgGpLabel')}
-                          value={avgGpCard ? formatIDR(avgGpCard.summary.current_value) : '—'}
+                          value={avgGpCard ? formatRupiah(avgGpCard.summary.current_value) : '—'}
                           badge={yoyBadge(avgGpCard, true)}
                           info={t('dashboard.overview.value.avgGpInfo')}
                         />

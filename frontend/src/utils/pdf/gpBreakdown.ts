@@ -1,5 +1,6 @@
 import autoTable from 'jspdf-autotable';
 import type { GpBreakdownData } from '@/types/metrics';
+import { formatRupiah } from '@/utils/format';
 import {
   createDocument,
   drawHeader,
@@ -10,13 +11,6 @@ import {
   BRAND_COLOR,
 } from './template';
 
-function fmt(v: number): string {
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}M`;
-  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(2)}jt`;
-  if (v >= 1_000)         return `${(v / 1_000).toFixed(1)}rb`;
-  return `Rp ${v.toLocaleString('id-ID')}`;
-}
-
 export function exportGpBreakdownPdf(month: string, data: GpBreakdownData): void {
   const avgGp = data.total_existing > 0 ? data.total_gp / data.total_existing : 0;
   const generatedAt = nowLocale();
@@ -26,10 +20,10 @@ export function exportGpBreakdownPdf(month: string, data: GpBreakdownData): void
 
   const afterTitle = drawTitle(doc, `GP Breakdown — ${month}`);
   const afterMeta  = drawMeta(doc, [
-    ['Gross Profit Existing Customer', fmt(data.total_gp)],
+    ['Gross Profit Existing Customer', formatRupiah(data.total_gp)],
     ['Total Existing Customer',        String(data.total_existing)],
-    ['Avg GP/Customer',                fmt(avgGp)],
-    ['Median threshold',               fmt(data.median_threshold)],
+    ['Avg GP/Customer',                formatRupiah(avgGp)],
+    ['Median threshold',               formatRupiah(data.median_threshold)],
     ['Existing bertransaksi',          String(data.rows.length)],
   ], afterTitle);
 
@@ -40,7 +34,7 @@ export function exportGpBreakdownPdf(month: string, data: GpBreakdownData): void
       r.ranking,
       r.customer_name,
       r.customer_code ?? '—',
-      fmt(r.gp),
+      formatRupiah(r.gp),
       `${r.gp_pct}%`,
       r.tier,
     ]),
