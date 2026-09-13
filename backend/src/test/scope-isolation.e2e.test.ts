@@ -17,6 +17,7 @@ import { db } from '@/config/db'
 import { users, userRoles, userCompanies, userBranches, userDivisions, company_branches, businessConfigs, divisions } from '@/db/schema'
 import { hashPassword } from '@/utils/hash'
 import { createRouter } from '@/router'
+import { runCustomerStatusSnapshotJob } from '@/features/metrics/customer-status-scheduler'
 
 const ENFORCEMENT_KEY = 'branch_division_enforcement_enabled'
 
@@ -273,7 +274,12 @@ beforeAll(async () => {
     loginAndGetCookie(narrowDivisionUser.email),
   ])
   cookies = { distributionOnly, noBranch, fullAccess, superadmin, multiBranchAdmin, crossCompany, narrowDivision }
-})
+  // Timeout eksplisit 20 detik (2026-09-12, ditemukan intermiten: 6 hashPassword
+  // sekuensial (bcrypt cost 12, ~400-500ms/panggil) + 7 login bersamaan (bcrypt
+  // compare, blocking) kadang mepet/lewat timeout default 5 detik hook Bun -
+  // bukan bug logic, cuma anggaran waktu default yang terlalu ketat utk beban
+  // setup yang memang segini beratnya).
+}, 20000)
 
 afterAll(async () => {
   await Promise.all([
@@ -473,5 +479,158 @@ describe('Task G5 — regresi precedence AND/OR pada scope condition (multi-bran
     expect(scopedBody.data.total_gp).toBe(superBody.data.total_gp)
     expect(scopedBody.data.total_existing).toBe(superBody.data.total_existing)
     expect(scopedBody.data.median_threshold).toBe(superBody.data.median_threshold)
+  })
+})
+
+/**
+ * Task040 — isolasi RBAC pada customer_status_snapshot fast path
+ * (`/api/v1/metrics/expansion-breakdown`, m3m7.repository.ts).
+ *
+ * Ditulis 2026-09-12 atas permintaan eksplisit user ("apakah kamu sudah
+ * membuat tes case? membuktikan isolasi data, holding, entitas all branch,
+ * branch tertentu") — SEBELUM ini cuma diverifikasi manual pakai script
+ * sekali-pakai (sudah dihapus), belum ada test permanen.
+ *
+ * `beforeAll` jalankan `runCustomerStatusSnapshotJob()` eksplisit — TIDAK
+ * boleh asumsikan scheduler backend sudah jalan duluan (test file ini bikin
+ * `Hono()` sendiri via `createRouter()`, tidak lewat `index.ts`, jadi
+ * `startCustomerStatusScheduler()` TIDAK pernah terpanggil di proses test
+ * ini). Tanpa baris ini, `customer_status_snapshot` bisa kosong sama sekali
+ * di DB fresh/CI — akan mengetes jalur FALLBACK terus (masih valid, tapi
+ * tidak membuktikan jalur cepat/snapshot-nya sendiri aman).
+ */
+describe('Task040 — isolasi RBAC pada customer_status_snapshot (expansion-breakdown)', () => {
+  const todayPeriodEnd = new Date().toISOString().slice(0, 10)
+
+  beforeAll(async () => {
+    await runCustomerStatusSnapshotJob()
+    // Timeout eksplisit (2026-09-12) - job ini loop company x division x 12
+    // checkpoint per periodType (BACKFILL_PERIODS, customer-status-scheduler.ts),
+    // meski idempotent (skip yang sudah ada) tetap query batch + iterasi yang
+    // butuh lebih dari 5 detik default hook Bun begitu ada company besar.
+  }, 30000)
+
+  test('[holding/superadmin baseline] request berhasil, total_existing > 0 (sanity — company 1 py data)', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const res = await app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { data: { total_existing: number } }
+    expect(body.data.total_existing).toBeGreaterThan(0)
+  })
+
+  test('[entitas, SEMUA cabang = fullAccessUser] identik superadmin — bukti jalur cepat snapshot dipakai & scope efektif-tidak-restriktif dikenali benar', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.fullAccess } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number; active_count: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number; active_count: number } }
+    expect(scopedBody.data.total_existing).toBe(superBody.data.total_existing)
+    expect(scopedBody.data.active_count).toBe(superBody.data.active_count)
+  })
+
+  test('[role=admin, SEMUA cabang = multiBranchAdminUser] identik superadmin — bukti fix tidak role-specific', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.multiBranchAdmin } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number } }
+    expect(scopedBody.data.total_existing).toBe(superBody.data.total_existing)
+  })
+
+  test('[branch TERTENTU = distributionOnlyUser, 1 dari beberapa cabang] TIDAK identik superadmin, dan TIDAK LEBIH BESAR (bukti dibatasi, bukan bocor)', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.distributionOnly } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number } }
+    // Scope 1 cabang dari beberapa — harus SUBSET (lebih kecil atau sama,
+    // TIDAK PERNAH lebih besar dari ground truth company penuh).
+    expect(scopedBody.data.total_existing).toBeLessThanOrEqual(superBody.data.total_existing)
+    expect(scopedBody.data.total_existing).not.toBe(superBody.data.total_existing)
+  })
+
+  test('[division out-of-scope = narrowDivisionUser] filter division yang TIDAK di-assign → 0 baris (bukan bocor divisi lain)', async () => {
+    const targetBranch = allBranchIds[0]! // narrowDivisionUser cuma 'distribution' di branch ini, bukan 'e_commerce'
+    const qs = `company_id=${COMPANY_ID}&branch_id=${targetBranch}&division=${divisionIdByKey.get('e_commerce')}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const res = await app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.narrowDivision } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { data: { total_existing: number } }
+    expect(body.data.total_existing).toBe(0)
+  })
+
+  /**
+   * CATATAN (ditemukan 2026-09-12 saat nulis test ini): `fetchExpansionBreakdown`
+   * TIDAK PERNAH membaca `p.branchFilter` (beda dari `fetchCustomerMetricsTrend`
+   * yang membacanya, lihat baris `AND (${p.branchFilter}::int IS NULL OR ...)`
+   * di fungsi itu) — jadi `branch_id` query param di endpoint INI cuma dipakai
+   * `assertBranchFilterAccess` (validasi akses, 403 kalau bukan hak dia), TIDAK
+   * ikut memfilter hasil. Ini gap/limitasi LAMA (pre-existing, bukan dibuat
+   * sesi ini, dicek: kode CTE-nya sama sekali tidak menyebut `branchFilter`
+   * di luar penambahan sesi ini). Makanya assertion di bawah TIDAK bisa
+   * "identik superadmin" (superadmin lihat SEMUA branch krn filter branch_id
+   * diabaikan endpoint ini, scoped user tetap dibatasi RBAC `branchScope` yang
+   * MEMANG diterapkan) — cukup buktikan scoped SELALU subset, tidak pernah
+   * melebihi ground truth.
+   */
+  test('[company_id=all, scope lintas 2 company = crossCompanyUser] RBAC branchScope tetap membatasi (subset, tidak pernah melebihi superadmin)', async () => {
+    const qs = `company_id=all&branch_id=${secondCompanyBranchId}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.crossCompany } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number } }
+    expect(scopedBody.data.total_existing).toBeGreaterThan(0)
+    expect(scopedBody.data.total_existing).toBeLessThan(superBody.data.total_existing)
+    // `company_id=all` SELALU fallback ke LATERAL (di luar cakupan snapshot,
+    // lihat m3m7.repository.ts) - genuinely lebih lambat drpd default Bun
+    // test timeout (5000ms) kalau 2 dipanggil bersamaan, bukan tanda bug.
+  }, 15000)
+
+  /**
+   * Jalur FALLBACK (LATERAL lama) — dipaksa via `only_pareto=true` (satu-
+   * satunya filter yang menjamin `snapshotEligible=false`, lihat
+   * m3m7.repository.ts). Isolasi RBAC harus tetap benar walau lewat kode
+   * LAMA yang tidak disentuh task040 — bukti fix jalur cepat tidak
+   * kebetulan "menyembunyikan" bug lama di jalur fallback.
+   */
+  test('[jalur fallback, only_pareto=true] branch tertentu tetap ter-isolasi (TIDAK identik superadmin)', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly&only_pareto=true`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.distributionOnly } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number } }
+    expect(scopedBody.data.total_existing).toBeLessThanOrEqual(superBody.data.total_existing)
+  })
+
+  test('[jalur fallback, only_pareto=true] SEMUA cabang (fullAccessUser) tetap identik superadmin lewat LATERAL', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly&only_pareto=true`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.fullAccess } }),
+      app.request(`/api/v1/metrics/expansion-breakdown?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { total_existing: number } }
+    const superBody = await superRes.json() as { data: { total_existing: number } }
+    expect(scopedBody.data.total_existing).toBe(superBody.data.total_existing)
   })
 })

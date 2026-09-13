@@ -1,0 +1,2 @@
+DROP INDEX "uq_customer_status_snapshot";--> statement-breakpoint
+ALTER TABLE "customer_status_snapshot" ADD CONSTRAINT "uq_customer_status_snapshot" UNIQUE NULLS NOT DISTINCT("company_id","division_id","period_type","checkpoint_date","customer_id");

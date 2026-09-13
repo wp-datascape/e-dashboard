@@ -457,7 +457,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
         prevDateFrom = prevRange.start
         prevDateTo = prevEndStr < prevRange.end ? prevEndStr : prevRange.end
       }
-      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo, statusCheckpoint)
+      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo, statusCheckpoint, params.period_type ?? 'monthly')
       return {
         period_end:     filterDate,
         up_count:       result.up_count,
