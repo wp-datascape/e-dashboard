@@ -54,6 +54,22 @@ async function buildCustomerQueryContext(
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
+  // subqueryCompanyFilter (2026-09-15, perf) — liveDatesSq/invAggSq/latestSalespersonSq
+  // di bawah TIDAK PERNAH memfilter company_id di level subquery (cuma di dalam CASE WHEN
+  // scope guard, atau tidak sama sekali) — Postgres jadi tidak bisa pakai
+  // idx_invoices_company_invoice_date (company_id, invoice_date), selalu scan seluruh
+  // tabel invoices lintas company dulu baru filter. Ditemukan lewat audit
+  // production-kpi-matrix.e2e.test.ts (500/statement_timeout `/customers?company_id=all`
+  // & `company_id=2` untuk akun Holding real). Filter ini SUPERSET AMAN dari scope guard
+  // yang sudah ada (branchScope/divisionScope, kalau ada, SUDAH menjamin company_id masuk
+  // salah satu key Map-nya) — TIDAK mengubah baris mana pun yang lolos, cuma biar planner
+  // bisa prune lebih awal via index. `undefined` (tanpa filter tambahan, perilaku lama)
+  // kalau company_id='all' TANPA scopeIds (superadmin, benar-benar semua company).
+  const subqueryCompanyFilter = company_id !== 'all'
+    ? eq(invoices.company_id, company_id)
+    : scopeIds && scopeIds.length > 0
+      ? inArray(invoices.company_id, scopeIds)
+      : undefined
   // Threshold dormant PER-CUSTOMER (task027 fix, 2026-08-21) — dulu 1 angka
   // dominan company-wide (resolveDormantMonths) dipakai ke SEMUA baris,
   // sekarang per baris sesuai kategori bisnis divisi customer itu sendiri
@@ -126,6 +142,7 @@ async function buildCustomerQueryContext(
       channel_divisions,
       and(eq(channel_divisions.channel_name, invoices.channel_name), eq(channel_divisions.company_id, invoices.company_id)),
     )
+    .where(subqueryCompanyFilter)
     .groupBy(invoices.customer_id)
     .as('live_dates')
 
@@ -159,6 +176,7 @@ async function buildCustomerQueryContext(
     .from(invoices)
     .leftJoin(invoice_items, and(eq(invoice_items.invoice_id, invoices.id), isNull(invoices.deleted_at)))
     .leftJoin(cdInv, and(eq(cdInv.channel_name, invoices.channel_name), eq(cdInv.company_id, invoices.company_id)))
+    .where(subqueryCompanyFilter)
     .groupBy(invoices.customer_id)
     .as('inv_agg')
 
@@ -207,7 +225,7 @@ async function buildCustomerQueryContext(
       branch_id: invoices.branch_id,
     })
     .from(invoices)
-    .where(isNull(invoices.deleted_at))
+    .where(subqueryCompanyFilter ? and(isNull(invoices.deleted_at), subqueryCompanyFilter) : isNull(invoices.deleted_at))
     // Tie-break invoice.id DESC — tanpa ini, customer dengan 2+ invoice di
     // TANGGAL SAMA PERSIS lewat channel berbeda dapat hasil tidak deterministik
     // (DISTINCT ON pilih baris arbitrer). Ditemukan lewat audit data KNT
