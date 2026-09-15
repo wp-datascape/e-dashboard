@@ -1,10 +1,11 @@
 import { db } from '@/config/db'
 import { sql } from 'drizzle-orm'
 import type { SegmentParams } from '../segment.helper'
-import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, cteEstablishedCustomers, dormantCrossedSql } from '../segment.helper'
+import { resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, cteEstablishedCustomers, dormantCrossedSql, isScopeEffectivelyUnrestricted } from '../segment.helper'
 import type { DormantTrendRow, DormantValueRow, CustomerDormantStatusRow, DormantValueHistoryRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
-import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
+import type { TrailingPeriodBucket, PeriodType } from '@/features/analisis/period.util'
+import { hasSnapshotForAllCheckpoints } from './m3m7.repository'
 
 /**
  * Tren 12 titik (Bulanan/Kuartalan/Semesteran/Tahunan, 2026-08-24, susulan
@@ -32,11 +33,163 @@ import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
  * dormant_count row yang SAMA (pakai `buckets`/`me`) — populasi dormant
  * yang "diaktivasi" itu adalah populasi dormant milik LABEL itu sendiri.
  */
-export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], liveBuckets: TrailingPeriodBucket[]): Promise<DormantTrendRow[]> {
+function mapDormantTrendRow(row: Record<string, unknown>): DormantTrendRow {
+  return {
+    month:               String(row.month),
+    total_customers:     Number(row.total_customers ?? 0),
+    dormant_count:       Number(row.dormant_count ?? 0),
+    active_count:        Number(row.active_count ?? 0),
+    dormant_light_count: Number(row.dormant_light_count ?? 0),
+    dormant_severe_count: Number(row.dormant_severe_count ?? 0),
+    dormant_rate:        Number(row.dormant_rate ?? 0),
+    prev_dormant_count:  Number(row.prev_dormant_count ?? 0),
+    reactivated_count:   Number(row.reactivated_count ?? 0),
+    reactivation_rate:   Number(row.reactivation_rate ?? 0),
+  }
+}
+
+export async function fetchDormantTrend(
+  p: SegmentParams,
+  buckets: TrailingPeriodBucket[],
+  prevBuckets: TrailingPeriodBucket[],
+  liveBuckets: TrailingPeriodBucket[],
+  // periodType (2026-09-15, migrasi M8-M10 ke customer_status_snapshot,
+  // susulan task040.md) — WAJIB utk jalur cepat (snapshot di-key per
+  // period_type). Default 'monthly' (caller lama/backward-compat), pola
+  // SAMA PERSIS fetchCustomerMetricsTrend (m3m7.repository.ts).
+  periodType: PeriodType = 'monthly',
+): Promise<DormantTrendRow[]> {
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   const dormantThresholdSql = dormantThresholdCaseSql(p)
+
+  // snapshotEligible (2026-09-15, migrasi M8-M10 — mirror PERSIS pola
+  // fetchExpansionBreakdown/fetchCustomerMetricsTrend, m3m7.repository.ts,
+  // termasuk KEPUTUSAN yang sama: M8-M10 SEKARANG ikut definisi
+  // checkpoint-konsisten (established+dormant+reaktivasi SEMUA di
+  // checkpoint yang sama), BUKAN lagi live+checkpoint campuran lama —
+  // konfirmasi eksplisit user 2026-09-15, konsisten dgn M7 yang sudah
+  // dipindah duluan. customer_status_snapshot BELUM py dimensi
+  // branch/pareto/exclude_intercompany, jalur cepat HANYA aman kalau TIDAK
+  // SATU PUN filter itu aktif + RBAC scope efektif tidak restriktif
+  // (isScopeEffectivelyUnrestricted, SAMA PERSIS m3m7).
+  //
+  // neededCheckpoints — buckets ∪ prevBuckets (bukan cuma buckets): trend
+  // butuh prev_dormant_count/reactivation_rate titik PERTAMA, yang perlu
+  // checkpoint SATU periode SEBELUM titik pertama trend (prevBuckets[0].end,
+  // biasanya TIDAK tercakup 12 titik buckets sendiri) — makanya
+  // BACKFILL_PERIODS dinaikkan ke 13 (customer-status-scheduler.ts) bareng
+  // perubahan ini. Kalau kombinasi apply_date_cutoff aktif (bucket jadi
+  // tanggal cutoff, bukan akhir periode kalender) - checkpoint_date-nya
+  // TIDAK AKAN PERNAH match baris snapshot manapun (snapshot selalu akhir
+  // periode penuh), jadi otomatis fallback via hasSnapshotForAllCheckpoints
+  // return false, TANPA perlu guard `apply_date_cutoff` eksplisit di sini.
+  const snapshotConditionsMet = cid !== 0
+    && p.branchFilter == null
+    && !p.excludeIntercompany
+    && !p.onlyPareto
+    && await isScopeEffectivelyUnrestricted(p)
+  const neededCheckpoints = [...new Set([...buckets.map((b) => b.end), ...prevBuckets.map((b) => b.end)])]
+  const snapshotEligible = snapshotConditionsMet
+    && await hasSnapshotForAllCheckpoints(cid, division, periodType, neededCheckpoints)
+
+  if (snapshotEligible) {
+    const divCond = division == null ? sql`css.division_id IS NULL` : sql`css.division_id = ${division}::int`
+    const prevDivCond = division == null ? sql`pcss.division_id IS NULL` : sql`pcss.division_id = ${division}::int`
+    const curBucketValues = sql.join(
+      buckets.map((b) => sql`(${b.label}::text, ${b.end}::date)`),
+      sql.raw(', '),
+    )
+    const prevOnlyBucketValues = sql.join(
+      prevBuckets.map((b) => sql`(${b.label}::text, ${b.end}::date)`),
+      sql.raw(', '),
+    )
+    const snapRows = await db.execute(sql`
+      WITH
+      ${cteCustDivision(p)},
+      buckets(label, pe) AS (VALUES ${curBucketValues}),
+      prev_buckets(label, pe) AS (VALUES ${prevOnlyBucketValues}),
+      -- MATERIALIZED (task030.md §6, pola sama m3m7.repository.ts) —
+      -- cust_dormant_threshold di-JOIN per baris customer×bucket di bawah,
+      -- kalau tidak dipaksa Postgres inline-ulang tiap rujukan.
+      cust_dormant_threshold AS MATERIALIZED (
+        SELECT c.id AS cid, ${dormantThresholdSql} AS dormant_threshold
+        FROM customers c
+        LEFT JOIN cust_division cdv ON cdv.cid = c.id
+        WHERE c.is_placeholder = false AND ${companyCondC}
+      ),
+      -- cur_agg — 1 index lookup per titik trend (checkpoint_date = b.pe),
+      -- BUKAN CROSS JOIN 32rb customer x 12 bucket + EXISTS per baris lama.
+      -- Severity split (dormant_light/severe) pakai last_invoice_date yang
+      -- SEKARANG dipersist di snapshot (migration 0027) - dormant_light =
+      -- status dormant TAPI belum lewat 2x ambang, severe = sudah lewat.
+      cur_agg AS (
+        SELECT
+          b.label,
+          b.pe,
+          COUNT(*) FILTER (WHERE css.status != 'acquisition')::int          AS total_customers,
+          COUNT(*) FILTER (WHERE css.status = 'dormant')::int               AS dormant_count,
+          COUNT(*) FILTER (WHERE css.status IN ('active', 'reactivated', 'lapsed'))::int AS active_count,
+          COUNT(*) FILTER (
+            WHERE css.status = 'dormant'
+              AND ${dormantCrossedSql(sql`css.last_invoice_date`, sql`b.pe`, sql`cdt.dormant_threshold * 2`, true)}
+          )::int                                                            AS dormant_light_count,
+          COUNT(*) FILTER (
+            WHERE css.status = 'dormant'
+              AND ${dormantCrossedSql(sql`css.last_invoice_date`, sql`b.pe`, sql`cdt.dormant_threshold * 2`)}
+          )::int                                                            AS dormant_severe_count,
+          COUNT(*) FILTER (WHERE css.status = 'reactivated')::int           AS reactivated_count
+        FROM buckets b
+        JOIN customer_status_snapshot css
+          ON css.company_id = ${cid}
+          AND ${divCond}
+          AND css.period_type = ${periodType}
+          AND css.checkpoint_date = b.pe
+        LEFT JOIN cust_dormant_threshold cdt ON cdt.cid = css.customer_id
+        GROUP BY b.label, b.pe
+      ),
+      -- prev_agg — populasi dormant SATU checkpoint sebelum tiap titik
+      -- (dipakai prev_dormant_count DAN denominator reaktivasi - lihat
+      -- komentar di SELECT akhir soal redefinisi reactivation_rate).
+      prev_agg AS (
+        SELECT
+          pb.label,
+          COUNT(*) FILTER (WHERE pcss.status = 'dormant')::int AS prev_dormant_count
+        FROM prev_buckets pb
+        JOIN customer_status_snapshot pcss
+          ON pcss.company_id = ${cid}
+          AND ${prevDivCond}
+          AND pcss.period_type = ${periodType}
+          AND pcss.checkpoint_date = pb.pe
+        GROUP BY pb.label
+      )
+      SELECT
+        ca.label AS month,
+        ca.total_customers,
+        ca.dormant_count,
+        ca.active_count,
+        ca.dormant_light_count,
+        ca.dormant_severe_count,
+        ROUND(ca.dormant_count::numeric / NULLIF(ca.total_customers, 0) * 100, 1) AS dormant_rate,
+        COALESCE(pa.prev_dormant_count, 0) AS prev_dormant_count,
+        ca.reactivated_count,
+        -- reactivation_rate (2026-09-15, redefinisi checkpoint-konsisten) —
+        -- denominator SEKARANG populasi dormant SATU checkpoint SEBELUM
+        -- titik ini (prev_dormant_count), BUKAN dormant_count titik ini
+        -- sendiri seperti definisi live lama (status 'reactivated' snapshot
+        -- itu SENDIRI didefinisikan sbg "dormant di checkpoint sebelumnya,
+        -- balik transaksi di periode ini" - jadi 'reactivated' + 'dormant
+        -- yang is_relapsed=false yang tadinya reaktif' + 'dormant murni'
+        -- SELALU persis partisi dari prev_dormant_count, bukan lagi subset
+        -- dormant_count titik ini). Confirmed user 2026-09-15.
+        ROUND(ca.reactivated_count::numeric / NULLIF(pa.prev_dormant_count, 0) * 100, 1) AS reactivation_rate
+      FROM cur_agg ca
+      LEFT JOIN prev_agg pa ON pa.label = ca.label
+      ORDER BY ca.pe
+    `)
+    return (snapRows as unknown[]).map((r) => mapDormantTrendRow(r as Record<string, unknown>))
+  }
 
   const bucketValues = sql.join(
     buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
@@ -262,21 +415,7 @@ export async function fetchDormantTrend(p: SegmentParams, buckets: TrailingPerio
     ORDER BY bucket_start
   `)
 
-  return (rawRows as unknown[]).map((r) => {
-    const row = r as Record<string, unknown>
-    return {
-      month:               String(row.month),
-      total_customers:     Number(row.total_customers ?? 0),
-      dormant_count:       Number(row.dormant_count ?? 0),
-      active_count:        Number(row.active_count ?? 0),
-      dormant_light_count: Number(row.dormant_light_count ?? 0),
-      dormant_severe_count: Number(row.dormant_severe_count ?? 0),
-      dormant_rate:        Number(row.dormant_rate ?? 0),
-      prev_dormant_count:  Number(row.prev_dormant_count ?? 0),
-      reactivated_count:   Number(row.reactivated_count ?? 0),
-      reactivation_rate:   Number(row.reactivation_rate ?? 0),
-    }
-  })
+  return (rawRows as unknown[]).map((r) => mapDormantTrendRow(r as Record<string, unknown>))
 }
 
 /**

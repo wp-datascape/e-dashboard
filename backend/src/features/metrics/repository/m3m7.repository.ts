@@ -1,5 +1,5 @@
 import { db } from '@/config/db'
-import { sql, eq, and, isNull } from 'drizzle-orm'
+import { sql, eq, and, isNull, inArray } from 'drizzle-orm'
 import { customer_status_snapshot } from '@/db/schema'
 import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, dormantCrossedSql, isScopeEffectivelyUnrestricted } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
@@ -87,13 +87,65 @@ export type TrendRow = {
  *    JUGA identik dgn sebelumnya — bedanya cuma kelihatan di kuartal/
  *    semester/tahun (baru, belum pernah ada).
  */
-export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], statusBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
+/**
+ * hasSnapshotForAllCheckpoints (task040.md, 2026-09-13) — mirror
+ * `hasSnapshotForCheckpoint` (dipakai fetchExpansionBreakdown), versi batch
+ * utk 12 checkpoint sekaligus (trend, bukan 1 titik drilldown). SEMUA 12
+ * checkpoint status_buckets HARUS py baris snapshot sebelum jalur cepat
+ * dipakai — kalau cuma SEBAGIAN ada (mis. company baru, histori belum
+ * sepenuhnya di-backfill), fallback ke query lama utk SELURUH 12 titik
+ * sekaligus (bukan dicampur per titik) supaya metodologi 1 baris trend
+ * konsisten sepanjang chart, tidak ada sambungan metodologi yang tidak
+ * kelihatan tapi bisa beda persis di 1 titik potong.
+ */
+export async function hasSnapshotForAllCheckpoints(
+  companyId: number,
+  divisionId: number | null,
+  periodType: PeriodType,
+  checkpointDates: string[],
+): Promise<boolean> {
+  const rows = await db
+    .selectDistinct({ checkpoint_date: customer_status_snapshot.checkpoint_date })
+    .from(customer_status_snapshot)
+    .where(and(
+      eq(customer_status_snapshot.company_id, companyId),
+      divisionId == null ? isNull(customer_status_snapshot.division_id) : eq(customer_status_snapshot.division_id, divisionId),
+      eq(customer_status_snapshot.period_type, periodType),
+      inArray(customer_status_snapshot.checkpoint_date, checkpointDates),
+    ))
+  const found = new Set(rows.map((r) => r.checkpoint_date))
+  return checkpointDates.every((d) => found.has(d))
+}
+
+export async function fetchCustomerMetricsTrend(
+  p: SegmentParams,
+  buckets: TrailingPeriodBucket[],
+  prevBuckets: TrailingPeriodBucket[],
+  statusBuckets: TrailingPeriodBucket[],
+  // periodType (task040.md, 2026-09-13) — WAJIB utk jalur cepat
+  // customer_status_snapshot (snapshot di-key per period_type). Default
+  // 'monthly' (caller lama yang belum kirim granularitas, PERILAKU LAMA,
+  // backward-compat) — sama pola dgn fetchExpansionBreakdown.
+  periodType: PeriodType = 'monthly',
+): Promise<TrendRow[]> {
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   // M7 dormant threshold (2026-08-25) — SAMA PERSIS pola m8m10.repository.ts
   // (dormantThresholdCaseSql + cteCustDivision), reuse bukan tulis ulang.
   const dormantThresholdSql = dormantThresholdCaseSql(p)
+  // snapshotEligible (task040.md, migrasi M3-M7 trend menyusul M7 drilldown)
+  // — SAMA PERSIS syarat fetchExpansionBreakdown (lihat komentar lengkap di
+  // sana): tidak ada filter branch/pareto/exclude_intercompany, cid bukan
+  // 'all', RBAC scope efektif tidak restriktif. Bedanya di sini snapshot
+  // WAJIB tersedia utk SEMUA 12 checkpoint (statusBuckets), bukan cuma 1.
+  const snapshotConditionsMet = cid !== 0
+    && p.branchFilter == null
+    && !p.excludeIntercompany
+    && !p.onlyPareto
+    && await isScopeEffectivelyUnrestricted(p)
+  const snapshotEligible = snapshotConditionsMet
+    && await hasSnapshotForAllCheckpoints(cid, division, periodType, statusBuckets.map((b) => b.end))
 
   const bucketValues = sql.join(
     buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
@@ -234,7 +286,38 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- tapi juga tidak mencampur yang sudah lama mati]. Ambang SAMA PERSIS
     -- M8 (dormantThresholdCaseSql, per kategori bisnis divisi) — 1 sumber
     -- kebenaran, bukan aturan baru.
-    ${cteCustDivision(p)},
+    -- existing_not_dormant (task040.md, 2026-09-13) — 2 jalur, SAMA PERSIS
+    -- pola fetchExpansionBreakdown (established_not_dormant di sana):
+    -- (a) snapshotEligible: baca langsung customer_status_snapshot per
+    --     status_buckets.pe (checkpoint konsisten, SSOT dgn drilldown M7),
+    --     status IN (active/reactivated/lapsed) = "Customer Base
+    --     (Addressable)" per Glosarium resmi.
+    -- (b) fallback: LATERAL-array lama, dipertahankan APA ADANYA utk
+    --     kombinasi filter yang belum tercakup snapshot (branch/pareto/
+    --     intercompany/RBAC scope/histori company baru yang belum
+    --     di-backfill penuh).
+    --
+    -- cteCustDivision/cust_dormant_threshold/customer_inv_dates/
+    -- last_inv_per_bucket SENGAJA dipindah ke DALAM cabang (b) di bawah
+    -- (2026-09-13, ditemukan lewat pengukuran: customer_inv_dates SENDIRIAN
+    -- ~4,7 detik utk company besar, lihat komentar aslinya di riwayat CTE
+    -- ini) — kalau tetap dihitung UNCONDITIONAL spt draft awal, company besar
+    -- yang justru snapshotEligible=true (fast path) TETAP membayar biaya
+    -- LATERAL-array yang hasilnya dibuang begitu saja (persis regresi yang
+    -- ditemukan test metric-cache.e2e.test.ts: query yang tadinya ~3,5
+    -- detik jadi kompetisi resource dgn hitungan yang tidak terpakai).
+    ${snapshotEligible
+      ? sql`existing_not_dormant AS (
+      SELECT sb.label, css.customer_id
+      FROM status_buckets sb
+      JOIN customer_status_snapshot css
+        ON css.company_id = ${cid}
+        AND ${division == null ? sql`css.division_id IS NULL` : sql`css.division_id = ${division}::int`}
+        AND css.period_type = ${periodType}
+        AND css.checkpoint_date = sb.pe
+        AND css.status IN ('active', 'reactivated', 'lapsed')
+    ),`
+      : sql`${cteCustDivision(p)},
     -- MATERIALIZED (2026-08-27, task030.md §6) — cust_division (dari
     -- cteCustDivision, DISTINCT ON invoice per customer) TANPA hint ini
     -- ke-inline ulang tiap cust_dormant_threshold di-JOIN (9.581 kali,
@@ -298,7 +381,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       FROM last_inv_per_bucket
       WHERE last_inv_before_be IS NOT NULL
         AND ${dormantCrossedSql(sql`last_inv_before_be`, sql`bucket_end`, sql`dormant_threshold`, true)}
-    ),
+    ),`
+    }
 
     -- Revenue + GP per existing customer per bucket (window: SELURUH
     -- bucket itu sendiri, bukan lagi activeMonths — Keputusan desain #2).

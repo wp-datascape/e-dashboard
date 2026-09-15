@@ -34,6 +34,16 @@ export const customer_status_snapshot = pgTable('customer_status_snapshot', {
   status: varchar('status', { length: 20 }).notNull(),
   // penanda tambahan, cuma relevan kalau status='dormant' (sempat reactivated, dormant lagi)
   is_relapsed: boolean('is_relapsed').notNull().default(false),
+  // last_invoice_date (2026-09-15, susulan migrasi M8-M10) — invoice
+  // TERAKHIR customer ini sampai/pada checkpoint_date (sama persis
+  // `cxm.last_at_me` di computeCustomerStatusSnapshot, sekadar dipersist).
+  // Dibutuhkan M8 (severity split Dormant Ringan/Kronis - berapa kelipatan
+  // dormant_threshold sudah lewat sejak last_invoice_date) yang TIDAK bisa
+  // dijawab dari `status` mutually-exclusive saja. NULL mustahil terjadi
+  // (status manapun di tabel ini SELALU py minimal 1 invoice - itu syarat
+  // established/acquisition) - nullable murni krn kolom date lain di skema
+  // app ini (mis. customers.last_invoice_date) juga nullable by convention.
+  last_invoice_date: date('last_invoice_date'),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

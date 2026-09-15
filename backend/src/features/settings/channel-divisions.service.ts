@@ -23,6 +23,10 @@ import type {
   UpdateChannelDivisionDto,
 } from './channel-divisions.schema'
 import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
+// customer_status_snapshot (task040.md, 2026-09-13) — mapping channel->divisi
+// menentukan division_id customer di cteCustDivision, jadi ikut mempengaruhi
+// baris snapshot per-divisi. Fire-and-forget, lihat JSDoc fungsi ini.
+import { invalidateCustomerStatusSnapshotForCompany } from '@/features/metrics/customer-status-scheduler'
 
 // Division sekarang FK integer per company (task012 v2, tabel `divisions`) — validasi
 // terhadap DB (company-scoped), bukan const VALID_DIVISIONS tetap lagi.
@@ -78,6 +82,7 @@ export async function createChannelDivisionService(body: CreateChannelDivisionDt
       newValue: body,
     })
     await invalidateMetricCache(body.company_id) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(body.company_id)
 
     return result
   } catch (err) {
@@ -124,6 +129,8 @@ export async function updateChannelDivisionService(id: number, body: UpdateChann
     // invalidasi keduanya (aman kalau sama, cuma jadi 2 DELETE identik).
     await invalidateMetricCache(existing.company_id)
     if (body.company_id && body.company_id !== existing.company_id) await invalidateMetricCache(body.company_id)
+    invalidateCustomerStatusSnapshotForCompany(existing.company_id)
+    if (body.company_id && body.company_id !== existing.company_id) invalidateCustomerStatusSnapshotForCompany(body.company_id)
 
     return result
   } catch (err) {
@@ -212,6 +219,7 @@ export async function importChannelDivisionsService(
       newValue: { added, skipped, errors: errors.length },
     })
     await invalidateMetricCache(companyId) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(companyId)
   }
 
   return { added, skipped, errors }
@@ -263,6 +271,7 @@ export async function deleteChannelDivisionService(id: number, ctx: Context) {
       oldValue: { channel_name: existing.channel_name, division_id: existing.division_id },
     })
     await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(existing.company_id)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menghapus channel division', 500)

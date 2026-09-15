@@ -634,3 +634,147 @@ describe('Task040 — isolasi RBAC pada customer_status_snapshot (expansion-brea
     expect(scopedBody.data.total_existing).toBe(superBody.data.total_existing)
   })
 })
+
+/**
+ * Task040 (sesi 2, migrasi M3-M7 trend 2026-09-13) — isolasi RBAC pada
+ * `/api/v1/metrics/customer-metrics` (fetchCustomerMetricsTrend) SETELAH
+ * dipindah ke `customer_status_snapshot` fast path yang sama dengan
+ * expansion-breakdown di atas.
+ *
+ * GAP yang ditutup test ini (ditemukan 2026-09-15 saat audit ulang):
+ * SEMUA test `customer-metrics` yang sudah ada (Task G5 di atas) SELALU
+ * menyertakan `branch_id=` eksplisit di query string — itu MEMATIKAN
+ * `snapshotConditionsMet` (`p.branchFilter == null` wajib, m3m7.repository.ts)
+ * tanpa peduli isi RBAC scope si user. Akibatnya jalur cepat snapshot untuk
+ * endpoint INI (beda dari expansion-breakdown yang sudah punya test khusus
+ * di atas) belum pernah benar-benar dieksekusi oleh test permanen mana pun —
+ * termasuk bagian PALING KRITIS: apakah `isScopeEffectivelyUnrestricted`
+ * benar-benar MENOLAK user yang scope-nya restriktif (bukan "semua cabang +
+ * semua divisi") supaya TIDAK ikut lewat jalur cepat — sebab
+ * `customer_status_snapshot` sendiri SAMA SEKALI tidak punya kolom RBAC
+ * (branch/division scope), jadi kalau gerbang ini salah meloloskan user
+ * restriktif, user itu akan melihat data SATU PERUSAHAAN PENUH.
+ *
+ * Sengaja TIDAK menyertakan `branch_id`/`only_pareto`/`exclude_intercompany`
+ * di query manapun di bawah (kebalikan dari Task G5) — supaya
+ * `snapshotConditionsMet` murni ditentukan oleh RBAC scope si user, persis
+ * kondisi yang belum pernah teruji.
+ */
+describe('Task040 (sesi 2) — isolasi RBAC pada customer_status_snapshot fast path (customer-metrics trend)', () => {
+  const todayPeriodEnd = new Date().toISOString().slice(0, 10)
+
+  // TIDAK panggil ulang runCustomerStatusSnapshotJob() di sini (2026-09-15,
+  // ditemukan saat full-suite run) — describe block "Task040 — ... (expansion-
+  // breakdown)" TEPAT DI ATAS file ini SUDAH memanggilnya di beforeAll-nya
+  // sendiri, jalan LEBIH DULU (describe dalam 1 file test Bun dieksekusi
+  // berurutan), utk todayPeriodEnd yang SAMA (company/periode sama-sama hari
+  // ini) - snapshot company 1 SUDAH lengkap saat blok ini mulai. Panggilan
+  // kedua di sini 100% redundan (job idempotent, cuma buang waktu batch-check
+  // query) - dihapus setelah ketahuan turut menyumbang kontensi DB yang bikin
+  // test LAIN (bukan cuma di file ini) ikut lambat/timeout saat `bun test`
+  // menjalankan seluruh suite (17 file) bersamaan.
+
+  test('[holding/superadmin baseline] request berhasil, trend tidak kosong (sanity)', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const res = await app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { data: { trend: { existing_customers: number }[] } }
+    const total = body.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    expect(total).toBeGreaterThan(0)
+  })
+
+  test('[entitas, SEMUA cabang+divisi = fullAccessUser, TANPA branch_id di query] identik superadmin — bukti jalur cepat snapshot benar dipakai utk trend', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.fullAccess } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: unknown[] } }
+    const superBody = await superRes.json() as { data: { trend: unknown[] } }
+    expect(scopedBody.data.trend).toEqual(superBody.data.trend)
+    // Timeout eksplisit (2026-09-15, ditemukan lewat full-suite run `bun test`
+    // tanpa filter path — pola PERSIS G5.4/metric-cache.e2e.test.ts, lihat
+    // komentar itu): query INI sendiri (snapshot fast path, tanpa branch_id)
+    // konsisten <15ms saat diverifikasi solo — timeout 5000ms default Bun
+    // cuma kepicu krn KONTENSI dari 16 file test LAIN yang jalan bersamaan
+    // (dibuktikan: test lain yang sama sekali tidak disentuh sesi ini, mis.
+    // "GET /invoices — filter division", ikut gagal di run yang sama). BUKAN
+    // regresi performa jalur cepat snapshot itu sendiri.
+  }, 15000)
+
+  test('[role=admin, SEMUA cabang+divisi = multiBranchAdminUser, TANPA branch_id] identik superadmin — bukti fix tidak role-specific', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.multiBranchAdmin } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: unknown[] } }
+    const superBody = await superRes.json() as { data: { trend: unknown[] } }
+    expect(scopedBody.data.trend).toEqual(superBody.data.trend)
+  }, 15000)
+
+  test('[branch TERTENTU = distributionOnlyUser, TANPA branch_id di query — RBAC MURNI yang membatasi] TIDAK identik superadmin, TIDAK LEBIH BESAR — bukti gerbang isScopeEffectivelyUnrestricted menolak scope restriktif dari jalur cepat', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.distributionOnly } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const superBody = await superRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const scopedTotal = scopedBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    const superTotal = superBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    expect(scopedTotal).toBeLessThanOrEqual(superTotal)
+    expect(scopedTotal).not.toBe(superTotal)
+  })
+
+  test('[division scope sempit = narrowDivisionUser, TANPA branch_id/division di query] TIDAK identik superadmin, TIDAK LEBIH BESAR — divisionScope restriktif juga wajib menolak jalur cepat', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.narrowDivision } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const superBody = await superRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const scopedTotal = scopedBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    const superTotal = superBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    expect(scopedTotal).toBeLessThanOrEqual(superTotal)
+    expect(scopedTotal).not.toBe(superTotal)
+  })
+
+  test('[company_id=all] tetap fallback (cid=0 selalu di luar snapshot) — crossCompanyUser tidak melebihi superadmin', async () => {
+    const qs = `company_id=all&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.crossCompany } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const superBody = await superRes.json() as { data: { trend: { existing_customers: number }[] } }
+    const scopedTotal = scopedBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    const superTotal = superBody.data.trend.reduce((sum, r) => sum + r.existing_customers, 0)
+    expect(scopedTotal).toBeGreaterThan(0)
+    expect(scopedTotal).toBeLessThan(superTotal)
+  }, 15000)
+
+  test('[crossCompanyUser, company_id=1 (entitas dia unrestricted) TANPA branch_id] identik superadmin company 1 — scope per-company tidak bocor dari company kedua', async () => {
+    const qs = `company_id=${COMPANY_ID}&period_end=${todayPeriodEnd}&period_type=monthly`
+    const [scopedRes, superRes] = await Promise.all([
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.crossCompany } }),
+      app.request(`/api/v1/metrics/customer-metrics?${qs}`, { headers: { Cookie: cookies.superadmin } }),
+    ])
+    expect(scopedRes.status).toBe(200)
+    expect(superRes.status).toBe(200)
+    const scopedBody = await scopedRes.json() as { data: { trend: unknown[] } }
+    const superBody = await superRes.json() as { data: { trend: unknown[] } }
+    expect(scopedBody.data.trend).toEqual(superBody.data.trend)
+  })
+})

@@ -483,11 +483,41 @@ export function resolveInvoiceScopeConditions(
  * dunia nyata. Fungsi ini bandingkan scope ke DAFTAR LENGKAP cabang/divisi
  * company itu buat tahu "Map ada tapi kosong-restriksi" vs "Map ada DAN
  * beneran membatasi" — HANYA kasus kedua yang wajib fallback.
+ *
+ * Memoized per identitas Map (2026-09-13, susulan task040.md migrasi M3-M7
+ * trend) — `/dashboard` memanggil getCustomerMetrics 2x (periode current +
+ * comparison) dgn `scope` yang SAMA, jadi `p.branchScope`/`p.divisionScope`
+ * adalah REFERENCE Map yang IDENTIK di kedua panggilan (resolveSegmentParams/
+ * buildSegmentParams meneruskan Map apa adanya, tidak clone — dicek langsung
+ * ke source). WeakMap keyed by Map itu sendiri: aman tanpa invalidasi manual,
+ * scope RBAC di-resolve ULANG jadi Map BARU tiap request HTTP (middleware/
+ * auth.ts), jadi cache otomatis "kosong" lagi utk request berikutnya, TIDAK
+ * ada risiko baca scope basi lintas request. Ditemukan perlu krn endpoint
+ * `/dashboard` sudah marginal (~12-20 detik sebelum sesi ini) — 2x query
+ * tambahan (branch+division lookup) per panggilan `isScopeEffectivelyUnrestricted`
+ * cukup signifikan kalau diulang tanpa perlu.
  */
+const unrestrictedScopeCache = new WeakMap<Map<number, number[]>, Map<number, boolean>>()
+
 export async function isScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
   if (!p.branchScope && !p.divisionScope) return true
   if (p.cid === 0) return false // company_id='all' — di luar cakupan (lihat caller)
 
+  const cacheKey = p.branchScope ?? p.divisionScope!
+  let perCompany = unrestrictedScopeCache.get(cacheKey)
+  if (perCompany?.has(p.cid)) return perCompany.get(p.cid)!
+
+  const result = await computeScopeEffectivelyUnrestricted(p)
+
+  if (!perCompany) {
+    perCompany = new Map()
+    unrestrictedScopeCache.set(cacheKey, perCompany)
+  }
+  perCompany.set(p.cid, result)
+  return result
+}
+
+async function computeScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
   if (p.branchScope) {
     const allowed = p.branchScope.get(p.cid)
     if (!allowed) return false // company tidak ada di map = default deny total, jelas restriktif

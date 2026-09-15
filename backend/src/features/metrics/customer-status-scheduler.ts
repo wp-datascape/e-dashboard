@@ -42,7 +42,13 @@ const PERIOD_TYPES: SnapshotPeriodType[] = ['monthly', 'quarter', 'semester', 'a
 // M1-M10 di seluruh app) - cakupan histori yang REALISTIS dilihat user,
 // bukan seluruh histori company (itu backfill jauh lebih besar, di luar
 // cakupan sesi ini, lihat task040.md "Belum dikerjakan").
-const BACKFILL_PERIODS = 12
+// +1 (2026-09-15, susulan migrasi M8-M10) - fetchDormantTrend butuh
+// prev_dormant_count utk titik PERTAMA dari 12 titik trend, yaitu
+// checkpoint SATU periode SEBELUM titik pertama itu - jadi total
+// checkpoint yang dibutuhkan 1 titik trend penuh = 13, bukan 12. Parameter
+// tunggal (lihat komentar BACKFILL_PERIODS asli di atas soal ini),
+// dinaikkan bukan didesain ulang.
+const BACKFILL_PERIODS = 13
 // Batasi jumlah row per statement INSERT (task030.md, pelajaran limit
 // parameter Postgres 65535/statement - customer_status_snapshot py 7 kolom
 // per row, 5000 row/chunk jauh di bawah batas itu).
@@ -110,6 +116,7 @@ async function computeAndStore(companyId: number, divisionId: number | null, per
         customer_id: r.customer_id,
         status: r.status,
         is_relapsed: r.is_relapsed,
+        last_invoice_date: r.last_invoice_date,
       })))
     }
   })
@@ -134,16 +141,44 @@ function backfillCheckpointDates(periodType: SnapshotPeriodType, today: string, 
 }
 
 /** READ-ONLY trigger (dipanggil scheduler ATAU dipanggil manual/hook
- * invalidasi task038 setelah import) - hitung SEMUA kombinasi company x
+ * invalidasi task038 setelah import) - hitung kombinasi company x
  * division(+null) x periodType x BACKFILL_PERIODS checkpoint terakhir yang
- * BELUM ada baris (idempotent, lihat hasSnapshot). */
-export async function runCustomerStatusSnapshotJob(): Promise<void> {
-  const allCompanies = await db.select({ id: companies.id }).from(companies)
+ * BELUM ada baris (idempotent, lihat hasSnapshot).
+ *
+ * `companyId` (task040.md, 2026-09-13, wiring invalidasi) — scope ke 1
+ * company saja (dipanggil `invalidateCustomerStatusSnapshotForCompany`
+ * setelah mutasi data company itu), default semua company (perilaku
+ * scheduler harian, TIDAK berubah).
+ * `forceRecompute` — lewati pengecekan idempotent (checkpoint yang SUDAH
+ * ada baris TETAP dihitung ulang, bukan di-skip) - dipakai invalidasi
+ * eksplisit (data historis berubah, baris LAMA yang sudah ada bisa jadi
+ * salah sekarang, bukan cuma checkpoint yang belum pernah dihitung).
+ * Scheduler harian biasa TIDAK pakai ini (idempotent tetap jalan, hemat).
+ * `recomputePeriods` — jumlah checkpoint TERBARU (mundur dari checkpoint
+ * terkini) yang di-recompute saat `forceRecompute` (default BACKFILL_PERIODS,
+ * dipakai scheduler biasa). Invalidasi dari mutasi (task040.md, 2026-09-13)
+ * SENGAJA kirim angka kecil (1) — diukur langsung: forceRecompute PENUH
+ * (240 kombinasi utk 1 company, 4 divisi x 4 periodType x 12 checkpoint)
+ * makan ~146 DETIK, terlalu berat utk jalan tiap kali ada mutasi (kontensi
+ * DB nyata dgn request user bersamaan, dibuktikan test
+ * `metric-cache.e2e.test.ts` timeout). Checkpoint TERBARU saja (1 per
+ * periodType, ~20 kombinasi) cukup utk kasus UMUM (data baru/koreksi
+ * periode berjalan). Batasan yang diterima: import data historis yang
+ * HANYA mengubah checkpoint LAMA (bukan checkpoint terkini) baru
+ * ke-refresh di rollover periode berikutnya, bukan seketika — sama pola
+ * trade-off dgn "histori lebih dari 12 periode" (lihat komentar
+ * BACKFILL_PERIODS atas), bukan desain baru.
+ */
+export async function runCustomerStatusSnapshotJob(opts?: { companyId?: number; forceRecompute?: boolean; recomputePeriods?: number }): Promise<void> {
+  const { companyId, forceRecompute = false, recomputePeriods = BACKFILL_PERIODS } = opts ?? {}
+  const allCompanies = companyId != null
+    ? [{ id: companyId }]
+    : await db.select({ id: companies.id }).from(companies)
   const today = todayDate()
 
   for (const periodType of PERIOD_TYPES) {
-    const checkpointDates = backfillCheckpointDates(periodType, today, BACKFILL_PERIODS)
-    const existing = await loadExistingCheckpointSet(periodType, checkpointDates)
+    const checkpointDates = backfillCheckpointDates(periodType, today, forceRecompute ? recomputePeriods : BACKFILL_PERIODS)
+    const existing = forceRecompute ? new Set<string>() : await loadExistingCheckpointSet(periodType, checkpointDates)
     for (const company of allCompanies) {
       const companyDivisions = await db.select({ id: divisions.id }).from(divisions).where(eq(divisions.company_id, company.id))
       const divisionIds: (number | null)[] = [null, ...companyDivisions.map((d) => d.id)]
@@ -161,6 +196,68 @@ export async function runCustomerStatusSnapshotJob(): Promise<void> {
       }
     }
   }
+}
+
+/**
+ * Invalidasi+recompute customer_status_snapshot milik 1 company (task040.md,
+ * 2026-09-13) — dipanggil `invalidateMetricCache` (metric-cache.helper.ts)
+ * setelah mutasi data yang bisa mengubah status pelanggan pada checkpoint
+ * yang SUDAH pernah dihitung (import invoice historis, ubah mapping
+ * channel/divisi, dst). SEBELUM fix ini, `runCustomerStatusSnapshotJob`
+ * idempotent murni TIDAK PERNAH menghitung ulang checkpoint yang sudah ada
+ * baris — snapshot company itu bisa diam-diam stale selamanya sampai
+ * dihapus manual.
+ *
+ * Fire-and-forget (TIDAK di-await caller) — samakan dgn filosofi "job
+ * background" scheduler (task040.md "Refinement: precompute via
+ * scheduler"): request HTTP (mis. respons upload import) tidak boleh
+ * menunggu recompute puluhan kombinasi ini selesai. `computeAndStore`
+ * sendiri sudah transactional per kombinasi (delete+insert 1 statement),
+ * jadi pembaca lain di tengah proses ini paling apes baca baris LAMA
+ * (masih konsisten, bukan kosong) sampai kombinasi itu selesai di-replace.
+ *
+ * De-dup in-flight per company (2026-09-13, susulan setelah regresi
+ * performa di atas) — kalau company yang sama dipicu invalidasi berkali-kali
+ * berturut-turut (mis. import + langsung edit channel-division sesudahnya),
+ * TIDAK numpuk beberapa recompute penuh paralel ke DB yang sama, cukup 1
+ * yang jalan. Trigger berikutnya diabaikan (bukan diantre) — aman krn job
+ * yang sedang jalan itu SENDIRI akan membaca data TERBARU pada saat masing-
+ * masing kombinasi dihitung (bukan snapshot beku dari awal job), dan
+ * scheduler harian + invalidasi berikutnya tetap jadi jaring pengaman kalau
+ * ADA perubahan yang lolos di antara start dan selesainya job ini.
+ */
+const inFlightCompanyRecompute = new Set<number>()
+
+export function invalidateCustomerStatusSnapshotForCompany(companyId: number): void {
+  if (inFlightCompanyRecompute.has(companyId)) return
+  inFlightCompanyRecompute.add(companyId)
+  runCustomerStatusSnapshotJob({ companyId, forceRecompute: true, recomputePeriods: 1 })
+    .catch((err) => {
+      logger.error(`[customer-status-scheduler] recompute setelah invalidasi gagal company=${companyId}`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+    .finally(() => inFlightCompanyRecompute.delete(companyId))
+}
+
+/**
+ * Invalidasi+recompute SEMUA company (task040.md, 2026-09-13) — dipanggil
+ * setelah business_config GLOBAL berubah (mis. threshold dormant, yang
+ * mempengaruhi SEMUA company sekaligus). Fire-and-forget + de-dup in-flight,
+ * lihat alasan di `invalidateCustomerStatusSnapshotForCompany`.
+ */
+let allCompaniesRecomputeInFlight = false
+
+export function invalidateAllCustomerStatusSnapshot(): void {
+  if (allCompaniesRecomputeInFlight) return
+  allCompaniesRecomputeInFlight = true
+  runCustomerStatusSnapshotJob({ forceRecompute: true, recomputePeriods: 1 })
+    .catch((err) => {
+      logger.error('[customer-status-scheduler] recompute semua company setelah invalidasi global gagal', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+    .finally(() => { allCompaniesRecomputeInFlight = false })
 }
 
 async function runIfNewDay(): Promise<void> {

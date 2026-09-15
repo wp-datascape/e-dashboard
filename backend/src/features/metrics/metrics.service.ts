@@ -336,7 +336,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
         loadThresholds(),
       ])
 
-      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets, statusBuckets)
+      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets, statusBuckets, periodType)
 
       const trendPoints: CustomerMetricsTrendPoint[] = trend.map((row) => ({
         month:                  row.month,
@@ -671,7 +671,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       const dormantBaselineBucket = resolveDormantBaselineBucket(periodType, periodKey)
 
       const [trend, valueRankingAll, comparisonTrend, comparisonValueRankingAll, statusLog, valueTrend] = await Promise.all([
-        fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets),
+        fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets, periodType),
         // existingSince = liveBucket.start (task029.md §32.2, 2026-08-24) —
         // gate New/Existing SSOT §30.10, titik referensi SAMA PERSIS lb.ps
         // di fetchDormantTrend/is_existing_at_me (awal kalender ASLI label
@@ -688,7 +688,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         // Comparison (YoY) TIDAK dipakai UI apa pun saat ini (lihat komentar
         // di atas) — comparisonBuckets dipakai juga sbg liveBuckets (kalender
         // penuh, tanpa shift/elapsed-clamp, sudah pasti periode lampau tutup).
-        fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
+        fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets, periodType),
         fetchDormantValueRanking(comparisonSegParams, null, comparisonBuckets.at(-1)!.start),
         fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket, liveBucket.start, !!params.apply_date_cutoff),
         // buckets param (2026-08-28, task029.md §41 — fetchDormantValueTrend

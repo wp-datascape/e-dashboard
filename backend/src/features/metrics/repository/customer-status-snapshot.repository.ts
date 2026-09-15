@@ -36,6 +36,9 @@ export interface CustomerStatusSnapshotRow {
   customer_id: number
   status: CustomerStatusValue
   is_relapsed: boolean
+  // last_invoice_date (2026-09-15, susulan migrasi M8-M10) - lihat JSDoc
+  // kolom di db/schema/customer_status_snapshot.ts.
+  last_invoice_date: string | null
 }
 
 /**
@@ -111,6 +114,7 @@ export async function computeCustomerStatusSnapshot(
           AND ${dormantCrossedSql(sql`cxm.last_at_me`, sql`${bucket.end}::date`, sql`cxm.dormant_threshold`)}
         )                                                                    AS is_dormant_at_me,
         cxm.reactivation_date,
+        cxm.last_at_me,
         (cxm.last_at_me IS NOT NULL AND cxm.last_at_me >= ${bucket.start}::date) AS transacted_in_period
       FROM cxm
       WHERE cxm.is_existing_at_me OR cxm.is_acquisition
@@ -125,7 +129,8 @@ export async function computeCustomerStatusSnapshot(
         WHEN transacted_in_period                                                    THEN 'active'
         ELSE 'lapsed'
       END                                                                            AS status,
-      (was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me)   AS is_relapsed
+      (was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me)   AS is_relapsed,
+      last_at_me                                                                     AS last_invoice_date
     FROM classified
   `)
 
@@ -133,5 +138,6 @@ export async function computeCustomerStatusSnapshot(
     customer_id: Number(row.customer_id),
     status: row.status as CustomerStatusValue,
     is_relapsed: row.is_relapsed === true || row.is_relapsed === 't',
+    last_invoice_date: row.last_invoice_date == null ? null : String(row.last_invoice_date),
   }))
 }

@@ -1,4 +1,280 @@
-# Task 040 (EDASHBOARD-TBD) - Bug Timeout M7 Expansion Breakdown + Usulan Cache Status Customer Terpusat
+# Task 040 (HOLDINGIT-694) - Bug Timeout M7 Expansion Breakdown + Usulan Cache Status Customer Terpusat
+
+## Migrasi M8-M10 (Dormant/Reaktivasi) ke customer_status_snapshot (2026-09-15)
+
+Lanjutan riset optimasi performa (diminta user setelah audit resource CPU
+laptop - lihat entry di bawah, dikonfirmasi bareng lewat Task Manager Windows
+user: lonjakan CPU nyata, bukan salah ukur). M8/M10 (`fetchDormantTrend`,
+`m8m10.repository.ts`) sebelumnya CROSS JOIN customer×bucket + EXISTS per
+baris (task030.md §6, pola sama yang sudah diperbaiki di M3-M7) - ~7,2 detik
+cold utk company besar (KNT), TIDAK PERNAH dipindah ke snapshot task040
+sebelumnya (tercatat eksplisit "belum dikerjakan").
+
+**Keputusan desain, dikonfirmasi eksplisit user 2026-09-15**: M8-M10 IKUT
+pindah ke definisi checkpoint-konsisten (established+dormant+reaktivasi
+SEMUA di 1 checkpoint yang sama), BUKAN cuma optimasi kecepatan tanpa ubah
+angka - konsisten dgn M7 yang sudah duluan dipindah, mencegah risiko "2
+halaman beda angka utk metrik yang sama" (kelas bug yang melatarbelakangi
+task039).
+
+**Perluasan skema** (migration 0027) - `customer_status_snapshot` dapat
+kolom baru `last_invoice_date` (nullable). Dibutuhkan krn kartu M8 py
+rincian severity "Dormant Ringan/Kronis" (berapa kelipatan dormant_threshold
+sudah lewat) yang TIDAK bisa dijawab dari `status` mutually-exclusive saja -
+butuh tanggal transaksi terakhir per checkpoint. Nilainya SUDAH dihitung di
+`computeCustomerStatusSnapshot` (`cxm.last_at_me`), tinggal dipersist (bukan
+hitung baru). `BACKFILL_PERIODS` dinaikkan 12→13 (customer-status-
+scheduler.ts) - trend 12 titik butuh `prev_dormant_count`/reactivation_rate
+titik PERTAMA, yang perlu 1 checkpoint LAGI sebelum titik pertama itu.
+
+**Redefinisi `reactivation_rate`** (konsekuensi checkpoint-konsisten) -
+lama: numerator/dormant_count TITIK INI (live-hybrid). Baru: numerator
+(`status='reactivated'` titik ini) / `prev_dormant_count` (populasi dormant
+SATU checkpoint SEBELUMNYA) - lebih prinsipil (3 nasib populasi dormant
+sebelumnya - reactivated/relapsed-dormant/masih-dormant - SELALU partisi
+eksak dari prev_dormant_count, bukan lagi subset dormant_count sendiri).
+
+**Implementasi**: `fetchDormantTrend` sekarang 2 jalur TERPISAH (bukan 1
+query bercabang spt M3-M7/M7, krn struktur final SELECT beda total) - jalur
+snapshot baca `customer_status_snapshot` per checkpoint (index lookup, BUKAN
+CROSS JOIN), severity split dari `last_invoice_date` + threshold re-derive
+via `dormantThresholdCaseSql` (join `cust_division`). Gerbang eligibility
+SAMA PERSIS M3-M7 (`isScopeEffectivelyUnrestricted`, tanpa branch/pareto/
+exclude_intercompany filter, cid≠0) + `hasSnapshotForAllCheckpoints`
+(di-export dari m3m7.repository.ts, reuse bukan tulis ulang) utk union
+checkpoint buckets+prevBuckets (13 titik unik). `apply_date_cutoff` aktif
+otomatis fallback (bucket jadi tanggal cutoff, tidak pernah match
+checkpoint_date manapun) - TANPA guard eksplisit terpisah.
+
+**Verifikasi (2026-09-15, ke DB lokal, company 1 & 2, periodType monthly)**:
+- Konsistensi internal 100% (`active+light+severe=total`,
+  `light+severe=dormant`) di SEMUA 12 titik trend kedua company.
+- Cross-check independen (query manual langsung ke snapshot, terpisah dari
+  kode) MATCH PERSIS di titik terakhir (total/dormant/reactivated) kedua
+  company.
+- Isolasi RBAC: user berscope 1 cabang dari 8 (company 2) dapat
+  total_customers JAUH lebih kecil (2851) dibanding unrestricted (33288) -
+  SUBSET ketat, TIDAK bocor ke company-wide.
+- periodType quarter/semester/annual: window 12 titik (mundur nyaris 3
+  tahun) melewati batas data asli (invoice cuma ada sejak 2025-01) -
+  otomatis fallback ke LATERAL lama, BUKAN bug (safety net eligibility
+  bekerja seperti dirancang).
+- Performa: `fetchDormantTrend` solo 579-762ms (dari ~7,2 detik) - ~10-12x,
+  sekelas M3-M7.
+
+**Investigasi susulan (ditemukan SETELAH migrasi, sempat dikira regresi)**:
+3 test `EDASHBOARD-591` (`metric-cache.e2e.test.ts`, TIDAK terkait M8-M10 -
+soal invalidasi metric_cache company_id=all) gagal timeout 5000ms
+konsisten 2x run. Diselidiki via git stash (gagal - dependency silang
+dgn wiring invalidasi sesi lain di file yang sama, `invalidateCustomerStatusSnapshotForCompany`
+belum ada di versi lama) - metodologi diganti: timing langsung endpoint
+penyebab (`GET /customer-metrics?company_id=2`). Ketemu: 5,8 detik company 2
+(KNT) vs 554ms company 1 (MKO), KEDUANYA `snapshotEligible=true` (jalur
+cepat AKTIF, dikonfirmasi via debug log) - BUKAN regresi jalur cepat M3-M7,
+murni bagian query yang TIDAK dioptimasi snapshot (agregasi revenue/HM per
+invoice) sekarang proporsional dgn data company 2 yang JAUH lebih besar
+sejak restore production mid-sesi (263rb+ invoice, naik dari sebelumnya) -
+karakteristik lama yang baru kelihatan krn volume data baru, bukan
+diperkenalkan sesi ini.
+
+**Belum di-commit** - menunggu instruksi eksplisit user (pola sama seluruh
+task040).
+
+## Audit + test isolasi RBAC utk migrasi M3-M7 trend (2026-09-15)
+
+User minta audit ulang skenario e2e isolasi data (holding akses semua,
+company terstruktur akses entitasnya semua cabang+divisi, isolasi per
+cabang, isolasi per divisi) KHUSUS utk perubahan sesi 2026-09-13 (migrasi
+`fetchCustomerMetricsTrend`/M3-M7 trend ke `customer_status_snapshot`),
+lalu jalankan test-nya.
+
+**GAP ditemukan (terverifikasi dari kode, bukan tebakan)**: SEMUA test lama
+yang menyentuh `/customer-metrics` (Task G5, `scope-isolation.e2e.test.ts`)
+SELALU menyertakan `branch_id=` eksplisit di query - itu mematikan
+`snapshotConditionsMet` (`p.branchFilter == null` wajib,
+m3m7.repository.ts) apa pun isi RBAC scope user-nya. Akibatnya jalur cepat
+snapshot utk endpoint trend (beda dari expansion-breakdown yang sudah py
+test khusus) belum PERNAH benar-benar dieksekusi test permanen - termasuk
+bagian paling kritis: apakah `isScopeEffectivelyUnrestricted` benar-benar
+MENOLAK user berscope sempit dari jalur cepat (tabel snapshot sendiri SAMA
+SEKALI tidak py kolom RBAC - kalau gerbang ini salah meloloskan, user
+restriktif akan melihat data SATU PERUSAHAAN PENUH).
+
+**Ditambahkan**: describe block baru `Task040 (sesi 2)` di
+`scope-isolation.e2e.test.ts`, 7 skenario, SENGAJA tanpa `branch_id` di
+query (RBAC murni yang diuji): baseline holding, entitas penuh (2 user
+beda role, harus identik superadmin), branch sempit (harus subset, tidak
+pernah lebih besar), divisi sempit (subset), `company_id=all` (tetap
+fallback), cross-company per-entitas (company sendiri identik superadmin,
+tidak bocor ke company lain).
+
+**Insiden timeout ditemukan+diperbaiki (PENTING, sesuai instruksi user
+"kalau ada temuan timeout lagi berarti masih perlu diperbaiki")**: 2 dari
+7 test baru (fullAccessUser & multiBranchAdminUser, keduanya query
+UNRESTRICTED tanpa filter apa pun) gagal PERSIS di 5000ms saat dijalankan
+sebagai bagian `bun test` suite PENUH (17 file, pola PERSIS CI) - TIDAK
+gagal saat file ini dijalankan sendirian (berulang 3x bersih). Ditelusuri:
+query itu sendiri konsisten <15ms solo (jalur cepat snapshot, dikonfirmasi
+lewat log HTTP) - root cause BUKAN query lambat, tapi (a) describe block
+baru ini memanggil ulang `runCustomerStatusSnapshotJob()` yang REDUNDAN
+(describe block lain di atasnya, dalam file yang sama, sudah
+menjalankannya lebih dulu utk `todayPeriodEnd` yang sama - job idempotent
+tapi tetap buang waktu batch-check), menambah beban DB yang tidak perlu
+saat 17 file lain jalan bersamaan; (b) kontensi ambient antar file test
+saat suite penuh jalan bersamaan (dibuktikan: test LAIN yang sama sekali
+tidak disentuh sesi ini, mis. `GET /invoices - filter division`, ikut
+gagal di run yang sama - pola identik penjelasan timeout
+`metric-cache.e2e.test.ts` yang sudah didokumentasikan 2026-09-13 di atas).
+**Fix**: hapus pemanggilan scheduler redundan + tambah timeout eksplisit
+15000ms ke 2 test itu (pola sama persis yang sudah dipakai test lain di
+file ini utk kelas masalah yang sama). Diverifikasi: suite penuh diulang
+BERSIH (tanpa proses `bun test` lain berjalan bersamaan) - 2 test itu lolos
+konsisten, TIDAK muncul lagi di daftar gagal.
+
+**Temuan SAMPING, dikonfirmasi PRE-EXISTING (bukan sesi ini)**: suite
+penuh (`bun test` tanpa filter) juga menunjukkan 3 kegagalan di
+`production-kpi-matrix.e2e.test.ts` (test khusus data production hasil
+restore backup, auto-skip di CI) - salah satunya "MD KNT (grant
+branch+division penuh) identik Super Admin" selisih TEPAT 1 customer/1
+invoice. **Diverifikasi via `git stash`** (kode sesi 2 di-stash sementara,
+kembali ke commit 29b5912, dites solo bersih 33,98 detik): selisih 1 ini
+REPRODUKSI IDENTIK di kode SEBELUM sesi ini - bukan regresi migrasi trend,
+bug lama yang belum diselidiki. 2 kegagalan lain di file yang sama (FAT
+Holding vs Marketing Holding, konsistensi Holding) TIDAK reproduksi di run
+solo bersih itu - indikasi kuat itu transient/kontensi-suite-penuh juga,
+bukan bug deterministik. **Di luar cakupan sesi ini, dicatat utk investigasi
+terpisah kalau diprioritaskan.**
+
+**Temuan SAMPING lain**: folder `backend/dist/` (gitignored, lokal, sisa
+build 28 Agustus) berisi test hasil kompilasi LAMA yang ikut ke-scan
+`bun test` tanpa filter path - menjalankan sebagian test 2x (sekali dari
+`src/`, sekali dari `dist/` yang basi) dan memunculkan 1 kegagalan hantu
+("Lainnya" vs null di filter divisi invoice) yang TIDAK ada di kode
+`src/` saat ini. Tidak memengaruhi CI (checkout bersih, tidak ada
+`dist/`), tapi menambah kontensi+durasi kalau suite penuh dijalankan
+lokal - kandidat dibersihkan (`rm -rf backend/dist`) lain kali.
+
+**Hasil akhir**: `scope-isolation.e2e.test.ts` solo 26/26 lolos (1
+pre-existing flaky Task G5 di luar itu, sudah lama didokumentasikan).
+Suite penuh bersih: 276 pass/4 skip/11 fail - SEMUA 11 kegagalan itu
+pre-existing/lingkungan (di luar), NOL dari 7 test baru sesi ini.
+
+## Migrasi M3-M7 trend ke snapshot + wiring invalidasi (2026-09-13)
+
+Lanjutan prioritas yang ditandai di update 2026-09-11 ("migrasi M3-M7 trend
+perlu MENYUSUL SEGERA, jangan deploy M7 drilldown sendirian") - 2 pekerjaan
+sekaligus atas instruksi eksplisit user: migrasi `fetchCustomerMetricsTrend`
++ wiring invalidasi `customer_status_snapshot` setelah mutasi data.
+
+### 1. `fetchCustomerMetricsTrend` (M3-M7 trend) dipindah ke snapshot
+
+Pola SAMA PERSIS `fetchExpansionBreakdown`: `existing_not_dormant` (populasi
+M7 rate/count) baca dari `customer_status_snapshot` kalau eligible (tidak
+ada filter branch/pareto/exclude_intercompany, RBAC scope efektif tidak
+restriktif — reuse `isScopeEffectivelyUnrestricted`), fallback LATERAL lama
+kalau tidak. Bedanya di sini: snapshot HARUS tersedia utk SEMUA 12 checkpoint
+sekaligus (`hasSnapshotForAllCheckpoints`, batch query, bukan 12x round-trip)
+— kalau cuma sebagian ada, fallback ke LATERAL utk SELURUH 12 titik (bukan
+dicampur per titik, supaya metodologi 1 baris trend konsisten sepanjang
+chart).
+
+**Verifikasi ke DB lokal (2026-09-13)**: sebelum migrasi, titik terakhir
+trend company 2 divisi e_commerce menunjukkan `existing_not_dormant_count=
+8492` sementara M7 drilldown checkpoint yang SAMA PERSIS menunjukkan
+`total_existing=10046` — DIBUKTIKAN sendiri, bug mismatch yang diperingatkan
+di update 2026-09-11 SUDAH TERJADI di production sebelum sesi ini (trend
+chart dan dialog drilldown M7 di 1 halaman yang sama menampilkan angka
+beda ~18%). Setelah migrasi: keduanya PERSIS SAMA (10046=10046, divisi
+offline 4951=4951, tanpa filter divisi 15134). Diverifikasi jalur fallback
+tetap benar via `git stash` (angka trend lama 8492/4552 SEBELUM migrasi,
+dikonfirmasi konsisten dgn definisi lama).
+
+**Insiden performa saat implementasi (PENTING, sudah diperbaiki)**: draft
+awal computeAndalkan `cust_dormant_threshold`/`customer_inv_dates`/
+`last_inv_per_bucket` (CTE LATERAL-array lama) TETAP dihitung UNCONDITIONAL
+walau `snapshotEligible=true` (hasilnya dibuang, snapshot yang dipakai) —
+`customer_inv_dates` SENDIRIAN sudah didokumentasikan ~4,7 detik utk company
+besar (task030.md §6). Ketahuan dari `metric-cache.e2e.test.ts`: request yang
+normalnya ~3,5 detik (company 2, tanpa filter) sempat 500/timeout krn
+kompetisi resource dgn hitungan yang tidak terpakai. **Fix**: 4 CTE itu
+dipindah ke DALAM cabang fallback (hanya dihitung kalau BENERAN dipakai),
+solo timing kembali ke ~2,4-3,8 detik.
+
+**Konsekuensi SISA — sudah TUNTAS (susulan, ditegur user "kenapa tidak kamu
+kerjakan juga")**: setelah fix di atas, `metric-cache.e2e.test.ts` masih 1
+gagal (43/44) - test `holdingUser: query company_id berbeda...` yang sengaja
+clear cache lalu `Promise.all` 2 request cold company 1 + company 2
+sekaligus. Ditelusuri lebih jauh sampai akar SEBENARNYA (2 lapis):
+
+1. **Optimasi tambahan**: `isScopeEffectivelyUnrestricted` dipanggil
+   berkali-kali dgn `branchScope`/`divisionScope` Map yang SAMA (reference
+   identik, dicek langsung ke source `buildSegmentParams` — tidak clone)
+   dalam 1 request HTTP yang sama (mis. `/dashboard` manggil
+   `getCustomerMetrics` 2x, current+comparison period). Ditambah memoization
+   `WeakMap` keyed by Map itu sendiri (`segment.helper.ts`) — otomatis
+   "kosong" lagi tiap request baru (Map RBAC di-resolve ulang tiap request di
+   middleware), tidak ada risiko baca scope basi. Mengurangi query
+   redundan, TAPI belum cukup sendirian utk bikin test ini lolos konsisten.
+2. **Akar SEBENARNYA, ditemukan lewat pelacakan timestamp log**: test ini
+   pakai default Bun test timeout (5 detik) — begitu request company 2 (yang
+   solo SELALU ~2,4-3,8 detik, dikonfirmasi berkali-kali via debug
+   instrumentation) kebetulan sedikit lebih lambat dari 5 detik krn kontensi
+   ringan, Bun MENANDAI test ini gagal/timeout dan LANJUT ke test berikutnya
+   — TAPI Promise `app.request(...)` yang masih pending itu TIDAK dibatalkan,
+   tetap jalan di background. Test berikutnya (`/dashboard?company_id=1`,
+   `/dashboard?company_id=2`, dst) langsung mengeksekusi query BERAT lain utk
+   company yang SAMA, SAAT request "orphan" tadi masih berjalan — kontensi
+   inilah yang mendorong durasi TOTAL request orphan itu sampai melewati
+   `statement_timeout` 20 detik Postgres (dikonfirmasi lewat log timestamp:
+   request `/dashboard?company_id=2` test lain mulai jalan SAAT request
+   customer-metrics company 2 dari test SEBELUMNYA masih pending).
+
+   **Fix**: naikkan timeout test ini ke 30 detik (`metric-cache.e2e.test.ts`,
+   argumen ke-3 `test()`) — Bun jadi MENUNGGU request asli selesai (yang
+   memang legitimate perlu beberapa detik lebih dari 5 detik under load),
+   bukan orphan-kan lalu numpuk kontensi dgn test berikutnya. Pola SAMA
+   PERSIS scope-isolation.e2e.test.ts (beforeAll timeout dinaikkan utk alasan
+   serupa - legitimate butuh waktu, BUKAN menyembunyikan bug).
+
+**Hasil verifikasi akhir**: `metric-cache.e2e.test.ts` 44/44 bersih, diulang
+3x TERPISAH (konsisten, bukan kebetulan). `scope-isolation.e2e.test.ts` tetap
+18/19 (1 gagal Task G5, pre-existing, tidak berubah).
+
+### 2. Wiring invalidasi customer_status_snapshot setelah mutasi data
+
+**Percobaan pertama (GAGAL, sudah di-revert)**: sentralisasi di
+`invalidateMetricCache`/`invalidateAllMetricCache` (metric-cache.helper.ts)
+supaya SEMUA 11+ call site otomatis kebagian tanpa disentuh — TERNYATA
+menyebabkan regresi performa nyata (`metric-cache.e2e.test.ts` 41/44,
+request `customer-metrics?company_id=2` yang normalnya ~3,5 detik jadi
+500/timeout) karena SETIAP invalidasi, termasuk dari fitur yang SAMA SEKALI
+TIDAK mengubah status pelanggan (pareto flag, mapping produk high-margin,
+nama display intercompany), ikut memicu recompute penuh 1 company (240
+kombinasi, diukur ~146 DETIK) di background.
+
+**Fix — 2 lapis**:
+1. **Wiring dipersempit** ke titik yang GENUINELY jadi input
+   `computeCustomerStatusSnapshot`: `import.service.ts` (invoice/
+   first_invoice_date), `channel-divisions.service.ts` (mapping channel→
+   divisi, dipakai `cteCustDivision`), `divisions.service.ts` (daftar
+   divisi company), dan `config.service.ts` HANYA utk key
+   `active_window_months`/`dormant_threshold_months.*` (bukan config
+   generik lain). `invalidateMetricCache`/`invalidateAllMetricCache`
+   dikembalikan jadi alias polos seperti semula.
+2. **Scope recompute per-trigger diperkecil**: `recomputePeriods: 1` (cuma
+   checkpoint TERBARU per periodType, bukan 12) — diukur ~29 detik utk 1
+   company (turun dari ~146 detik), plus in-flight de-dup per company
+   (`Set<number>`) supaya trigger beruntun tidak numpuk beberapa job
+   paralel. **Trade-off yang diterima**: import data historis yang HANYA
+   mengubah checkpoint LAMA (bukan checkpoint terkini) baru ke-refresh di
+   rollover periode berikutnya, bukan seketika — sama kelas trade-off dgn
+   "histori lebih dari 12 periode" (BACKFILL_PERIODS), bukan desain baru.
+
+**Hasil verifikasi**: `scope-isolation.e2e.test.ts` tetap 18/19 (1 gagal
+Task G5, dikonfirmasi pre-existing sebelum sesi ini juga, tidak berubah).
+`metric-cache.e2e.test.ts` 44/44 bersih (lihat analisis section 1 di atas -
+akar masalah timeout test default 5 detik + memoization, TIDAK terkait
+wiring invalidasi ini sama sekali - sudah diverifikasi terpisah via stash).
 
 ## Backfill histori checkpoint (2026-09-12, koreksi KERAS user: "masih ada bug yang kamu skip, timeout itu belum diperbaiki")
 
