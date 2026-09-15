@@ -14,24 +14,10 @@ import {
 } from '@/utils/scope'
 import { EXPORT_ROW_CAP } from '@/utils/excel'
 import { isScopeEffectivelyUnrestricted, type SegmentParams } from './helper/segment.helper'
-import { resolveStatusCheckpointDate, getCurrentPeriodKey, getPeriodRange, getPreviousPeriodKey } from '@/features/analisis/period.util'
+import { resolveStatusCheckpointDate, resolveStatusCheckpointBuckets } from '@/features/analisis/period.util'
 import { hasSnapshotForCheckpoint } from '@/features/metrics/repository/m3m7.repository'
 import { computeCustomerStatusSnapshot, type CustomerStatusValue } from '@/features/metrics/repository/customer-status-snapshot.repository'
 import type { CustomersQuery } from './customers.schema'
-
-// resolveStatusCheckpointBuckets (task040.md "Susulan: adopsi PENUH 6 status
-// resmi", 2026-09-16) — turunkan bucket/prevBucket (periode TERTUTUP + periode
-// SEBELUMNYA) dari checkpoint string, pola SAMA PERSIS `computeAndStore`
-// (customer-status-scheduler.ts) — dipakai jalur fallback (compute on-demand,
-// bukan baca precompute) panggil `computeCustomerStatusSnapshot` langsung.
-function resolveStatusCheckpointBuckets(checkpointDateStr: string) {
-  const [cy, cm, cd] = checkpointDateStr.split('-').map(Number)
-  const currentKey = getCurrentPeriodKey('monthly', new Date(cy!, cm! - 1, cd!))
-  const bucket = getPeriodRange('monthly', currentKey)
-  const prevKey = getPreviousPeriodKey('monthly', currentKey)
-  const prevBucket = getPeriodRange('monthly', prevKey)
-  return { bucket, prevBucket }
-}
 
 // todayDate (task039.md, 2026-09-11) — pola sama persis metrics.service.ts,
 // dibutuhkan resolveStatusCheckpointDate (butuh string YYYY-MM-DD, bukan SQL
@@ -272,7 +258,7 @@ async function buildCustomerQueryContext(
   // `is_existing_at_me OR is_acquisition` di computeCustomerStatusSnapshot).
   let fallbackStatusMap: Map<number, { status: CustomerStatusValue; is_relapsed: boolean }> | undefined
   if (!snapshotEligible) {
-    const { bucket, prevBucket } = resolveStatusCheckpointBuckets(statusCheckpointDateStr)
+    const { bucket, prevBucket } = resolveStatusCheckpointBuckets('monthly', statusCheckpointDateStr)
     const rows = await computeCustomerStatusSnapshot(segmentParams, bucket, prevBucket)
     fallbackStatusMap = new Map(rows.map((r) => [r.customer_id, { status: r.status, is_relapsed: r.is_relapsed }]))
   }
@@ -702,7 +688,7 @@ export async function findCustomerDetail(
         displayIsRelapsed = snapshotRow.is_relapsed
       }
     } else {
-      const { bucket, prevBucket } = resolveStatusCheckpointBuckets(statusCheckpointDateStr)
+      const { bucket, prevBucket } = resolveStatusCheckpointBuckets('monthly', statusCheckpointDateStr)
       const rows = await computeCustomerStatusSnapshot(segmentParams, bucket, prevBucket)
       const match = rows.find((r) => r.customer_id === customerId)
       if (match) {

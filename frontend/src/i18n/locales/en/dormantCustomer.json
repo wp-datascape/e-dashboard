@@ -90,5 +90,18 @@
   "m10ReactivationEmpty": "No reactivated customers in this period",
   "m10TopCustomersInfo": "Sorted by most recent reactivation date; ties broken by highest average monthly revenue",
   "tooltipLastBeforeDormant": "Last Transaction Before Dormant",
-  "tooltipAvgRevenue": "Average Revenue/Month"
+  "tooltipAvgRevenue": "Average Revenue/Month",
+  "m11RetentionRateLabel": "Retention Rate",
+  "m11RetentionRateInfo": "Percentage of customers active last period who are still active this period.",
+  "m11RetainedCountLabel": "Retained Customers",
+  "m11LostCountLabel": "Lost Customers",
+  "m11LostCountInfo": "Customers active last period who are no longer active this period.",
+  "m11ChartTitle": "Retention Rate Trend",
+  "m11TooltipInfo": "Retention Rate = number of customers active last period who are still active this period, divided by the number of customers active last period.",
+  "m11TopCustomersLabel": "Top 5 Retained Customers",
+  "m11TopCustomersInfo": "Sorted by highest average monthly revenue, among customers retained this period.",
+  "m11RetainedEmpty": "No retained customers in this period",
+  "colCompany": "Company",
+  "m11StatusRetained": "Retained",
+  "m11StatusLost": "Lost"
 }

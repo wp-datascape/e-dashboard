@@ -161,3 +161,25 @@ export function useDormantStatusColumns(t: TFunction): GridColDef[] {
     // check/silang ini, tanpa perlu kolom kedua).
   ];
 }
+
+// ─── M11 Retention breakdown (task044.md Bagian 2, HOLDINGIT-698) ─────────
+export function useRetentionBreakdownColumns(t: TFunction): GridColDef[] {
+  return [
+    { field: 'customer_name', headerName: t('dormantCustomer.colCustomer'), flex: 1, minWidth: 180,
+      renderCell: (p) => (
+        <Tooltip title={p.value as string}>
+          <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>{p.value as string}</Typography>
+        </Tooltip>
+      ) },
+    { field: 'company_name', headerName: t('dormantCustomer.colCompany'), width: 160, sortable: false },
+    { field: 'status', headerName: t('dormantCustomer.colStatus'), width: 130, sortable: false,
+      renderCell: (p) => (
+        <StatusChip
+          label={p.value === 'retained' ? t('dormantCustomer.m11StatusRetained') : t('dormantCustomer.m11StatusLost')}
+          color={p.value === 'retained' ? 'success' : 'error'}
+        />
+      ) },
+    { field: 'avg_monthly_revenue', headerName: t('dormantCustomer.colAvgMonthlyRevenue'), width: 160, align: 'right', headerAlign: 'right', sortable: false,
+      renderCell: (p) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatRupiah(p.value as number)}</Typography> },
+  ];
+}

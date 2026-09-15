@@ -1,7 +1,8 @@
 # Task044 - Perbaikan Checkpoint Trend (SSOT M3-M10) + KPI Baru M11 Retention Rate
 
-> **STATUS: Bagian 1 (HOLDINGIT-697) SELESAI + diverifikasi (2026-09-16),
-> BELUM di-commit. Bagian 2 (HOLDINGIT-698, M11) BELUM dikerjakan.**
+> **STATUS: Bagian 1 (HOLDINGIT-697) SELESAI + diverifikasi + SUDAH
+> di-commit (2026-09-16). Bagian 2 (HOLDINGIT-698, M11) SELESAI +
+> diverifikasi (2026-09-16), BELUM di-commit.**
 > Nomor tiket dikonfirmasi user 2026-09-16 - **DUA tiket terpisah**, satu
 > per bagian (bukan 1 tiket gabungan): **Bagian 1 = HOLDINGIT-697** (Fitur
 > checkpoint carry-forward), **Bagian 2 = HOLDINGIT-698** (KPI baru M11
@@ -226,9 +227,73 @@ Retention Rate(bulan B, TUTUP) =
   endpoint ini HANYA aktif utk scope tidak restriktif tanpa fallback sama
   sekali?).
 - ~~Nomor tiket Plane~~ - HOLDINGIT-698 (dikonfirmasi user 2026-09-16).
-- i18n keys (id+en) utk label baru.
-- Kolom tabel Report Retention persis apa saja - belum dicek pola Report
-  lain (Growth/Revenue) sbg referensi.
+- ~~i18n keys (id+en) utk label baru~~ - sudah ditambahkan
+  (`dormantCustomer.json` id+en, key `m11*`).
+- ~~Kolom tabel Report Retention persis apa saja~~ - sudah diputuskan+
+  diimplementasikan (lihat "Implementasi + verifikasi" bawah): Customer/
+  Company/Status(chip Retained-Lost)/Avg Revenue per Bulan.
+
+### Implementasi + verifikasi (2026-09-16)
+
+**Keputusan desain yang diambil saat implementasi** (2 poin "belum
+diputuskan" di atas, diputuskan sendiri karena murni soal struktur kode/
+konsistensi, bukan soal bisnis):
+- Endpoint baru `backend/src/features/metrics/repository/m11.repository.ts`
+  (file terpisah, BUKAN digabung ke `m8m10.repository.ts` - KPI baru tanpa
+  keterikatan historis ke kode M8-M10 lama), + `getRetentionMetrics`/
+  `getRetentionBreakdown` di `metrics.service.ts`, endpoint
+  `GET /metrics/retention-rate` (trend+3kartu+top20) dan
+  `GET /metrics/retention-breakdown` (tabel Report, SELURUH cohort).
+  Permission REUSE `churn.risk:view` (sama gate M8-M10 di halaman
+  Retention yang sama), bukan permission baru.
+- Fast path (RBAC tidak restriktif) baca `customer_status_snapshot`
+  langsung (self-join checkpoint A vs B). Fallback (RBAC restriktif/filter
+  branch aktif) compute ON-DEMAND via `computeCustomerStatusSnapshot`
+  (SSOT sama scheduler + fallback Customer Workbench, task040.md
+  "Susulan...") - BUKAN "tanpa fallback sama sekali" (opsi yang tadinya
+  dianggap "lebih sederhana" di atas, ternyata sama sekali tidak lebih
+  sulit begitu pola computeCustomerStatusSnapshot sudah established sesi
+  ini - jadi tidak ada alasan skip fallback).
+
+**Refactor pendukung**: `resolveDormantStyleBuckets` diekstrak dari isi
+`getDormantCustomerMetrics` (logic TIDAK diubah, murni dipindah jadi
+fungsi reusable) - dipakai `getRetentionMetrics`/`getRetentionBreakdown`
+supaya checkpoint M11 DIJAMIN sama persis M8-M10 utk company/period yang
+sama (SSOT tunggal, bukan 2 implementasi paralel - persis kelas masalah
+yang baru diperbaiki di Bagian 1).
+
+**Frontend**: `pages/DormantCustomer/M11RetentionRate.tsx` (komponen baru,
+3 kartu + `AreaChartWidget` trend + Top 5 - TANPA dialog drilldown per-
+customer, di luar cakupan spec), ditambahkan ke `pages/Retention/index.tsx`
+setelah M10. Tab baru "Retention" di `pages/Report/Retention/index.tsx`
+(kolom via `useRetentionBreakdownColumns`, `dormantHelpers.tsx`) - SELURUH
+cohort dgn status chip Retained/Lost, filter dropdown + search, pola SAMA
+PERSIS 3 tab lain di halaman itu.
+
+**Verifikasi**:
+- Backend ad-hoc (`getRetentionMetrics`/`getRetentionBreakdown` langsung,
+  `metric_cache` dikosongkan tiap pengukuran): carry-forward titik terakhir
+  benar (company 1 & 2, Agustus=September identik), cross-check independen
+  ke tabel snapshot MATCH PERSIS (cohort_count=139, retained_count=66,
+  company 1, checkpoint Juli->Agustus), `fetchRetentionBreakdown` MATCH
+  PERSIS `getRetentionMetrics` (cohort_count/retained_count/lost_count
+  sama persis, 139=139, 66=66, 73=73). Isolasi RBAC: branch-restricted
+  → cohort 24 (subset ketat dari 139 unrestricted), fallback jalan tanpa
+  crash. tsc + lint bersih (backend+frontend).
+- **Live browser** (dev server, playwright-cli, admin@mail.com): halaman
+  `/retention` - section M11 render benar (34.2% Retention Rate, chart 12
+  titik, Top 5 dgn Rupiah + urutan value DESC terverifikasi). Halaman
+  `/report/retention?tab=retention` - tab baru muncul, kartu ringkasan
+  (576 Retained 34.2% / 1.108 Lost, 576+1108=1684 cocok dgn 34,2%), tabel
+  dgn status chip. **1 bug ditemukan+diperbaiki saat verifikasi visual**:
+  chip status tabel awalnya reuse label kartu KPI ("Retained Customers"/
+  "Lost Customers") - kepanjangan utk kolom sempit, terpotong jadi
+  "Retained Cus...". Diperbaiki: key i18n baru khusus chip
+  (`m11StatusRetained`/`m11StatusLost`, "Tertahan"/"Hilang").
+- Regresi test: `scope-isolation.e2e.test.ts` 25 pass/1 fail (Task G5,
+  pre-existing, tidak berubah).
+
+**Belum di-commit** - menunggu instruksi eksplisit user.
 
 ## Urutan pengerjaan yang disarankan (belum final, didiskusikan lagi saat
 mulai)

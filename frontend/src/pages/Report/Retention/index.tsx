@@ -7,16 +7,18 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PauseCircleOutlinedIcon from '@mui/icons-material/PauseCircleOutlined';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined';
 import { useTranslation } from 'react-i18next';
 
-import { useRorBreakdown, useDormantBreakdown, useDormantStatusBreakdown } from '@/hooks/useMetrics';
+import { useRorBreakdown, useDormantBreakdown, useDormantStatusBreakdown, useRetentionBreakdown } from '@/hooks/useMetrics';
 import { useAdvancedFilterBar } from '@/hooks/useAdvancedFilterBar';
 import { useCan } from '@/hooks/useCan';
 import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar';
 import { ResponsiveListView } from '@/components/tables/ResponsiveListView';
 import { getCurrentPeriodKey, getPeriodDateRange, clampPeriodEndToToday, formatPeriodLabel } from '@/utils/analisisPeriod';
 import { useRorColumns } from '../../CustomerMetrics/rorHelpers';
-import { useDormantBreakdownColumns, useDormantStatusColumns } from '../../DormantCustomer/dormantHelpers';
+import { useDormantBreakdownColumns, useDormantStatusColumns, useRetentionBreakdownColumns } from '../../DormantCustomer/dormantHelpers';
 import type { DormantCustomerStatus } from '@/types/metrics';
 import { formatRupiah } from '@/utils/format';
 import { ReportSummaryCards } from '../ReportSummaryCards';
@@ -48,7 +50,10 @@ import { ReactivationSummaryCards } from './ReactivationSummaryCards';
 // sama sekali (`getDormantBreakdown` backend murni snapshot per
 // `period_end`, lihat metrics.service.ts) — TIDAK dikirim di sini,
 // konsisten dgn kapabilitas backend yang sebenarnya (bukan dikira-kira).
-type ReportRetentionTab = 'ror' | 'dormant' | 'reactivation';
+// 'retention' (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) — M11, tab ke-4,
+// permission REUSE churn.risk:view (SAMA dgn dormant/reactivation, lihat
+// komentar backend metrics.route.ts kenapa bukan permission baru).
+type ReportRetentionTab = 'ror' | 'dormant' | 'reactivation' | 'retention';
 
 export default function ReportRetention() {
   const { t } = useTranslation();
@@ -58,7 +63,7 @@ export default function ReportRetention() {
 
   const availableTabs: ReportRetentionTab[] = [
     ...(canExpansion ? (['ror'] as const) : []),
-    ...(canChurnRisk ? (['dormant', 'reactivation'] as const) : []),
+    ...(canChurnRisk ? (['dormant', 'reactivation', 'retention'] as const) : []),
   ];
 
   // Query param `?tab=` (pola sama persis Report/Growth) — dipakai link
@@ -215,7 +220,40 @@ export default function ReportRetention() {
       : byStatus;
   }, [statusData, statusFilter, statusSearch]);
 
-  const isLoading = activeTab === 'ror' ? rorLoading : activeTab === 'dormant' ? dormantLoading : statusLoading;
+  // M11 Retention (task044.md Bagian 2) — TANPA date_from, pola SAMA PERSIS
+  // tab 'reactivation' di atas (selalu mode "periode berjalan", backend
+  // resolve checkpoint current+sebelumnya sendiri).
+  const { data: retentionBreakdownData, isLoading: retentionBreakdownLoading } = useRetentionBreakdown({
+    period_end: periodEnd,
+    period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
+    company_id: companyId,
+    branch_id: resolvedBranchId,
+    division: resolvedDivision,
+    exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
+  });
+  const retentionColumns = useRetentionBreakdownColumns(t);
+  const [retentionSearch, setRetentionSearch] = useState('');
+  const [retentionFilter, setRetentionFilter] = useState<'all' | 'retained' | 'lost'>('all');
+  const retentionCounts = useMemo(() => {
+    const rows = retentionBreakdownData?.rows ?? [];
+    return {
+      total: rows.length,
+      retained: rows.filter((r) => r.status === 'retained').length,
+      lost: rows.filter((r) => r.status === 'lost').length,
+    };
+  }, [retentionBreakdownData]);
+  const retentionRows = useMemo(() => {
+    const rows = retentionBreakdownData?.rows ?? [];
+    const byStatus = retentionFilter === 'all' ? rows : rows.filter((r) => r.status === retentionFilter);
+    const q = retentionSearch.trim().toLowerCase();
+    return q
+      ? byStatus.filter((r) => r.customer_name.toLowerCase().includes(q) || (r.customer_code ?? '').toLowerCase().includes(q))
+      : byStatus;
+  }, [retentionBreakdownData, retentionFilter, retentionSearch]);
+
+  const isLoading = activeTab === 'ror' ? rorLoading : activeTab === 'dormant' ? dormantLoading : activeTab === 'reactivation' ? statusLoading : retentionBreakdownLoading;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -238,6 +276,7 @@ export default function ReportRetention() {
             {canExpansion && <Tab value="ror" label={t('metrics.repeatOrderShort')} />}
             {canChurnRisk && <Tab value="dormant" label={t('metrics.dormantShort')} />}
             {canChurnRisk && <Tab value="reactivation" label={t('metrics.reactivationShort')} />}
+            {canChurnRisk && <Tab value="retention" label={t('metrics.retentionShort')} />}
           </Tabs>
 
           {activeTab === 'ror' && (
@@ -371,6 +410,40 @@ export default function ReportRetention() {
                     { value: 'dormant', label: t('dormantCustomer.statusDormant') },
                     { value: 'reactivated', label: t('dormantCustomer.statusReactivated') },
                     { value: 'newlyDormant', label: t('dormantCustomer.statusNewlyDormant') },
+                  ],
+                }}
+              />
+            </Box>
+          )}
+
+          {activeTab === 'retention' && (
+            <Box sx={{ pt: 1 }}>
+              <ReportSummaryCards items={[
+                { label: t('dormantCustomer.m11RetainedCountLabel'), value: retentionCounts.retained.toLocaleString('id-ID'), icon: CheckCircleIcon, iconColor: 'success', highlighted: true,
+                  pct: retentionCounts.total > 0 ? `${((retentionCounts.retained / retentionCounts.total) * 100).toFixed(1)}%` : null,
+                  info: t('dormantCustomer.m11RetentionRateInfo') },
+                { label: t('dormantCustomer.m11LostCountLabel'), value: retentionCounts.lost.toLocaleString('id-ID'), icon: PersonRemoveOutlinedIcon, iconColor: 'error',
+                  info: t('dormantCustomer.m11LostCountInfo') },
+              ]} />
+              <ResponsiveListView
+                rows={retentionRows.map((r) => ({ ...r, id: r.customer_id }))}
+                columns={retentionColumns}
+                loading={retentionBreakdownLoading}
+                height={560}
+                pageSize={25}
+                pageSizeOptions={[25, 50, 100]}
+                emptyMessage={t('dormantCustomer.m11RetainedEmpty')}
+                mobileFields={['customer_name', 'status', 'avg_monthly_revenue']}
+                search={{ value: retentionSearch, onChange: setRetentionSearch, placeholder: t('crossSelling.tableSearchPlaceholder') }}
+                periodLabel={periodLabel}
+                sort={{
+                  value: retentionFilter,
+                  onChange: (v) => setRetentionFilter(v as typeof retentionFilter),
+                  label: t('dormantCustomer.colStatus'),
+                  options: [
+                    { value: 'all', label: t('dormantCustomer.statusAll') },
+                    { value: 'retained', label: t('dormantCustomer.m11RetainedCountLabel') },
+                    { value: 'lost', label: t('dormantCustomer.m11LostCountLabel') },
                   ],
                 }}
               />

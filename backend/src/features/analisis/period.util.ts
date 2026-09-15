@@ -534,6 +534,25 @@ export function resolveStatusCheckpointDate(periodType: PeriodType, referenceDat
   return getPeriodRange(periodType, closedKey).end
 }
 
+/**
+ * bucket/prevBucket (periode PENUH + periode SEBELUMNYA) dari sebuah
+ * checkpoint date APAPUN (bukan cuma "checkpoint hari ini") — dipakai
+ * caller yang perlu compute on-demand via `computeCustomerStatusSnapshot`
+ * (bukan baca precompute customer_status_snapshot), pola SAMA PERSIS
+ * `computeAndStore` (customer-status-scheduler.ts). Dipromosikan ke sini
+ * (2026-09-16, task044.md/HOLDINGIT-698, susulan HOLDINGIT-694) dari
+ * `customers.repository.ts` (nama sama) - dibutuhkan 2 tempat (Customer
+ * Workbench fallback DAN M11 Retention Rate fallback), bukan cuma 1.
+ */
+export function resolveStatusCheckpointBuckets(periodType: PeriodType, checkpointDateStr: string): { bucket: PeriodRange; prevBucket: PeriodRange } {
+  const [cy, cm, cd] = checkpointDateStr.split('-').map(Number)
+  const currentKey = getCurrentPeriodKey(periodType, new Date(cy!, cm! - 1, cd!))
+  const bucket = getPeriodRange(periodType, currentKey)
+  const prevKey = getPreviousPeriodKey(periodType, currentKey)
+  const prevBucket = getPeriodRange(periodType, prevKey)
+  return { bucket, prevBucket }
+}
+
 export function getLatestClosedPeriodKey(periodType: PeriodType, today: Date = new Date()): string {
   const year = today.getFullYear()
   const month = today.getMonth() + 1 // 1-12
