@@ -139,7 +139,7 @@ export default function Customers() {
     { field: 'name', headerName: t('customers.name'), flex: 1, minWidth: 180, sortable: false },
     { field: 'company', headerName: t('customers.detail.company'), width: 160, sortable: false, valueGetter: (_value, row) => row.company.name },
     { field: 'division', headerName: t('customers.detail.division'), width: 140, sortable: false, renderCell: ({ row }) => <DivisionChip division={row.division} /> },
-    { field: 'status', headerName: t('customers.status'), width: 110, sortable: false, renderCell: ({ row }) => <StatusChip status={row.status} /> },
+    { field: 'status', headerName: t('customers.status'), width: 170, sortable: false, renderCell: ({ row }) => <StatusChip status={row.status} isRelapsed={row.is_relapsed} /> },
     { field: 'category_count', headerName: t('customers.categories'), width: 110, type: 'number', sortable: true },
     { field: 'avg_monthly_revenue', headerName: t('customers.detail.avgMonthly'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatRupiah(value as number) },
     { field: 'lifetime_value', headerName: t('customers.detail.lifetimeTotal'), width: 160, type: 'number', sortable: true, valueFormatter: (value) => formatRupiah(value as number) },
@@ -196,10 +196,11 @@ export default function Customers() {
 
           <TextField select size="small" label={t('customers.status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')} sx={{ width: { xs: '100%', sm: FILTER_FIELD_WIDTH } }}>
             <MenuItem value="">{t('common.all')}</MenuItem>
+            <MenuItem value="acquisition">{t('customers.statusLabels.acquisition')}</MenuItem>
             <MenuItem value="active">{t('customers.statusLabels.active')}</MenuItem>
-            <MenuItem value="existing">{t('customers.statusLabels.existing')}</MenuItem>
+            <MenuItem value="reactivated">{t('customers.statusLabels.reactivated')}</MenuItem>
+            <MenuItem value="lapsed">{t('customers.statusLabels.lapsed')}</MenuItem>
             <MenuItem value="dormant">{t('customers.statusLabels.dormant')}</MenuItem>
-            <MenuItem value="new">{t('customers.statusLabels.new')}</MenuItem>
           </TextField>
 
           <ExcludeIntercompanyToggle checked={excludeIntercompany} onChange={setExcludeIntercompany} />

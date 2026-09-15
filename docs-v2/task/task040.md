@@ -1,5 +1,297 @@
 # Task 040 (HOLDINGIT-694) - Bug Timeout M7 Expansion Breakdown + Usulan Cache Status Customer Terpusat
 
+## Susulan: adopsi PENUH 6 status resmi di Customer Workbench (2026-09-16)
+
+> **STATUS: implementasi SELESAI + diverifikasi (2026-09-16).** Revisi
+> keputusan di bawah ("Migrasi Customer Workbench" awal) - user bertanya
+> "kenapa tidak memakai 6 definisi yang disepakati sbg standar baru"
+> setelah kolase 6→4 selesai diimplementasikan. Jawaban: kolase awal itu
+> keputusan SCOPE CONTAINMENT saya sendiri (anggap ini migrasi computation
+> source, bukan redesain tampilan) - BUKAN instruksi eksplisit siapa pun.
+> Dikonfirmasi via AskUserQuestion: **adopsi 6 status resmi penuh**, bukan
+> pertahankan 4-vocab lama. BELUM di-commit.
+
+### Kenapa kolase 6→4 sebelumnya SALAH ARAH
+
+"Active" gabung Active Customer + Reactivated jadi 1 chip - PADAHAL kedua
+istilah itu dibedakan tegas di M8-M10/Glosarium (customer yang baru balik
+dari dormant vs yang terus-menerus aktif, beda kepentingan bisnis).
+"Lapsed" saya beri label "Existing" - BENTROK dgn istilah resmi "Existing
+Active" (populasi gabungan Active+Reactivated, artinya beda total). Ini
+justru MENCIPTAKAN ketidakkonsistenan istilah baru, padahal tujuan seluruh
+task039/040 justru menghapus itu.
+
+### Perubahan dari desain lama
+
+**Vocabulary status Workbench** (`CustomerStatus` frontend,
+`status` query param backend): dari 4 (`new/active/dormant/existing`)
+jadi 5 MUTUALLY EXCLUSIVE (`acquisition/active/reactivated/lapsed/
+dormant`, PERSIS `CustomerStatusValue`,
+`customer-status-snapshot.repository.ts`) + `is_relapsed` sbg badge
+tambahan pada baris Dormant (BUKAN nilai filter ke-6 berdiri sendiri -
+Relapsed itu penanda, bukan status independen, SAMA PERSIS keputusan
+M8-M10/Glosarium). Tidak ada lagi CASE mapping 6→4 - baca kolom `status`
+snapshot APA ADANYA saat fast path aktif.
+
+**Fallback (RBAC restriktif/filter branch_id/exclude_intercompany aktif)**
+- INI bagian paling berat, alasan kenapa kolase 6→4 tadinya "lebih
+mudah": `sqlStatusExpr`/`sqlStatusWhere` lama (hybrid live+checkpoint)
+TIDAK BISA membedakan Reactivated vs Active atau Lapsed vs Dormant -
+tidak pernah mengecek "apakah customer ini dormant di checkpoint
+SEBELUMNYA". Solusi: **fallback TIDAK LAGI pakai sqlStatusExpr sama
+sekali** - reuse `computeCustomerStatusSnapshot` (fungsi SSOT yang sama
+dipakai scheduler) LANGSUNG, dipanggil on-demand 1x per request dengan
+`SegmentParams` yang SUDAH dibangun (branchFilter/branchScope/
+divisionScope/excludeIntercompany milik request itu, BUKAN company-wide
+kosong spt scheduler) + `bucket`/`prevBucket` dari `statusCheckpointDateStr`
+(`getCurrentPeriodKey`/`getPeriodRange`/`getPreviousPeriodKey`,
+period.util.ts, pola sama `computeAndStore` scheduler). Hasilnya
+`Map<customer_id, {status, is_relapsed}>` dipakai:
+1. Filter `?status=` → `inArray(customers.id, [...ids yang cocok])`
+   (bukan SQL CASE lagi).
+2. Tampilan → attach ke `rows` hasil query utama di JS SETELAH paginasi
+   (bukan kolom SQL lagi) - lebih murah drpd hitung 6-status utk SEMUA
+   customer company baru filter di JS, krn scope yang butuh fallback ini
+   SELALU restriktif (branch/RBAC sempit), populasinya jauh lebih kecil
+   drpd company-wide.
+
+Konsekuensi bagus: `sqlStatusExpr`/`sqlStatusWhere` (`segment.helper.ts`)
+JADI TIDAK TERPAKAI SAMA SEKALI (cuma dipakai `customers.repository.ts`,
+dicek eksplisit) - DIHAPUS, bukan dibiarkan jadi dead code.
+
+**Frontend** (`CustomerStatus` type, `StatusChip.tsx` colorMap+label,
+filter dropdown `Customers/index.tsx`, i18n `customers.json` id+en) - 5
+label baru (Acquisition/Active Customer/Reactivated/Lapsed/Dormant) +
+badge kecil "Relapsed" pada baris Dormant yang `is_relapsed=true` (pola
+SAMA `M10ReactivationRate.tsx` - indent/badge Relapsed DI DALAM Dormant,
+bukan kategori terpisah).
+
+### Implementasi + bug ditemukan + verifikasi (2026-09-16)
+
+File yang berubah: `customers.schema.ts` (`status` enum 5 nilai baru),
+`customers.repository.ts` (rewrite besar - `dormantThresholdExpr`/
+`sqlStatusExpr`/`sqlStatusWhere` DIHAPUS total, `statusSnapshotSq` baca
+`is_relapsed` juga, `fallbackStatusMap` via `computeCustomerStatusSnapshot`
+on-demand, `resolveDisplayStatus` helper resolusi status di JS setelah
+query, `resolveStatusCheckpointBuckets` helper bucket/prevBucket),
+`customers/helper/segment.helper.ts` (`sqlStatusExpr`/`sqlStatusWhere`
+DIHAPUS, sudah dicek 0 pemakai lain), `metrics/segment.helper.ts`
+(re-export 2 fungsi itu ikut dihapus), `customers.handler.ts`
+(`STATUS_LABEL` Excel 5 label baru + suffix " (Relapsed)"), frontend
+`types/customers.ts` (`CustomerStatus` 5 nilai + field `is_relapsed`),
+`StatusChip.tsx` (colorMap 5 status + chip kecil Relapsed kondisional),
+`Customers/index.tsx` (dropdown filter 5 opsi, kolom status dilebarkan
+110→170px utk muat 2 chip), `CustomerDetailDialog.tsx` (kirim
+`isRelapsed`), i18n `customers.json` id+en (label English apa adanya,
+konsisten pola `dormantCustomer.json`/`dashboard.json`), mock
+`customers.handler.ts` (MSW, disabled tapi tetap di-type-check - vocab
+disamakan biar tsc lulus).
+
+**Bug ditemukan+diperbaiki SAAT verifikasi (bukan cuma tsc bersih)**:
+filter `?status=acquisition` awalnya cuma cek "baris snapshot TIDAK ADA"
+(customer baru periode berjalan), LUPA baris snapshot yang literal
+`status='acquisition'` (first invoice JATUH DI DALAM checkpoint tertutup
+ini - kasus JAUH lebih umum). Ketemu lewat cross-check jumlah: SUM ke-5
+filter status company 1 = 984, total unfiltered = 1005 (company 2: 33288
+vs 34007) - SELISIH PERSIS jumlah customer status='acquisition' yang
+hilang. Fix: `OR(status='acquisition', snapshot IS NULL)` utk fast path,
+`OR(map status='acquisition', customer TIDAK ADA di map)` utk fallback.
+Tampilan (`resolveDisplayStatus`) TIDAK kena bug ini (logic beda, sudah
+benar dari awal) - murni bug di WHERE filter.
+
+**Verifikasi (script ad-hoc, panggil `findCustomers`/`findCustomerDetail`
+langsung)**:
+- Filter status exhaustif SETELAH fix: company 1 SUM 5 filter = 1005 =
+  total (MATCH), company 2 SUM = 34007 = total (MATCH), 0 baris salah
+  kategori di tiap filter.
+- Isolasi RBAC: branch-restricted → 351/1005 (subset ketat), 0 leak.
+- Konsistensi list vs detail: 15 sample fast path (unrestricted) + 15
+  sample fallback path (branch-restricted) - 0 mismatch KEDUANYA (status
+  DAN is_relapsed).
+- `is_relapsed`: 30 baris `is_relapsed=true` ADA di tabel snapshot
+  (diverifikasi query langsung), TAPI semuanya `period_type='semester'`
+  + `division_id` spesifik - 0 baris utk kombinasi `monthly` +
+  `division_id NULL` (default view Workbench, tanpa filter divisi) yang
+  BENAR-BENAR tersedia data buat verifikasi visual chip Relapsed saat ini
+  - bukan bug (dicek eksplisit, genuinely tidak ada data), tapi BELUM
+  ADA bukti visual chip Relapsed dgn data asli.
+- Filter divisi (business_unit): smoke test 2 divisi company 1, tidak
+  crash, hasil masuk akal (total+status per baris).
+- Regresi test: `scope-isolation.e2e.test.ts` 25 pass/1 fail (Task G5,
+  pre-existing, tidak berubah dari baseline sebelum sesi ini).
+
+**Belum diverifikasi** (risiko rendah): warna chip per status belum
+dicocokkan ke standar M8-M10 kalau ada (dipilih sendiri, masuk akal tapi
+independen); export Excel belum dites langsung (endpoint terpisah, tapi
+struktur query IDENTIK dgn list, cuma proyeksi kolom beda, risiko kecil).
+
+## Migrasi Customer Workbench ke customer_status_snapshot (2026-09-16, versi kolase 6→4 - DIGANTI)
+
+> **STATUS: implementasi kolase 6→4 SELESAI+diverifikasi (lihat "Implementasi
+> + verifikasi" bawah), TAPI KEMUDIAN DIGANTI ke adopsi 6 status penuh (lihat
+> bagian atas) atas pertanyaan user. Bagian di bawah ini disimpan sbg riwayat
+> keputusan (kenapa kolase awalnya masuk akal, sebelum dikoreksi) - JANGAN
+> diikuti utk implementasi baru, ikuti bagian "Susulan" di atas.**
+
+Target ke-4 (terakhir) dari 4 tempat yang seharusnya pindah ke snapshot
+(M7 drilldown ✅, M3-M7 trend ✅, M8-M10 ✅, Customer Workbench - desain
+sesi ini, implementasi menyusul). Beda dari 3 migrasi sebelumnya:
+Customer Workbench pakai **vocabulary status SENDIRI** (4 nilai: new/
+active/dormant/existing, `sqlStatusExpr`/`sqlStatusWhere`,
+`customers/helper/segment.helper.ts`), bukan langsung 6 Status Dasar
+snapshot - perlu diselaraskan dulu, bukan tinggal baca kolom.
+
+### Temuan: status Workbench sekarang HYBRID live+checkpoint (BUKAN full-checkpoint)
+
+Dicek langsung ke `customers.repository.ts::buildCustomerQueryContext`
+(2026-09-16): `refDate` (dasar New/Active, `activeCutoff = refDate -
+activeMonths`) TETAP live (`as_of_date` atau hari ini). Cuma **Dormant**
+yang sudah checkpoint-aligned (`statusRefDate`, disamakan ke M3-M10 sejak
+task039, dikirim sbg param `dormantRefDate` KHUSUS ke `isDormant` -
+`refDate` utk New/Active TIDAK ikut tergeser, sudah benar sejak fix bug
+"geser mundur customer new" task039).
+
+**Keputusan (dikonfirmasi user 2026-09-16)**: pindah ke **full-checkpoint**
+(New/Active ikut checkpoint juga, SAMA PERSIS Dormant & M3-M10) - BUKAN
+hybrid. Alasan eksplisit user: angka yang beda antar halaman bakal terus
+dipertanyakan ulang pengguna (persis motivasi awal task039). Trade-off yang
+diterima: customer yang first invoice-nya jatuh di periode BERJALAN
+(belum tutup) tidak langsung berstatus checkpoint resmi sampai periode itu
+tutup - **TAPI** ditangani khusus (lihat "Kasus baris snapshot kosong" di
+bawah), supaya customer yang genuinely baru hari ini TETAP langsung
+kelihatan sbg "New", bukan hilang/kosong sampai sebulan.
+
+### Pemetaan 6 status snapshot -> 4 status Workbench
+
+Diverifikasi ke `computeCustomerStatusSnapshot`
+(`customer-status-snapshot.repository.ts`) - pemetaan LOSSLESS (collapse
+6→4, bukan 1:1 semua):
+
+| Snapshot (6) | Workbench (4) |
+|---|---|
+| `acquisition` | `new` |
+| `active` | `active` |
+| `reactivated` | `active` (Workbench tidak punya chip terpisah utk reactivated saat ini) |
+| `lapsed` | `existing` |
+| `dormant` | `dormant` (`is_relapsed` tidak dipakai, di luar 4-vocab) |
+
+Threshold dormant per-customer SUDAH konsisten (diverifikasi): snapshot
+pakai `dormantThresholdCaseSql(p)` (`COALESCE(c.division_override_id,
+cdv.division_id)`, `customers/helper/segment.helper.ts:357`), Workbench
+pakai `buildDormantCaseSql` dgn COALESCE persis sama
+(`customers.repository.ts:81-85`) - SUMBER SAMA, bukan 2 definisi.
+
+### Kasus baris snapshot kosong (customer baru periode berjalan)
+
+`computeCustomerStatusSnapshot`'s CTE `classified` filter `WHERE
+is_existing_at_me OR is_acquisition` - customer yang first invoice-nya
+JATUH SETELAH `bucket.end` (periode berjalan, belum tutup) GAGAL kedua
+syarat itu -> TIDAK ADA baris snapshot sama sekali utk checkpoint ini
+(bukan status kosong/null, memang tidak pernah dihitung). LEFT JOIN
+snapshot dari sisi Workbench, baris ini bakal NULL.
+
+**Solusi (bukan fallback ke query lama)**: customer dgn `live_first`
+(dari `liveDatesSq`, tetap dihitung live spt sekarang, TIDAK diganti) NOT
+NULL tapi TIDAK match baris snapshot manapun -> pasti histori mereka
+dimulai SETELAH checkpoint terakhir tertutup -> klasifikasi langsung
+`'new'` tanpa perlu data live tambahan (tidak mungkin dormant/existing,
+histori mereka belum cukup panjang utk itu). Ini BUKAN pelanggaran prinsip
+full-checkpoint - populasi baru genuinely belum py checkpoint resmi, `new`
+adalah satu-satunya status yang valid buat mereka sampai checkpoint
+berikutnya. Efek: customer yang benar-benar baru TETAP langsung terlihat
+"New" (menjawab concern user "New harusnya live kan?"), TANPA mengorbankan
+konsistensi utk SEMUA customer lain (mayoritas, yang sudah py histori
+checkpoint) yang skrng 100% match M3-M10.
+
+### Filter divisi (business_unit) - behavior berubah, disengaja
+
+Workbench SEKARANG: `business_unit` filter cuma menyaring TAMPILAN
+(customer yang invoice TERBARUNYA jatuh di divisi itu), status TETAP
+dihitung company-wide (liveDatesSq TIDAK difilter divisi). Snapshot row
+per-divisi (`division_id` diisi): status DIHITUNG ULANG division-scoped
+(cuma invoice DI DALAM divisi itu yang dipakai, established/dormant/
+reaktivasi semua division-scoped) - SAMA PERSIS konvensi M3-M10 yang
+sudah established (schema comment `customer_status_snapshot.ts`).
+
+**Keputusan**: pindah ke division-scoped (snapshot row per-divisi) saat
+filter divisi aktif - behavior BERUBAH dari sekarang, TAPI ini yang
+bikin Workbench konsisten dgn M3-M10 saat SAMA-SAMA difilter ke divisi
+yang sama (alasan sama seperti keputusan full-checkpoint di atas).
+
+### Entry point yang kena dampak
+
+- `buildCustomerQueryContext` (dipakai bareng `findCustomers`
+  list + `findCustomersForExport`) - fast path ditambah, shape return
+  (`statusExpr`, `whereWithDivision`) TIDAK berubah, 2 caller-nya TIDAK
+  perlu diubah.
+- `findCustomerDetail` - query terpisah (1 customer), butuh treatment
+  sama demi konsistensi badge list vs dialog detail (sudah jadi syarat
+  eksplisit sejak task039, komentar baris ~474).
+
+### Gerbang eligibility fast path (mirror M3-M10, bukan desain baru)
+
+`cid !== 0` (company spesifik, bukan 'all') AND `branch_id` filter param
+kosong AND `!exclude_intercompany` AND `isScopeEffectivelyUnrestricted(p)`
+(RBAC branch/divisionScope efektif tidak restriktif) AND
+`hasSnapshotForCheckpoint(cid, division, 'monthly', statusRefDate)`
+(reuse, export jadi public dari m3m7.repository.ts spt
+`hasSnapshotForAllCheckpoints`). Tidak eligible -> fallback PENUH ke
+`sqlStatusExpr`/`sqlStatusWhere` lama (hybrid live+checkpoint, perilaku
+SEKARANG, tidak berubah utk kombinasi filter yang belum tercakup).
+
+### Implementasi + verifikasi (2026-09-16)
+
+File yang berubah: `customers.repository.ts` (`buildCustomerQueryContext` -
+gerbang `snapshotEligible` + subquery `statusSnapshotSq` + `statusExpr`/
+`statusCond` bercabang snapshot/fallback; `findCustomers`/
+`findCustomersForExport` - tambah 1 `.leftJoin(statusSnapshotSq, ...)` di
+tiap query total+rows, tambah 1 kolom GROUP BY; `findCustomerDetail` -
+lookup snapshot terpisah + override `row.status` jadi `finalStatus`),
+`m3m7.repository.ts` (`hasSnapshotForCheckpoint` jadi `export`, reuse pola
+`hasSnapshotForAllCheckpoints`). `tsc --noEmit` bersih.
+
+**Verifikasi (script ad-hoc via `bun run`, panggil `findCustomers`/
+`findCustomerDetail` langsung, BUKAN cuma baca kode)**:
+- **Regresi test**: `scope-isolation.e2e.test.ts` (25 pass/1 fail Task G5)
+  dan `metric-cache.e2e.test.ts` (41 pass/3 fail/1 error, semua
+  EDASHBOARD-591) - dibandingkan via `git stash` A/B, HASIL IDENTIK
+  dengan/tanpa perubahan sesi ini. Bukan regresi baru.
+- **Cross-check populasi penuh** company 1 (1005 customer) & company 2
+  (34007 customer), status lama (`git stash`) vs baru dibandingkan
+  customer-per-customer: company 1 beda 11,84% (119/1005), company 2 beda
+  9,52% (3237/34007) - SEMUA transisi masuk akal & sesuai keputusan desain:
+  - `dormant → existing` (58 co1/2236 co2): customer yang BARU melewati
+    ambang dormant checkpoint INI (belum dormant di checkpoint
+    SEBELUMNYA) - snapshot (SAMA PERSIS logic M8-M10 yang sudah
+    diverifikasi sesi lalu) sengaja label 'lapsed' dulu, 'dormant' resmi
+    baru checkpoint BERIKUTNYA. Konsisten dgn M8-M10, BUKAN bug.
+  - `existing → active` (52 co1/626 co2): rolling window (live, N bulan
+    dari HARI INI) → calendar-anchored (transaksi KAPAN SAJA di dalam
+    bulan checkpoint). Sesuai keputusan full-checkpoint.
+  - `existing/active → new` (9+20 co1/355+20 co2): customer yang first
+    invoice-nya di checkpoint TERAKHIR (masih "Acquisition" resmi sampai
+    checkpoint berikutnya) tapi sudah "lewat" activeMonths dari HARI INI
+    di logic live lama. Acquisition SELALU prioritas #1 di CASE snapshot
+    (cocok Glosarium: sekali beli di periode akuisisi = Acquisition,
+    berapa pun kali beli).
+  - Tidak ada transisi aneh/tidak terjelaskan di luar 3 kategori ini.
+- **Isolasi RBAC**: company 1 di-restrict ke 1 dari 3 branch → 351/1005
+  customer (subset ketat), 0 leak ke customer di luar branch itu.
+- **Konsistensi list vs dialog detail** (syarat eksplisit task039): 20
+  sample acak (`sort=last_invoice_date desc`) + 20 sample merata (5 per
+  status new/active/existing/dormant) - 0 mismatch, SEMUA identik.
+- **Filter status exhaustif**: company 1, `?status=new/active/existing/
+  dormant` - 21+115+493+376=1005 (pas total), 0 baris salah kategori di
+  tiap filter.
+
+**Belum diverifikasi** (risiko rendah, di luar waktu sesi ini): filter
+divisi (business_unit) aktif dgn snapshot division-scoped row (baru
+sebatas desain, belum ada company/customer test data dgn multi-divisi
+jelas utk dites langsung); export Excel belum dites terpisah dari list
+(tapi struktur query IDENTIK, cuma proyeksi kolom akhir beda).
+
+**Belum di-commit** - menunggu instruksi eksplisit user.
+
 ## Migrasi M8-M10 (Dormant/Reaktivasi) ke customer_status_snapshot (2026-09-15)
 
 Lanjutan riset optimasi performa (diminta user setelah audit resource CPU
