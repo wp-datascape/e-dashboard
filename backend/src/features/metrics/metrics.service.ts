@@ -602,11 +602,24 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       }
 
       // "Bucket sebelumnya" per titik — relatif ke bulan DATA sebenarnya
-      // tiap bucket (bukan label-nya langsung, karena di mode default
-      // label != bulan data, lihat di atas). Bucket "2026-08" (data Juli)
-      // → sebelumnya Juni, BUKAN Juli.
-      const prevBuckets = resolvedBuckets.map((b) => {
-        const dataKey = params.apply_date_cutoff ? b.label : getPreviousPeriodKey(periodType, b.label)
+      // tiap bucket (bukan label-nya langsung, karena mode default label
+      // bisa != bulan data, lihat di atas).
+      //
+      // Revisi 2026-09-16 (task044.md/HOLDINGIT-697) — dataKey TIDAK LAGI
+      // "label - 1" tanpa kecuali; harus mirror PERSIS logic
+      // `buildStatusCheckpointBuckets` (period.util.ts): cuma titik TERAKHIR
+      // (index terakhir array, periode masih berjalan) yang data-nya digeser
+      // -1 dari label, titik lain pakai data periode labelnya SENDIRI.
+      // Sebelum revisi ini, baris di bawah SELALU treat SEMUA titik seolah
+      // "data = label - 1" (match perilaku LAMA buildStatusCheckpointBuckets)
+      // - setelah SSOT-nya berubah tapi baris ini TIDAK ikut diubah, titik
+      // non-terakhir bakal salah 1 periode (mis. titik Maret dapat prevBucket
+      // Januari, seharusnya Februari).
+      const prevBuckets = resolvedBuckets.map((b, i, arr) => {
+        const isCurrentOpenPeriod = i === arr.length - 1
+        const dataKey = params.apply_date_cutoff
+          ? b.label
+          : (isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, b.label) : b.label)
         const prevKey = getPreviousPeriodKey(periodType, dataKey)
         const prevRange = getPeriodRange(periodType, prevKey)
         const fullRange = getPeriodRange(periodType, dataKey)
