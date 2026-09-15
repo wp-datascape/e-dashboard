@@ -89,6 +89,20 @@ export async function withMetricCache<T>(
  * intercompany-names, pareto-customers, pareto-thresholds, classification)
  * tepat setelah operasi commit sukses. Lihat task038.md utk daftar lengkap
  * titik trigger yang WAJIB memanggil ini.
+ *
+ * TIDAK ikut memicu recompute `customer_status_snapshot` di sini (koreksi
+ * 2026-09-13, percobaan pertama sentralisasi di titik ini menyebabkan
+ * regresi performa nyata — diverifikasi test `metric-cache.e2e.test.ts`:
+ * request berat `customer-metrics?company_id=2` yang normalnya ~3,5 detik
+ * jadi timeout 20 detik, krn SETIAP panggilan `invalidateMetricCache`
+ * termasuk dari fitur yang SAMA SEKALI TIDAK MENGUBAH status pelanggan
+ * (pareto flag, mapping produk high-margin, nama display intercompany)
+ * ikut memicu recompute penuh company itu di background, menumpuk beban DB).
+ * Snapshot HANYA dipicu invalidasi dari titik yang genuinely mengubah input
+ * `computeCustomerStatusSnapshot` (invoice/first_invoice_date, mapping
+ * channel→divisi, daftar divisi) — lihat pemanggilan eksplisit
+ * `invalidateCustomerStatusSnapshotForCompany` di `import.service.ts`,
+ * `channel-divisions.service.ts`, `divisions.service.ts`.
  */
 export const invalidateMetricCache = deleteMetricCacheByCompany
 

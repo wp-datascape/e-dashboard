@@ -16,6 +16,10 @@ import {
 } from './divisions.repository'
 import type { CreateDivisionDto, UpdateDivisionDto } from './divisions.schema'
 import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
+// customer_status_snapshot (task040.md, 2026-09-13) — daftar divisi company
+// jadi basis kombinasi (company, division, periodType, checkpoint) yang
+// di-precompute scheduler. Fire-and-forget, lihat JSDoc fungsi ini.
+import { invalidateCustomerStatusSnapshotForCompany } from '@/features/metrics/customer-status-scheduler'
 
 function slugify(label: string): string {
   const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30)
@@ -73,6 +77,7 @@ export async function createDivisionService(body: CreateDivisionDto, ctx: Contex
       newValue: { key, label: body.label, dormant_category: body.dormant_category, branch_id: branchId },
     })
     await invalidateMetricCache(body.company_id) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(body.company_id)
 
     return result
   } catch (err) {
@@ -103,6 +108,7 @@ export async function updateDivisionService(id: number, body: UpdateDivisionDto,
       newValue: body,
     })
     await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(existing.company_id)
 
     return result
   } catch (err) {
@@ -140,6 +146,7 @@ export async function deleteDivisionService(id: number, ctx: Context) {
       oldValue: { key: existing.key, label: existing.label },
     })
     await invalidateMetricCache(existing.company_id) // EDASHBOARD-591, task038.md
+    invalidateCustomerStatusSnapshotForCompany(existing.company_id)
   } catch (err) {
     if (err instanceof AppError) throw err
     throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal menghapus division', 500)

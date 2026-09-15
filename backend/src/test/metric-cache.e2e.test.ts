@@ -876,6 +876,18 @@ describe('EDASHBOARD-591 — Skenario per role (superadmin, holding, entitas eks
     })
   }
 
+  // Timeout 30 detik (2026-09-13, task040.md) — company 2 tanpa filter division
+  // adalah query TERBERAT di seluruh suite (populasi seluruh company, cold
+  // cache dipaksa via clearMetricCache di atas). Default Bun 5 detik TERLALU
+  // PENDEK: begitu test "timeout" di 5 detik, Bun lanjut ke test BERIKUTNYA
+  // sementara Promise request ini TETAP jalan di background (TIDAK dibatalkan)
+  // — request yang orphan itu lalu numpuk kontensi DB dgn test-test sesudahnya
+  // (dikonfirmasi lewat log timestamp: request /dashboard dari test lain mulai
+  // jalan SAAT request company 2 di sini masih pending), memperparah durasi
+  // aslinya (~2,4-3,8 detik solo, terverifikasi berkali-kali) jadi bisa lewat
+  // statement_timeout 20 detik. Legitimate butuh waktu lebih dari default,
+  // BUKAN menyembunyikan bug — pola sama scope-isolation.e2e.test.ts (beforeAll
+  // timeout dinaikkan utk alasan serupa).
   test('holdingUser: query company_id berbeda (company 1 vs company 2) menghasilkan data BEDA dan cache TERPISAH', async () => {
     await clearMetricCache(COMPANY_ID)
     await clearMetricCache(SECOND_COMPANY_ID)
@@ -897,7 +909,7 @@ describe('EDASHBOARD-591 — Skenario per role (superadmin, holding, entitas eks
     expect(company1Body).not.toEqual(company2Body)
 
     await clearMetricCache(SECOND_COMPANY_ID)
-  })
+  }, 30000)
 })
 
 describe('EDASHBOARD-591 — /dashboard: data cold vs warm harus IDENTIK (bukan cuma lebih cepat)', () => {

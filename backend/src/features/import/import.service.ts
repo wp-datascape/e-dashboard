@@ -43,6 +43,7 @@ import {
 import type { NewImportLogError } from '@/db/schema'
 import type { ImportCommitInvoiceDto } from './import.schema'
 import { invalidateMetricCache } from '@/features/metrics/metric-cache.helper'
+import { invalidateCustomerStatusSnapshotForCompany } from '@/features/metrics/customer-status-scheduler'
 
 export interface ImportProgress {
   processed: number
@@ -406,6 +407,12 @@ async function processImportRows(options: ProcessImportRowsOptions): Promise<Imp
   // (upload langsung) MAUPUN commitImportFile() (review-commit, task037) —
   // 1 hook di sini menutup KEDUA jalur, tidak perlu dipasang 2x.
   await invalidateMetricCache(companyId)
+  // customer_status_snapshot (task040.md, 2026-09-13) — import invoice bisa
+  // mengubah status pelanggan pada checkpoint yang SUDAH pernah dihitung
+  // (data historis bertanggal mundur, invoice baru mengubah first_invoice_date/
+  // dormant evaluation dst). Fire-and-forget (TIDAK di-await, lihat JSDoc
+  // fungsi ini) - tidak menambah latensi respons import.
+  invalidateCustomerStatusSnapshotForCompany(companyId)
 
   return {
     importLogId: importLog.id,

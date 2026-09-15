@@ -16,4 +16,5 @@ export {
   resolveInvoiceScopeConditions,
   monthEndDate,
   divisionToDormantKey,
+  isScopeEffectivelyUnrestricted,
 } from '@/features/customers/helper/segment.helper'

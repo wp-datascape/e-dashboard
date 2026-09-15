@@ -33,9 +33,11 @@
  * mentah task028 lagi.
  */
 
-import { sql, and, or, type SQL } from 'drizzle-orm'
+import { sql, and, or, eq, type SQL } from 'drizzle-orm'
 import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
+import { db } from '@/config/db'
+import { company_branches, divisions } from '@/db/schema'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -463,6 +465,83 @@ export function resolveInvoiceScopeConditions(
     excludeIntercompanyCond: buildExcludeIntercompanyRaw(`${i}.company_id`, `COALESCE(${c}.division_override_id, ${cd}.division_id)`, p.intercompanyIdByCompany, p.excludeIntercompany),
     onlyParetoCond: buildOnlyParetoRaw(`${c}.id`, `${i}.company_id`, p.filterDate ?? '', p.onlyPareto),
   }
+}
+
+// ─── Snapshot eligibility (task040.md, 2026-09-12) ─────────────────────────────
+
+/**
+ * `branchScope`/`divisionScope` (RBAC) SELALU terisi Map utk non-superadmin
+ * (`resolveBranchScope`/`resolveDivisionScope`, middleware/auth.ts) — BUKAN
+ * berarti user itu SUNGGUHAN dibatasi. Dicek langsung ke data (2026-09-12):
+ * dari 14 user aktif ber-scope, 13 py branchScope = PERSIS SEMUA cabang
+ * company mereka (Map ada, tapi TIDAK restriktif sama sekali secara efektif),
+ * cuma 1 akun (test e2e) yang benar-benar sempit (subset cabang). Kalau
+ * `customer_status_snapshot` (precompute company-wide, task040.md) cuma
+ * dianggap "eligible" utk `branchScope === undefined` (superadmin murni),
+ * 13 dari 14 user itu SELALU jatuh ke fallback lambat walau scope mereka
+ * efektif = tanpa batasan — nyaris tidak pernah kepakai jalur cepatnya di
+ * dunia nyata. Fungsi ini bandingkan scope ke DAFTAR LENGKAP cabang/divisi
+ * company itu buat tahu "Map ada tapi kosong-restriksi" vs "Map ada DAN
+ * beneran membatasi" — HANYA kasus kedua yang wajib fallback.
+ *
+ * Memoized per identitas Map (2026-09-13, susulan task040.md migrasi M3-M7
+ * trend) — `/dashboard` memanggil getCustomerMetrics 2x (periode current +
+ * comparison) dgn `scope` yang SAMA, jadi `p.branchScope`/`p.divisionScope`
+ * adalah REFERENCE Map yang IDENTIK di kedua panggilan (resolveSegmentParams/
+ * buildSegmentParams meneruskan Map apa adanya, tidak clone — dicek langsung
+ * ke source). WeakMap keyed by Map itu sendiri: aman tanpa invalidasi manual,
+ * scope RBAC di-resolve ULANG jadi Map BARU tiap request HTTP (middleware/
+ * auth.ts), jadi cache otomatis "kosong" lagi utk request berikutnya, TIDAK
+ * ada risiko baca scope basi lintas request. Ditemukan perlu krn endpoint
+ * `/dashboard` sudah marginal (~12-20 detik sebelum sesi ini) — 2x query
+ * tambahan (branch+division lookup) per panggilan `isScopeEffectivelyUnrestricted`
+ * cukup signifikan kalau diulang tanpa perlu.
+ */
+const unrestrictedScopeCache = new WeakMap<Map<number, number[]>, Map<number, boolean>>()
+
+export async function isScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
+  if (!p.branchScope && !p.divisionScope) return true
+  if (p.cid === 0) return false // company_id='all' — di luar cakupan (lihat caller)
+
+  const cacheKey = p.branchScope ?? p.divisionScope!
+  let perCompany = unrestrictedScopeCache.get(cacheKey)
+  if (perCompany?.has(p.cid)) return perCompany.get(p.cid)!
+
+  const result = await computeScopeEffectivelyUnrestricted(p)
+
+  if (!perCompany) {
+    perCompany = new Map()
+    unrestrictedScopeCache.set(cacheKey, perCompany)
+  }
+  perCompany.set(p.cid, result)
+  return result
+}
+
+async function computeScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
+  if (p.branchScope) {
+    const allowed = p.branchScope.get(p.cid)
+    if (!allowed) return false // company tidak ada di map = default deny total, jelas restriktif
+    const allBranches = await db.select({ id: company_branches.id }).from(company_branches).where(eq(company_branches.company_id, p.cid))
+    if (allowed.length !== allBranches.length) return false
+    const allowedSet = new Set(allowed)
+    if (!allBranches.every((b) => allowedSet.has(b.id))) return false
+  }
+
+  if (p.divisionScope) {
+    const allBranchIds = p.branchScope
+      ? (p.branchScope.get(p.cid) ?? [])
+      : (await db.select({ id: company_branches.id }).from(company_branches).where(eq(company_branches.company_id, p.cid))).map((b) => b.id)
+    const allDivisions = await db.select({ id: divisions.id }).from(divisions).where(eq(divisions.company_id, p.cid))
+    const allDivisionIds = new Set(allDivisions.map((d) => d.id))
+    for (const branchId of allBranchIds) {
+      const allowed = p.divisionScope.get(branchId)
+      if (!allowed) return false
+      const allowedSet = new Set(allowed)
+      if (![...allDivisionIds].every((id) => allowedSet.has(id))) return false
+    }
+  }
+
+  return true
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
