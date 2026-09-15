@@ -18,7 +18,7 @@
  * DIVISION-SCOPED saat filter divisi aktif (established_not_dormant,
  * m3m7.repository.ts), disengaja bukan bug, lihat task040.md.
  */
-import { pgTable, serial, integer, varchar, date, boolean, timestamp, unique, index } from 'drizzle-orm/pg-core'
+import { pgTable, serial, integer, varchar, date, boolean, numeric, timestamp, unique, index } from 'drizzle-orm/pg-core'
 import { companies, divisions } from './schema-company'
 import { customers } from './schema-transaction'
 
@@ -44,6 +44,18 @@ export const customer_status_snapshot = pgTable('customer_status_snapshot', {
   // established/acquisition) - nullable murni krn kolom date lain di skema
   // app ini (mis. customers.last_invoice_date) juga nullable by convention.
   last_invoice_date: date('last_invoice_date'),
+  // revenue/gross_profit/transaction_count (task041.md, HOLDINGIT-699,
+  // 2026-09-16) — SUM/COUNT invoice customer ini s/d checkpoint_date, basis
+  // SAMA PERSIS `cxm.last_at_me` di atas (invoice_date <= checkpoint_date,
+  // TANPA batas bawah - kumulatif seumur hidup s/d checkpoint, bukan cuma
+  // 1 periode). Precision numeric SAMA `invoices.total_revenue/total_gp`
+  // (schema-transaction.ts) - kolom turunan dari agregasi yang sama, bukan
+  // definisi baru. HANYA valid utk mode apply_date_cutoff OFF (checkpoint
+  // tertutup penuh) - mode cutoff AKTIF (live, prorata hari berjalan) TETAP
+  // hitung on-demand, di luar cakupan precompute ini (lihat task041.md).
+  revenue: numeric('revenue', { precision: 15, scale: 2 }).notNull().default('0'),
+  gross_profit: numeric('gross_profit', { precision: 15, scale: 2 }).notNull().default('0'),
+  transaction_count: integer('transaction_count').notNull().default(0),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

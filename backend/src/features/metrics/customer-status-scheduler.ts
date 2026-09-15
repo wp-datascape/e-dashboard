@@ -117,6 +117,10 @@ async function computeAndStore(companyId: number, divisionId: number | null, per
         status: r.status,
         is_relapsed: r.is_relapsed,
         last_invoice_date: r.last_invoice_date,
+        // revenue/gross_profit/transaction_count (task041.md, HOLDINGIT-699)
+        revenue: r.revenue,
+        gross_profit: r.gross_profit,
+        transaction_count: r.transaction_count,
       })))
     }
   })
