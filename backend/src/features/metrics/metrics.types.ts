@@ -409,11 +409,14 @@ export interface RetentionTrendRow {
   // total_active_count (2026-09-16, susulan tooltip - user: "total customer
   // yang transaksi DI PERIODE TERSEBUT") — populasi Active+Reactivated
   // PERSIS di checkpoint B milik titik INI SENDIRI (BUKAN cohort_count,
-  // yang itu tentang checkpoint A/periode SEBELUMNYA). Query MANDIRI per
-  // titik (tidak direstriksi ke cohort manapun), jadi berlaku sama utk
-  // SEMUA titik termasuk yang terakhir. retained_count SELALU subset dari
-  // ini (retained = bagian dari cohort A yang IKUT aktif skrg) - jadi
-  // total_active_count - retained_count = "Transaksi Baru" (customer aktif
+  // yang itu tentang checkpoint A/periode SEBELUMNYA). SAMA PERSIS "Existing
+  // Active" di Glosarium resmi (`Active Customer + Reactivated`, dipakai
+  // juga sbg denominator M3-M6) - koreksi user: label UI "Total Aktif"
+  // semula SALAH, harusnya reuse istilah resmi ini, bukan istilah ad-hoc
+  // baru. Query MANDIRI per titik (tidak direstriksi ke cohort manapun),
+  // jadi berlaku sama utk SEMUA titik termasuk yang terakhir. retained_count
+  // SELALU subset dari ini (retained = bagian dari cohort A yang IKUT aktif
+  // skrg) - jadi total_active_count - retained_count = "Transaksi Baru" (customer aktif
   // skrg yang BUKAN dari cohort A, lihat M11RetentionRate.tsx frontend).
   total_active_count: number
   retention_rate: number

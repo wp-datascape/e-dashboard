@@ -94,7 +94,7 @@
   "m11RetentionRateLabel": "Retention Rate",
   "m11RetentionRateInfo": "Persentase pelanggan aktif periode lalu yang masih aktif di periode ini.",
   "m11TooltipTitle": "Retention Rate — {{month}}",
-  "m11CohortCountLabel": "Total Aktif",
+  "m11CohortCountLabel": "Existing Active",
   "m11OutsideCohortLabel": "Transaksi Baru",
   "m11RetainedCountLabel": "Customer Tertahan",
   "m11LostCountLabel": "Customer Hilang",
