@@ -229,13 +229,44 @@ export async function runCustomerStatusSnapshotJob(opts?: { companyId?: number; 
  * masing kombinasi dihitung (bukan snapshot beku dari awal job), dan
  * scheduler harian + invalidasi berikutnya tetap jadi jaring pengaman kalau
  * ADA perubahan yang lolos di antara start dan selesainya job ini.
+ *
+ * `sincePeriodMonth` (2026-09-17, ditemukan user: "Base customer MKO
+ * Desember 2024, dibuka Period Januari 2025 statusnya masih Acquisition" +
+ * "kenapa tidak ada auto-renew tiap import?") — SEBELUM fix ini,
+ * `recomputePeriods: 1` SELALU dipakai APA PUN periode yang diimpor,
+ * padahal komentar `runCustomerStatusSnapshotJob` di atas SUDAH secara
+ * eksplisit menyebut "import data historis yang HANYA mengubah checkpoint
+ * LAMA" sbg limitasi yang diterima - ternyata limitasi itu SELALU kena,
+ * bukan cuma kasus jarang, krn tidak ada jalur yang benar2 menghitung
+ * checkpoint historis yang diimpor. Kalau caller kirim `sincePeriodMonth`
+ * (bulan data yang diimpor, format 'YYYY-MM'), `recomputePeriods` dihitung
+ * PROPORSIONAL - dari bulan itu maju sampai checkpoint terkini (bukan
+ * SELALU 1 titik hari ini, TAPI juga bukan SELALU dari awal sejarah data -
+ * itu boros utk kasus PALING SERING terjadi, import periode berjalan).
+ * Checkpoint SETELAH bulan yang diimpor juga ikut disegarkan (bukan cuma
+ * bulan itu sendiri) krn status di situ bisa dipengaruhi rantai riwayat
+ * (dormant evaluation/first_invoice_date) yang menyambung maju.
  */
 const inFlightCompanyRecompute = new Set<number>()
 
-export function invalidateCustomerStatusSnapshotForCompany(companyId: number): void {
+function monthsBetweenKeys(fromKey: string, toKey: string): number {
+  const [fy, fm] = fromKey.split('-').map(Number)
+  const [ty, tm] = toKey.split('-').map(Number)
+  return (ty! - fy!) * 12 + (tm! - fm!)
+}
+
+export function invalidateCustomerStatusSnapshotForCompany(companyId: number, sincePeriodMonth?: string): void {
   if (inFlightCompanyRecompute.has(companyId)) return
   inFlightCompanyRecompute.add(companyId)
-  runCustomerStatusSnapshotJob({ companyId, forceRecompute: true, recomputePeriods: 1 })
+  // +1 (bukan cuma jarak bulan) - pola sama BACKFILL_PERIODS: dataKey
+  // TERAKHIR butuh checkpoint SATU periode sebelumnya juga (prevBucket
+  // titik pertama). Minimal 1 (fallback ke perilaku lama kalau
+  // sincePeriodMonth tidak dikirim atau ternyata di masa depan/sama bulan
+  // ini - clamp Math.max supaya tidak pernah negatif).
+  const recomputePeriods = sincePeriodMonth
+    ? Math.max(1, monthsBetweenKeys(sincePeriodMonth, getCurrentPeriodKey('monthly', new Date())) + 1)
+    : 1
+  runCustomerStatusSnapshotJob({ companyId, forceRecompute: true, recomputePeriods })
     .catch((err) => {
       logger.error(`[customer-status-scheduler] recompute setelah invalidasi gagal company=${companyId}`, {
         error: err instanceof Error ? err.message : String(err),
