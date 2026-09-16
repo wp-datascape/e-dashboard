@@ -8,6 +8,12 @@ export interface ChartTooltipRow {
   label: string;
   value: string;
   highlight?: boolean;
+  /** Tandai baris ini sbg RINCIAN dari baris di atasnya (2026-09-16, susulan
+   * M11 - instruksi user: "definisi cohort, non cohort itu membingungkan").
+   * Indent + prefix "↳", pola SAMA PERSIS baris Relapsed/Reactivated di
+   * dialog status M10 (M10ReactivationRate.tsx) - dipusatkan di sini supaya
+   * chart lain yang butuh breakdown serupa tinggal reuse. */
+  indent?: boolean;
 }
 
 interface ChartTooltipCardProps {
@@ -45,17 +51,17 @@ export function ChartTooltipCard({ title, rows, hint, minWidth = 230 }: ChartToo
       <Divider sx={{ mb: 1 }} />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
         {rows.map((r, i) => (
-          <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+          <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, pl: r.indent ? 1.5 : 0 }}>
             {/* sx.color, BUKAN prop `color=` (2026-08-25, susulan koreksi
                 title di atas) — prop `color` Typography cuma terima token
                 pendek ('textSecondary', BUKAN 'text.secondary' berbentuk
                 path). Nilai path bertitik yang lama gagal senyap (bukan
                 error), warisi putih default Tooltip persis spt bug title.
                 Baris value sebelah sudah py pola sx yang benar, disamakan. */}
-            <Typography variant="caption" sx={{ color: r.highlight ? 'warning.main' : 'text.secondary' }}>
-              {r.label}
+            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: r.highlight ? 'warning.main' : r.indent ? 'text.disabled' : 'text.secondary' }}>
+              {r.indent && '↳'} {r.label}
             </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: r.highlight ? 'warning.main' : 'text.primary' }}>
+            <Typography variant="caption" sx={{ fontWeight: r.indent ? 500 : 600, color: r.highlight ? 'warning.main' : r.indent ? 'text.secondary' : 'text.primary' }}>
               {r.value}
             </Typography>
           </Box>

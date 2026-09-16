@@ -404,6 +404,11 @@ export interface RetentionTrendPoint {
   cohort_count: number;
   retained_count: number;
   lost_count: number;
+  // total_active_count (2026-09-16) - populasi Active+Reactivated PERSIS di
+  // checkpoint titik INI SENDIRI (bukan cohort_count, itu checkpoint
+  // SEBELUMNYA) - dipakai turunkan "Transaksi Baru" = total_active_count -
+  // retained_count, lihat M11RetentionRate.tsx.
+  total_active_count: number;
   retention_rate: number;
 }
 

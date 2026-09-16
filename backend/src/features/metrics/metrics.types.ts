@@ -406,6 +406,16 @@ export interface RetentionTrendRow {
   // lost_count = cohort_count - retained_count = "Customer Hilang" (ada di
   // cohort A, TIDAK lagi Active/Reactivated di B - bisa jadi Lapsed/Dormant).
   lost_count: number
+  // total_active_count (2026-09-16, susulan tooltip - user: "total customer
+  // yang transaksi DI PERIODE TERSEBUT") — populasi Active+Reactivated
+  // PERSIS di checkpoint B milik titik INI SENDIRI (BUKAN cohort_count,
+  // yang itu tentang checkpoint A/periode SEBELUMNYA). Query MANDIRI per
+  // titik (tidak direstriksi ke cohort manapun), jadi berlaku sama utk
+  // SEMUA titik termasuk yang terakhir. retained_count SELALU subset dari
+  // ini (retained = bagian dari cohort A yang IKUT aktif skrg) - jadi
+  // total_active_count - retained_count = "Transaksi Baru" (customer aktif
+  // skrg yang BUKAN dari cohort A, lihat M11RetentionRate.tsx frontend).
+  total_active_count: number
   retention_rate: number
 }
 
