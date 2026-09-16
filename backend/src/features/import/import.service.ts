@@ -412,7 +412,13 @@ async function processImportRows(options: ProcessImportRowsOptions): Promise<Imp
   // (data historis bertanggal mundur, invoice baru mengubah first_invoice_date/
   // dormant evaluation dst). Fire-and-forget (TIDAK di-await, lihat JSDoc
   // fungsi ini) - tidak menambah latensi respons import.
-  invalidateCustomerStatusSnapshotForCompany(companyId)
+  //
+  // periodMonth dikirim (2026-09-17, susulan bug ditemukan user: import
+  // Desember 2024 tidak pernah menyegarkan checkpoint Desember 2024/Januari
+  // 2025 dst - SEBELUM ini `recomputePeriods` SELALU 1 titik hari ini APA
+  // PUN bulan yang diimpor) - checkpoint dari bulan yang diimpor MAJU
+  // sampai hari ini ikut disegarkan, bukan cuma hari ini saja.
+  invalidateCustomerStatusSnapshotForCompany(companyId, periodMonth)
 
   return {
     importLogId: importLog.id,
