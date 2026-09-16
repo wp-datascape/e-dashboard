@@ -624,8 +624,22 @@ function resolveDormantStyleBuckets(
   // `buildStatusCheckpointBuckets` (period.util.ts): cuma titik TERAKHIR
   // (index terakhir array, periode masih berjalan) yang data-nya digeser
   // -1 dari label, titik lain pakai data periode labelnya SENDIRI.
+  //
+  // Revisi KEDUA (2026-09-17, bug ditemukan user via tooltip M11: titik
+  // Maret 2025 identik Januari 2025, bukan Februari) — `isCurrentOpenPeriod`
+  // di sini TERNYATA occurrence KETIGA dari bug yang sama persis yang baru
+  // diperbaiki di `buildStatusCheckpointBuckets`/`resolveStatusCheckpointDate`
+  // (period.util.ts): cek "titik ini masih periode berjalan" cuma dari
+  // POSISI array, TANPA bandingkan ke tanggal hari ini SUNGGUHAN. Akibatnya
+  // filter period_end historis (bukan hari ini) bikin `prevBuckets` titik
+  // TERAKHIR salah geser 1 periode LAGI (dataKey jadi label-2, bukan
+  // label-1) - PADAHAL `resolvedBuckets` (buildStatusCheckpointBuckets)
+  // sudah BENAR (tidak geser) utk periode historis, jadi prevBuckets jadi
+  // TIDAK SINKRON dgn resolvedBuckets-nya sendiri. Fix: syarat SAMA
+  // (bandingkan ke getCurrentPeriodKey(periodType, hari ini asli)).
+  const realCurrentPeriodKey = getCurrentPeriodKey(periodType, new Date())
   const prevBuckets = resolvedBuckets.map((b, i, arr) => {
-    const isCurrentOpenPeriod = i === arr.length - 1
+    const isCurrentOpenPeriod = i === arr.length - 1 && b.label === realCurrentPeriodKey
     const dataKey = applyDateCutoff
       ? b.label
       : (isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, b.label) : b.label)
