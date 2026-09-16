@@ -386,6 +386,85 @@ export interface DormantMetricsData {
   reactivated_customers: CustomerDormantStatusRow[]
 }
 
+// ─── M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) ───
+//
+// Retention Rate(checkpoint B) = COUNT(customer Active/Reactivated di
+// checkpoint A [SATU checkpoint sebelum B] YANG JUGA Active/Reactivated di
+// checkpoint B) / COUNT(customer Active/Reactivated di checkpoint A) x 100.
+// Populasi = "Existing Active" per Glosarium (Active Customer + Reactivated),
+// SAMA basis M3-M6. Titik trend TERAKHIR (periode berjalan, belum tutup)
+// carry-forward otomatis dari HOLDINGIT-697 (buildStatusCheckpointBuckets).
+export interface RetentionTrendRow {
+  month: string
+  // cohort_count (denominator) — populasi Active+Reactivated di checkpoint
+  // SEBELUM titik ini (checkpoint A).
+  cohort_count: number
+  // retained_count (numerator) — dari cohort_count, yang MASIH
+  // Active+Reactivated di checkpoint titik ini (checkpoint B) = "Customer
+  // Tertahan".
+  retained_count: number
+  // lost_count = cohort_count - retained_count = "Customer Hilang" (ada di
+  // cohort A, TIDAK lagi Active/Reactivated di B - bisa jadi Lapsed/Dormant).
+  lost_count: number
+  // total_active_count (2026-09-16, susulan tooltip - user: "total customer
+  // yang transaksi DI PERIODE TERSEBUT") — populasi Active+Reactivated
+  // PERSIS di checkpoint B milik titik INI SENDIRI (BUKAN cohort_count,
+  // yang itu tentang checkpoint A/periode SEBELUMNYA). SAMA PERSIS "Existing
+  // Active" di Glosarium resmi (`Active Customer + Reactivated`, dipakai
+  // juga sbg denominator M3-M6) - koreksi user: label UI "Total Aktif"
+  // semula SALAH, harusnya reuse istilah resmi ini, bukan istilah ad-hoc
+  // baru. Query MANDIRI per titik (tidak direstriksi ke cohort manapun),
+  // jadi berlaku sama utk SEMUA titik termasuk yang terakhir. retained_count
+  // SELALU subset dari ini (retained = bagian dari cohort A yang IKUT aktif
+  // skrg) - jadi total_active_count - retained_count = "Transaksi Baru" (customer aktif
+  // skrg yang BUKAN dari cohort A, lihat M11RetentionRate.tsx frontend).
+  total_active_count: number
+  retention_rate: number
+}
+
+export interface RetainedCustomerRow {
+  customer_id: number
+  customer_name: string
+  customer_code: string | null
+  company_name: string
+  // avg_monthly_revenue (12 bulan trailing s.d. checkpoint B) — basis "value
+  // tertinggi" utk Top 5, definisi SAMA PERSIS fetchDormantValueRanking/M9.
+  avg_monthly_revenue: number
+}
+
+export interface RetentionMetricsData {
+  trend: RetentionTrendRow[]
+  retention_current: {
+    value: number
+    retained_count: number
+    lost_count: number
+    cohort_count: number
+  }
+  // Top 5/tabel customer tertahan bernilai tertinggi (checkpoint TERAKHIR),
+  // pola SAMA PERSIS reactivated_customers/M10 - urut avg_monthly_revenue
+  // DESC (BUKAN tanggal, beda dari M10 - lihat task044.md).
+  top_retained_customers: RetainedCustomerRow[]
+}
+
+// Report > Retention tabel breakdown (task044.md Bagian 2 - "Tabel di
+// /report/retention") — SELURUH cohort (checkpoint A, Active+Reactivated),
+// masing-masing ditandai retained/lost di checkpoint B - beda dari
+// top_retained_customers (cuma top 20 YANG retained, urut value). Pola
+// SAMA `DormantBreakdownData`/`DormantValueRow` (M8/M9 breakdown).
+export interface RetentionBreakdownRow {
+  customer_id: number
+  customer_name: string
+  customer_code: string | null
+  company_name: string
+  status: 'retained' | 'lost'
+  avg_monthly_revenue: number
+}
+
+export interface RetentionBreakdownData {
+  period_end: string
+  rows: RetentionBreakdownRow[]
+}
+
 export interface CustomerMetricsData {
   trend: CustomerMetricsTrendPoint[]
   detail: unknown[]

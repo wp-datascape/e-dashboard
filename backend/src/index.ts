@@ -11,6 +11,7 @@ import { createRouter } from '@/router'
 import { logger } from '@/utils/logger'
 import { initNetworkThrottleFromDb } from '@/middleware/network-throttle'
 import { startAnalisisAlertScheduler } from '@/features/analisis/scheduler'
+import { startCustomerStatusScheduler } from '@/features/metrics/customer-status-scheduler'
 
 const app = new Hono()
 
@@ -23,6 +24,11 @@ void initNetworkThrottleFromDb()
 // Scheduler evaluasi alert Analisis (task016 Fase B) — in-process, sekali
 // sehari, fire-and-forget (tidak memblokir startup server).
 startAnalisisAlertScheduler()
+
+// Scheduler precompute customer_status_snapshot (task040.md, EDASHBOARD-TBD)
+// — in-process, sekali sehari, fire-and-forget. Murni tambahan pasif: cuma
+// mengisi tabel yang belum dibaca kode manapun (belum di-wire), aman dijalankan.
+startCustomerStatusScheduler()
 
 // ─── Start Server ───────────────────────────────────────────────────────────────
 

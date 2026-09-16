@@ -19,10 +19,12 @@
   "categories": "Kategori",
   "searchPlaceholder": "Cari nama atau kode...",
   "statusLabels": {
-    "active": "Aktif",
-    "dormant": "Dorman",
-    "new": "Baru",
-    "existing": "Existing"
+    "acquisition": "Acquisition",
+    "active": "Active Customer",
+    "reactivated": "Reactivated",
+    "lapsed": "Lapsed",
+    "dormant": "Dormant",
+    "relapsed": "Relapsed"
   },
   "detail": {
     "title": "Lihat Customer",

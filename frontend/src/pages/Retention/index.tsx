@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 
-import { useCustomerMetrics, useDormantCustomer } from '@/hooks/useMetrics';
+import { useCustomerMetrics, useDormantCustomer, useRetention } from '@/hooks/useMetrics';
 import { useCan } from '@/hooks/useCan';
 import { useAdvancedFilterBar } from '@/hooks/useAdvancedFilterBar';
 import { AdvancedFilterBar } from '@/components/filters/AdvancedFilterBar';
@@ -10,6 +10,7 @@ import { M6RepeatOrder } from '../CustomerMetrics/M6RepeatOrder';
 import { M8DormantRate } from '../DormantCustomer/M8DormantRate';
 import { M9DormantValue } from '../DormantCustomer/M9DormantValue';
 import { M10ReactivationRate } from '../DormantCustomer/M10ReactivationRate';
+import { M11RetentionRate } from '../DormantCustomer/M11RetentionRate';
 
 // Retention (task029.md §2, §11-15): M6 Repeat Order Rate, M8 Dormant
 // Customer Rate, M9 Dormant Customer Value, M10 Customer Reactivation Rate.
@@ -69,6 +70,20 @@ export default function Retention() {
     only_pareto: onlyPareto,
   }, { enabled: canChurnRisk });
 
+  // M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) —
+  // permission REUSE churn.risk:view (SAMA gate dgn M8/M9/M10 di section ini,
+  // lihat komentar backend metrics.route.ts kenapa bukan permission baru).
+  const { data: retentionData, isLoading: retentionLoading } = useRetention({
+    company_id: companyId,
+    branch_id: resolvedBranchId,
+    period_end: periodEnd,
+    period_type: periodTypeFilter.periodType,
+    apply_date_cutoff: applyDateCutoff,
+    division: resolvedDivision,
+    exclude_intercompany: excludeIntercompany,
+    only_pareto: onlyPareto,
+  }, { enabled: canChurnRisk });
+
   const ror = cmData?.repeat_order_current;
 
   return (
@@ -77,8 +92,23 @@ export default function Retention() {
         title={t('nav.groups.retention')}
         filter={filterBar}
         hasAccess={canExpansion || canChurnRisk}
-        loading={cmLoading || dcLoading}
+        loading={cmLoading || dcLoading || retentionLoading}
       >
+        {/* M11 Retention Rate dipindah ke posisi PALING ATAS (2026-09-16,
+            instruksi user: "Retention section pindahkan ke posisi paling
+            atas") - digabung 1 blok permission canChurnRisk yang sama dgn
+            M8/M9/M10 (BUKAN blok terpisah) supaya tidak muncul 2
+            NoSectionAccess dobel kalau permission tidak ada. */}
+        {canChurnRisk ? (
+          <M11RetentionRate
+            data={retentionData}
+            isLoading={retentionLoading}
+            periodType={periodTypeFilter.periodType}
+          />
+        ) : (
+          <NoSectionAccess />
+        )}
+
         {canExpansion ? (
           <M6RepeatOrder
             isLoading={cmLoading}
@@ -134,9 +164,7 @@ export default function Retention() {
               onlyPareto={onlyPareto}
             />
           </>
-        ) : (
-          <NoSectionAccess />
-        )}
+        ) : null}
       </AdvancedFilterBar>
     </Box>
   );

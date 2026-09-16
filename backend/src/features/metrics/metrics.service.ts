@@ -13,7 +13,7 @@ import { fetchDormantValueTrend } from '@/features/dashboard/dashboard.repositor
 // Selling (§30, 2026-08-20). Tidak ada pembatasan cross-feature import lain
 // di backend ini (dicek: tidak ada eslint boundary rule).
 import { getPeriodRange, getCurrentPeriodKey, getPreviousPeriodKey, buildTrailingPeriods, resolveTrendPeriod, daysSincePeriodStart, clampToElapsedEnd, buildStatusCheckpointBuckets, resolveStatusCheckpointDate } from '@/features/analisis/period.util'
-import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
+import type { TrailingPeriodBucket, PeriodType } from '@/features/analisis/period.util'
 import type { AssignToDivision } from './metrics.repository'
 import { buildSegmentParams } from './segment.helper'
 import type { SegmentParams } from './segment.helper'
@@ -22,8 +22,12 @@ import type { SegmentParams } from './segment.helper'
 // helper itu di-import BALIK dari file ini (type-only, di-erase saat compile
 // — TIDAK menciptakan circular import runtime sungguhan).
 import { withMetricCache } from './metric-cache.helper'
-import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductPerformanceExportQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery } from './metrics.schema'
-import type { CrossSellingMetricsData, CrossSellingSummaryData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData } from './metrics.types'
+import type { CrossSellingQuery, CustomerMetricsQuery, RevenueBreakdownQuery, ExpansionBreakdownQuery, GpBreakdownQuery, HmBreakdownQuery, RorBreakdownQuery, DormantCustomerQuery, DormantStatusBreakdownQuery, DormantValueHistoryQuery, CategoryPerformanceQuery, ProductPerformanceQuery, ProductPerformanceExportQuery, ProductCategoryOptionsQuery, CategoryProductsQuery, HmDetailQuery, UpsellTargetQuery, CustomerProductsQuery, AvgCategoryQuery, HmCustomersQuery, RetentionQuery } from './metrics.schema'
+import type { CrossSellingMetricsData, CrossSellingSummaryData, CustomerMetricsData, CustomerMetricsTrendPoint, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantMetricsData, DormantValueRow, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, ProductTrendData, RetentionMetricsData, RetentionBreakdownData } from './metrics.types'
+// M11 Retention Rate (task044.md Bagian 2/HOLDINGIT-698) — repository
+// terpisah (bukan disatukan ke metrics.repository.ts/m8m10.repository.ts),
+// KPI baru tanpa keterikatan historis ke file M1-M10.
+import { fetchRetentionTrend, fetchTopRetainedCustomers, fetchRetentionBreakdown } from './repository/m11.repository'
 
 // "Assign To" (task017) — divisi di luar scope viewer TIDAK PERNAH ditampilkan
 // sama sekali (bukan cuma angkanya, chip-nya juga) — beda dari data transaksi
@@ -336,7 +340,7 @@ export async function getCustomerMetrics(params: CustomerMetricsQuery, scope: Me
         loadThresholds(),
       ])
 
-      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets, statusBuckets)
+      const trend = await fetchCustomerMetricsTrend(segParams, resolvedBuckets, prevBuckets, statusBuckets, periodType)
 
       const trendPoints: CustomerMetricsTrendPoint[] = trend.map((row) => ({
         month:                  row.month,
@@ -457,7 +461,7 @@ export async function getExpansionBreakdown(params: ExpansionBreakdownQuery, sco
         prevDateFrom = prevRange.start
         prevDateTo = prevEndStr < prevRange.end ? prevEndStr : prevRange.end
       }
-      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo, statusCheckpoint)
+      const result = await fetchExpansionBreakdown(segParams, params.date_from, prevDateFrom, prevDateTo, statusCheckpoint, params.period_type ?? 'monthly')
       return {
         period_end:     filterDate,
         up_count:       result.up_count,
@@ -524,6 +528,123 @@ function shiftDateByYears(dateStr: string, years: number): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 }
 
+// resolveDormantStyleBuckets (2026-09-16, task044.md Bagian 2/HOLDINGIT-698
+// — diekstrak dari isi getDormantCustomerMetrics SUPAYA getRetentionMetrics
+// [M11] bisa reuse definisi checkpoint yang PERSIS SAMA, bukan 2
+// implementasi paralel yang bisa diam-diam menyimpang - itu PERSIS kelas
+// bug yang baru diperbaiki di HOLDINGIT-697 [prevBuckets M8-M10 punya
+// salinan logic terpisah yang ketinggalan saat SSOT-nya berubah]. Logic DI
+// DALAM fungsi ini TIDAK diubah sama sekali dari versi inline sebelumnya,
+// murni pemindahan.
+interface DormantStyleBuckets {
+  resolvedBuckets: TrailingPeriodBucket[]
+  liveBuckets: TrailingPeriodBucket[]
+  periodEndDate: string
+  prevBuckets: TrailingPeriodBucket[]
+}
+
+function resolveDormantStyleBuckets(
+  periodType: PeriodType,
+  periodKey: string,
+  calendarRange: { start: string; end: string },
+  periodEnd: string,
+  applyDateCutoff: boolean | undefined,
+  cutoffDay: number | undefined,
+  skipElapsedClamp: boolean | undefined,
+): DormantStyleBuckets {
+  // Label bucket TETAP kalender asli (trailing 12 bulan sampai bulan
+  // berjalan — titik "Agustus" TETAP ada di trend hari ini), TAPI
+  // rentang TANGGAL DATA tiap bucket adalah bulan SEBELUM labelnya
+  // (2026-08-24, definisi FINAL dari user, dikonfirmasi berkali-kali:
+  // "customer dormant agustus adalah customer yang tidak ada transaksi
+  // sepanjang mei, juni, 31 juli" — DAN "customer yang tidak transaksi
+  // di bulan agustus ini baru masuk dormant di bulan september". Berlaku
+  // utk SEMUA field titik "Agustus" — dormant_count, total_customers,
+  // reactivated_count, dst, BUKAN cuma reactivation (percobaan sebelumnya
+  // yang cuma geser reactivation SALAH menurut user).
+  //
+  // PENTING: label yang ditampilkan ke user (chart, tooltip, judul
+  // dialog drilldown) SELALU pakai LABEL ini ("Agustus"/"2026-08"),
+  // TIDAK PERNAH bulan data mentahnya ("Juli"/"2026-07") — kebocoran itu
+  // yang bikin user marah ("NGAPAIN LU BERI JUDUL DORMANT 07-2026").
+  //
+  // Dikecualikan kalau `apply_date_cutoff` eksplisit aktif — mode lama,
+  // user SENGAJA minta potongan hari tertentu termasuk periode berjalan,
+  // pilihan eksplisit, TIDAK digeser (label = data bulan yang sama).
+  let resolvedBuckets: TrailingPeriodBucket[]
+  let liveBuckets: TrailingPeriodBucket[]
+  let periodEndDate: string
+  if (applyDateCutoff) {
+    const buckets = buildTrailingPeriods(periodType, periodKey, 12)
+    const resolved = resolveTrendPeriod({
+      periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
+      applyDateCutoff,
+      cutoffDay,
+      fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+      skipElapsedClamp,
+    })
+    periodEndDate = resolved.periodEndDate
+    resolvedBuckets = resolved.buckets
+    // Mode cutoff eksplisit: TIDAK ada konsep "live" terpisah, label = data
+    // bulan yang sama, jadi live_buckets = buckets biasa (lihat JSDoc
+    // fetchDormantTrend).
+    liveBuckets = resolved.buckets
+  } else {
+    // buildStatusCheckpointBuckets (task039.md, 2026-09-11) — SSOT geser-1-
+    // periode, diekstrak ke period.util.ts supaya getCustomerMetrics (M3-M7)
+    // bisa reuse definisi checkpoint yang PERSIS SAMA (bukan 2 implementasi
+    // paralel yang kebetulan sama persis). Perilaku endpoint ini SENDIRI
+    // tidak berubah sama sekali.
+    const labelBuckets = buildTrailingPeriods(periodType, periodKey, 12)
+    resolvedBuckets = buildStatusCheckpointBuckets(periodType, periodKey, 12)
+    periodEndDate = resolvedBuckets.at(-1)!.end
+
+    // live_buckets (2026-08-24, definisi FINAL user: "reaktivasi adalah
+    // data dormant yang telah diaktivasi DI PERIODE BERJALAN bulanan,
+    // kuartalan, semesteran, tahunan") — periode ASLI titik ini (label ==
+    // periodenya sendiri, BUKAN digeser spt resolvedBuckets di atas),
+    // dipotong elapsed ke hari ini KALAU genuinely masih berjalan — reuse
+    // resolveTrendPeriod TANPA apply_date_cutoff (default clampToElapsedEnd,
+    // periode yang sudah tutup otomatis tidak terdampak).
+    const liveResolved = resolveTrendPeriod({
+      periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets: labelBuckets,
+      applyDateCutoff: false,
+      fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
+      skipElapsedClamp,
+    })
+    liveBuckets = liveResolved.buckets
+  }
+
+  // "Bucket sebelumnya" per titik — relatif ke bulan DATA sebenarnya
+  // tiap bucket (bukan label-nya langsung, karena mode default label
+  // bisa != bulan data, lihat di atas).
+  //
+  // Revisi 2026-09-16 (task044.md/HOLDINGIT-697) — dataKey TIDAK LAGI
+  // "label - 1" tanpa kecuali; harus mirror PERSIS logic
+  // `buildStatusCheckpointBuckets` (period.util.ts): cuma titik TERAKHIR
+  // (index terakhir array, periode masih berjalan) yang data-nya digeser
+  // -1 dari label, titik lain pakai data periode labelnya SENDIRI.
+  const prevBuckets = resolvedBuckets.map((b, i, arr) => {
+    const isCurrentOpenPeriod = i === arr.length - 1
+    const dataKey = applyDateCutoff
+      ? b.label
+      : (isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, b.label) : b.label)
+    const prevKey = getPreviousPeriodKey(periodType, dataKey)
+    const prevRange = getPeriodRange(periodType, prevKey)
+    const fullRange = getPeriodRange(periodType, dataKey)
+    if (applyDateCutoff && b.end < fullRange.end) {
+      const elapsedDays = Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 86400000)
+      const prevEndDate = new Date(prevRange.start)
+      prevEndDate.setDate(prevEndDate.getDate() + elapsedDays)
+      const prevEndStr = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`
+      return { label: b.label, start: prevRange.start, end: prevEndStr < prevRange.end ? prevEndStr : prevRange.end }
+    }
+    return { label: b.label, start: prevRange.start, end: prevRange.end }
+  })
+
+  return { resolvedBuckets, liveBuckets, periodEndDate, prevBuckets }
+}
+
 export async function getDormantCustomerMetrics(params: DormantCustomerQuery, scope: MetricsScope = {}): Promise<DormantMetricsData> {
   return withMetricCache('dormant_customer', params.company_id, params, scope, async () => {
     try {
@@ -538,87 +659,10 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
       const calendarRange = getPeriodRange(periodType, periodKey)
 
-      // Label bucket TETAP kalender asli (trailing 12 bulan sampai bulan
-      // berjalan — titik "Agustus" TETAP ada di trend hari ini), TAPI
-      // rentang TANGGAL DATA tiap bucket adalah bulan SEBELUM labelnya
-      // (2026-08-24, definisi FINAL dari user, dikonfirmasi berkali-kali:
-      // "customer dormant agustus adalah customer yang tidak ada transaksi
-      // sepanjang mei, juni, 31 juli" — DAN "customer yang tidak transaksi
-      // di bulan agustus ini baru masuk dormant di bulan september". Berlaku
-      // utk SEMUA field titik "Agustus" — dormant_count, total_customers,
-      // reactivated_count, dst, BUKAN cuma reactivation (percobaan sebelumnya
-      // yang cuma geser reactivation SALAH menurut user).
-      //
-      // PENTING: label yang ditampilkan ke user (chart, tooltip, judul
-      // dialog drilldown) SELALU pakai LABEL ini ("Agustus"/"2026-08"),
-      // TIDAK PERNAH bulan data mentahnya ("Juli"/"2026-07") — kebocoran itu
-      // yang bikin user marah ("NGAPAIN LU BERI JUDUL DORMANT 07-2026").
-      //
-      // Dikecualikan kalau `apply_date_cutoff` eksplisit aktif — mode lama,
-      // user SENGAJA minta potongan hari tertentu termasuk periode berjalan,
-      // pilihan eksplisit, TIDAK digeser (label = data bulan yang sama).
-      let resolvedBuckets: TrailingPeriodBucket[]
-      let liveBuckets: TrailingPeriodBucket[]
-      let periodEndDate: string
-      if (params.apply_date_cutoff) {
-        const buckets = buildTrailingPeriods(periodType, periodKey, 12)
-        const resolved = resolveTrendPeriod({
-          periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets,
-          applyDateCutoff: params.apply_date_cutoff,
-          cutoffDay: params.cutoff_day,
-          fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
-          skipElapsedClamp: params.skip_elapsed_clamp,
-        })
-        periodEndDate = resolved.periodEndDate
-        resolvedBuckets = resolved.buckets
-        // Mode cutoff eksplisit: TIDAK ada konsep "live" terpisah, label = data
-        // bulan yang sama, jadi live_buckets = buckets biasa (lihat JSDoc
-        // fetchDormantTrend).
-        liveBuckets = resolved.buckets
-      } else {
-        // buildStatusCheckpointBuckets (task039.md, 2026-09-11) — SSOT geser-1-
-        // periode, diekstrak ke period.util.ts supaya getCustomerMetrics (M3-M7)
-        // bisa reuse definisi checkpoint yang PERSIS SAMA (bukan 2 implementasi
-        // paralel yang kebetulan sama persis). Perilaku endpoint ini SENDIRI
-        // tidak berubah sama sekali.
-        const labelBuckets = buildTrailingPeriods(periodType, periodKey, 12)
-        resolvedBuckets = buildStatusCheckpointBuckets(periodType, periodKey, 12)
-        periodEndDate = resolvedBuckets.at(-1)!.end
-
-        // live_buckets (2026-08-24, definisi FINAL user: "reaktivasi adalah
-        // data dormant yang telah diaktivasi DI PERIODE BERJALAN bulanan,
-        // kuartalan, semesteran, tahunan") — periode ASLI titik ini (label ==
-        // periodenya sendiri, BUKAN digeser spt resolvedBuckets di atas),
-        // dipotong elapsed ke hari ini KALAU genuinely masih berjalan — reuse
-        // resolveTrendPeriod TANPA apply_date_cutoff (default clampToElapsedEnd,
-        // periode yang sudah tutup otomatis tidak terdampak).
-        const liveResolved = resolveTrendPeriod({
-          periodKey, calendarEnd: calendarRange.end, calendarStart: calendarRange.start, periodType, buckets: labelBuckets,
-          applyDateCutoff: false,
-          fallbackDay: daysSincePeriodStart(calendarRange.start, periodEnd),
-          skipElapsedClamp: params.skip_elapsed_clamp,
-        })
-        liveBuckets = liveResolved.buckets
-      }
-
-      // "Bucket sebelumnya" per titik — relatif ke bulan DATA sebenarnya
-      // tiap bucket (bukan label-nya langsung, karena di mode default
-      // label != bulan data, lihat di atas). Bucket "2026-08" (data Juli)
-      // → sebelumnya Juni, BUKAN Juli.
-      const prevBuckets = resolvedBuckets.map((b) => {
-        const dataKey = params.apply_date_cutoff ? b.label : getPreviousPeriodKey(periodType, b.label)
-        const prevKey = getPreviousPeriodKey(periodType, dataKey)
-        const prevRange = getPeriodRange(periodType, prevKey)
-        const fullRange = getPeriodRange(periodType, dataKey)
-        if (params.apply_date_cutoff && b.end < fullRange.end) {
-          const elapsedDays = Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 86400000)
-          const prevEndDate = new Date(prevRange.start)
-          prevEndDate.setDate(prevEndDate.getDate() + elapsedDays)
-          const prevEndStr = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`
-          return { label: b.label, start: prevRange.start, end: prevEndStr < prevRange.end ? prevEndStr : prevRange.end }
-        }
-        return { label: b.label, start: prevRange.start, end: prevRange.end }
-      })
+      const { resolvedBuckets, liveBuckets, periodEndDate, prevBuckets } = resolveDormantStyleBuckets(
+        periodType, periodKey, calendarRange, periodEnd,
+        params.apply_date_cutoff, params.cutoff_day, params.skip_elapsed_clamp,
+      )
 
       // comparisonFilterDate (task025 lanjutan, 2026-08-07): tanggal yang sama
       // setahun lalu — dipakai utk komponen KpiSummaryStrip (pola "apple to
@@ -671,7 +715,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
       const dormantBaselineBucket = resolveDormantBaselineBucket(periodType, periodKey)
 
       const [trend, valueRankingAll, comparisonTrend, comparisonValueRankingAll, statusLog, valueTrend] = await Promise.all([
-        fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets),
+        fetchDormantTrend(segParams, resolvedBuckets, prevBuckets, liveBuckets, periodType),
         // existingSince = liveBucket.start (task029.md §32.2, 2026-08-24) —
         // gate New/Existing SSOT §30.10, titik referensi SAMA PERSIS lb.ps
         // di fetchDormantTrend/is_existing_at_me (awal kalender ASLI label
@@ -688,7 +732,7 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
         // Comparison (YoY) TIDAK dipakai UI apa pun saat ini (lihat komentar
         // di atas) — comparisonBuckets dipakai juga sbg liveBuckets (kalender
         // penuh, tanpa shift/elapsed-clamp, sudah pasti periode lampau tutup).
-        fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets),
+        fetchDormantTrend(comparisonSegParams, comparisonBuckets, comparisonPrevBuckets, comparisonBuckets, periodType),
         fetchDormantValueRanking(comparisonSegParams, null, comparisonBuckets.at(-1)!.start),
         fetchCustomerDormantStatusLog(segParams, liveBucket, dormantBaselineBucket, liveBucket.start, !!params.apply_date_cutoff),
         // buckets param (2026-08-28, task029.md §41 — fetchDormantValueTrend
@@ -768,6 +812,84 @@ export async function getDormantCustomerMetrics(params: DormantCustomerQuery, sc
     } catch (err) {
       if (err instanceof AppError) throw err
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data dormant customer metrics', 500)
+    }
+  })
+}
+
+// getRetentionMetrics (M11, task044.md Bagian 2/HOLDINGIT-698, 2026-09-16) —
+// KPI BARU, dibangun langsung di atas customer_status_snapshot (bukan
+// migrasi dari versi live lama spt M3-M10 - tidak ada versi lama). Checkpoint
+// buckets/prevBuckets REUSE `resolveDormantStyleBuckets` (SAMA PERSIS dipakai
+// getDormantCustomerMetrics) - SSOT tunggal, garansi M11 SELALU checkpoint
+// yang sama dengan M8-M10 untuk company/period yang sama (alasan utama
+// task044.md Bagian 1 dikerjakan LEBIH DULU).
+export async function getRetentionMetrics(params: RetentionQuery, scope: MetricsScope = {}): Promise<RetentionMetricsData> {
+  return withMetricCache('retention', params.company_id, params, scope, async () => {
+    try {
+      const periodEnd = params.period_end ?? todayDate()
+      const periodType = params.period_type ?? 'monthly'
+
+      const [py, pm, pd] = periodEnd.split('-').map(Number)
+      const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+      const calendarRange = getPeriodRange(periodType, periodKey)
+
+      const { resolvedBuckets, periodEndDate, prevBuckets } = resolveDormantStyleBuckets(
+        periodType, periodKey, calendarRange, periodEnd,
+        params.apply_date_cutoff, params.cutoff_day, params.skip_elapsed_clamp,
+      )
+
+      const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+
+      const [trend, topRetained] = await Promise.all([
+        fetchRetentionTrend(segParams, resolvedBuckets, prevBuckets, periodType),
+        fetchTopRetainedCustomers(segParams, resolvedBuckets.at(-1)!, prevBuckets.at(-1)!, 20, periodType),
+      ])
+
+      const last = trend.at(-1)
+
+      return {
+        trend,
+        retention_current: {
+          value: last?.retention_rate ?? 0,
+          retained_count: last?.retained_count ?? 0,
+          lost_count: last?.lost_count ?? 0,
+          cohort_count: last?.cohort_count ?? 0,
+        },
+        top_retained_customers: topRetained,
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err
+      throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil data retention metrics', 500)
+    }
+  })
+}
+
+// getRetentionBreakdown (Report > Retention tabel, task044.md Bagian 2) —
+// SELURUH cohort checkpoint TERAKHIR (bukan cuma top-N), pola SAMA
+// getDormantBreakdown. Checkpoint REUSE resolveDormantStyleBuckets (SATU
+// SSOT sama persis getRetentionMetrics/getDormantCustomerMetrics).
+export async function getRetentionBreakdown(params: RetentionQuery, scope: MetricsScope = {}): Promise<RetentionBreakdownData> {
+  return withMetricCache('retention_breakdown', params.company_id, params, scope, async () => {
+    try {
+      const periodEnd = params.period_end ?? todayDate()
+      const periodType = params.period_type ?? 'monthly'
+
+      const [py, pm, pd] = periodEnd.split('-').map(Number)
+      const periodKey = getCurrentPeriodKey(periodType, new Date(py, pm - 1, pd))
+      const calendarRange = getPeriodRange(periodType, periodKey)
+
+      const { resolvedBuckets, periodEndDate, prevBuckets } = resolveDormantStyleBuckets(
+        periodType, periodKey, calendarRange, periodEnd,
+        params.apply_date_cutoff, params.cutoff_day, params.skip_elapsed_clamp,
+      )
+
+      const segParams = await resolveSegmentParams(params.company_id, periodEndDate, params.division, scope.companyScopeIds, scope.branchScope, scope.divisionScope, params.branch_id, params.exclude_intercompany, params.only_pareto)
+      const rows = await fetchRetentionBreakdown(segParams, resolvedBuckets.at(-1)!, prevBuckets.at(-1)!, periodType)
+
+      return { period_end: periodEndDate, rows }
+    } catch (err) {
+      if (err instanceof AppError) throw err
+      throw new AppError(ErrorCode.INTERNAL_ERROR, 'Gagal mengambil retention breakdown', 500)
     }
   })
 }

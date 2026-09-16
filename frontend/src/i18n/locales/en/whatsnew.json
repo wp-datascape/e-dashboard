@@ -23,6 +23,10 @@
   "readGuide": "Read Guide",
   "closeGuide": "Close",
   "items": {
+    "retention-rate": {
+      "title": "New KPI: Retention Rate (M11)",
+      "description": "See how sticky your customer base is — of the customers active last period, what percentage are still active this period. Available on the Retention page with a 12-period trend and a Top 5 retained customers list."
+    },
     "pwa": {
       "title": "Install the Dashboard as an App",
       "description": "This dashboard can be installed as an app on desktop, Android, and iPhone/iPad — it gets its own icon, opens without the browser's address bar, and loads faster."

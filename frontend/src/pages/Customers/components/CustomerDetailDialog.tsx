@@ -60,7 +60,7 @@ export function CustomerDetailDialog({ customerId, onClose, asOfDate }: Props) {
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.status')}</Typography>
-              <StatusChip status={detail.status} />
+              <StatusChip status={detail.status} isRelapsed={detail.is_relapsed} />
             </Box>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>{t('customers.detail.division')}</Typography>

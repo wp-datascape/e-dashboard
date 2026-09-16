@@ -90,5 +90,21 @@
   "m10ReactivationEmpty": "Tidak ada customer reaktivasi pada periode ini",
   "m10TopCustomersInfo": "Diurutkan dari tanggal reaktivasi terbaru; kalau tanggalnya sama, dari rata-rata revenue bulanan tertinggi",
   "tooltipLastBeforeDormant": "Transaksi Terakhir Sebelum Dormant",
-  "tooltipAvgRevenue": "Rata-rata Revenue/Bulan"
+  "tooltipAvgRevenue": "Rata-rata Revenue/Bulan",
+  "m11RetentionRateLabel": "Retention Rate",
+  "m11RetentionRateInfo": "Persentase pelanggan aktif periode lalu yang masih aktif di periode ini.",
+  "m11TooltipTitle": "Retention Rate — {{month}}",
+  "m11CohortCountLabel": "Existing Active",
+  "m11OutsideCohortLabel": "Transaksi Baru",
+  "m11RetainedCountLabel": "Customer Tertahan",
+  "m11LostCountLabel": "Customer Hilang",
+  "m11LostCountInfo": "Pelanggan aktif periode lalu yang tidak lagi aktif di periode ini.",
+  "m11ChartTitle": "Tren Retention Rate",
+  "m11TooltipInfo": "Retention Rate = jumlah pelanggan aktif periode lalu yang masih aktif periode ini, dibagi jumlah pelanggan aktif periode lalu.",
+  "m11TopCustomersLabel": "Top 5 Customer Tertahan",
+  "m11TopCustomersInfo": "Diurutkan dari rata-rata revenue bulanan tertinggi, di antara pelanggan yang tertahan periode ini.",
+  "m11RetainedEmpty": "Tidak ada customer tertahan pada periode ini",
+  "colCompany": "Perusahaan",
+  "m11StatusRetained": "Tertahan",
+  "m11StatusLost": "Hilang"
 }

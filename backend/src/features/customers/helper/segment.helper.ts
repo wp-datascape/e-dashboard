@@ -33,9 +33,11 @@
  * mentah task028 lagi.
  */
 
-import { sql, and, or, type SQL } from 'drizzle-orm'
+import { sql, and, eq, type SQL } from 'drizzle-orm'
 import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
+import { db } from '@/config/db'
+import { company_branches, divisions } from '@/db/schema'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,108 +96,6 @@ export function buildSegmentParams(
     divisionScope,
     otherIdByBranch,
     intercompanyIdByCompany,
-  }
-}
-
-// ─── SQL expression (CASE WHEN) — SSOT per baris ─────────────────────────────
-
-/**
- * CASE WHEN expression untuk kolom status per customer.
- * Dipakai di SELECT agar setiap baris punya label status-nya.
- *
- * `dormantMonths` boleh scalar (1 angka, dipakai kalau caller sudah tahu
- * SATU customer/SATU divisi spesifik — mis. findCustomerDetail) ATAU
- * ekspresi SQL per-baris dari `buildDormantCaseSql()` (dipakai kalau caller
- * query banyak customer lintas divisi sekaligus — mis. findCustomers,
- * task027 fix 2026-08-21). Widget interpolasi `sql` tag menangani keduanya
- * sama — angka jadi bound param, SQL fragment di-splice apa adanya.
- */
-export function sqlStatusExpr(
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormantMonths: number | SQL,
-  lastInv: unknown,
-  firstInv: unknown,
-  // dormantRefDate (task039.md, 2026-09-11, fix susulan — bug ditemukan user:
-  // "geser mundur customer new ini gimana maksutnya" — awalnya SATU refDate
-  // dipakai buat activeCutoff (New/Active) DAN isDormant sekaligus, akibatnya
-  // checkpoint Dormant yang digeser ikut MENGGESER batas New/Active juga,
-  // padahal niatnya cuma benerin Dormant — diverifikasi angka status=new
-  // company 1 berubah 5 jadi 11, TIDAK diminta). SEKARANG dipisah: `refDate`
-  // TETAP live (activeCutoff/New tidak berubah), `dormantRefDate` (opsional,
-  // fallback ke `refDate` kalau tidak dikirim — backward-compat caller lama
-  // spt findCustomerDetail yang belum kirim ini) KHUSUS utk isDormant, SSOT
-  // dgn checkpoint M3-M10 (resolveStatusCheckpointDate, period.util.ts).
-  dormantRefDate?: ReturnType<typeof sql>,
-) {
-  const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantAsOf = dormantRefDate ?? refDate
-  // isDormant (2026-08-27, task029.md §36.52 — koreksi KERAS user: "pelanggan
-  // baru pindah status dorman saat bulan agustus sudah habis... ada
-  // kesalahan logika disini") — reuse dormantCrossedSql (kalender-bulan
-  // penuh), BUKAN lagi `lastInv <= refDate - dormantMonths bulan` mentah
-  // (tanggal presisi, bikin status dormant "meletus" di tengah bulan).
-  const isDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
-
-  return sql<string>`
-    CASE
-      WHEN ${lastInv} IS NULL                     THEN 'new'
-      WHEN ${firstInv}::date >= ${activeCutoff}   THEN 'new'
-      WHEN ${isDormant}                           THEN 'dormant'
-      WHEN ${lastInv}::date  >= ${activeCutoff}   THEN 'active'
-      ELSE 'existing'
-    END
-  `
-}
-
-/**
- * WHERE condition untuk filter status di halaman Customer.
- * 'active' = new + active chip = semua yang last_invoice >= activeCutoff.
- * 'existing' = non-new, non-dormant (antara active_window dan dormant_threshold).
- */
-export function sqlStatusWhere(
-  status: string,
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormantMonths: number | SQL,
-  lastInv: unknown,
-  firstInv: unknown,
-  // dormantRefDate — pola SAMA PERSIS sqlStatusExpr di atas, lihat komentar
-  // di sana kenapa dipisah dari refDate (bug "New" ikut kegeser).
-  dormantRefDate?: ReturnType<typeof sql>,
-) {
-  const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantAsOf = dormantRefDate ?? refDate
-  // isDormant/notDormant (2026-08-27, task029.md §36.52) — pola SAMA PERSIS
-  // sqlStatusExpr di atas, reuse dormantCrossedSql kalender-bulan penuh.
-  const isDormant  = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
-  const notDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`, true)
-
-  const isNew  = or(sql`${lastInv} IS NULL`, sql`${firstInv}::date >= ${activeCutoff}`)
-  const notNew = and(
-    sql`${lastInv} IS NOT NULL`,
-    sql`(${firstInv} IS NULL OR ${firstInv}::date < ${activeCutoff})`,
-  )
-
-  switch (status) {
-    case 'new':     return isNew
-    case 'dormant': return and(notNew, isDormant)
-    // BUG (ditemukan 2026-08-10 lewat audit silang DormantRate vs Customer
-    // Workbench — user: "aktif customer bulan Juni 357? di menu lain 329,
-    // mana yang benar?"): case ini SATU-SATUNYA yang tidak exclude customer
-    // baru (notNew), beda dari 'dormant'/'existing' di sekelilingnya —
-    // akibatnya customer yang baru transaksi pertama kali (harusnya masuk
-    // 'new') ikut ke-double-count sbg 'active' juga saat difilter
-    // `?status=active`. Kolom status per-baris (sqlStatusExpr di atas) TIDAK
-    // kena bug ini (CASE-nya cek 'new' duluan), cuma filter dropdown ini.
-    case 'active':  return and(notNew, sql`${lastInv}::date >= ${activeCutoff}`)
-    case 'existing':
-      return and(
-        notNew,
-        notDormant,
-        sql`${lastInv}::date < ${activeCutoff}`,
-      )
-    default: return undefined
   }
 }
 
@@ -463,6 +363,83 @@ export function resolveInvoiceScopeConditions(
     excludeIntercompanyCond: buildExcludeIntercompanyRaw(`${i}.company_id`, `COALESCE(${c}.division_override_id, ${cd}.division_id)`, p.intercompanyIdByCompany, p.excludeIntercompany),
     onlyParetoCond: buildOnlyParetoRaw(`${c}.id`, `${i}.company_id`, p.filterDate ?? '', p.onlyPareto),
   }
+}
+
+// ─── Snapshot eligibility (task040.md, 2026-09-12) ─────────────────────────────
+
+/**
+ * `branchScope`/`divisionScope` (RBAC) SELALU terisi Map utk non-superadmin
+ * (`resolveBranchScope`/`resolveDivisionScope`, middleware/auth.ts) — BUKAN
+ * berarti user itu SUNGGUHAN dibatasi. Dicek langsung ke data (2026-09-12):
+ * dari 14 user aktif ber-scope, 13 py branchScope = PERSIS SEMUA cabang
+ * company mereka (Map ada, tapi TIDAK restriktif sama sekali secara efektif),
+ * cuma 1 akun (test e2e) yang benar-benar sempit (subset cabang). Kalau
+ * `customer_status_snapshot` (precompute company-wide, task040.md) cuma
+ * dianggap "eligible" utk `branchScope === undefined` (superadmin murni),
+ * 13 dari 14 user itu SELALU jatuh ke fallback lambat walau scope mereka
+ * efektif = tanpa batasan — nyaris tidak pernah kepakai jalur cepatnya di
+ * dunia nyata. Fungsi ini bandingkan scope ke DAFTAR LENGKAP cabang/divisi
+ * company itu buat tahu "Map ada tapi kosong-restriksi" vs "Map ada DAN
+ * beneran membatasi" — HANYA kasus kedua yang wajib fallback.
+ *
+ * Memoized per identitas Map (2026-09-13, susulan task040.md migrasi M3-M7
+ * trend) — `/dashboard` memanggil getCustomerMetrics 2x (periode current +
+ * comparison) dgn `scope` yang SAMA, jadi `p.branchScope`/`p.divisionScope`
+ * adalah REFERENCE Map yang IDENTIK di kedua panggilan (resolveSegmentParams/
+ * buildSegmentParams meneruskan Map apa adanya, tidak clone — dicek langsung
+ * ke source). WeakMap keyed by Map itu sendiri: aman tanpa invalidasi manual,
+ * scope RBAC di-resolve ULANG jadi Map BARU tiap request HTTP (middleware/
+ * auth.ts), jadi cache otomatis "kosong" lagi utk request berikutnya, TIDAK
+ * ada risiko baca scope basi lintas request. Ditemukan perlu krn endpoint
+ * `/dashboard` sudah marginal (~12-20 detik sebelum sesi ini) — 2x query
+ * tambahan (branch+division lookup) per panggilan `isScopeEffectivelyUnrestricted`
+ * cukup signifikan kalau diulang tanpa perlu.
+ */
+const unrestrictedScopeCache = new WeakMap<Map<number, number[]>, Map<number, boolean>>()
+
+export async function isScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
+  if (!p.branchScope && !p.divisionScope) return true
+  if (p.cid === 0) return false // company_id='all' — di luar cakupan (lihat caller)
+
+  const cacheKey = p.branchScope ?? p.divisionScope!
+  let perCompany = unrestrictedScopeCache.get(cacheKey)
+  if (perCompany?.has(p.cid)) return perCompany.get(p.cid)!
+
+  const result = await computeScopeEffectivelyUnrestricted(p)
+
+  if (!perCompany) {
+    perCompany = new Map()
+    unrestrictedScopeCache.set(cacheKey, perCompany)
+  }
+  perCompany.set(p.cid, result)
+  return result
+}
+
+async function computeScopeEffectivelyUnrestricted(p: SegmentParams): Promise<boolean> {
+  if (p.branchScope) {
+    const allowed = p.branchScope.get(p.cid)
+    if (!allowed) return false // company tidak ada di map = default deny total, jelas restriktif
+    const allBranches = await db.select({ id: company_branches.id }).from(company_branches).where(eq(company_branches.company_id, p.cid))
+    if (allowed.length !== allBranches.length) return false
+    const allowedSet = new Set(allowed)
+    if (!allBranches.every((b) => allowedSet.has(b.id))) return false
+  }
+
+  if (p.divisionScope) {
+    const allBranchIds = p.branchScope
+      ? (p.branchScope.get(p.cid) ?? [])
+      : (await db.select({ id: company_branches.id }).from(company_branches).where(eq(company_branches.company_id, p.cid))).map((b) => b.id)
+    const allDivisions = await db.select({ id: divisions.id }).from(divisions).where(eq(divisions.company_id, p.cid))
+    const allDivisionIds = new Set(allDivisions.map((d) => d.id))
+    for (const branchId of allBranchIds) {
+      const allowed = p.divisionScope.get(branchId)
+      if (!allowed) return false
+      const allowedSet = new Set(allowed)
+      if (![...allDivisionIds].every((id) => allowedSet.has(id))) return false
+    }
+  }
+
+  return true
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

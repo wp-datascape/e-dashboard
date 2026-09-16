@@ -259,6 +259,13 @@ export const dormantCustomerQuerySchema = z.object({
 
 export type DormantCustomerQuery = z.infer<typeof dormantCustomerQuerySchema>
 
+// retentionQuerySchema (task044.md Bagian 2, HOLDINGIT-698) — M11 Retention
+// Rate, bentuk query IDENTIK dormantCustomerQuerySchema (company/branch/
+// division/period/granularitas/exclude_intercompany/only_pareto, sumber
+// data SAMA customer_status_snapshot) - alias langsung, bukan duplikasi.
+export const retentionQuerySchema = dormantCustomerQuerySchema
+export type RetentionQuery = z.infer<typeof retentionQuerySchema>
+
 // Drill-down status per customer (2026-08-24, susulan pertanyaan user soal
 // ambiguitas reaktivasi — lihat JSDoc CustomerDormantStatusRow di
 // metrics.types.ts). date_from = awal bucket yang diklik, period_end = akhir

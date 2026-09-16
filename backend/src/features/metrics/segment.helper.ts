@@ -5,8 +5,6 @@ export type { SegmentParams, InvoiceScopeConditions, InvoiceScopeParams } from '
 
 export {
   buildSegmentParams,
-  sqlStatusExpr,
-  sqlStatusWhere,
   cteEstablishedCustomers,
   cteFirstInvoiceDate,
   cteExistingCustomersByPeriod,
@@ -16,4 +14,5 @@ export {
   resolveInvoiceScopeConditions,
   monthEndDate,
   divisionToDormantKey,
+  isScopeEffectivelyUnrestricted,
 } from '@/features/customers/helper/segment.helper'

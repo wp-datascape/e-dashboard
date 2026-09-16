@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { useScopedCompanyFilter } from './useScopedCompanyFilter'
 import { usePeriodTypeFilter } from './usePeriodTypeFilter'
-import { todayIsoDate } from '@/utils/date'
+import { useFilterStore } from '@/context/filter.context'
+import { useState } from 'react'
 
 /**
  * "Filter global" — quick bar (Entitas + Periode + Apply date cutoff, auto-
@@ -25,12 +25,17 @@ import { todayIsoDate } from '@/utils/date'
  * `PeriodTypeFilterFields` yang sudah lebih dulu dipisah begini.
  */
 export function useAdvancedFilterBar() {
-  // scopeFilter (applied) & draftScopeFilter (staged, panel Filter Lanjutan)
-  // — instance TERPISAH (bukan 1 di-share) supaya draftScopeFilter bisa
-  // fetch daftar branch/division milik company yang SEDANG dipilih tanpa
-  // ikut mengubah opsi yang dipakai query data aktif.
+  // scopeFilter (applied, shared: true default) & draftScopeFilter (staged,
+  // panel Filter Lanjutan, shared: false EKSPLISIT) — instance TERPISAH
+  // supaya draftScopeFilter bisa fetch daftar branch/division milik company
+  // yang SEDANG dipilih tanpa ikut mengubah opsi yang dipakai query data
+  // aktif, DAN supaya draft tidak ikut ter-persist ke FilterContext
+  // (task043.md, HOLDINGIT-696, 2026-09-15 - applied SEKARANG baca/tulis
+  // FilterContext, persisten sessionStorage lintas halaman; draft TETAP
+  // useState lokal biasa, di-sync dari applied setiap panel dibuka, lihat
+  // `toggleAdvanced` di bawah).
   const scopeFilter = useScopedCompanyFilter()
-  const draftScopeFilter = useScopedCompanyFilter()
+  const draftScopeFilter = useScopedCompanyFilter(false)
 
   // Entitas LEVEL PALING ATAS cascade Company->Branch->Division — auto-apply
   // (quick bar), begitu diganti KEDUA instance disinkronkan bareng lewat
@@ -48,24 +53,62 @@ export function useAdvancedFilterBar() {
   // (hook itu punya resolusi tanggal sendiri utk navigator prev/next, TIDAK
   // dipakai di sini — showNavigator/showDateField selalu false di panel
   // lanjutan, field Periode di quick bar ini SATU-SATUNYA sumber tanggal).
-  const [periodEnd, setPeriodEnd] = useState(todayIsoDate())
+  // Pindah ke FilterContext (task043.md) - quick bar SELALU applied
+  // langsung (tidak py draft), jadi aman baca/tulis store terus-terusan.
+  const filterStore = useFilterStore()
+  const periodEnd = filterStore.periodEnd
+  const setPeriodEnd = filterStore.setPeriodEnd
 
   // "Apply date cutoff" — default OFF: field Periode cuma pilih bulan+tahun
   // (`type="month"`), krn hari-nya TIDAK BERPENGARUH kecuali sedang melihat
   // periode yang masih berjalan. AKTIF -> field jadi date picker penuh, DAN
   // mengaktifkan mode semua titik trend dipotong ke hari yang sama.
-  const [applyDateCutoff, setApplyDateCutoff] = useState(false)
+  const applyDateCutoff = filterStore.applyDateCutoff
+  const setApplyDateCutoff = filterStore.setApplyDateCutoff
 
-  // Granularitas — applied & draft, dipakai cuma utk `.periodType` di sini
-  // (bukan `.endDate`/navigator, lihat catatan `periodEnd` di atas).
+  // Granularitas — applied (shared) & draft (lokal), dipakai cuma utk
+  // `.periodType` di sini (bukan `.endDate`/navigator, lihat catatan
+  // `periodEnd` di atas).
   const periodTypeFilter = usePeriodTypeFilter()
-  const draftPeriodTypeFilter = usePeriodTypeFilter()
+  const draftPeriodTypeFilter = usePeriodTypeFilter('monthly', false)
 
-  // Toggle Customer Pareto — applied & draft.
-  const [onlyPareto, setOnlyPareto] = useState(false)
+  // Toggle Customer Pareto — applied (shared) & draft (lokal).
+  const onlyPareto = filterStore.onlyPareto
+  const setOnlyPareto = filterStore.setOnlyPareto
   const [draftOnlyPareto, setDraftOnlyPareto] = useState(false)
 
   const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  // toggleAdvanced (task043.md) — begitu panel Filter Lanjutan DIBUKA, sync
+  // draft dari nilai APPLIED yang sedang aktif (bukan lagi dari default
+  // kosong tiap mount, krn applied sekarang persisten lintas halaman/reload).
+  // Tanpa ini, buka panel di halaman manapun akan menampilkan draft yang
+  // sudah basi (nilai draft SEBELUMNYA di render pertama hook ini, biasanya
+  // default) walau applied sebenarnya sudah beda. Baca `advancedOpen`
+  // langsung (closure nilai render saat ini) - BUKAN di dalam functional
+  // updater setAdvancedOpen (updater harus pure, efek samping setState lain
+  // di dalamnya bisa dobel-jalan di StrictMode).
+  const toggleAdvanced = () => {
+    if (!advancedOpen) {
+      // setCompanyId LEBIH DULU (2026-09-15, bug ditemukan via verifikasi
+      // browser) - draftScopeFilter instance LOKAL, fresh 'all' tiap mount
+      // halaman baru (TIDAK ikut persisten spt scopeFilter/applied). Tanpa
+      // ini, Branch/Division di panel tetap ke-disable (ScopeFilterFields
+      // disable berdasar companyId==='all') walau company applied sudah
+      // bukan 'all' - padahal quickScopeFilter.setCompanyId (di atas) cuma
+      // sinkron draft SAAT company diganti lewat quick bar DALAM 1 sesi
+      // mount yang sama, tidak menjangkau mount baru. setCompanyId SENDIRI
+      // reset branchId/division ke default dulu (lihat setter-nya) - 2
+      // baris setelah ini yang mengembalikan ke nilai applied SEBENARNYA.
+      draftScopeFilter.setCompanyId(scopeFilter.companyId)
+      draftScopeFilter.setBranchId(scopeFilter.branchId)
+      draftScopeFilter.setDivision(scopeFilter.division)
+      draftScopeFilter.setExcludeIntercompany(scopeFilter.excludeIntercompany)
+      draftPeriodTypeFilter.setPeriodType(periodTypeFilter.periodType)
+      setDraftOnlyPareto(onlyPareto)
+    }
+    setAdvancedOpen((v) => !v)
+  }
 
   // Salin draft -> applied — CUMA field panel Filter Lanjutan (Cabang/Divisi/
   // Granularitas/Exclude Intercompany/Pareto). Entitas & Periode TIDAK di
@@ -81,17 +124,16 @@ export function useAdvancedFilterBar() {
   // Reset SEMUA field (termasuk panel lanjutan) ke default — applied DAN
   // draft sekaligus, supaya UI (baca draft) dan data yang benar-benar
   // di-fetch (baca applied) selalu konsisten begitu tombol diklik, tidak
-  // perlu 2 langkah (reset lalu klik Terapkan lagi).
+  // perlu 2 langkah (reset lalu klik Terapkan lagi). Applied lewat
+  // `filterStore.resetAll()` (task043.md) - 1 panggilan, reset SEMUA
+  // primitif applied sekaligus tulis default itu ke sessionStorage (bukan
+  // cuma reset di memori, supaya reload sesudahnya juga tetap default).
+  // Draft (instance lokal, tidak tersentuh resetAll) tetap direset manual.
   const handleResetFilter = () => {
-    scopeFilter.setCompanyId('all')
+    filterStore.resetAll()
     draftScopeFilter.setCompanyId('all')
-    setPeriodEnd(todayIsoDate())
-    setApplyDateCutoff(false)
-    scopeFilter.setExcludeIntercompany(false)
     draftScopeFilter.setExcludeIntercompany(false)
-    periodTypeFilter.setPeriodType('monthly')
     draftPeriodTypeFilter.setPeriodType('monthly')
-    setOnlyPareto(false)
     setDraftOnlyPareto(false)
     setAdvancedOpen(false)
   }
@@ -111,6 +153,7 @@ export function useAdvancedFilterBar() {
     setDraftOnlyPareto,
     advancedOpen,
     setAdvancedOpen,
+    toggleAdvanced,
     handleApplyFilter,
     handleResetFilter,
   }

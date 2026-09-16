@@ -397,3 +397,54 @@ export interface DormantData {
   // reaktivasi terbaru, sudah difilter status reactivated+newlyDormant di backend.
   reactivated_customers: CustomerDormantStatusRow[];
 }
+
+// ─── M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) ───
+export interface RetentionTrendPoint {
+  month: string;
+  cohort_count: number;
+  retained_count: number;
+  lost_count: number;
+  // total_active_count (2026-09-16) - populasi Active+Reactivated PERSIS di
+  // checkpoint titik INI SENDIRI (bukan cohort_count, itu checkpoint
+  // SEBELUMNYA) - dipakai turunkan "Transaksi Baru" = total_active_count -
+  // retained_count, lihat M11RetentionRate.tsx.
+  total_active_count: number;
+  retention_rate: number;
+}
+
+export interface RetainedCustomerRow {
+  customer_id: number;
+  customer_name: string;
+  customer_code: string | null;
+  company_name: string;
+  avg_monthly_revenue: number;
+}
+
+export interface RetentionData {
+  trend: RetentionTrendPoint[];
+  retention_current: {
+    value: number;
+    retained_count: number;
+    lost_count: number;
+    cohort_count: number;
+  };
+  // Top 20 by avg_monthly_revenue DESC (backend), frontend slice(0,5) utk
+  // kartu Top 5 - pola SAMA PERSIS value_ranking/reactivated_customers.
+  top_retained_customers: RetainedCustomerRow[];
+}
+
+// Report > Retention tabel (task044.md Bagian 2) — SELURUH cohort,
+// masing-masing ditandai retained/lost, pola SAMA DormantBreakdownData.
+export interface RetentionBreakdownRow {
+  customer_id: number;
+  customer_name: string;
+  customer_code: string | null;
+  company_name: string;
+  status: 'retained' | 'lost';
+  avg_monthly_revenue: number;
+}
+
+export interface RetentionBreakdownData {
+  period_end: string;
+  rows: RetentionBreakdownRow[];
+}

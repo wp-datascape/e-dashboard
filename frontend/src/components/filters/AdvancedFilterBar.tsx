@@ -73,7 +73,7 @@ export function AdvancedFilterBar({ title, titleAdornment, filter, hasAccess, lo
     applyDateCutoff, setApplyDateCutoff,
     draftPeriodTypeFilter,
     draftOnlyPareto, setDraftOnlyPareto,
-    advancedOpen, setAdvancedOpen,
+    advancedOpen, toggleAdvanced,
     handleApplyFilter, handleResetFilter,
   } = filter
 
@@ -131,7 +131,7 @@ export function AdvancedFilterBar({ title, titleAdornment, filter, hasAccess, lo
               size="small"
               color="inherit"
               startIcon={advancedOpen ? <RemoveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
-              onClick={() => setAdvancedOpen((v) => !v)}
+              onClick={toggleAdvanced}
               sx={{ textTransform: 'none' }}
             >
               {t('common.filters.advancedFilters')}

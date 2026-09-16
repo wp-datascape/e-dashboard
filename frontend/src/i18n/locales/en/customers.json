@@ -19,10 +19,12 @@
   "categories": "Categories",
   "searchPlaceholder": "Search by name or code...",
   "statusLabels": {
-    "active": "Active",
+    "acquisition": "Acquisition",
+    "active": "Active Customer",
+    "reactivated": "Reactivated",
+    "lapsed": "Lapsed",
     "dormant": "Dormant",
-    "new": "New",
-    "existing": "Existing"
+    "relapsed": "Relapsed"
   },
   "detail": {
     "title": "Customer View",

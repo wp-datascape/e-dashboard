@@ -1,10 +1,11 @@
 import { db } from '@/config/db'
-import { sql } from 'drizzle-orm'
-import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, dormantCrossedSql } from '../segment.helper'
+import { sql, eq, and, isNull, inArray } from 'drizzle-orm'
+import { customer_status_snapshot } from '@/db/schema'
+import { cteEstablishedCustomers, resolveInvoiceScopeConditions, cteCustDivision, dormantThresholdCaseSql, dormantCrossedSql, isScopeEffectivelyUnrestricted } from '../segment.helper'
 import type { SegmentParams } from '../segment.helper'
 import type { RevenueBreakdownRow, ExpansionBreakdownRow } from '../metrics.types'
 import { buildCompanyConditionRaw } from '@/utils/scope'
-import type { TrailingPeriodBucket } from '@/features/analisis/period.util'
+import type { TrailingPeriodBucket, PeriodType } from '@/features/analisis/period.util'
 
 export type TrendRow = {
   month: string
@@ -86,13 +87,65 @@ export type TrendRow = {
  *    JUGA identik dgn sebelumnya — bedanya cuma kelihatan di kuartal/
  *    semester/tahun (baru, belum pernah ada).
  */
-export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: TrailingPeriodBucket[], prevBuckets: TrailingPeriodBucket[], statusBuckets: TrailingPeriodBucket[]): Promise<TrendRow[]> {
+/**
+ * hasSnapshotForAllCheckpoints (task040.md, 2026-09-13) — mirror
+ * `hasSnapshotForCheckpoint` (dipakai fetchExpansionBreakdown), versi batch
+ * utk 12 checkpoint sekaligus (trend, bukan 1 titik drilldown). SEMUA 12
+ * checkpoint status_buckets HARUS py baris snapshot sebelum jalur cepat
+ * dipakai — kalau cuma SEBAGIAN ada (mis. company baru, histori belum
+ * sepenuhnya di-backfill), fallback ke query lama utk SELURUH 12 titik
+ * sekaligus (bukan dicampur per titik) supaya metodologi 1 baris trend
+ * konsisten sepanjang chart, tidak ada sambungan metodologi yang tidak
+ * kelihatan tapi bisa beda persis di 1 titik potong.
+ */
+export async function hasSnapshotForAllCheckpoints(
+  companyId: number,
+  divisionId: number | null,
+  periodType: PeriodType,
+  checkpointDates: string[],
+): Promise<boolean> {
+  const rows = await db
+    .selectDistinct({ checkpoint_date: customer_status_snapshot.checkpoint_date })
+    .from(customer_status_snapshot)
+    .where(and(
+      eq(customer_status_snapshot.company_id, companyId),
+      divisionId == null ? isNull(customer_status_snapshot.division_id) : eq(customer_status_snapshot.division_id, divisionId),
+      eq(customer_status_snapshot.period_type, periodType),
+      inArray(customer_status_snapshot.checkpoint_date, checkpointDates),
+    ))
+  const found = new Set(rows.map((r) => r.checkpoint_date))
+  return checkpointDates.every((d) => found.has(d))
+}
+
+export async function fetchCustomerMetricsTrend(
+  p: SegmentParams,
+  buckets: TrailingPeriodBucket[],
+  prevBuckets: TrailingPeriodBucket[],
+  statusBuckets: TrailingPeriodBucket[],
+  // periodType (task040.md, 2026-09-13) — WAJIB utk jalur cepat
+  // customer_status_snapshot (snapshot di-key per period_type). Default
+  // 'monthly' (caller lama yang belum kirim granularitas, PERILAKU LAMA,
+  // backward-compat) — sama pola dgn fetchExpansionBreakdown.
+  periodType: PeriodType = 'monthly',
+): Promise<TrendRow[]> {
   const { cid, division, companyScopeIds } = p
   const { branchCond, divisionScopeCond, companyCondI, excludeIntercompanyCond, onlyParetoCond } = resolveInvoiceScopeConditions(p, { customer: 'c_ov' })
   const companyCondC = buildCompanyConditionRaw('c.company_id', cid, companyScopeIds)
   // M7 dormant threshold (2026-08-25) — SAMA PERSIS pola m8m10.repository.ts
   // (dormantThresholdCaseSql + cteCustDivision), reuse bukan tulis ulang.
   const dormantThresholdSql = dormantThresholdCaseSql(p)
+  // snapshotEligible (task040.md, migrasi M3-M7 trend menyusul M7 drilldown)
+  // — SAMA PERSIS syarat fetchExpansionBreakdown (lihat komentar lengkap di
+  // sana): tidak ada filter branch/pareto/exclude_intercompany, cid bukan
+  // 'all', RBAC scope efektif tidak restriktif. Bedanya di sini snapshot
+  // WAJIB tersedia utk SEMUA 12 checkpoint (statusBuckets), bukan cuma 1.
+  const snapshotConditionsMet = cid !== 0
+    && p.branchFilter == null
+    && !p.excludeIntercompany
+    && !p.onlyPareto
+    && await isScopeEffectivelyUnrestricted(p)
+  const snapshotEligible = snapshotConditionsMet
+    && await hasSnapshotForAllCheckpoints(cid, division, periodType, statusBuckets.map((b) => b.end))
 
   const bucketValues = sql.join(
     buckets.map((b) => sql`(${b.label}::text, ${b.start}::date, ${b.end}::date)`),
@@ -233,7 +286,38 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
     -- tapi juga tidak mencampur yang sudah lama mati]. Ambang SAMA PERSIS
     -- M8 (dormantThresholdCaseSql, per kategori bisnis divisi) — 1 sumber
     -- kebenaran, bukan aturan baru.
-    ${cteCustDivision(p)},
+    -- existing_not_dormant (task040.md, 2026-09-13) — 2 jalur, SAMA PERSIS
+    -- pola fetchExpansionBreakdown (established_not_dormant di sana):
+    -- (a) snapshotEligible: baca langsung customer_status_snapshot per
+    --     status_buckets.pe (checkpoint konsisten, SSOT dgn drilldown M7),
+    --     status IN (active/reactivated/lapsed) = "Customer Base
+    --     (Addressable)" per Glosarium resmi.
+    -- (b) fallback: LATERAL-array lama, dipertahankan APA ADANYA utk
+    --     kombinasi filter yang belum tercakup snapshot (branch/pareto/
+    --     intercompany/RBAC scope/histori company baru yang belum
+    --     di-backfill penuh).
+    --
+    -- cteCustDivision/cust_dormant_threshold/customer_inv_dates/
+    -- last_inv_per_bucket SENGAJA dipindah ke DALAM cabang (b) di bawah
+    -- (2026-09-13, ditemukan lewat pengukuran: customer_inv_dates SENDIRIAN
+    -- ~4,7 detik utk company besar, lihat komentar aslinya di riwayat CTE
+    -- ini) — kalau tetap dihitung UNCONDITIONAL spt draft awal, company besar
+    -- yang justru snapshotEligible=true (fast path) TETAP membayar biaya
+    -- LATERAL-array yang hasilnya dibuang begitu saja (persis regresi yang
+    -- ditemukan test metric-cache.e2e.test.ts: query yang tadinya ~3,5
+    -- detik jadi kompetisi resource dgn hitungan yang tidak terpakai).
+    ${snapshotEligible
+      ? sql`existing_not_dormant AS (
+      SELECT sb.label, css.customer_id
+      FROM status_buckets sb
+      JOIN customer_status_snapshot css
+        ON css.company_id = ${cid}
+        AND ${division == null ? sql`css.division_id IS NULL` : sql`css.division_id = ${division}::int`}
+        AND css.period_type = ${periodType}
+        AND css.checkpoint_date = sb.pe
+        AND css.status IN ('active', 'reactivated', 'lapsed')
+    ),`
+      : sql`${cteCustDivision(p)},
     -- MATERIALIZED (2026-08-27, task030.md §6) — cust_division (dari
     -- cteCustDivision, DISTINCT ON invoice per customer) TANPA hint ini
     -- ke-inline ulang tiap cust_dormant_threshold di-JOIN (9.581 kali,
@@ -297,7 +381,8 @@ export async function fetchCustomerMetricsTrend(p: SegmentParams, buckets: Trail
       FROM last_inv_per_bucket
       WHERE last_inv_before_be IS NOT NULL
         AND ${dormantCrossedSql(sql`last_inv_before_be`, sql`bucket_end`, sql`dormant_threshold`, true)}
-    ),
+    ),`
+    }
 
     -- Revenue + GP per existing customer per bucket (window: SELURUH
     -- bucket itu sendiri, bukan lagi activeMonths — Keputusan desain #2).
@@ -788,6 +873,37 @@ export async function fetchRevenueBreakdown(
 // SELALU sama utk endDate yang sama, berapa pun lebar periodType-nya, PERSIS
 // pola total_existing GP breakdown. Opsional, fallback ke window activeMonths
 // tetap kalau kosong (backward-compat dialog drill-down di M7Expansion.tsx).
+/**
+ * hasSnapshotForCheckpoint (task040.md, 2026-09-12) — cek MURNI keberadaan
+ * (bukan isi baris statusnya), dipakai gerbang sebelum percaya
+ * customer_status_snapshot sbg sumber "existing_not_dormant". Snapshot bisa
+ * kosong genuinely (company baru, scheduler belum sempat rollover pertama
+ * kali) - beda kasus dari "sudah dihitung, hasilnya memang 0 baris cocok
+ * filter status" (yang itu valid, bukan tanda snapshot belum siap).
+ *
+ * Export (2026-09-16) — reuse Customer Workbench (`customers.repository.ts`,
+ * task040.md "Migrasi Customer Workbench"), pola sama `hasSnapshotForAllCheckpoints`
+ * yang sudah diexport utk m8m10.repository.ts.
+ */
+export async function hasSnapshotForCheckpoint(
+  companyId: number,
+  divisionId: number | null,
+  periodType: PeriodType,
+  checkpointDate: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: customer_status_snapshot.id })
+    .from(customer_status_snapshot)
+    .where(and(
+      eq(customer_status_snapshot.company_id, companyId),
+      divisionId == null ? isNull(customer_status_snapshot.division_id) : eq(customer_status_snapshot.division_id, divisionId),
+      eq(customer_status_snapshot.period_type, periodType),
+      eq(customer_status_snapshot.checkpoint_date, checkpointDate),
+    ))
+    .limit(1)
+  return !!row
+}
+
 export async function fetchExpansionBreakdown(
   p: SegmentParams,
   dateFrom?: string,
@@ -800,9 +916,41 @@ export async function fetchExpansionBreakdown(
   // Fallback filterDate kalau caller lama belum kirim (drilldown tanpa
   // periodType, backward-compat).
   statusCheckpoint?: string,
+  // periodType (task040.md, 2026-09-11) — WAJIB kalau mau pakai jalur cepat
+  // customer_status_snapshot (snapshot di-key per period_type juga, checkpoint
+  // date SENDIRIAN tidak cukup disambiguasi). Default 'monthly' (caller lama
+  // yang belum kirim granularitas, PERILAKU LAMA/LATERAL, backward-compat).
+  periodType: PeriodType = 'monthly',
 ): Promise<{ rows: ExpansionBreakdownRow[]; up_count: number; flat_count: number; inactive_count: number; down_count: number; active_count: number; total_existing: number }> {
   const { cid, filterDate, activeMonths, companyScopeIds } = p
   const dormantAsOf = statusCheckpoint ?? filterDate
+  // snapshotEligible (task040.md, bug timeout M7 drilldown) — customer_status_snapshot
+  // BELUM py dimensi branch/exclude_intercompany/only_pareto (di luar scope
+  // task040 tahap ini), jadi jalur cepat HANYA aman dipakai kalau TIDAK SATU
+  // PUN filter eksplisit itu aktif. cid===0 ("semua perusahaan") juga di luar
+  // cakupan snapshot (selalu per-company spesifik, tidak ada baris agregat
+  // 'all'). RBAC branchScope/divisionScope TIDAK cukup dicek "ada Map atau
+  // tidak" (koreksi 2026-09-12, ditemukan user: `resolveBranchScope` SELALU
+  // isi Map utk non-superadmin, WALAU scope itu efektif = SEMUA cabang
+  // company, TIDAK restriktif sama sekali — dicek ke data: 13 dari 14 user
+  // aktif begitu, cuma 1 akun test yang beneran sempit. Tanpa perbaikan ini
+  // jalur cepat nyaris tidak pernah kepakai user asli, cuma superadmin murni)
+  // — `isScopeEffectivelyUnrestricted` bandingkan ke DAFTAR LENGKAP cabang/
+  // divisi company, baru fallback kalau BENERAN membatasi.
+  //
+  // hasSnapshotForCheckpoint (2026-09-12, ditemukan saat nulis test isolasi) —
+  // WAJIB dicek SEBELUM percaya snapshot kosong = "0 customer". Snapshot baru
+  // terisi kalau scheduler (`customer-status-scheduler.ts`) SUDAH sempat jalan
+  // buat checkpoint itu (deploy baru/migration baru/company baru SEBELUM
+  // rollover periode pertama = tabel kosong sama sekali) - tanpa gerbang ini,
+  // company yang datanya BANYAK bisa tampil `total_existing=0` diam-diam,
+  // bukan cuma soal RBAC lagi tapi soal DATA salah.
+  const snapshotConditionsMet = cid !== 0
+    && p.branchFilter == null
+    && !p.excludeIntercompany
+    && !p.onlyPareto
+    && await isScopeEffectivelyUnrestricted(p)
+  const snapshotEligible = snapshotConditionsMet && await hasSnapshotForCheckpoint(cid, p.division, periodType, dormantAsOf)
   // periodStart (task029 §30.10, 2026-08-23 — "patokan ke definisi terbaru")
   // — kalau dateFrom dikirim (klik-titik chart granularitas-aware), itu
   // SUDAH persis awal bucket yang dilihat, reuse langsung. Kalau tidak
@@ -857,11 +1005,26 @@ export async function fetchExpansionBreakdown(
       LEFT JOIN cust_division cdv ON cdv.cid = c.id
       WHERE c.is_placeholder = false AND ${companyCondC}
     ),
-    -- established_not_dormant (2026-08-27, task030.md §6) — LATERAL +
-    -- ORDER BY...LIMIT 1 (bukan LEFT JOIN + GROUP BY MAX lama), pola sama
-    -- last_inv_per_bucket di fetchCustomerMetricsTrend — index scan
-    -- langsung per customer, bukan scan+sort seluruh invoice company.
-    established_not_dormant AS (
+    -- established_not_dormant — 2 jalur:
+    -- (a) snapshotEligible: baca langsung customer_status_snapshot
+    --     (precompute scheduler, task040.md) - index lookup biasa, BUKAN
+    --     LATERAL per-customer. status IN (active/reactivated/lapsed) =
+    --     "Customer Base (Addressable)" per Glosarium resmi, PERSIS populasi
+    --     yang dicari di sini (existing, belum lewat ambang dormant).
+    -- (b) fallback: LATERAL + ORDER BY...LIMIT 1 lama (2026-08-27,
+    --     task030.md §6) - dipertahankan APA ADANYA utk kombinasi filter yang
+    --     belum tercakup snapshot (branch/pareto/intercompany/RBAC scope).
+    ${snapshotEligible
+      ? sql`established_not_dormant AS (
+      SELECT customer_id AS id
+      FROM customer_status_snapshot
+      WHERE company_id = ${cid}
+        AND ${p.division == null ? sql`division_id IS NULL` : sql`division_id = ${p.division}::int`}
+        AND period_type = ${periodType}
+        AND checkpoint_date = ${dormantAsOf}::date
+        AND status IN ('active', 'reactivated', 'lapsed')
+    ),`
+      : sql`established_not_dormant AS (
       SELECT ec.id
       FROM established_customers ec
       JOIN cust_dormant_threshold cdt ON cdt.cid = ec.id
@@ -886,7 +1049,8 @@ export async function fetchExpansionBreakdown(
       ) li ON true
       WHERE li.invoice_date IS NOT NULL
         AND ${dormantCrossedSql(sql`li.invoice_date`, sql`${dormantAsOf}::date`, sql`cdt.dormant_threshold`, true)}
-    ),
+    ),`
+    }
     inv_current AS (
       SELECT i.customer_id, SUM(i.total_revenue::numeric) AS revenue
       FROM invoices i

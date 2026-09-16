@@ -477,23 +477,41 @@ export function getElapsedRangeEnd(periodType: PeriodType, today: Date = new Dat
  * Periode yang masih berjalan tidak adil dibandingkan (belum penuh sebulan/dst).
  */
 /**
- * N titik trend (label = periode berjalan, pola SAMA `buildTrailingPeriods`),
- * TAPI rentang tanggal DATA tiap titik digeser mundur 1 periode dari
- * labelnya sendiri — checkpoint "sudah tutup penuh" (task039.md, SSOT status
- * customer New/Active/Existing/Dormant di SELURUH KPI). Diekstrak dari logic
- * yang sebelumnya inline HANYA di `getDormantCustomerMetrics` (M8-M10,
- * metrics.service.ts) — sekarang dipakai jg `getCustomerMetrics` (M3-M7)
- * supaya base customer M7 (Customer Base) match persis M8 (Total Customer
- * Base - Dormant) di company/period yang sama. Populasi "siapa yang New/
- * Existing" (not-new gate) TIDAK ikut fungsi ini — itu TETAP relatif ke
- * label kalender ASLI (live), cuma evaluasi "sudah dormant atau belum" yang
- * butuh checkpoint tertutup ini (lihat JSDoc `getDormantCustomerMetrics`
- * kenapa: status absen cuma bisa dipastikan kalau bulan itu sudah tutup).
+ * N titik trend (label = periode berjalan, pola SAMA `buildTrailingPeriods`).
+ * CUMA titik TERAKHIR (periode yang masih BERJALAN, belum tutup) yang rentang
+ * tanggal DATA-nya digeser mundur 1 periode dari labelnya — checkpoint "sudah
+ * tutup penuh" (task039.md, SSOT status customer di SELURUH KPI). Titik LAIN
+ * (sudah pasti tutup) pakai data periode labelnya SENDIRI, TIDAK digeser.
+ *
+ * Revisi 2026-09-16 (task044.md/HOLDINGIT-697) — sebelumnya SEMUA titik
+ * digeser -1 tanpa kecuali (bukan cuma titik terakhir), akibatnya titik lama
+ * yang jelas sudah lama tutup (mis. Maret, dilihat bulan November) tetap
+ * menampilkan data checkpoint Februari, padahal data Maret sendiri sudah
+ * lama tersedia/stabil. Efek "carry-forward" di titik terakhir (periode
+ * berjalan pakai data checkpoint sebelumnya) tetap tercapai SECARA ALAMI -
+ * titik kedua-dari-belakang (sudah tutup, pakai datanya sendiri) dan titik
+ * terakhir (belum tutup, dataKey-nya = periode sebelumnya) SAMA-SAMA membaca
+ * checkpoint yang SAMA persis, jadi angkanya otomatis identik tanpa logic
+ * tambahan. `resolveStatusCheckpointDate` (checkpoint TUNGGAL di bawah)
+ * TIDAK ikut berubah - itu SELALU soal 1 titik "periode berjalan belum
+ * tutup", identik konsepnya dengan titik TERAKHIR di sini yang tetap
+ * digeser.
+ *
+ * Diekstrak dari logic yang sebelumnya inline HANYA di
+ * `getDormantCustomerMetrics` (M8-M10, metrics.service.ts) — sekarang dipakai
+ * jg `getCustomerMetrics` (M3-M7) supaya base customer M7 (Customer Base)
+ * match persis M8 (Total Customer Base - Dormant) di company/period yang
+ * sama. Populasi "siapa yang New/Existing" (not-new gate) TIDAK ikut fungsi
+ * ini — itu TETAP relatif ke label kalender ASLI (live), cuma evaluasi
+ * "sudah dormant atau belum" yang butuh checkpoint tertutup ini (lihat JSDoc
+ * `getDormantCustomerMetrics` kenapa: status absen cuma bisa dipastikan
+ * kalau bulan itu sudah tutup).
  */
 export function buildStatusCheckpointBuckets(periodType: PeriodType, currentKey: string, count: number): TrailingPeriodBucket[] {
   const labelBuckets = buildTrailingPeriods(periodType, currentKey, count)
-  return labelBuckets.map((b) => {
-    const dataKey = getPreviousPeriodKey(periodType, b.label)
+  return labelBuckets.map((b, i) => {
+    const isCurrentOpenPeriod = i === labelBuckets.length - 1
+    const dataKey = isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, b.label) : b.label
     const dataRange = getPeriodRange(periodType, dataKey)
     return { label: b.label, start: dataRange.start, end: dataRange.end }
   })
@@ -514,6 +532,25 @@ export function resolveStatusCheckpointDate(periodType: PeriodType, referenceDat
   const currentKey = getCurrentPeriodKey(periodType, new Date(ry!, rm! - 1, rd!))
   const closedKey = getPreviousPeriodKey(periodType, currentKey)
   return getPeriodRange(periodType, closedKey).end
+}
+
+/**
+ * bucket/prevBucket (periode PENUH + periode SEBELUMNYA) dari sebuah
+ * checkpoint date APAPUN (bukan cuma "checkpoint hari ini") — dipakai
+ * caller yang perlu compute on-demand via `computeCustomerStatusSnapshot`
+ * (bukan baca precompute customer_status_snapshot), pola SAMA PERSIS
+ * `computeAndStore` (customer-status-scheduler.ts). Dipromosikan ke sini
+ * (2026-09-16, task044.md/HOLDINGIT-698, susulan HOLDINGIT-694) dari
+ * `customers.repository.ts` (nama sama) - dibutuhkan 2 tempat (Customer
+ * Workbench fallback DAN M11 Retention Rate fallback), bukan cuma 1.
+ */
+export function resolveStatusCheckpointBuckets(periodType: PeriodType, checkpointDateStr: string): { bucket: PeriodRange; prevBucket: PeriodRange } {
+  const [cy, cm, cd] = checkpointDateStr.split('-').map(Number)
+  const currentKey = getCurrentPeriodKey(periodType, new Date(cy!, cm! - 1, cd!))
+  const bucket = getPeriodRange(periodType, currentKey)
+  const prevKey = getPreviousPeriodKey(periodType, currentKey)
+  const prevBucket = getPeriodRange(periodType, prevKey)
+  return { bucket, prevBucket }
 }
 
 export function getLatestClosedPeriodKey(periodType: PeriodType, today: Date = new Date()): string {

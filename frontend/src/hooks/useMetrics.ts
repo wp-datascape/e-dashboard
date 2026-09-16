@@ -1,7 +1,7 @@
 // src/hooks/useMetrics.ts
 import { useQuery } from '@tanstack/react-query';
 import { metricsApi } from '@/api/metrics.api';
-import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus, RetentionData, RetentionBreakdownData } from '@/types/metrics';
 import type { DrilldownPeriodParams } from '@/utils/analisisPeriod';
 
 const STALE_TIME = 1000 * 60 * 5; // 5 menit
@@ -192,6 +192,48 @@ export function useDormantCustomer(params?: {
   return useQuery<DormantData>({
     queryKey: ['metrics', 'dormant-customer', params],
     queryFn: () => metricsApi.getDormantCustomer(params),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) —
+// pola SAMA PERSIS useDormantCustomer di atas.
+export function useRetention(params?: {
+  company_id?: number | 'all';
+  period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  skip_elapsed_clamp?: boolean;
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}, options?: { enabled?: boolean }) {
+  return useQuery<RetentionData>({
+    queryKey: ['metrics', 'retention-rate', params],
+    queryFn: () => metricsApi.getRetention(params),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME,
+  });
+}
+
+// Report > Retention tabel (task044.md Bagian 2, HOLDINGIT-698) — pola SAMA
+// useRetention di atas.
+export function useRetentionBreakdown(params?: {
+  company_id?: number | 'all';
+  period_end?: string;
+  period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+  apply_date_cutoff?: boolean;
+  skip_elapsed_clamp?: boolean;
+  division?: number;
+  branch_id?: number;
+  exclude_intercompany?: boolean;
+  only_pareto?: boolean;
+}, options?: { enabled?: boolean }) {
+  return useQuery<RetentionBreakdownData>({
+    queryKey: ['metrics', 'retention-breakdown', params],
+    queryFn: () => metricsApi.getRetentionBreakdown(params),
     enabled: options?.enabled ?? true,
     staleTime: STALE_TIME,
   });

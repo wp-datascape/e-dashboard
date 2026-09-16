@@ -1,0 +1,1 @@
+ALTER TABLE "customer_status_snapshot" ADD COLUMN "last_invoice_date" date;
