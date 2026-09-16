@@ -15,7 +15,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import type { MouseHandlerDataParam } from 'recharts';
+import type { MouseHandlerDataParam, TooltipContentProps } from 'recharts';
 
 export interface AreaSeries {
   key: string;
@@ -64,6 +64,13 @@ export interface AreaChartWidgetProps {
    * dari BarChartWidget/ComboChartWidget yang sudah py `tooltipFormatter`).
    * Pola sama persis `tooltipFormatter` BarChartWidget. */
   tooltipFormatter?: (value: number, name: string) => [string, string];
+  /** Tooltip custom penuh (2026-09-16, susulan M11 — instruksi user: "gunakan
+   * tooltip custom seperti chart lain nya"), pola SAMA PERSIS `renderTooltip`
+   * LineAlertWidget (`ChartTooltipCard` di caller) — caller urus sendiri
+   * title+rows, MENGGANTIKAN `tooltipFormatter` kalau diisi (recharts
+   * `<Tooltip>` cuma terima salah satu, `content` ATAU `formatter`, bukan
+   * dua-duanya). */
+  renderTooltip?: (props: TooltipContentProps<number, string>) => React.ReactElement | null;
 }
 
 export const AreaChartWidget = ({
@@ -81,6 +88,7 @@ export const AreaChartWidget = ({
   xAxisFormatter,
   yAxisFormatter,
   tooltipFormatter,
+  renderTooltip,
 }: AreaChartWidgetProps) => {
   const theme = useTheme();
   const isPositive = (change ?? 0) >= 0;
@@ -171,20 +179,24 @@ export const AreaChartWidget = ({
             tickFormatter={yAxisFormatter}
             width={yAxisFormatter ? 56 : undefined}
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: theme.palette.background.paper,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 0,
-              fontSize: 12,
-            }}
-            formatter={
-              tooltipFormatter
-                ? (value: unknown, name: unknown) => tooltipFormatter(value as number, name as string)
-                : undefined
-            }
-            labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
-          />
+          {renderTooltip ? (
+            <Tooltip content={(props) => renderTooltip(props as TooltipContentProps<number, string>)} />
+          ) : (
+            <Tooltip
+              contentStyle={{
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 0,
+                fontSize: 12,
+              }}
+              formatter={
+                tooltipFormatter
+                  ? (value: unknown, name: unknown) => tooltipFormatter(value as number, name as string)
+                  : undefined
+              }
+              labelFormatter={xAxisFormatter ? (label: unknown) => xAxisFormatter(String(label)) : undefined}
+            />
+          )}
           {series.length > 1 && (
             <Legend wrapperStyle={{ fontSize: 12 }} />
           )}

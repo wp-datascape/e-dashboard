@@ -10,9 +10,11 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTranslation } from 'react-i18next';
+import type { TooltipContentProps } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 
 import { AreaChartWidget } from '@/components/charts/AreaChartWidget';
+import { ChartTooltipCard } from '@/components/charts/ChartTooltipCard';
 import { Card } from '@/components/ui';
 import { TopMoversTimeline } from '@/components/dashboard/TopMoversTimeline';
 import type { TopMoverItem } from '@/components/dashboard/TopMoversTimeline';
@@ -22,6 +24,31 @@ import type { RetentionData } from '@/types/metrics';
 import type { PeriodGranularity } from '@/hooks/usePeriodTypeFilter';
 import { SectionLabel } from '../CustomerMetrics/HelperComponents';
 import { KpiCard } from '../CrossSelling/HelperComponents';
+
+// Tooltip custom (2026-09-16, instruksi user: "gunakan tooltip custom
+// seperti chart lain nya" — pola SAMA PERSIS M10Tooltip, ChartTooltipCard
+// atomic). Isi 4 baris SUDAH tersedia semua di titik trend (cohort_count/
+// retained_count/lost_count/retention_rate, tidak perlu field baru) —
+// dikonfirmasi user lewat AskUserQuestion, opsi "4 angka yang sudah ada".
+// TANPA hint klik (beda dari M10) - M11 belum punya dialog drilldown per
+// titik chart, lihat JSDoc scope M11RetentionRate di bawah.
+function M11Tooltip({ active, payload, periodType }: TooltipContentProps<number, string> & { periodType: PeriodGranularity }) {
+  const { t } = useTranslation();
+  if (!active || !payload?.[0]) return null;
+  const d = payload[0].payload as { month: string; retention_rate: number; cohort_count: number; retained_count: number; lost_count: number };
+
+  return (
+    <ChartTooltipCard
+      title={t('dormantCustomer.m11TooltipTitle', { month: formatPeriodLabelShort(t, periodType, d.month) })}
+      rows={[
+        { label: t('dormantCustomer.m11RetentionRateLabel'), value: `${d.retention_rate.toFixed(1)}%` },
+        { label: t('dormantCustomer.m11CohortCountLabel'), value: d.cohort_count.toLocaleString('id-ID') },
+        { label: t('dormantCustomer.m11RetainedCountLabel'), value: d.retained_count.toLocaleString('id-ID') },
+        { label: t('dormantCustomer.m11LostCountLabel'), value: d.lost_count.toLocaleString('id-ID') },
+      ]}
+    />
+  );
+}
 
 // M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) — KPI
 // BARU, layout mengikuti standar M1/M6/M8/M10 (3 kartu + 1 chart trend + Top
@@ -131,7 +158,7 @@ export function M11RetentionRate({ data, isLoading, periodType = 'monthly' }: Pr
                   height={280}
                   xAxisFormatter={(label) => formatPeriodLabelShort(t, periodType, label)}
                   yAxisFormatter={(v) => `${v}%`}
-                  tooltipFormatter={(value) => [`${value.toFixed(1)}%`, t('dormantCustomer.m11RetentionRateLabel')]}
+                  renderTooltip={(props) => <M11Tooltip {...props} periodType={periodType} />}
                 />
               )}
             </Grid>
