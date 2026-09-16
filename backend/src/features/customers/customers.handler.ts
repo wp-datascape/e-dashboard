@@ -27,8 +27,12 @@ export async function handleGetCustomers(c: Context) {
 // handleGetCustomers, satu query tanpa pagination lewat getCustomersExport.
 // Kolom Excel SAMA PERSIS kolom tabel di layar (Customers/index.tsx), bukan
 // set kolom baru yang bisa menyimpang.
+// 5 status resmi (task040.md "Susulan: adopsi PENUH 6 status resmi",
+// 2026-09-16) — label English apa adanya, SAMA PERSIS konvensi
+// `dormantCustomer.json`/`dashboard.json` (istilah bisnis baku, tidak
+// diterjemahkan meski file-nya bahasa Indonesia).
 const STATUS_LABEL: Record<string, string> = {
-  active: 'Aktif', existing: 'Existing', dormant: 'Dorman', new: 'Baru',
+  acquisition: 'Acquisition', active: 'Active Customer', reactivated: 'Reactivated', lapsed: 'Lapsed', dormant: 'Dormant',
 }
 
 export async function handleExportCustomers(c: Context) {
@@ -68,7 +72,10 @@ export async function handleExportCustomers(c: Context) {
   ]
   const columns = allColumns.filter((c) => isSelected(c.key))
 
-  const rows = data.map((row) => ({ ...row, status_label: STATUS_LABEL[row.status] ?? row.status }))
+  const rows = data.map((row) => ({
+    ...row,
+    status_label: (STATUS_LABEL[row.status] ?? row.status) + (row.is_relapsed ? ' (Relapsed)' : ''),
+  }))
 
   const buffer = await buildExcelBuffer({
     title: 'Data Customer',

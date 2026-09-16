@@ -23,6 +23,10 @@
   "readGuide": "Baca Panduan",
   "closeGuide": "Tutup",
   "items": {
+    "retention-rate": {
+      "title": "KPI Baru: Retention Rate (M11)",
+      "description": "Lihat seberapa lengket basis pelanggan Anda — dari pelanggan yang aktif periode lalu, berapa persen yang masih aktif di periode ini. Tersedia di halaman Retention lengkap dengan tren 12 periode dan Top 5 pelanggan tertahan."
+    },
     "pwa": {
       "title": "Pasang Dashboard Jadi Aplikasi",
       "description": "Dashboard ini bisa dipasang sebagai aplikasi di komputer, Android, maupun iPhone/iPad — ada ikonnya sendiri, terbuka tanpa bilah alamat browser, dan lebih cepat diakses."

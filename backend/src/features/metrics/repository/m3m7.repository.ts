@@ -880,8 +880,12 @@ export async function fetchRevenueBreakdown(
  * kosong genuinely (company baru, scheduler belum sempat rollover pertama
  * kali) - beda kasus dari "sudah dihitung, hasilnya memang 0 baris cocok
  * filter status" (yang itu valid, bukan tanda snapshot belum siap).
+ *
+ * Export (2026-09-16) — reuse Customer Workbench (`customers.repository.ts`,
+ * task040.md "Migrasi Customer Workbench"), pola sama `hasSnapshotForAllCheckpoints`
+ * yang sudah diexport utk m8m10.repository.ts.
  */
-async function hasSnapshotForCheckpoint(
+export async function hasSnapshotForCheckpoint(
   companyId: number,
   divisionId: number | null,
   periodType: PeriodType,

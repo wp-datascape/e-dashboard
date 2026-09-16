@@ -4,7 +4,10 @@ export const customersQuerySchema = z.object({
   company_id: z.union([z.coerce.number().int().positive(), z.literal('all')]).default('all'),
   branch_id: z.coerce.number().int().positive().optional(),
   search: z.string().optional(),
-  status: z.enum(['new', 'active', 'dormant', 'existing']).optional(),
+  // 5 status resmi Glosarium (task040.md "Susulan: adopsi PENUH 6 status
+  // resmi", 2026-09-16) — PERSIS CustomerStatusValue. Relapsed BUKAN nilai
+  // filter terpisah (penanda tambahan pada Dormant, lihat is_relapsed).
+  status: z.enum(['acquisition', 'active', 'reactivated', 'lapsed', 'dormant']).optional(),
   // Division sekarang FK integer per company (task012 v2) — filter pakai division_id.
   business_unit: z.coerce.number().int().positive().optional(),
   sort_by: z

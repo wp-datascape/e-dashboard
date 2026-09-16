@@ -1,7 +1,7 @@
 // src/api/metrics.api.ts
 import { api } from './axios';
 import type { ApiResponse } from '@/types/api';
-import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus } from '@/types/metrics';
+import type { CrossSellingData, CrossSellingSummaryData, CustomerMetricsData, DormantData, RevenueBreakdownData, ExpansionBreakdownData, GpBreakdownData, HmBreakdownData, RorBreakdownData, DormantBreakdownData, DormantStatusBreakdownData, DormantValueHistoryData, DormantCustomerStatus, RetentionData, RetentionBreakdownData } from '@/types/metrics';
 
 export const metricsApi = {
   getCrossSelling: async (params?: {
@@ -88,6 +88,41 @@ export const metricsApi = {
     only_pareto?: boolean;
   }): Promise<DormantData> => {
     const res = await api.get<ApiResponse<DormantData>>('/metrics/dormant-customer', { params });
+    return res.data.data;
+  },
+
+  // M11 Retention Rate (task044.md Bagian 2, HOLDINGIT-698, 2026-09-16) —
+  // query params IDENTIK getDormantCustomer (backend retentionQuerySchema
+  // alias langsung dormantCustomerQuerySchema).
+  getRetention: async (params?: {
+    company_id?: number | 'all';
+    period_end?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    skip_elapsed_clamp?: boolean;
+    division?: number;
+    branch_id?: number;
+    exclude_intercompany?: boolean;
+    only_pareto?: boolean;
+  }): Promise<RetentionData> => {
+    const res = await api.get<ApiResponse<RetentionData>>('/metrics/retention-rate', { params });
+    return res.data.data;
+  },
+
+  // Report > Retention tabel (task044.md Bagian 2) — query params SAMA
+  // getRetention di atas.
+  getRetentionBreakdown: async (params?: {
+    company_id?: number | 'all';
+    period_end?: string;
+    period_type?: 'monthly' | 'quarter' | 'semester' | 'annual';
+    apply_date_cutoff?: boolean;
+    skip_elapsed_clamp?: boolean;
+    division?: number;
+    branch_id?: number;
+    exclude_intercompany?: boolean;
+    only_pareto?: boolean;
+  }): Promise<RetentionBreakdownData> => {
+    const res = await api.get<ApiResponse<RetentionBreakdownData>>('/metrics/retention-breakdown', { params });
     return res.data.data;
   },
 

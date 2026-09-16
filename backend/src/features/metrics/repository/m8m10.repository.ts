@@ -186,7 +186,14 @@ export async function fetchDormantTrend(
         ROUND(ca.reactivated_count::numeric / NULLIF(pa.prev_dormant_count, 0) * 100, 1) AS reactivation_rate
       FROM cur_agg ca
       LEFT JOIN prev_agg pa ON pa.label = ca.label
-      ORDER BY ca.pe
+      -- ORDER BY ca.label, BUKAN ca.pe (bug ditemukan 2026-09-16,
+      -- task044.md/HOLDINGIT-697) - sejak buildStatusCheckpointBuckets cuma
+      -- geser titik TERAKHIR, titik kedua-dari-belakang (checkpoint SENDIRI)
+      -- dan titik terakhir (checkpoint digeser) BISA sengaja sama persis
+      -- (itu caranya carry-forward tercapai) - ORDER BY pe jadi ambigu/tidak
+      -- stabil di 2 baris berbeda dgn pe SAMA. label ("YYYY-MM"/"YYYY-QN"/dst)
+      -- SELALU unik per titik dan sortable leksikografis sesuai kalender.
+      ORDER BY ca.label
     `)
     return (snapRows as unknown[]).map((r) => mapDormantTrendRow(r as Record<string, unknown>))
   }

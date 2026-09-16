@@ -51,6 +51,7 @@ export interface FeatureGroup {
 // lagi sampai halaman itu benar-benar punya jalan masuk dari navigasi.
 export const WHATS_NEW_ITEMS: WhatsNewItem[] = [
   { key: 'pwa', category: 'new', date: '2026-07-03', ctaGuideKey: 'install-pwa' },
+  { key: 'retention-rate', category: 'new', date: '2026-09-16', ctaTo: '/retention' },
   { key: 'help-page', category: 'new', date: '2026-08-27', ctaTo: '/help' },
   { key: 'reports', category: 'new', date: '2026-08-26', ctaTo: '/report/growth' },
   { key: 'upsell-targets', category: 'improved', date: '2026-08-26', ctaGuideKey: 'find-upsell' },

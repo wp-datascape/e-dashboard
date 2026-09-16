@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider, ProtectedRoute } from './context/AuthContext'
 import { useAuth } from './context/auth.context'
+import { FilterProvider } from './context/FilterContext'
 import { usePageSettings } from './hooks/usePageSettings'
 import { api } from './api/axios'
 import { useThemeMode } from './theme/theme.context'
@@ -171,7 +172,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
+        <FilterProvider>
+          <AppRouter />
+        </FilterProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

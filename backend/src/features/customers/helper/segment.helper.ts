@@ -33,7 +33,7 @@
  * mentah task028 lagi.
  */
 
-import { sql, and, or, eq, type SQL } from 'drizzle-orm'
+import { sql, and, eq, type SQL } from 'drizzle-orm'
 import { divisionToDormantKey, buildDormantCaseSql, type ThresholdConfig } from '@/features/config/threshold'
 import { buildBranchConditionRaw, buildDivisionConditionRaw, buildCompanyConditionRaw, buildExcludeIntercompanyRaw, buildOnlyParetoRaw } from '@/utils/scope'
 import { db } from '@/config/db'
@@ -96,108 +96,6 @@ export function buildSegmentParams(
     divisionScope,
     otherIdByBranch,
     intercompanyIdByCompany,
-  }
-}
-
-// ─── SQL expression (CASE WHEN) — SSOT per baris ─────────────────────────────
-
-/**
- * CASE WHEN expression untuk kolom status per customer.
- * Dipakai di SELECT agar setiap baris punya label status-nya.
- *
- * `dormantMonths` boleh scalar (1 angka, dipakai kalau caller sudah tahu
- * SATU customer/SATU divisi spesifik — mis. findCustomerDetail) ATAU
- * ekspresi SQL per-baris dari `buildDormantCaseSql()` (dipakai kalau caller
- * query banyak customer lintas divisi sekaligus — mis. findCustomers,
- * task027 fix 2026-08-21). Widget interpolasi `sql` tag menangani keduanya
- * sama — angka jadi bound param, SQL fragment di-splice apa adanya.
- */
-export function sqlStatusExpr(
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormantMonths: number | SQL,
-  lastInv: unknown,
-  firstInv: unknown,
-  // dormantRefDate (task039.md, 2026-09-11, fix susulan — bug ditemukan user:
-  // "geser mundur customer new ini gimana maksutnya" — awalnya SATU refDate
-  // dipakai buat activeCutoff (New/Active) DAN isDormant sekaligus, akibatnya
-  // checkpoint Dormant yang digeser ikut MENGGESER batas New/Active juga,
-  // padahal niatnya cuma benerin Dormant — diverifikasi angka status=new
-  // company 1 berubah 5 jadi 11, TIDAK diminta). SEKARANG dipisah: `refDate`
-  // TETAP live (activeCutoff/New tidak berubah), `dormantRefDate` (opsional,
-  // fallback ke `refDate` kalau tidak dikirim — backward-compat caller lama
-  // spt findCustomerDetail yang belum kirim ini) KHUSUS utk isDormant, SSOT
-  // dgn checkpoint M3-M10 (resolveStatusCheckpointDate, period.util.ts).
-  dormantRefDate?: ReturnType<typeof sql>,
-) {
-  const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantAsOf = dormantRefDate ?? refDate
-  // isDormant (2026-08-27, task029.md §36.52 — koreksi KERAS user: "pelanggan
-  // baru pindah status dorman saat bulan agustus sudah habis... ada
-  // kesalahan logika disini") — reuse dormantCrossedSql (kalender-bulan
-  // penuh), BUKAN lagi `lastInv <= refDate - dormantMonths bulan` mentah
-  // (tanggal presisi, bikin status dormant "meletus" di tengah bulan).
-  const isDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
-
-  return sql<string>`
-    CASE
-      WHEN ${lastInv} IS NULL                     THEN 'new'
-      WHEN ${firstInv}::date >= ${activeCutoff}   THEN 'new'
-      WHEN ${isDormant}                           THEN 'dormant'
-      WHEN ${lastInv}::date  >= ${activeCutoff}   THEN 'active'
-      ELSE 'existing'
-    END
-  `
-}
-
-/**
- * WHERE condition untuk filter status di halaman Customer.
- * 'active' = new + active chip = semua yang last_invoice >= activeCutoff.
- * 'existing' = non-new, non-dormant (antara active_window dan dormant_threshold).
- */
-export function sqlStatusWhere(
-  status: string,
-  refDate: ReturnType<typeof sql>,
-  activeMonths: number,
-  dormantMonths: number | SQL,
-  lastInv: unknown,
-  firstInv: unknown,
-  // dormantRefDate — pola SAMA PERSIS sqlStatusExpr di atas, lihat komentar
-  // di sana kenapa dipisah dari refDate (bug "New" ikut kegeser).
-  dormantRefDate?: ReturnType<typeof sql>,
-) {
-  const activeCutoff  = sql`${refDate} - ${activeMonths}::int  * INTERVAL '1 month'`
-  const dormantAsOf = dormantRefDate ?? refDate
-  // isDormant/notDormant (2026-08-27, task029.md §36.52) — pola SAMA PERSIS
-  // sqlStatusExpr di atas, reuse dormantCrossedSql kalender-bulan penuh.
-  const isDormant  = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`)
-  const notDormant = dormantCrossedSql(sql`${lastInv}::date`, sql`${dormantAsOf}::date`, sql`${dormantMonths}::int`, true)
-
-  const isNew  = or(sql`${lastInv} IS NULL`, sql`${firstInv}::date >= ${activeCutoff}`)
-  const notNew = and(
-    sql`${lastInv} IS NOT NULL`,
-    sql`(${firstInv} IS NULL OR ${firstInv}::date < ${activeCutoff})`,
-  )
-
-  switch (status) {
-    case 'new':     return isNew
-    case 'dormant': return and(notNew, isDormant)
-    // BUG (ditemukan 2026-08-10 lewat audit silang DormantRate vs Customer
-    // Workbench — user: "aktif customer bulan Juni 357? di menu lain 329,
-    // mana yang benar?"): case ini SATU-SATUNYA yang tidak exclude customer
-    // baru (notNew), beda dari 'dormant'/'existing' di sekelilingnya —
-    // akibatnya customer yang baru transaksi pertama kali (harusnya masuk
-    // 'new') ikut ke-double-count sbg 'active' juga saat difilter
-    // `?status=active`. Kolom status per-baris (sqlStatusExpr di atas) TIDAK
-    // kena bug ini (CASE-nya cek 'new' duluan), cuma filter dropdown ini.
-    case 'active':  return and(notNew, sql`${lastInv}::date >= ${activeCutoff}`)
-    case 'existing':
-      return and(
-        notNew,
-        notDormant,
-        sql`${lastInv}::date < ${activeCutoff}`,
-      )
-    default: return undefined
   }
 }
 

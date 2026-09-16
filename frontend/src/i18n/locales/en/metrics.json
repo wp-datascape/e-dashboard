@@ -28,6 +28,7 @@
   "reactivation": "Customer Reactivation Rate",
   "reactivationShort": "Reactivation",
   "reactivationDesc": "Dormant customers who came back active",
+  "retentionShort": "Retention",
   "currentValue": "Current Value",
   "previousValue": "Last Month",
   "change": "Change",

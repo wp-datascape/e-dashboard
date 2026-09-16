@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFilterStore } from '@/context/filter.context'
 import type { ParetoPeriodType } from '@/types/paretoThresholds'
 import {
   getCurrentPeriodKey,
@@ -38,10 +39,23 @@ function todayISODate(): string {
  * trend/KPI bulanan) — jadi filter ini SIAP dipakai UI-nya, tapi belum
  * mengubah data KPI manapun sampai backend tiap KPI diupdate menerima
  * granularitas ini (rencana: 1 KPI dulu jadi contoh, baru KPI lain).
+ *
+ * `shared` (task043.md, HOLDINGIT-696, 2026-09-15) — default `true`: field
+ * `periodType` baca/tulis `FilterContext` (persisten lintas halaman),
+ * dipakai instance APPLIED di `useAdvancedFilterBar.ts`. `false`: `useState`
+ * lokal (perilaku lama), KHUSUS instance draft di sana. `endDate` (dan
+ * navigator prev/next) SENGAJA TETAP lokal di KEDUA mode - hook ini
+ * SATU-SATUNYA pemanggil ada di `useAdvancedFilterBar.ts`, yang TIDAK
+ * memakai `endDate` sama sekali (field "Periode" quick bar punya
+ * `periodEnd` sendiri, lihat JSDoc di sana) - tidak ada kebutuhan share
+ * endDate saat ini.
  */
-export function usePeriodTypeFilter(initialType: PeriodGranularity = 'monthly') {
+export function usePeriodTypeFilter(initialType: PeriodGranularity = 'monthly', shared: boolean = true) {
   const { t } = useTranslation()
-  const [periodType, setPeriodType] = useState<PeriodGranularity>(initialType)
+  const store = useFilterStore()
+  const [localPeriodType, setLocalPeriodType] = useState<PeriodGranularity>(initialType)
+  const periodType = shared ? store.periodType : localPeriodType
+  const setPeriodType = shared ? store.setPeriodType : setLocalPeriodType
   // "Tanggal" — user pilih tanggal PERSIS (bukan bulan/kuartal), start range
   // selalu awal periode yang mengandung tanggal itu, end selalu tanggal itu
   // sendiri (elapsed range, sama seperti halaman Analisis task016 §26 —

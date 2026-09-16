@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useCompanies, useBranchesByCompany } from './useCompanies';
 import { useDivisionOptions } from './useDivisionOptions';
 import { useMyScope } from './useMyScope';
+import { useFilterStore } from '@/context/filter.context';
 import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
 
 /**
@@ -13,13 +14,84 @@ import { getScopedBranches, getScopedDivisions } from '@/utils/scopeFilters';
  *
  * Branch dropdown baru bermakna kalau company spesifik dipilih (bukan 'all')
  * DAN ada >1 opsi - caller yang mutuskan render dropdown-nya via showBranchFilter.
+ *
+ * `shared` (task043.md, HOLDINGIT-696, 2026-09-15) — default `true`: baca/
+ * tulis companyId/branchId/division/excludeIntercompany dari
+ * `FilterContext` (persisten sessionStorage, dibagi SEMUA halaman yang
+ * panggil hook ini) - itulah kenapa 8+ halaman yang panggil hook ini
+ * LANGSUNG otomatis dapat filter lintas-halaman TANPA perlu diubah sendiri.
+ * `false`: `useState` lokal biasa (perilaku LAMA) - KHUSUS dipakai
+ * `draftScopeFilter` di `useAdvancedFilterBar.ts` (staging panel "Filter
+ * Lanjutan" sampai tombol "Terapkan" diklik, WAJIB tetap instance
+ * terpisah - lihat JSDoc di sana).
  */
-export function useScopedCompanyFilter() {
+export function useScopedCompanyFilter(shared: boolean = true) {
   const { data: companies = [] } = useCompanies();
   const showCompanyFilter = companies.length > 1;
 
-  const [companyId, setCompanyIdState] = useState<number | 'all'>('all');
-  const [branchId, setBranchIdState] = useState<number | 'all'>('all');
+  const store = useFilterStore();
+  const [localCompanyId, setLocalCompanyId] = useState<number | 'all'>('all');
+  const [localBranchId, setLocalBranchId] = useState<number | 'all'>('all');
+  const [localDivision, setLocalDivision] = useState<number | ''>('');
+  const [localExcludeIntercompany, setLocalExcludeIntercompany] = useState(false);
+
+  const companyId = shared ? store.companyId : localCompanyId;
+  const branchId = shared ? store.branchId : localBranchId;
+
+  // celah RBAC lintas akun (task043.md "Belum diputuskan") - companyId dari
+  // sessionStorage bisa milik user LAIN kalau login ganti akun di tab yang
+  // sama tanpa reload penuh. Validasi begitu `companies` (react-query,
+  // SUDAH RBAC-scoped dari backend) resolve: kalau companyId tersimpan
+  // bukan 'all' DAN bukan salah satu company yang user ini py akses,
+  // reset ke 'all'. Adjust saat render (pola sama persis auto-select 1
+  // company di bawah, BUKAN useEffect) - aman dari infinite loop krn
+  // kondisi otomatis jadi false setelah setState ini jalan.
+  if (shared && companies.length > 0 && companyId !== 'all' && !companies.some((c) => c.id === companyId)) {
+    store.setCompanyId('all');
+  }
+
+  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
+  // string key lagi.
+  const division = shared ? store.division : localDivision;
+  // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil
+  // metrik. Independen dari company/branch/division di atas (tidak di-reset saat
+  // filter lain berubah) - lihat ExcludeIntercompanyToggle.tsx + utils/scope.ts
+  // buildExcludeIntercompanyCondition/-Raw (backend, dipakai saat wiring per halaman).
+  const excludeIntercompany = shared ? store.excludeIntercompany : localExcludeIntercompany;
+
+  // Company berganti -> branch+division direset; branch berganti -> division
+  // direset (opsi di bawahnya mungkin sudah tidak valid). Reset langsung di setter
+  // (bukan lewat useEffect terpisah) - selesai dalam 1 update, bukan 2 render effect
+  // beruntun, dan tidak melanggar rule "jangan setState sinkron di dalam effect".
+  // Wiring shared/local di sini (bukan cuma baca) - FilterContext.setCompanyId
+  // SENDIRI sudah reset branch/division (lihat context/FilterContext.tsx),
+  // jadi cabang shared TIDAK perlu 3 panggilan terpisah spt cabang local.
+  const setCompanyId = (value: number | 'all') => {
+    if (shared) {
+      store.setCompanyId(value);
+    } else {
+      setLocalCompanyId(value);
+      setLocalBranchId('all');
+      setLocalDivision('');
+    }
+  };
+
+  const setBranchId = (value: number | 'all') => {
+    if (shared) {
+      store.setBranchId(value);
+    } else {
+      setLocalBranchId(value);
+      setLocalDivision('');
+    }
+  };
+
+  const setDivision = (value: number | '') => {
+    if (shared) store.setDivision(value); else setLocalDivision(value);
+  };
+
+  const setExcludeIntercompany = (value: boolean) => {
+    if (shared) store.setExcludeIntercompany(value); else setLocalExcludeIntercompany(value);
+  };
 
   // Bug (2026-08-22, user: "user hanya punya akses 1 company, combo box
   // branch tetap terdisable, sedangkan user tidak punya filter company") —
@@ -41,33 +113,13 @@ export function useScopedCompanyFilter() {
   // jadi false setelah setState ini jalan, jadi aman dari infinite loop tanpa
   // perlu state pembanding tambahan. Pola resmi React ("Adjusting state
   // during render", react.dev) — React re-render ulang sebelum paint ke
-  // layar, tidak ada commit/paint terpisah spt effect.
+  // layar, tidak ada commit/paint terpisah spt effect. Reuse `setCompanyId`
+  // yang sudah didefinisikan di atas (bukan raw state setter) supaya
+  // branch/division ikut konsisten direset (aman - keduanya masih default
+  // di titik ini).
   if (companies.length === 1 && companyId === 'all') {
-    setCompanyIdState(companies[0]!.id);
+    setCompanyId(companies[0]!.id);
   }
-  // Division sekarang FK integer per company (task012 v2) — division_id, bukan
-  // string key lagi.
-  const [division, setDivision] = useState<number | ''>('');
-  // Toggle laporan (bukan RBAC scope) — exclude division 'intercompany' dari hasil
-  // metrik. Independen dari company/branch/division di atas (tidak di-reset saat
-  // filter lain berubah) - lihat ExcludeIntercompanyToggle.tsx + utils/scope.ts
-  // buildExcludeIntercompanyCondition/-Raw (backend, dipakai saat wiring per halaman).
-  const [excludeIntercompany, setExcludeIntercompany] = useState(false);
-
-  // Company berganti -> branch+division direset; branch berganti -> division
-  // direset (opsi di bawahnya mungkin sudah tidak valid). Reset langsung di setter
-  // (bukan lewat useEffect terpisah) - selesai dalam 1 update, bukan 2 render effect
-  // beruntun, dan tidak melanggar rule "jangan setState sinkron di dalam effect".
-  const setCompanyId = (value: number | 'all') => {
-    setCompanyIdState(value);
-    setBranchIdState('all');
-    setDivision('');
-  };
-
-  const setBranchId = (value: number | 'all') => {
-    setBranchIdState(value);
-    setDivision('');
-  };
 
   const myScope = useMyScope();
   const scopedBranches = getScopedBranches(myScope, companyId);

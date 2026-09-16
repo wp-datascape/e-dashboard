@@ -39,6 +39,12 @@ export interface CustomerStatusSnapshotRow {
   // last_invoice_date (2026-09-15, susulan migrasi M8-M10) - lihat JSDoc
   // kolom di db/schema/customer_status_snapshot.ts.
   last_invoice_date: string | null
+  // revenue/gross_profit/transaction_count (2026-09-16, task041.md,
+  // HOLDINGIT-699) - kumulatif SEMUA invoice customer ini s/d checkpoint
+  // (bucket.end), lihat JSDoc kolom di db/schema/customer_status_snapshot.ts.
+  revenue: string
+  gross_profit: string
+  transaction_count: number
 }
 
 /**
@@ -61,7 +67,7 @@ export async function computeCustomerStatusSnapshot(
     WITH
     ${cteCustDivision(p)},
     inv AS (
-      SELECT i.customer_id, i.invoice_date
+      SELECT i.customer_id, i.invoice_date, i.total_revenue::numeric AS rev, i.total_gp::numeric AS gp
       FROM invoices i
       LEFT JOIN channel_divisions cd
         ON cd.channel_name = i.channel_name
@@ -98,7 +104,13 @@ export async function computeCustomerStatusSnapshot(
         MIN(inv.invoice_date) FILTER (
           WHERE inv.invoice_date > ${prevBucket.end}::date
             AND inv.invoice_date <= ${bucket.end}::date
-        )                                                                    AS reactivation_date
+        )                                                                    AS reactivation_date,
+        -- revenue/gross_profit/transaction_count (task041.md, HOLDINGIT-699)
+        -- - kumulatif SEMUA invoice s/d checkpoint (bucket.end), SAMA
+        -- batasnya dgn last_at_me di atas (bukan cuma 1 periode).
+        COALESCE(SUM(inv.rev) FILTER (WHERE inv.invoice_date <= ${bucket.end}::date), 0)  AS revenue,
+        COALESCE(SUM(inv.gp)  FILTER (WHERE inv.invoice_date <= ${bucket.end}::date), 0)  AS gross_profit,
+        COUNT(*)               FILTER (WHERE inv.invoice_date <= ${bucket.end}::date)     AS transaction_count
       FROM scoped_cust sc
       LEFT JOIN inv ON inv.customer_id = sc.cid
       GROUP BY sc.cid, sc.dormant_threshold, sc.first_date
@@ -115,6 +127,9 @@ export async function computeCustomerStatusSnapshot(
         )                                                                    AS is_dormant_at_me,
         cxm.reactivation_date,
         cxm.last_at_me,
+        cxm.revenue,
+        cxm.gross_profit,
+        cxm.transaction_count,
         (cxm.last_at_me IS NOT NULL AND cxm.last_at_me >= ${bucket.start}::date) AS transacted_in_period
       FROM cxm
       WHERE cxm.is_existing_at_me OR cxm.is_acquisition
@@ -130,7 +145,10 @@ export async function computeCustomerStatusSnapshot(
         ELSE 'lapsed'
       END                                                                            AS status,
       (was_dormant_at_prev AND reactivation_date IS NOT NULL AND is_dormant_at_me)   AS is_relapsed,
-      last_at_me                                                                     AS last_invoice_date
+      last_at_me                                                                     AS last_invoice_date,
+      revenue,
+      gross_profit,
+      transaction_count
     FROM classified
   `)
 
@@ -139,5 +157,8 @@ export async function computeCustomerStatusSnapshot(
     status: row.status as CustomerStatusValue,
     is_relapsed: row.is_relapsed === true || row.is_relapsed === 't',
     last_invoice_date: row.last_invoice_date == null ? null : String(row.last_invoice_date),
+    revenue: String(row.revenue ?? '0'),
+    gross_profit: String(row.gross_profit ?? '0'),
+    transaction_count: Number(row.transaction_count ?? 0),
   }))
 }

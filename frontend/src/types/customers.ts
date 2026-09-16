@@ -3,7 +3,10 @@
 // Division sekarang dinamis per company (task012 v2, FK-based) — field ini
 // membawa LABEL display (mis. "Distribution"), bukan key/union literal tetap lagi.
 export type Division = string | null;
-export type CustomerStatus = 'active' | 'dormant' | 'new' | 'existing';
+// 5 status resmi Glosarium (task040.md "Susulan: adopsi PENUH 6 status
+// resmi", 2026-09-16) — Relapsed BUKAN nilai status terpisah, penanda
+// tambahan lewat `is_relapsed` pada baris Dormant (sama pola M8-M10).
+export type CustomerStatus = 'acquisition' | 'active' | 'reactivated' | 'lapsed' | 'dormant';
 
 export interface CustomerRow {
   id: number;
@@ -13,6 +16,7 @@ export interface CustomerRow {
   business_unit: string | null;
   division: Division;
   status: CustomerStatus;
+  is_relapsed: boolean;
   first_invoice_date: string | null;
   last_invoice_date: string | null;
   category_count: number;
@@ -30,6 +34,7 @@ export interface CustomerDetail {
   division: Division;
   channel: string | null;
   status: CustomerStatus;
+  is_relapsed: boolean;
   first_invoice_date: string | null;
   last_invoice_date: string | null;
   lifetime_value: number;

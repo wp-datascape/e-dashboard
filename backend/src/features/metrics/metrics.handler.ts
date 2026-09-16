@@ -5,8 +5,8 @@ import { resolveCompanyScope, resolveBranchScope, resolveDivisionScope, assertBr
 import { buildExcelBuffer, excelResponseHeaders } from '@/utils/excel'
 import type { ExcelColumn } from '@/utils/excel'
 import { findCompanyById } from '@/features/companies/companies.repository'
-import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productPerformanceExportQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema } from './metrics.schema'
-import { getCrossSellingMetrics, getCrossSellingSummary, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductPerformanceExport, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend } from './metrics.service'
+import { crossSellingQuerySchema, customerMetricsQuerySchema, revenueBreakdownQuerySchema, expansionBreakdownQuerySchema, gpBreakdownQuerySchema, hmBreakdownQuerySchema, rorBreakdownQuerySchema, dormantCustomerQuerySchema, dormantStatusBreakdownQuerySchema, dormantValueHistoryQuerySchema, categoryPerformanceQuerySchema, productPerformanceQuerySchema, productPerformanceExportQuerySchema, productCategoryOptionsQuerySchema, categoryProductsQuerySchema, hmDetailQuerySchema, hmCustomersQuerySchema, upsellTargetQuerySchema, customerProductsQuerySchema, avgCategoryQuerySchema, retentionQuerySchema } from './metrics.schema'
+import { getCrossSellingMetrics, getCrossSellingSummary, getCustomerMetrics, getRevenueBreakdown, getExpansionBreakdown, getGpBreakdown, getHmBreakdown, getRorBreakdown, getDormantCustomerMetrics, getDormantBreakdown, getDormantStatusBreakdown, getDormantValueHistory, getCategoryPerformance, getProductPerformance, getProductPerformanceExport, getProductCategoryOptions, getCategoryProducts, getHmPenetrationDetail, getHmProductPenetrationDetail, getHmCustomers, getUpsellTargets, getCustomerProducts, getAvgCategoryTrend, getRetentionMetrics, getRetentionBreakdown } from './metrics.service'
 import type { MetricsScope } from './metrics.service'
 
 /**
@@ -88,6 +88,25 @@ export async function handleGetDormantMetrics(c: Context) {
   const query = validateQuery(c, dormantCustomerQuerySchema)
   const scope = resolveScope(c, query.company_id, query.branch_id)
   const data = await getDormantCustomerMetrics(query, scope)
+  return success(c, data)
+}
+
+// M11 Retention Rate (task044.md Bagian 2/HOLDINGIT-698, 2026-09-16) —
+// query params SAMA PERSIS dormantCustomerQuerySchema (retentionQuerySchema
+// alias langsung, lihat metrics.schema.ts), pola handler identik di atas.
+export async function handleGetRetentionMetrics(c: Context) {
+  const query = validateQuery(c, retentionQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getRetentionMetrics(query, scope)
+  return success(c, data)
+}
+
+// Report > Retention tabel (task044.md Bagian 2) — query params SAMA
+// retentionQuerySchema, pola handler identik di atas.
+export async function handleGetRetentionBreakdown(c: Context) {
+  const query = validateQuery(c, retentionQuerySchema)
+  const scope = resolveScope(c, query.company_id, query.branch_id)
+  const data = await getRetentionBreakdown(query, scope)
   return success(c, data)
 }
 

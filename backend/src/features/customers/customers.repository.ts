@@ -1,8 +1,8 @@
 import { db } from '@/config/db'
-import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions } from '@/db/schema'
-import { and, or, eq, inArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
+import { customers, invoices, invoice_items, product_categories, companies, channel_divisions, divisions, customer_status_snapshot } from '@/db/schema'
+import { and, or, eq, inArray, notInArray, isNull, isNotNull, lte, sql, desc, asc, ilike } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { loadThresholds, resolveDormantCategory, getDormantCategoryMap, buildDormantCaseSql } from '@/features/config/threshold'
+import { loadThresholds, getDormantCategoryMap } from '@/features/config/threshold'
 import {
   buildBranchCondition,
   buildDivisionCondition,
@@ -13,8 +13,10 @@ import {
   flattenFallbackByBranch,
 } from '@/utils/scope'
 import { EXPORT_ROW_CAP } from '@/utils/excel'
-import { sqlStatusExpr, sqlStatusWhere } from './helper/segment.helper'
-import { resolveStatusCheckpointDate } from '@/features/analisis/period.util'
+import { isScopeEffectivelyUnrestricted, type SegmentParams } from './helper/segment.helper'
+import { resolveStatusCheckpointDate, resolveStatusCheckpointBuckets } from '@/features/analisis/period.util'
+import { hasSnapshotForCheckpoint } from '@/features/metrics/repository/m3m7.repository'
+import { computeCustomerStatusSnapshot, type CustomerStatusValue } from '@/features/metrics/repository/customer-status-snapshot.repository'
 import type { CustomersQuery } from './customers.schema'
 
 // todayDate (task039.md, 2026-09-11) — pola sama persis metrics.service.ts,
@@ -43,14 +45,13 @@ async function buildCustomerQueryContext(
 ) {
   const { company_id, branch_id, search, business_unit, status, as_of_date, exclude_intercompany } = params
   const refDate = as_of_date ? sql`${as_of_date}::date` : sql`CURRENT_DATE`
-  // statusRefDate (task039.md, 2026-09-11) — checkpoint klasifikasi status
-  // customer (New/Active/Existing/Dormant) DISAMAKAN dgn M3-M10
-  // (resolveStatusCheckpointDate, period.util.ts, granularitas bulanan
-  // default) — TERPISAH dari refDate di atas (yang TETAP live/hari ini,
-  // dipakai live_last/live_first/lifetime_value/avg_monthly_revenue di bawah,
-  // TIDAK berubah). Keputusan user 2026-09-10: badge status Workbench IKUT
-  // disamakan ke checkpoint bulan lalu, bukan cuma M3-M10.
-  const statusRefDate = sql`${resolveStatusCheckpointDate('monthly', as_of_date ?? todayDate())}::date`
+  // statusCheckpointDateStr (task039.md, 2026-09-11 — task040.md "Susulan:
+  // adopsi PENUH 6 status resmi", 2026-09-16) — checkpoint periode TERTUTUP
+  // (resolveStatusCheckpointDate, granularitas bulanan default), dipakai
+  // gerbang fast-path snapshot + fallback `computeCustomerStatusSnapshot` di
+  // bawah — TERPISAH dari refDate di atas (yang TETAP live/hari ini, dipakai
+  // live_last/live_first/lifetime_value/avg_monthly_revenue, TIDAK berubah).
+  const statusCheckpointDateStr = resolveStatusCheckpointDate('monthly', as_of_date ?? todayDate())
 
   const { activeMonths, dormant } = await loadThresholds()
   const cid = company_id === 'all' ? 0 : company_id
@@ -70,24 +71,21 @@ async function buildCustomerQueryContext(
     : scopeIds && scopeIds.length > 0
       ? inArray(invoices.company_id, scopeIds)
       : undefined
-  // Threshold dormant PER-CUSTOMER (task027 fix, 2026-08-21) — dulu 1 angka
-  // dominan company-wide (resolveDormantMonths) dipakai ke SEMUA baris,
-  // sekarang per baris sesuai kategori bisnis divisi customer itu sendiri
-  // (pola sama m8m10.repository.ts). channel_divisions.division_id yang
-  // dipakai di sini SUDAH di-JOIN di query total/rows di bawah lewat
-  // latestSalespersonSq (divisi dari invoice TERBARU customer) — reuse,
-  // bukan JOIN baru.
+  // dormantCategoryMap (task027, 2026-08-21) — dipakai `SegmentParams` di
+  // bawah (gerbang fast-path + `computeCustomerStatusSnapshot` fallback,
+  // task040.md "Susulan: adopsi PENUH 6 status resmi") - threshold dormant
+  // PER-CUSTOMER sesuai kategori bisnis divisinya, bukan 1 angka dominan
+  // company-wide.
   const dormantCategoryMap = await getDormantCategoryMap(cid !== 0 ? cid : undefined)
-  const dormantThresholdExpr = buildDormantCaseSql(
-    sql`COALESCE(${customers.division_override_id}, ${channel_divisions.division_id})`,
-    dormant,
-    dormantCategoryMap,
-  )
 
   // otherIdByBranch WAJIB dihitung SEBELUM liveDatesSq (dipakai di dalamnya) — beda
   // dari urutan lama yang baru dihitung dekat akhir function.
   const otherIdByCompanyEarly = await loadDivisionFallbackIds('other')
   const otherIdByBranchEarly = flattenFallbackByBranch(branchScope, otherIdByCompanyEarly)
+  // intercompanyIdByCompany (2026-09-16, dipindah lebih awal dari lokasi lama dekat
+  // latestSalespersonSq) — dibutuhkan segmentParams/gerbang fast-path snapshot di bawah,
+  // yang harus siap SEBELUM statusCond/statusExpr didefinisikan.
+  const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
 
   // Subquery: live first/last invoice date + revenue aggregates per customer, semua
   // dari tabel invoices LANGSUNG (tanpa join invoice_items). Revenue HARUS dihitung di
@@ -198,8 +196,93 @@ async function buildCustomerQueryContext(
     conditions.push(inArray(customers.company_id, scopeIds))
   }
   if (search) conditions.push(ilike(customers.customer_name, `%${search}%`))
+
+  // Fast-path snapshot (task040.md "Susulan: adopsi PENUH 6 status resmi",
+  // 2026-09-16) — gerbang eligibility MIRROR M3-M10 (m3m7.repository.ts/
+  // m8m10.repository.ts): company spesifik (bukan 'all'), tanpa filter
+  // branch_id/exclude_intercompany, scope RBAC efektif tidak restriktif,
+  // DAN checkpoint-nya sudah pernah di-precompute.
+  const divisionIdForSnapshot = business_unit ?? null
+  const segmentParams: SegmentParams = {
+    cid,
+    companyScopeIds: scopeIds,
+    filterDate: as_of_date ?? todayDate(),
+    activeMonths,
+    dormantMonths: 0, // scalar legacy — TIDAK dipakai fungsi manapun di bawah, placeholder biar SegmentParams valid
+    dormant,
+    dormantCategoryMap,
+    division: divisionIdForSnapshot,
+    branchFilter: branch_id ?? null,
+    excludeIntercompany: exclude_intercompany,
+    branchScope,
+    divisionScope,
+    otherIdByBranch: otherIdByBranchEarly,
+    intercompanyIdByCompany,
+  }
+  const snapshotEligible = cid !== 0
+    && !branch_id
+    && !exclude_intercompany
+    && await isScopeEffectivelyUnrestricted(segmentParams)
+    && await hasSnapshotForCheckpoint(cid, divisionIdForSnapshot, 'monthly', statusCheckpointDateStr)
+
+  // Subquery status snapshot — SELALU didefinisikan (supaya caller findCustomers/
+  // findCustomersForExport bisa LEFT JOIN tanpa cabang if/else), tapi cuma diisi
+  // baris kalau snapshotEligible; kalau tidak, `WHERE false` → subquery kosong,
+  // LEFT JOIN jadi no-op (fallbackStatusMap di bawah yang dipakai).
+  const statusSnapshotSq = db
+    .select({
+      customer_id: customer_status_snapshot.customer_id,
+      snapshot_status: customer_status_snapshot.status,
+      snapshot_is_relapsed: customer_status_snapshot.is_relapsed,
+    })
+    .from(customer_status_snapshot)
+    .where(snapshotEligible
+      ? and(
+          eq(customer_status_snapshot.company_id, cid),
+          divisionIdForSnapshot == null ? isNull(customer_status_snapshot.division_id) : eq(customer_status_snapshot.division_id, divisionIdForSnapshot),
+          eq(customer_status_snapshot.period_type, 'monthly'),
+          eq(customer_status_snapshot.checkpoint_date, statusCheckpointDateStr),
+        )
+      : sql`false`)
+    .as('status_snapshot')
+
+  // Fallback (task040.md "Susulan...") — snapshotEligible FALSE (RBAC restriktif/
+  // filter branch_id/exclude_intercompany aktif) → compute ON-DEMAND, 1x per
+  // request, dgn `computeCustomerStatusSnapshot` yang SAMA dipakai scheduler
+  // (SSOT tunggal, bukan lagi rumus terpisah sqlStatusExpr/sqlStatusWhere yang
+  // TIDAK BISA membedakan Reactivated/Active atau Lapsed/Dormant). Discoped ke
+  // `segmentParams` request ini sendiri (branch/RBAC/division/excludeIntercompany),
+  // BUKAN company-wide kosong spt scheduler. Customer TIDAK ADA di hasil →
+  // histori belum cukup panjang utk checkpoint resmi (first invoice SETELAH
+  // bucket.end) → 'acquisition' (SATU-SATUNYA status valid, sama alasan gerbang
+  // `is_existing_at_me OR is_acquisition` di computeCustomerStatusSnapshot).
+  let fallbackStatusMap: Map<number, { status: CustomerStatusValue; is_relapsed: boolean }> | undefined
+  if (!snapshotEligible) {
+    const { bucket, prevBucket } = resolveStatusCheckpointBuckets('monthly', statusCheckpointDateStr)
+    const rows = await computeCustomerStatusSnapshot(segmentParams, bucket, prevBucket)
+    fallbackStatusMap = new Map(rows.map((r) => [r.customer_id, { status: r.status, is_relapsed: r.is_relapsed }]))
+  }
+
+  // status='acquisition' py 2 SUMBER (bug ditemukan 2026-09-16 lewat
+  // verifikasi ad-hoc, total 5 filter status tidak pas sama dgn total
+  // unfiltered): (a) baris snapshot literal `status='acquisition'`
+  // (first invoice JATUH DI DALAM checkpoint tertutup ini), DAN (b) baris
+  // snapshot TIDAK ADA sama sekali (first invoice SETELAH checkpoint,
+  // periode berjalan - lihat komentar fallbackStatusMap di atas). Awalnya
+  // cuma (b) yang dicek, kehilangan customer (a) - filter kurang eksklusif
+  // drpd tampilan (`resolveDisplayStatus` sudah benar dari awal, cuma
+  // filter WHERE ini yang salah).
   const statusCond = status
-    ? sqlStatusWhere(status, refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first, statusRefDate)
+    ? (snapshotEligible
+        ? (status === 'acquisition'
+            ? or(eq(statusSnapshotSq.snapshot_status, 'acquisition'), isNull(statusSnapshotSq.snapshot_status))
+            : eq(statusSnapshotSq.snapshot_status, status))
+        : (status === 'acquisition'
+            ? or(
+                inArray(customers.id, [...fallbackStatusMap!.entries()].filter(([, v]) => v.status === 'acquisition').map(([id]) => id)),
+                fallbackStatusMap!.size ? notInArray(customers.id, [...fallbackStatusMap!.keys()]) : sql`true`,
+              )
+            : inArray(customers.id, [...fallbackStatusMap!.entries()].filter(([, v]) => v.status === status).map(([id]) => id))))
     : undefined
   if (statusCond) conditions.push(statusCond)
 
@@ -214,8 +297,6 @@ async function buildCustomerQueryContext(
   const divisionCond = business_unit
     ? eq(sql`COALESCE(${channel_divisions.division_id}, (SELECT id FROM divisions WHERE company_id = ${customers.company_id} AND key = 'other'))`, business_unit)
     : undefined
-
-  const statusExpr = sqlStatusExpr(refDate, activeMonths, dormantThresholdExpr, liveDatesSq.live_last, liveDatesSq.live_first, statusRefDate)
 
   // Subquery: channel_name dari invoice terbaru per customer
   const latestSalespersonSq = db
@@ -237,10 +318,8 @@ async function buildCustomerQueryContext(
   // customer (latestSalespersonSq), konsisten dengan cara business_unit/division di atas
   // sudah di-derive (satu division per customer dari invoice terakhir, bukan EXISTS
   // lintas semua invoice miliknya)
-  // Fallback division_id 'other' sudah dihitung di atas (otherIdByBranchEarly, dipakai
-  // liveDatesSq/invCountExpr/catCountExpr) — reuse di sini, tinggal load 'intercompany'.
-  const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
-
+  // Fallback division_id 'other'/'intercompany' — SUDAH dihitung lebih awal
+  // (otherIdByBranchEarly/intercompanyIdByCompany, lihat komentar di sana), reuse di sini.
   const branchScopeCond = buildBranchCondition(customers.company_id, latestSalespersonSq.branch_id, branchScope)
   const divisionScopeCond = buildDivisionCondition(latestSalespersonSq.branch_id, channel_divisions.division_id, divisionScope, otherIdByBranchEarly)
   // Filter laporan branch_id (opsional) — mirror business_unit di atas, beda dari
@@ -264,9 +343,27 @@ async function buildCustomerQueryContext(
 
   return {
     isEmptyScope: false as const,
-    liveDatesSq, invAggSq, latestSalespersonSq,
-    invCountExpr, catCountExpr, statusExpr, whereWithDivision,
+    liveDatesSq, invAggSq, latestSalespersonSq, statusSnapshotSq, fallbackStatusMap,
+    invCountExpr, catCountExpr, whereWithDivision,
   }
+}
+
+// resolveDisplayStatus (task040.md "Susulan...") — SATU tempat resolusi status
+// tampilan, dipakai findCustomers/findCustomersForExport (kolom SQL
+// statusSnapshotSq kalau eligible, ATAU fallbackStatusMap kalau tidak) SETELAH
+// baris hasil query (paginated) didapat — bukan lagi SQL CASE runtime. Kolom
+// snapshot IS NULL (LEFT JOIN kosong/tidak eligible) DAN tidak ada di
+// fallbackStatusMap → 'acquisition' (lihat komentar fallbackStatusMap di atas).
+function resolveDisplayStatus(
+  customerId: number,
+  snapshotStatus: CustomerStatusValue | null | undefined,
+  snapshotIsRelapsed: boolean | null | undefined,
+  fallbackStatusMap: Map<number, { status: CustomerStatusValue; is_relapsed: boolean }> | undefined,
+): { status: CustomerStatusValue; is_relapsed: boolean } {
+  if (snapshotStatus != null) return { status: snapshotStatus, is_relapsed: snapshotIsRelapsed ?? false }
+  const fromFallback = fallbackStatusMap?.get(customerId)
+  if (fromFallback) return fromFallback
+  return { status: 'acquisition', is_relapsed: false }
 }
 
 export async function findCustomers(
@@ -280,7 +377,7 @@ export async function findCustomers(
 
   const ctx = await buildCustomerQueryContext(params, scopeIds, branchScope, divisionScope)
   if (ctx.isEmptyScope) return { data: [], total: 0 }
-  const { liveDatesSq, invAggSq, latestSalespersonSq, invCountExpr, catCountExpr, statusExpr, whereWithDivision } = ctx
+  const { liveDatesSq, invAggSq, latestSalespersonSq, statusSnapshotSq, fallbackStatusMap, invCountExpr, catCountExpr, whereWithDivision } = ctx
 
   // Sort
   const isAsc = sort_dir === 'asc'
@@ -306,6 +403,9 @@ export async function findCustomers(
           eq(channel_divisions.company_id, customers.company_id),
         ),
       )
+      // statusSnapshotSq — SELALU di-join (no-op kalau fast path tidak eligible,
+      // subquery-nya kosong via WHERE false, lihat buildCustomerQueryContext).
+      .leftJoin(statusSnapshotSq, eq(statusSnapshotSq.customer_id, customers.id))
       .where(whereWithDivision)
       .then(([r]) => r),
     db
@@ -323,7 +423,8 @@ export async function findCustomers(
         lifetime_value: liveDatesSq.lifetime_value,
         avg_monthly_revenue: liveDatesSq.avg_monthly_revenue,
         category_count: catCountExpr,
-        status: statusExpr,
+        snapshot_status: statusSnapshotSq.snapshot_status,
+        snapshot_is_relapsed: statusSnapshotSq.snapshot_is_relapsed,
       })
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
@@ -341,15 +442,18 @@ export async function findCustomers(
       // subquery-nya sendiri, lihat komentar di definisinya di atas), BUKAN lagi
       // JOIN invoices/invoice_items/cdInv mentah di sini.
       .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
+      .leftJoin(statusSnapshotSq, eq(statusSnapshotSq.customer_id, customers.id))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count, statusSnapshotSq.snapshot_status, statusSnapshotSq.snapshot_is_relapsed)
       .orderBy(orderByExpr)
       .limit(per_page)
       .offset(offset),
   ])
 
   return {
-    data: rows.map((r) => ({
+    data: rows.map((r) => {
+      const { status, is_relapsed } = resolveDisplayStatus(r.id, r.snapshot_status as CustomerStatusValue | null, r.snapshot_is_relapsed, fallbackStatusMap)
+      return {
       id: r.id,
       customer_code: r.customer_code,
       name: r.name,
@@ -362,8 +466,10 @@ export async function findCustomers(
       lifetime_value: Number(r.lifetime_value),
       avg_monthly_revenue: Number(r.avg_monthly_revenue),
       category_count: Number(r.category_count),
-      status: r.status as 'new' | 'active' | 'dormant' | 'existing',
-    })),
+      status,
+      is_relapsed,
+      }
+    }),
     total: Number(total),
   }
 }
@@ -373,7 +479,8 @@ export interface CustomerExportRow {
   name: string
   company_name: string
   division_label: string
-  status: 'new' | 'active' | 'dormant' | 'existing'
+  status: CustomerStatusValue
+  is_relapsed: boolean
   category_count: number
   avg_monthly_revenue: number
   lifetime_value: number
@@ -396,7 +503,7 @@ export async function findCustomersForExport(
 ): Promise<{ data: CustomerExportRow[]; total: number; truncated: boolean }> {
   const ctx = await buildCustomerQueryContext(params, scopeIds, branchScope, divisionScope)
   if (ctx.isEmptyScope) return { data: [], total: 0, truncated: false }
-  const { liveDatesSq, invAggSq, latestSalespersonSq, invCountExpr, catCountExpr, statusExpr, whereWithDivision } = ctx
+  const { liveDatesSq, invAggSq, latestSalespersonSq, statusSnapshotSq, fallbackStatusMap, invCountExpr, catCountExpr, whereWithDivision } = ctx
 
   const [{ total }, rows] = await Promise.all([
     db
@@ -411,10 +518,12 @@ export async function findCustomersForExport(
           eq(channel_divisions.company_id, customers.company_id),
         ),
       )
+      .leftJoin(statusSnapshotSq, eq(statusSnapshotSq.customer_id, customers.id))
       .where(whereWithDivision)
       .then(([r]) => r),
     db
       .select({
+        id: customers.id,
         customer_code: customers.customer_code,
         name: customers.customer_name,
         company_name: companies.name,
@@ -424,7 +533,8 @@ export async function findCustomersForExport(
         lifetime_value: liveDatesSq.lifetime_value,
         avg_monthly_revenue: liveDatesSq.avg_monthly_revenue,
         category_count: catCountExpr,
-        status: statusExpr,
+        snapshot_status: statusSnapshotSq.snapshot_status,
+        snapshot_is_relapsed: statusSnapshotSq.snapshot_is_relapsed,
       })
       .from(customers)
       .leftJoin(liveDatesSq, eq(liveDatesSq.customer_id, customers.id))
@@ -439,25 +549,30 @@ export async function findCustomersForExport(
       )
       .leftJoin(divisions, eq(divisions.id, channel_divisions.division_id))
       .leftJoin(invAggSq, eq(invAggSq.customer_id, customers.id))
+      .leftJoin(statusSnapshotSq, eq(statusSnapshotSq.customer_id, customers.id))
       .where(whereWithDivision)
-      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count)
+      .groupBy(customers.id, companies.id, divisions.label, liveDatesSq.live_last, liveDatesSq.live_first, liveDatesSq.lifetime_value, liveDatesSq.avg_monthly_revenue, channel_divisions.division_id, customers.division_override_id, invAggSq.inv_count, invAggSq.cat_count, statusSnapshotSq.snapshot_status, statusSnapshotSq.snapshot_is_relapsed)
       .orderBy(desc(liveDatesSq.live_last))
       .limit(EXPORT_ROW_CAP),
   ])
 
   return {
-    data: rows.map((r) => ({
-      customer_code: r.customer_code ?? '',
-      name: r.name,
-      company_name: r.company_name ?? '',
-      division_label: r.division ?? '—',
-      status: r.status as 'new' | 'active' | 'dormant' | 'existing',
-      category_count: Number(r.category_count),
-      avg_monthly_revenue: Number(r.avg_monthly_revenue),
-      lifetime_value: Number(r.lifetime_value),
-      last_invoice_date: r.last_invoice_date ?? '',
-      total_invoices: Number(r.total_invoices),
-    })),
+    data: rows.map((r) => {
+      const { status, is_relapsed } = resolveDisplayStatus(r.id, r.snapshot_status as CustomerStatusValue | null, r.snapshot_is_relapsed, fallbackStatusMap)
+      return {
+        customer_code: r.customer_code ?? '',
+        name: r.name,
+        company_name: r.company_name ?? '',
+        division_label: r.division ?? '—',
+        status,
+        is_relapsed,
+        category_count: Number(r.category_count),
+        avg_monthly_revenue: Number(r.avg_monthly_revenue),
+        lifetime_value: Number(r.lifetime_value),
+        last_invoice_date: r.last_invoice_date ?? '',
+        total_invoices: Number(r.total_invoices),
+      }
+    }),
     total: Number(total),
     truncated: Number(total) > EXPORT_ROW_CAP,
   }
@@ -471,10 +586,12 @@ export async function findCustomerDetail(
 ) {
   const { activeMonths, dormant } = await loadThresholds()
   const refDate = asOfDate ? sql`${asOfDate}::date` : sql`CURRENT_DATE`
-  // statusRefDate (task039.md, 2026-09-11) — sama persis buildCustomerQueryContext
-  // di atas: badge status di dialog detail HARUS konsisten dgn badge di list
-  // Customer Workbench (checkpoint bulan lalu), bukan lagi live/hari ini.
-  const statusRefDate = sql`${resolveStatusCheckpointDate('monthly', asOfDate ?? todayDate())}::date`
+  // statusCheckpointDateStr (task039.md, 2026-09-11) — sama persis
+  // buildCustomerQueryContext di atas: badge status di dialog detail HARUS
+  // konsisten dgn badge di list Customer Workbench (checkpoint bulan lalu, bukan
+  // lagi live/hari ini) — dibutuhkan gerbang fast-path snapshot + fallback
+  // (task040.md "Susulan: adopsi PENUH 6 status resmi") di bawah.
+  const statusCheckpointDateStr = resolveStatusCheckpointDate('monthly', asOfDate ?? todayDate())
 
   // task018 — endpoint ini SEBELUMNYA tidak pernah cek branch/division sama sekali
   // (cuma company-scope, task015), jadi SEMUA query di bawah agregasi invoice
@@ -524,6 +641,63 @@ export async function findCustomerDetail(
   // transaksinya di cabang lain.
   if (anyInv && !latestInv) return null
 
+  // Fast-path snapshot / fallback on-demand (task040.md "Susulan: adopsi PENUH
+  // 6 status resmi", 2026-09-16) — dialog detail TIDAK py filter
+  // business_unit/branch_id/exclude_intercompany (selalu 1 customer, tanpa
+  // filter laporan), jadi gerbangnya lebih sederhana dari
+  // buildCustomerQueryContext: cuma RBAC scope efektif + checkpoint tersedia.
+  // division_id SELALU NULL (company-wide) - dialog ini tidak py konsep
+  // filter divisi, konsisten dgn tampilan list DEFAULT (tanpa business_unit
+  // dipilih). Fallback (RBAC restriktif) REUSE `computeCustomerStatusSnapshot`
+  // SAMA PERSIS buildCustomerQueryContext - SATU SSOT, bukan rumus terpisah.
+  let displayStatus: CustomerStatusValue = 'acquisition'
+  let displayIsRelapsed = false
+  if (latestInv) {
+    const dormantCategoryMap = await getDormantCategoryMap(latestInv.company_id)
+    const intercompanyIdByCompany = await loadDivisionFallbackIds('intercompany')
+    const segmentParams: SegmentParams = {
+      cid: latestInv.company_id,
+      filterDate: asOfDate ?? todayDate(),
+      activeMonths,
+      dormantMonths: 0, // scalar legacy, TIDAK dipakai fungsi manapun di bawah
+      dormant,
+      dormantCategoryMap,
+      division: null,
+      branchFilter: null,
+      branchScope,
+      divisionScope,
+      otherIdByBranch,
+      intercompanyIdByCompany,
+    }
+    const snapshotEligible = await isScopeEffectivelyUnrestricted(segmentParams)
+      && await hasSnapshotForCheckpoint(latestInv.company_id, null, 'monthly', statusCheckpointDateStr)
+    if (snapshotEligible) {
+      const [snapshotRow] = await db
+        .select({ status: customer_status_snapshot.status, is_relapsed: customer_status_snapshot.is_relapsed })
+        .from(customer_status_snapshot)
+        .where(and(
+          eq(customer_status_snapshot.company_id, latestInv.company_id),
+          isNull(customer_status_snapshot.division_id),
+          eq(customer_status_snapshot.period_type, 'monthly'),
+          eq(customer_status_snapshot.checkpoint_date, statusCheckpointDateStr),
+          eq(customer_status_snapshot.customer_id, customerId),
+        ))
+        .limit(1)
+      if (snapshotRow) {
+        displayStatus = snapshotRow.status as CustomerStatusValue
+        displayIsRelapsed = snapshotRow.is_relapsed
+      }
+    } else {
+      const { bucket, prevBucket } = resolveStatusCheckpointBuckets('monthly', statusCheckpointDateStr)
+      const rows = await computeCustomerStatusSnapshot(segmentParams, bucket, prevBucket)
+      const match = rows.find((r) => r.customer_id === customerId)
+      if (match) {
+        displayStatus = match.status
+        displayIsRelapsed = match.is_relapsed
+      }
+    }
+  }
+
   const [divRow] = latestInv?.channel_name
     ? await db
         .select({ division_id: channel_divisions.division_id, division: divisions.label })
@@ -535,9 +709,6 @@ export async function findCustomerDetail(
         ))
         .limit(1)
     : []
-
-  const divisionKey = await resolveDormantCategory(divRow?.division_id ?? null)
-  const dormantMonths = dormant[divisionKey]
 
   const liveLastInv  = sql`MAX(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoices.invoice_date} END)`
   const liveFirstInv = sql`MIN(CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoices.invoice_date} END)`
@@ -552,7 +723,6 @@ export async function findCustomerDetail(
       business_unit: customers.business_unit,
       first_invoice_date: liveFirstInv.mapWith(String),
       last_invoice_date: liveLastInv.mapWith(String),
-      status: sqlStatusExpr(refDate, activeMonths, dormantMonths, liveLastInv, liveFirstInv, statusRefDate),
       category_count: sql<number>`COUNT(DISTINCT CASE WHEN ${invoices.deleted_at} IS NULL AND ${invoices.invoice_date} <= ${refDate} AND ${scopeGuard} THEN ${invoice_items.product_category_id} END)`,
     })
     .from(customers)
@@ -649,7 +819,8 @@ export async function findCustomerDetail(
     business_unit: row.business_unit,
     division: divRow?.division ?? null,
     channel: latestInv?.channel_name ?? null,
-    status: row.status as 'new' | 'active' | 'dormant' | 'existing',
+    status: displayStatus,
+    is_relapsed: displayIsRelapsed,
     first_invoice_date: row.first_invoice_date,
     last_invoice_date: row.last_invoice_date,
     lifetime_value: revenue12mo,

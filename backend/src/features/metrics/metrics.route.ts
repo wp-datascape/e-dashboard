@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { handleGetCrossSelling, handleGetCrossSellingSummary, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleExportProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory } from './metrics.handler'
+import { handleGetCrossSelling, handleGetCrossSellingSummary, handleGetCustomerMetrics, handleGetRevenueBreakdown, handleGetExpansionBreakdown, handleGetGpBreakdown, handleGetHmBreakdown, handleGetRorBreakdown, handleGetDormantMetrics, handleGetDormantBreakdown, handleGetDormantStatusBreakdown, handleGetDormantValueHistory, handleGetCategoryPerformance, handleGetProductPerformance, handleExportProductPerformance, handleGetProductCategoryOptions, handleGetCategoryProducts, handleGetHmDetail, handleGetHmProductDetail, handleGetHmCustomers, handleGetUpsellTargets, handleGetCustomerProducts, handleGetAvgCategory, handleGetRetentionMetrics, handleGetRetentionBreakdown } from './metrics.handler'
 import { requirePermission } from '@/middleware/permission'
 
 export const metricsRoutes = new Hono()
@@ -34,6 +34,14 @@ metricsRoutes.get('/dormant-status-breakdown', requirePermission('churn.risk:vie
 // Riwayat revenue bulanan per customer (2026-08-25) — drill-down klik-bar
 // ranking M9, permission SAMA dgn dormant lain (churn.risk:view).
 metricsRoutes.get('/dormant-value-history', requirePermission('churn.risk:view'), handleGetDormantValueHistory)
+// M11 Retention Rate (task044.md Bagian 2/HOLDINGIT-698, 2026-09-16) —
+// permission REUSE churn.risk:view (domain sama - retensi/churn adalah
+// sisi berlawanan dari topik yang sama, KPI ini tampil di halaman Retention
+// SAMA PERSIS dgn M8-M10), bukan permission baru (butuh seed DB terpisah,
+// di luar cakupan task ini).
+metricsRoutes.get('/retention-rate',        requirePermission('churn.risk:view'), handleGetRetentionMetrics)
+// Report > Retention tabel (task044.md Bagian 2) — permission SAMA di atas.
+metricsRoutes.get('/retention-breakdown',   requirePermission('churn.risk:view'), handleGetRetentionBreakdown)
 metricsRoutes.get('/category-performance',  requirePermission('product:view'), handleGetCategoryPerformance)
 metricsRoutes.get('/product-performance',   requirePermission('product:view'), handleGetProductPerformance)
 // Export Excel (2026-08-31) — permission SUDAH ada di seed sejak awal
