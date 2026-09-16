@@ -44,6 +44,7 @@ export async function fetchRetentionTrend(
 
   if (snapshotEligible) {
     const divCond = division == null ? sql`css.division_id IS NULL` : sql`css.division_id = ${division}::int`
+    const divCond2 = division == null ? sql`css2.division_id IS NULL` : sql`css2.division_id = ${division}::int`
     const prevDivCond = division == null ? sql`pcss.division_id IS NULL` : sql`pcss.division_id = ${division}::int`
     const curBucketValues = sql.join(buckets.map((b) => sql`(${b.label}::text, ${b.end}::date)`), sql.raw(', '))
     const prevBucketValues = sql.join(prevBuckets.map((b) => sql`(${b.label}::text, ${b.end}::date)`), sql.raw(', '))
@@ -76,16 +77,37 @@ export async function fetchRetentionTrend(
           AND css.checkpoint_date = b.pe
           AND css.customer_id = c.customer_id
           AND css.status IN ('active', 'reactivated')
+      ),
+      -- current_active — populasi Active+Reactivated PERSIS di checkpoint B
+      -- MILIK TITIK ITU SENDIRI (2026-09-16, susulan tooltip M11 - user
+      -- tegaskan "total customer yang transaksi DI PERIODE TERSEBUT", bukan
+      -- cohort dari periode sebelumnya). TIDAK direstriksi ke cohort manapun
+      -- (beda dari CTE retained di atas yang cuma hitung irisan dgn cohort)
+      -- - query MANDIRI per titik, jadi titik TERAKHIR pun dapat angka benar
+      -- (sebelumnya sempat coba akal-akalan "pinjam" dari titik sesudahnya,
+      -- gagal total utk titik terakhir krn tidak ada titik sesudahnya -
+      -- solusi yang benar memang query langsung spt ini, bukan pinjam).
+      current_active AS (
+        SELECT b.label, css2.customer_id
+        FROM buckets b
+        JOIN customer_status_snapshot css2
+          ON css2.company_id = ${cid}
+          AND ${divCond2}
+          AND css2.period_type = ${periodType}
+          AND css2.checkpoint_date = b.pe
+          AND css2.status IN ('active', 'reactivated')
       )
       SELECT
         b.label AS month,
         COUNT(DISTINCT c.customer_id)::int AS cohort_count,
         COUNT(DISTINCT r.customer_id)::int AS retained_count,
         (COUNT(DISTINCT c.customer_id) - COUNT(DISTINCT r.customer_id))::int AS lost_count,
+        COUNT(DISTINCT ca.customer_id)::int AS total_active_count,
         ROUND(COUNT(DISTINCT r.customer_id)::numeric / NULLIF(COUNT(DISTINCT c.customer_id), 0) * 100, 1) AS retention_rate
       FROM buckets b
       LEFT JOIN cohort c ON c.label = b.label
       LEFT JOIN retained r ON r.label = b.label AND r.customer_id = c.customer_id
+      LEFT JOIN current_active ca ON ca.label = b.label
       GROUP BY b.label
       -- ORDER BY label, BUKAN pe (pelajaran HOLDINGIT-697 - titik
       -- kedua-dari-belakang & titik terakhir BISA share checkpoint yang
@@ -116,7 +138,7 @@ export async function fetchRetentionTrend(
     for (const id of cohortSet) if (currentSet.has(id)) retained_count++
     const lost_count = cohort_count - retained_count
     const retention_rate = cohort_count > 0 ? Math.round((retained_count / cohort_count) * 1000) / 10 : 0
-    return { month: b.label, cohort_count, retained_count, lost_count, retention_rate }
+    return { month: b.label, cohort_count, retained_count, lost_count, total_active_count: currentSet.size, retention_rate }
   })
 }
 
@@ -126,6 +148,7 @@ function mapRetentionRow(row: Record<string, unknown>): RetentionTrendRow {
     cohort_count: Number(row.cohort_count ?? 0),
     retained_count: Number(row.retained_count ?? 0),
     lost_count: Number(row.lost_count ?? 0),
+    total_active_count: Number(row.total_active_count ?? 0),
     retention_rate: Number(row.retention_rate ?? 0),
   }
 }

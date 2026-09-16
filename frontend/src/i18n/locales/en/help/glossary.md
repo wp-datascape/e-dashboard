@@ -5,8 +5,8 @@ These terms appear on the summary cards and drilldown tables of nearly every KPI
 Every customer who has ever transacted falls into exactly one of these statuses in a given period (except Relapsed, which is an extra marker on a subset of Dormant).
 
 - **Acquisition**: A customer making their very first transaction in the current period.
-- **Active Customer**: A customer who transacted in the previous period and transacts again in the current period.
-- **Reactivated**: A customer who did not transact in the previous period but transacts again in the current period (and is not a first-time Acquisition).
+- **Active Customer**: A customer who has transacted before (not Acquisition) and has NOT yet crossed the dormant threshold, transacting again in the current period — including a customer who skipped 1 or more periods without transacting (Lapsed) as long as they haven't crossed the dormant threshold. Lapsed counts as "active without a transaction," not stopped, so transacting again while still Lapsed stays Active Customer, not Reactivated.
+- **Reactivated**: A customer who had ALREADY crossed the dormant threshold in a previous period, then transacts again in the current period (and is not a first-time Acquisition). The difference from Active Customer: this requires having actually reached Dormant status first, not merely skipping one period (that's still Lapsed).
 - **Lapsed**: A customer who has transacted before, has no transaction this period, but has not yet crossed the dormant threshold for their business category.
 - **Dormant**: A customer who has transacted before and has crossed the dormant threshold. Considered stopped or at risk of being lost.
 - **Relapsed**: A customer who came back active after being dormant (Reactivated), but has fallen dormant again this period. This is an extra marker, not a standalone 6th status.

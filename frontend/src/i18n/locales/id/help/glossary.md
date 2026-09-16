@@ -5,8 +5,8 @@ Istilah-istilah ini muncul di kartu dan tabel rincian (drilldown) hampir semua K
 Setiap pelanggan yang sudah pernah bertransaksi berada di tepat satu status ini pada satu periode (kecuali Relapsed, yang merupakan penanda tambahan pada subset Dormant).
 
 - **Acquisition**: Pelanggan yang baru pertama kali bertransaksi di periode berjalan.
-- **Active Customer**: Pelanggan yang bertransaksi di periode sebelumnya, dan bertransaksi lagi di periode berjalan.
-- **Reactivated**: Pelanggan yang tidak bertransaksi di periode sebelumnya, tapi kembali bertransaksi di periode berjalan (dan bukan pelanggan baru/Acquisition).
+- **Active Customer**: Pelanggan yang sudah pernah bertransaksi sebelumnya (bukan Acquisition) dan BELUM melewati ambang waktu dormant, yang bertransaksi lagi di periode berjalan — termasuk yang sempat tidak bertransaksi 1 periode atau lebih (Lapsed) selama belum sampai melewati ambang dormant. Lapsed dianggap status "aktif tanpa transaksi", bukan berhenti, jadi balik transaksi lagi TETAP Active Customer, bukan Reactivated.
+- **Reactivated**: Pelanggan yang SUDAH melewati ambang waktu dormant di periode sebelumnya, lalu kembali bertransaksi di periode berjalan (dan bukan pelanggan baru/Acquisition). Beda dari Active Customer: syaratnya harus sudah berstatus Dormant dulu, bukan sekadar tidak bertransaksi 1 periode (itu masih Lapsed).
 - **Lapsed**: Pelanggan yang pernah bertransaksi, tidak bertransaksi di periode ini, tapi belum melewati ambang waktu dormant untuk kategori bisnisnya.
 - **Dormant**: Pelanggan yang pernah bertransaksi, dan sudah melewati ambang waktu dormant. Dianggap berhenti atau berisiko hilang.
 - **Relapsed**: Pelanggan yang sempat aktif kembali setelah dormant (Reactivated), tapi dormant lagi di periode ini. Penanda tambahan, bukan status ke-6 yang berdiri sendiri.

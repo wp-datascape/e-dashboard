@@ -27,23 +27,49 @@ import { KpiCard } from '../CrossSelling/HelperComponents';
 
 // Tooltip custom (2026-09-16, instruksi user: "gunakan tooltip custom
 // seperti chart lain nya" — pola SAMA PERSIS M10Tooltip, ChartTooltipCard
-// atomic). Isi 4 baris SUDAH tersedia semua di titik trend (cohort_count/
-// retained_count/lost_count/retention_rate, tidak perlu field baru) —
-// dikonfirmasi user lewat AskUserQuestion, opsi "4 angka yang sudah ada".
-// TANPA hint klik (beda dari M10) - M11 belum punya dialog drilldown per
-// titik chart, lihat JSDoc scope M11RetentionRate di bawah.
+// atomic). TANPA hint klik (beda dari M10) - M11 belum punya dialog
+// drilldown per titik chart, lihat JSDoc scope M11RetentionRate di bawah.
+//
+// Struktur final (2026-09-16, hasil diskusi panjang dgn user soal istilah
+// "cohort" yang membingungkan) - user usulkan definisi ulang: "Total Aktif
+// = Total customer yang transaksi di periode TERSEBUT (bukan periode
+// sebelumnya) = Customer Bertahan + Transaksi Baru". Percobaan PERTAMA
+// (outside_cohort_count, dihitung dari 2 titik trend bersebelahan tanpa
+// query backend baru) SALAH SECARA STRUKTURAL - nilainya kebetulan benar
+// tapi nempel di TITIK YANG SALAH (menjelaskan aktivitas titik SEBELUMNYA,
+// bukan titik itu sendiri), dan titik TERAKHIR/terkini tidak bisa dapat
+// angka sama sekali dgn cara itu (tidak ada "titik sesudahnya" utk
+// dipinjam). Diperbaiki dgn field backend baru `total_active_count`
+// (query MANDIRI per titik, m11.repository.ts) - berlaku sama persis utk
+// SEMUA titik termasuk yang terakhir, tidak ada pengecualian/gap lagi.
+//
+// total_active_count SELALU >= retained_count (retained itu subset aktif
+// sekarang) - jadi "Transaksi Baru" = total_active_count - retained_count
+// (bagian yang BUKAN dari cohort periode sebelumnya) SELALU >= 0, aman
+// dihitung tanpa fallback null.
+//
+// Istilah "Transaksi Baru" (BUKAN reuse "Reactivated") - dikonfirmasi user
+// setelah audit definisi Glosarium vs kode: populasi ini gabungan SEBAGIAN
+// Active Customer (yg sempat Lapsed lalu transaksi lagi, TETAP Active
+// Customer krn Lapsed = "aktif tanpa transaksi", bukan berhenti) +
+// SEBAGIAN Reactivated (yg sempat Dormant lalu transaksi lagi) - tidak
+// sama dgn salah satu dari 6 status resmi manapun sendirian (lihat koreksi
+// definisi Active Customer/Reactivated di glossary.md id+en, hari yang
+// sama - user tegaskan kode benar, teks Glosarium lama yang keliru).
 function M11Tooltip({ active, payload, periodType }: TooltipContentProps<number, string> & { periodType: PeriodGranularity }) {
   const { t } = useTranslation();
   if (!active || !payload?.[0]) return null;
-  const d = payload[0].payload as { month: string; retention_rate: number; cohort_count: number; retained_count: number; lost_count: number };
+  const d = payload[0].payload as { month: string; retention_rate: number; retained_count: number; lost_count: number; total_active_count: number };
+  const newThisPeriod = d.total_active_count - d.retained_count;
 
   return (
     <ChartTooltipCard
       title={t('dormantCustomer.m11TooltipTitle', { month: formatPeriodLabelShort(t, periodType, d.month) })}
       rows={[
         { label: t('dormantCustomer.m11RetentionRateLabel'), value: `${d.retention_rate.toFixed(1)}%` },
-        { label: t('dormantCustomer.m11CohortCountLabel'), value: d.cohort_count.toLocaleString('id-ID') },
-        { label: t('dormantCustomer.m11RetainedCountLabel'), value: d.retained_count.toLocaleString('id-ID') },
+        { label: t('dormantCustomer.m11CohortCountLabel'), value: d.total_active_count.toLocaleString('id-ID') },
+        { label: t('dormantCustomer.m11RetainedCountLabel'), value: d.retained_count.toLocaleString('id-ID'), indent: true },
+        { label: t('dormantCustomer.m11OutsideCohortLabel'), value: newThisPeriod.toLocaleString('id-ID'), indent: true },
         { label: t('dormantCustomer.m11LostCountLabel'), value: d.lost_count.toLocaleString('id-ID') },
       ]}
     />
