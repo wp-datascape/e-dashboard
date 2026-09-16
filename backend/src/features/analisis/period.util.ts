@@ -507,10 +507,23 @@ export function getElapsedRangeEnd(periodType: PeriodType, today: Date = new Dat
  * `getDormantCustomerMetrics` kenapa: status absen cuma bisa dipastikan
  * kalau bulan itu sudah tutup).
  */
-export function buildStatusCheckpointBuckets(periodType: PeriodType, currentKey: string, count: number): TrailingPeriodBucket[] {
+export function buildStatusCheckpointBuckets(periodType: PeriodType, currentKey: string, count: number, today: Date = new Date()): TrailingPeriodBucket[] {
   const labelBuckets = buildTrailingPeriods(periodType, currentKey, count)
+  // isCurrentOpenPeriod (2026-09-17, bug ditemukan user lewat live production -
+  // "retention rate desember == november, padahal desember sudah tutup 9
+  // bulan lalu") - SEBELUMNYA cuma cek POSISI array (`i === panjang - 1`),
+  // TANPA bandingkan ke tanggal hari ini SUNGGUHAN. Akibatnya, titik TERAKHIR
+  // dari RENTANG YANG DIMINTA (mis. period_end difilter ke Desember 2025)
+  // dikira "belum tutup" cuma krn dia titik terakhir array - padahal periode
+  // itu SUDAH lama tutup relatif ke real `today`. Dibandingkan `clampToElapsedEnd`
+  // (dipakai resolveTrendPeriod/M3-M7) yang SUDAH benar sejak awal - selalu
+  // cek `periodKey !== getCurrentPeriodKey(periodType, today)` dulu sebelum
+  // memutuskan geser. Fix: tambah syarat yang SAMA di sini - titik terakhir
+  // HANYA dianggap "masih berjalan" kalau label-nya PERSIS periode hari ini
+  // sungguhan, bukan sekadar posisi terakhir array hasil filter.
+  const realCurrentKey = getCurrentPeriodKey(periodType, today)
   return labelBuckets.map((b, i) => {
-    const isCurrentOpenPeriod = i === labelBuckets.length - 1
+    const isCurrentOpenPeriod = i === labelBuckets.length - 1 && b.label === realCurrentKey
     const dataKey = isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, b.label) : b.label
     const dataRange = getPeriodRange(periodType, dataKey)
     return { label: b.label, start: dataRange.start, end: dataRange.end }
@@ -523,14 +536,28 @@ export function buildStatusCheckpointBuckets(periodType: PeriodType, currentKey:
  * (mis. Customer Workbench). SAMA PERSIS titik terakhir
  * `buildStatusCheckpointBuckets`, cuma tanpa overhead bangun 12 titik.
  */
-export function resolveStatusCheckpointDate(periodType: PeriodType, referenceDate: string): string {
+export function resolveStatusCheckpointDate(periodType: PeriodType, referenceDate: string, today: Date = new Date()): string {
   // Parse manual komponen lokal (BUKAN `new Date(referenceDate)`) — string ISO
   // "YYYY-MM-DD" di-parse `new Date()` sbg UTC midnight, bisa geser ke hari
   // lokal yang beda tergantung timezone server (pola sama getCustomerMetrics
   // dkk, metrics.service.ts, "hindari pergeseran timezone dari parsing string ISO").
   const [ry, rm, rd] = referenceDate.split('-').map(Number)
   const currentKey = getCurrentPeriodKey(periodType, new Date(ry!, rm! - 1, rd!))
-  const closedKey = getPreviousPeriodKey(periodType, currentKey)
+  // isCurrentOpenPeriod (2026-09-17, bug SAMA PERSIS yang baru diperbaiki di
+  // buildStatusCheckpointBuckets - ditemukan user via Customer Workbench:
+  // "Base customer MKO Desember 2024, dibuka Period Januari 2025 statusnya
+  // masih Acquisition, bukan Active" - SEBELUMNYA fungsi ini SELALU geser
+  // mundur 1 periode dari `referenceDate` TANPA SYARAT, padahal Customer
+  // Workbench kirim `referenceDate` = tanggal filter "Period" yang DIPILIH
+  // USER (bisa historis, bukan cuma hari ini). Akibatnya filter "Period:
+  // Januari 2025" diam-diam membaca checkpoint DESEMBER 2024 (periode
+  // SEBELUM Januari) - kebetulan itu bulan PERTAMA seluruh data, jadi SEMUA
+  // customer masih Acquisition di situ, "Active Customer" jadi selalu
+  // kosong. Fix: SAMA PERSIS `buildStatusCheckpointBuckets` - cuma geser
+  // mundur kalau referenceDate PERSIS periode hari ini sungguhan; periode
+  // historis (sudah pasti tutup) pakai checkpoint periode itu SENDIRI.
+  const isCurrentOpenPeriod = currentKey === getCurrentPeriodKey(periodType, today)
+  const closedKey = isCurrentOpenPeriod ? getPreviousPeriodKey(periodType, currentKey) : currentKey
   return getPeriodRange(periodType, closedKey).end
 }
 
