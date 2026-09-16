@@ -94,7 +94,7 @@
   "m11RetentionRateLabel": "Retention Rate",
   "m11RetentionRateInfo": "Percentage of customers active last period who are still active this period.",
   "m11TooltipTitle": "Retention Rate — {{month}}",
-  "m11CohortCountLabel": "Total Active",
+  "m11CohortCountLabel": "Existing Active",
   "m11OutsideCohortLabel": "New Transactions",
   "m11RetainedCountLabel": "Retained Customers",
   "m11LostCountLabel": "Lost Customers",

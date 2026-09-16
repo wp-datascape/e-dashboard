@@ -33,7 +33,12 @@ import { KpiCard } from '../CrossSelling/HelperComponents';
 // Struktur final (2026-09-16, hasil diskusi panjang dgn user soal istilah
 // "cohort" yang membingungkan) - user usulkan definisi ulang: "Total Aktif
 // = Total customer yang transaksi di periode TERSEBUT (bukan periode
-// sebelumnya) = Customer Bertahan + Transaksi Baru". Percobaan PERTAMA
+// sebelumnya) = Customer Bertahan + Transaksi Baru". Label baris DIGANTI
+// jadi "Existing Active" (susulan sama hari, koreksi user: populasi ini
+// PERSIS `Active Customer + Reactivated` di checkpoint titik ini - sudah
+// punya nama resmi di Glosarium, "Existing Active", SAMA istilah yang
+// dipakai M3-M6 (denominator mereka) - bukan istilah ad-hoc baru "Total
+// Aktif". Percobaan PERTAMA
 // (outside_cohort_count, dihitung dari 2 titik trend bersebelahan tanpa
 // query backend baru) SALAH SECARA STRUKTURAL - nilainya kebetulan benar
 // tapi nempel di TITIK YANG SALAH (menjelaskan aktivitas titik SEBELUMNYA,
