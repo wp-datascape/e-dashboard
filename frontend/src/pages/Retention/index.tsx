@@ -94,6 +94,21 @@ export default function Retention() {
         hasAccess={canExpansion || canChurnRisk}
         loading={cmLoading || dcLoading || retentionLoading}
       >
+        {/* M11 Retention Rate dipindah ke posisi PALING ATAS (2026-09-16,
+            instruksi user: "Retention section pindahkan ke posisi paling
+            atas") - digabung 1 blok permission canChurnRisk yang sama dgn
+            M8/M9/M10 (BUKAN blok terpisah) supaya tidak muncul 2
+            NoSectionAccess dobel kalau permission tidak ada. */}
+        {canChurnRisk ? (
+          <M11RetentionRate
+            data={retentionData}
+            isLoading={retentionLoading}
+            periodType={periodTypeFilter.periodType}
+          />
+        ) : (
+          <NoSectionAccess />
+        )}
+
         {canExpansion ? (
           <M6RepeatOrder
             isLoading={cmLoading}
@@ -148,15 +163,8 @@ export default function Retention() {
               excludeIntercompany={excludeIntercompany}
               onlyPareto={onlyPareto}
             />
-            <M11RetentionRate
-              data={retentionData}
-              isLoading={retentionLoading}
-              periodType={periodTypeFilter.periodType}
-            />
           </>
-        ) : (
-          <NoSectionAccess />
-        )}
+        ) : null}
       </AdvancedFilterBar>
     </Box>
   );
